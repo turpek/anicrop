@@ -53,20 +53,17 @@ def test_Span_expand_com_valor_negativo():
 
 def test_Span_expand_com_zero():
     span = Span(0, 10).expand(0)
-    result = span.length
-    assert result == 10
+    assert span == Span(0, 10)
 
 
 def test_Span_expand_com_start_zero():
     span = Span(0, 10).expand(1)
-    result = span.length
-    assert result == 11
+    assert span == Span(0, 11)
 
 
 def test_Span_expand_com_start_maior_que_zero():
     span = Span(1, 10).expand(1)
-    result = span.length
-    assert result == 11
+    assert span == Span(0, 11)
 
 
 def test_Span_shrink_com_valor_negativo():
@@ -80,14 +77,12 @@ def test_Span_shrink_com_valor_negativo():
 
 def test_Span_shrink_com_valor_zero():
     span = Span(0, 10).shrink(0)
-    result = span.length
-    assert result == 10
+    assert span == Span(0, 10)
 
 
 def test_Span_shrink_com_valor_positivo():
     span = Span(0, 10).shrink(1)
-    result = span.length
-    assert result == 8
+    assert span == Span(1, 9)
 
 
 def test_Span_shrink_gerando_start_igual_a_end():
@@ -108,32 +103,27 @@ def test_Span_shrink_gerando_start_maior_que_end():
 
 def test_Span_deslocamento_para_direita():
     span = Span(3, 10) + 5
-    result = span.start
-    assert result == 8
+    assert span == Span(8, 15)
 
 
 def test_Span_deslocamento_para_esquerda():
     span = Span(3, 10) - 2
-    result = span.start
-    assert result == 1
+    assert span == Span(1, 8)
 
 
 def test_Span_deslocamento_para_esquerda_com_offset_maior_que_start():
     span = Span(3, 10) - 5
-    result = span.start
-    assert result == 0
+    assert span == Span(0, 5)
 
 
 def test_Span_uniao_de_dois_span():
     span = Span(6, 15) | Span(2, 10)
-    result = span.length
-    assert result == 13
+    assert span == Span(2, 15)
 
 
 def test_Span_sobreposicao_de_dois_span():
     span = Span(6, 15) & Span(2, 10)
-    result = span.length
-    assert result == 4
+    assert span == Span(6, 10)
 
 
 def test_Span_sobreposicao_de_dois_span_sem_sobreposicao():

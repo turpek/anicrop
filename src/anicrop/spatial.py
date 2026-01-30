@@ -1,6 +1,4 @@
 from __future__ import annotations
-from abc import ABC, abstractmethod
-from typing import Self
 
 
 class SpanError(Exception):
@@ -43,69 +41,13 @@ class Span:
     def __repr__(self):
         return f"{self.__class__.__name__}(start={self.start}, end={self.end})"
 
-    @property
-    def length(self) -> int:
-        """The length of the span, calculated as `end - start`."""
-        return self._end - self._start
+    def __eq__(self, span: Span) -> bool:
+        if not isinstance(span, Span):
+            return NotImplemented
 
-    @property
-    def start(self) -> int:
-        """The starting point of the span."""
-        return self._start
-
-    @property
-    def end(self) -> int:
-        """The ending point of the span."""
-        return self._end
-
-    def expand(self, margin: int) -> Span:
-        """Expands the span outward, limited by a boundary.
-
-        Args:
-            margin: The number of units to expand on each side.
-            bounds: A Span representing the boundaries to not exceed.
-
-        Returns:
-            A new Span object expanded and bounded.
-
-        Raises:
-            ValueError: If the margin is negative.
-        """
-
-        start_expand = max(0, self.start - margin)
-
-        if margin < 0:
-            raise ValueError(
-                "Margin for expand() must be non-negative. To contract "
-                "the span, use the shrink() method with a positive margin."
-            )
-
-        return Span(start_expand, self.end + margin)
-
-    def shrink(self, margin: int) -> Span:
-
-        """Shrinks the span inward.
-
-        Args:
-            margin: The non-negative number of units to shrink on each side.
-
-        Returns:
-            A new, smaller Span object.
-
-        Raises:
-            ValueError: If the margin is negative.
-        """
-
-        if margin < 0:
-            raise ValueError(
-                f"Margin for shrink() must be non-negative, but got {margin}. "
-                "To expand the span, use the expand() method with a positive margin."
-            )
-
-        return Span(self.start + margin, self.end - margin)
+        return self.start == span.start and self.end == span.end
 
     def __add__(self, offset: int) -> Span:
-
         """Shifts the span to the right.
 
         Implements the `Span + int` operation.
@@ -172,6 +114,66 @@ class Span:
         overlap_start = max(self.start, span.start)
         overlap_end = min(self.end, span.end)
         return Span(overlap_start, overlap_end)
+
+    @property
+    def length(self) -> int:
+        """The length of the span, calculated as `end - start`."""
+        return self._end - self._start
+
+    @property
+    def start(self) -> int:
+        """The starting point of the span."""
+        return self._start
+
+    @property
+    def end(self) -> int:
+        """The ending point of the span."""
+        return self._end
+
+    def expand(self, margin: int) -> Span:
+        """Expands the span outward.
+
+        Args:
+            margin: The number of units to expand on each side.
+
+        Returns:
+            A new Span object expanded.
+
+        Raises:
+            ValueError: If the margin is negative.
+        """
+
+        start_expand = max(0, self.start - margin)
+
+        if margin < 0:
+            raise ValueError(
+                "Margin for expand() must be non-negative. To contract "
+                "the span, use the shrink() method with a positive margin."
+            )
+
+        return Span(start_expand, self.end + margin)
+
+    def shrink(self, margin: int) -> Span:
+
+        """Shrinks the span inward.
+
+        Args:
+            margin: The non-negative number of units to shrink on each side.
+
+        Returns:
+            A new, smaller Span object.
+
+        Raises:
+            ValueError: If the margin is negative.
+        """
+
+        if margin < 0:
+            raise ValueError(
+                f"Margin for shrink() must be non-negative, but got {margin}. "
+                "To expand the span, use the expand() method with a positive margin."
+            )
+
+        return Span(self.start + margin, self.end - margin)
 
     def offset_to(self, span: Span) -> int:
         """Calculates the offset between the start point of this span and another's.
