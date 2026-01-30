@@ -1,0 +1,16 @@
+[project]
+name = "anicrop"
+version = "0.1.0"
+description = "Programa para fazer stitch de animes"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = []
+
+[dependency-groups]
+dev = [
+    "ipython>=9.9.0",
+    "pytest>=9.0.2",
+    "pytest-mock>=3.15.1",
+]
+
+
