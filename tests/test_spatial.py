@@ -1,5 +1,5 @@
 from anicrop.spatial import Span, SpanError
-from pytest import raises, mark
+from pytest import raises
 
 
 def test_Span_com_start_igual_a_end():
@@ -46,45 +46,27 @@ def test_Span_expand_com_valor_negativo():
         "the span, use the shrink() method with a positive margin."
     )
     with raises(ValueError) as excinfo:
-        Span(0, 10).expand(-1, Span(0, 20))
+        Span(0, 10).expand(-1)
     result = str(excinfo.value)
     assert result == expect
 
 
 def test_Span_expand_com_zero():
-    span = Span(0, 10).expand(0, Span(0, 20))
+    span = Span(0, 10).expand(0)
     result = span.length
     assert result == 10
 
 
 def test_Span_expand_com_start_zero():
-    span = Span(0, 10).expand(1, Span(0, 20))
+    span = Span(0, 10).expand(1)
     result = span.length
     assert result == 11
 
 
 def test_Span_expand_com_start_maior_que_zero():
-    span = Span(1, 10).expand(1, Span(0, 20))
+    span = Span(1, 10).expand(1)
     result = span.length
     assert result == 11
-
-
-def test_Span_expand_com_end_expandido_igual_ao_bound_end():
-    span = Span(1, 10).expand(1, Span(0, 11))
-    result = span.length
-    assert result == 11
-
-
-def test_Span_expand_com_end_expandido_maior_que_bound_end():
-    span = Span(1, 10).expand(2, Span(0, 11))
-    result = span.length
-    assert result == 11
-
-
-def test_Span_expand_com_start_expandido_menor_que_bound_start():
-    span = Span(6, 10).expand(2, Span(5, 11))
-    result = span.start
-    assert result == 5
 
 
 def test_Span_shrink_com_valor_negativo():

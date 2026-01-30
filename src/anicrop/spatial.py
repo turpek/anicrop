@@ -58,7 +58,7 @@ class Span:
         """The ending point of the span."""
         return self._end
 
-    def expand(self, margin: int, bounds: Span) -> Span:
+    def expand(self, margin: int) -> Span:
         """Expands the span outward, limited by a boundary.
 
         Args:
@@ -72,8 +72,7 @@ class Span:
             ValueError: If the margin is negative.
         """
 
-        end = min(bounds.end, self.end + margin)
-        start = max(bounds.start, self.start - margin)
+        start_expand = max(0, self.start - margin)
 
         if margin < 0:
             raise ValueError(
@@ -81,7 +80,7 @@ class Span:
                 "the span, use the shrink() method with a positive margin."
             )
 
-        return Span(start, end)
+        return Span(start_expand, self.end + margin)
 
     def shrink(self, margin: int) -> Span:
 
