@@ -1,4 +1,4 @@
-from anicrop.spatial import Span
+from anicrop.spatial import Span, SpanError
 from pytest import raises, mark
 
 
@@ -122,3 +122,51 @@ def test_Span_shrink_gerando_start_maior_que_end():
         Span(0, 1).shrink(1)
     result = str(excinfo.value)
     assert result == expect
+
+
+def test_Span_deslocamento_para_direita():
+    span = Span(3, 10) + 5
+    result = span.start
+    assert result == 8
+
+
+def test_Span_deslocamento_para_esquerda():
+    span = Span(3, 10) - 2
+    result = span.start
+    assert result == 1
+
+
+def test_Span_deslocamento_para_esquerda_com_offset_maior_que_start():
+    span = Span(3, 10) - 5
+    result = span.start
+    assert result == 0
+
+
+def test_Span_uniao_de_dois_span():
+    span = Span(6, 15) | Span(2, 10)
+    result = span.length
+    assert result == 13
+
+
+def test_Span_sobreposicao_de_dois_span():
+    span = Span(6, 15) & Span(2, 10)
+    result = span.length
+    assert result == 4
+
+
+def test_Span_sobreposicao_de_dois_span_sem_sobreposicao():
+    expect = "no overlap between spans."
+    with raises(SpanError) as excinfo:
+        Span(6, 15) & Span(15, 30)
+    result = str(excinfo.value)
+    assert result == expect
+
+
+def test_Span_offset_to_com_distancia_poisitiva():
+    result = Span(2, 10).offset_to(Span(6, 15))
+    assert result == 4
+
+
+def test_Span_offset_to_com_distancia_negativa():
+    result = Span(6, 15).offset_to(Span(2, 10))
+    assert result == -4
