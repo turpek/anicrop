@@ -146,6 +146,9 @@ class Span:
         """The ending point of the span."""
         return self._end
 
+    def overlaps(self, other: Span) -> bool:
+        return self.end > other.start and other.end > self.start
+
     def expand(self, margin: int) -> Span:
         """Expands the span outward.
 
