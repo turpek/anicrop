@@ -1,4 +1,4 @@
-from anicrop.spatial import Span, SpanError
+from anicrop.spatial import Span, SpanError, Region, Vector
 from pytest import raises
 
 
@@ -156,3 +156,119 @@ def test_Span_offset_to_com_distancia_poisitiva():
 def test_Span_offset_to_com_distancia_negativa():
     result = Span(6, 15).offset_to(Span(2, 10))
     assert result == -4
+
+
+def test_duas_Region_iguais():
+    assert Region(Span(0, 10), Span(0, 5)) == Region(Span(0, 10), Span(0, 5))
+
+
+def test_Region_deslocamento_para_direita_no_eixo_xy():
+    region = Region(Span(0, 10), Span(0, 5)) + Vector(2, 3)
+    assert region == Region(Span(2, 12), Span(3, 8))
+
+
+def test_Region_deslocamento_para_direita_no_eixo_x():
+    region = Region(Span(0, 10), Span(0, 5)) + Vector(2, 0)
+    assert region == Region(Span(2, 12), Span(0, 5))
+
+
+def test_Region_deslocamento_para_direita_no_eixo_y():
+    region = Region(Span(0, 10), Span(0, 5)) + Vector(0, 3)
+    assert region == Region(Span(0, 10), Span(3, 8))
+
+
+def test_Region_deslocamento_para_esquerda_no_eixo_xy():
+    region = Region(Span(5, 10), Span(10, 15)) - Vector(2, 3)
+    assert region == Region(Span(3, 8), Span(7, 12))
+
+
+def test_Region_deslocamento_para_esquerda_no_eixo_x():
+    region = Region(Span(5, 10), Span(10, 15)) - Vector(2, 0)
+    assert region == Region(Span(3, 8), Span(10, 15))
+
+
+def test_Region_deslocamento_para_esquerda_no_eixo_y():
+    region = Region(Span(5, 10), Span(10, 15)) - Vector(0, 3)
+    assert region == Region(Span(5, 10), Span(7, 12))
+
+
+def test_Region_uniao_de_duas_regioes():
+    region = Region(Span(5, 10), Span(10, 15)) | Region(Span(7, 20), Span(12, 25))
+    assert region == Region(Span(5, 20), Span(10, 25))
+
+
+def test_Region_sobreposicao_de_duas_regioes():
+    region = Region(Span(5, 10), Span(10, 15)) & Region(Span(7, 20), Span(12, 25))
+    assert region == Region(Span(7, 10), Span(12, 15))
+
+
+def test_Region_overlaps_no_eixo_xy():
+    region = Region(Span(5, 10), Span(10, 15))
+    assert region.overlaps(Region(Span(7, 20), Span(12, 25)))
+
+
+def test_Region_overlaps_no_eixo_x():
+    region = Region(Span(5, 10), Span(10, 15))
+    assert not region.overlaps(Region(Span(15, 20), Span(12, 25)))
+
+
+def test_Region_overlaps_no_eixo_y():
+    region = Region(Span(5, 10), Span(10, 15))
+    assert not region.overlaps(Region(Span(15, 20), Span(22, 25)))
+
+
+def test_Region_area():
+    region = Region(Span(5, 10), Span(10, 15))
+    assert region.area == 25
+
+
+def test_Region_width():
+    region = Region(Span(5, 10), Span(10, 15))
+    assert region.width == 5
+
+
+def test_Region_height():
+    region = Region(Span(5, 10), Span(10, 15))
+    assert region.height == 5
+
+
+def test_Region_expand_em_no_eixo_xy():
+    region = Region(Span(5, 10), Span(10, 15)).expand(Vector(5, 5))
+    assert region == Region(Span(0, 15), Span(5, 20))
+
+
+def test_Region_expand_em_no_eixo_x():
+    region = Region(Span(5, 10), Span(10, 15)).expand(Vector(5, 0))
+    assert region == Region(Span(0, 15), Span(10, 15))
+
+
+def test_Region_expand_em_no_eixo_y():
+    region = Region(Span(5, 10), Span(10, 15)).expand(Vector(0, 5))
+    assert region == Region(Span(5, 10), Span(5, 20))
+
+
+def test_Region_shrink_em_no_eixo_xy():
+    region = Region(Span(0, 15), Span(10, 25)).shrink(Vector(5, 5))
+    assert region == Region(Span(5, 10), Span(15, 20))
+
+
+def test_Region_shrink_em_no_eixo_x():
+    region = Region(Span(0, 15), Span(10, 25)).shrink(Vector(5, 0))
+    assert region == Region(Span(5, 10), Span(10, 25))
+
+
+def test_Region_shrink_em_no_eixo_y():
+    region = Region(Span(0, 15), Span(10, 25)).shrink(Vector(0, 5))
+    assert region == Region(Span(0, 15), Span(15, 20))
+
+
+def test_Region_offset_positivo():
+    region = Region(Span(50, 60), Span(55, 80))
+    result = Region(Span(0, 15), Span(10, 25)).offset_to(region)
+    assert result == Vector(50, 45)
+
+
+def test_Region_offset_negativo():
+    region = Region(Span(0, 15), Span(10, 25))
+    result = Region(Span(50, 60), Span(55, 80)).offset_to(region)
+    assert result == Vector(-50, -45)
