@@ -121,10 +121,10 @@ class Span:
             A new Span representing the overlapping area.
 
         Raises:
-            SpanError: If there is no overlap between the spans.
+            SpanError: If there is no overlaps between the spans.
         """
 
-        if self.end <= span.start or span.end <= self.start:
+        if not self.overlaps(span):
             raise SpanError("no overlap between spans.")
 
         overlap_start = max(self.start, span.start)
