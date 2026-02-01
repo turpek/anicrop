@@ -287,6 +287,16 @@ def test_Region_expand_em_no_eixo_y():
     assert region == Region(Span(5, 10), Span(5, 20))
 
 
+def test_Region_expand_left_e_top():
+    region = Region(Span(5, 10), Span(10, 15)).expand(left=5, top=5)
+    assert region == Region(Span(0, 10), Span(5, 15))
+
+
+def test_Region_expand_right_e_bottom():
+    region = Region(Span(5, 10), Span(10, 15)).expand(right=5, bottom=5)
+    assert region == Region(Span(5, 15), Span(10, 20))
+
+
 def test_Region_shrink_em_no_eixo_xy():
     region = Region(Span(0, 15), Span(10, 25)).shrink(Vector(5, 5))
     assert region == Region(Span(5, 10), Span(15, 20))
@@ -300,6 +310,16 @@ def test_Region_shrink_em_no_eixo_x():
 def test_Region_shrink_em_no_eixo_y():
     region = Region(Span(0, 15), Span(10, 25)).shrink(Vector(0, 5))
     assert region == Region(Span(0, 15), Span(15, 20))
+
+
+def test_Region_shrink_left_e_top():
+    region = Region(Span(0, 15), Span(10, 25)).shrink(left=5, top=5)
+    assert region == Region(Span(5, 15), Span(15, 25))
+
+
+def test_Region_shrink_right_e_bottom():
+    region = Region(Span(0, 15), Span(10, 25)).shrink(right=5, bottom=5)
+    assert region == Region(Span(0, 10), Span(10, 20))
 
 
 def test_Region_offset_positivo():
