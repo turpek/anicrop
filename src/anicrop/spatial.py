@@ -1,4 +1,5 @@
 from __future__ import annotations
+from ovld import ovld
 
 
 class SpanError(Exception):
@@ -17,8 +18,21 @@ class Span:
         length (int): The length of the span, calculated as `end - start`.
     """
 
-    def __init__(self, start: int, end: int):
+    @ovld
+    def __init__(self, end: int, /):
+        """Initializes a Span with start=0.
 
+        Args:
+            start: The starting point of the span. Must be non-negative.
+            end: The ending point of the span. Must be greater than start.
+
+        Raises:
+            ValueError: If `start >= end`.
+        """
+        self._setup(0, end)
+
+    @ovld
+    def __init__(self, start: int, end: int, /):  # noqa: F811
         """Initializes a Span.
 
         Args:
@@ -28,7 +42,9 @@ class Span:
         Raises:
             ValueError: If `start < 0` or if `start >= end`.
         """
+        self._setup(start, end)
 
+    def _setup(self, start: int, end: int) -> None:
         if start < 0:
             raise ValueError(f'start cannot be less than 0 (start={start})')
 

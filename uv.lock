@@ -6,6 +6,9 @@ requires-python = ">=3.12"
 name = "anicrop"
 version = "0.1.0"
 source = { virtual = "." }
+dependencies = [
+    { name = "ovld" },
+]
 
 [package.dev-dependencies]
 dev = [
@@ -18,6 +21,7 @@ dev = [
 ]
 
 [package.metadata]
+requires-dist = [{ name = "ovld", specifier = ">=0.5.14" }]
 
 [package.metadata.requires-dev]
 dev = [
@@ -310,6 +314,15 @@ source = { registry = "https://pypi.org/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/a2/6e/371856a3fb9d31ca8dac321cda606860fa4548858c0cc45d9d1d4ca2628b/mypy_extensions-1.1.0.tar.gz", hash = "sha256:52e68efc3284861e772bbcd66823fde5ae21fd2fdb51c62a211403730b916558", size = 6343, upload-time = "2025-04-22T14:54:24.164Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/79/7b/2c79738432f5c924bef5071f933bcc9efd0473bac3b4aa584a6f7c1c8df8/mypy_extensions-1.1.0-py3-none-any.whl", hash = "sha256:1be4cccdb0f2482337c4743e60421de3a356cd97508abadd57d47403e94f5505", size = 4963, upload-time = "2025-04-22T14:54:22.983Z" },
+]
+
+[[package]]
+name = "ovld"
+version = "0.5.14"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/da/2d/ef4b1de457fb0a5e96fc6cdeaf7cd185186ac4bde6b1d922381fe89c439d/ovld-0.5.14.tar.gz", hash = "sha256:34bb7c1a3a3ee2656a8e8d7b840fdb9e4828efa27ea91e50d8e93b3f35122179", size = 105191, upload-time = "2026-01-15T23:09:50.254Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/17/45/032d3c8008080861085e5bea4d0635fcaf75a362dcf2668780c1bd610f82/ovld-0.5.14-py3-none-any.whl", hash = "sha256:964474b85a1ecd8d1a163db4d02c1be67ddd87c3e64ee115a46cf7c666828152", size = 39941, upload-time = "2026-01-15T23:09:48.981Z" },
 ]
 
 [[package]]

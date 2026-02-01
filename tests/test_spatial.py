@@ -2,6 +2,10 @@ from anicrop.spatial import Span, SpanError
 from pytest import raises
 
 
+def test_Span_instanciacao_com_um_parametro():
+    assert Span(5) == Span(0, 5)
+
+
 def test_Span_com_start_igual_a_end():
     expect = "start must be < end (start=0, end=0)"
     with raises(ValueError) as excinfo:

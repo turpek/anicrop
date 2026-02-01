@@ -4,7 +4,9 @@ version = "0.1.0"
 description = "Programa para fazer stitch de animes"
 readme = "README.md"
 requires-python = ">=3.12"
-dependencies = []
+dependencies = [
+    "ovld>=0.5.14",
+]
 
 [dependency-groups]
 dev = [
