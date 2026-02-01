@@ -47,7 +47,7 @@ def test_Span_length_com_valores_positivos():
 def test_Span_expand_com_valor_negativo():
     expect = (
         "Margin for expand() must be non-negative. To contract "
-        "the span, use the shrink() method with a positive margin."
+        "the span, use the shrink() method with a positive value."
     )
     with raises(ValueError) as excinfo:
         Span(0, 10).expand(-1)
@@ -70,8 +70,28 @@ def test_Span_expand_com_start_maior_que_zero():
     assert span == Span(0, 11)
 
 
+def test_Span_expand_com_after():
+    span = Span(1, 10).expand(after=1)
+    assert span == Span(1, 11)
+
+
+def test_Span_expand_com_before():
+    span = Span(1, 10).expand(before=1)
+    assert span == Span(0, 10)
+
+
+def test_Span_expand_com_both():
+    span = Span(1, 10).expand(both=1)
+    assert span == Span(0, 11)
+
+
+def test_Span_expand_com_both_e_after():
+    span = Span(1, 10).expand(both=1, after=3)
+    assert span == Span(0, 11)
+
+
 def test_Span_shrink_com_valor_negativo():
-    expect = ("Margin for shrink() must be non-negative, but got -1. "
+    expect = ("Margin for shrink() must be non-negative. To contract "
               "To expand the span, use the expand() method with a positive margin.")
     with raises(ValueError) as excinfo:
         Span(0, 2).shrink(-1)
@@ -86,6 +106,26 @@ def test_Span_shrink_com_valor_zero():
 
 def test_Span_shrink_com_valor_positivo():
     span = Span(0, 10).shrink(1)
+    assert span == Span(1, 9)
+
+
+def test_Span_shrink_com_before():
+    span = Span(0, 10).shrink(before=1)
+    assert span == Span(1, 10)
+
+
+def test_Span_shrink_com_after():
+    span = Span(0, 10).shrink(after=1)
+    assert span == Span(0, 9)
+
+
+def test_Span_shrink_com_both():
+    span = Span(0, 10).shrink(both=1)
+    assert span == Span(1, 9)
+
+
+def test_Span_shrink_com_both_e_after():
+    span = Span(0, 10).shrink(both=1, after=3)
     assert span == Span(1, 9)
 
 

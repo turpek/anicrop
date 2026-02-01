@@ -150,7 +150,7 @@ class Span:
     def overlaps(self, other: Span) -> bool:
         return self.end > other.start and other.end > self.start
 
-    def expand(self, both: int = None, before: int = 0, after: int = 0) -> Span:
+    def expand(self, both: int = None, *, before: int = 0, after: int = 0) -> Span:
         """Expands the span outward.
 
         Args:
@@ -176,7 +176,7 @@ class Span:
 
         return Span(start_expand, self.end + after)
 
-    def shrink(self, both: int = None, before: int = 0, after: int = 0) -> Span:
+    def shrink(self, both: int = None, *, before: int = 0, after: int = 0) -> Span:
 
         """Shrinks the span inward.
 
