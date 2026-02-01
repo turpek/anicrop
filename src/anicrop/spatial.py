@@ -1,4 +1,5 @@
 from __future__ import annotations
+from dataclasses import dataclass
 from ovld import ovld
 
 
@@ -209,3 +210,54 @@ class Span:
         """
 
         return span.start - self.start
+
+
+@dataclass(frozen=True)
+class Vector:
+    x: int = 0
+    y: int = 0
+
+    def __abs__(self) -> Vector:
+        return Vector(abs(self.x), abs(self.y))
+
+
+@dataclass(frozen=True)
+class Region:
+    x: Span
+    y: Span
+
+    def __add__(self, offset: Vector) -> Region:
+        return Region(self.x + offset.x, self.y + offset.y)
+
+    def __sub__(self, offset: Vector) -> Region:
+        return Region(self.x - offset.x, self.y - offset.y)
+
+    def __or__(self, other: Region) -> Region:
+        return Region(self.x | other.x, self.y | other.y)
+
+    def __and__(self, other: Region) -> Region:
+        return Region(self.x & other.x, self.y & other.y)
+
+    @property
+    def area(self) -> int:
+        return self.x.length * self.y.length
+
+    @property
+    def width(self) -> int:
+        return self.x.length
+
+    @property
+    def height(self) -> int:
+        return self.y.length
+
+    def expand(self, margin: Vector) -> Region:
+        return Region(self.x.expand(margin.x), self.y.expand(margin.y))
+
+    def shrink(self, margin: Vector) -> Region:
+        return Region(self.x.shrink(margin.x), self.y.shrink(margin.y))
+
+    def offset_to(self, other: Region) -> Vector:
+        return Vector(self.x.offset_to(other.x), self.y.offset_to(other.y))
+
+    def overlaps(self, other: Region) -> bool:
+        return self.x.overlaps(other.x) and self.y.overlaps(other.y)
