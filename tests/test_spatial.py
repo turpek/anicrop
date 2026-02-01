@@ -138,6 +138,16 @@ def test_Span_sobreposicao_de_dois_span_sem_sobreposicao():
     assert result == expect
 
 
+def test_Span_overlaps_de_dois_span():
+    span = Span(6, 15)
+    assert span.overlaps(Span(2, 10))
+
+
+def test_Span_overlaps_de_dois_span_sem_sobreposicao():
+    span = Span(6, 15)
+    assert not span.overlaps(Span(15, 30))
+
+
 def test_Span_offset_to_com_distancia_poisitiva():
     result = Span(2, 10).offset_to(Span(6, 15))
     assert result == 4
