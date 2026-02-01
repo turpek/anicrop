@@ -1,6 +1,7 @@
 from __future__ import annotations
 from dataclasses import dataclass
 from ovld import ovld
+from typing import Callable
 
 
 class SpanError(Exception):
@@ -243,6 +244,31 @@ class Region:
     def __and__(self, other: Region) -> Region:
         return Region(self.x & other.x, self.y & other.y)
 
+    def _apply_margins(
+        self,
+        span_op_x: Callable,
+        span_op_y: Callable,
+        all: Vector | int | None = None,
+        *,
+        left: int = 0,
+        right: int = 0,
+        top: int = 0,
+        bottom: int = 0
+    ) -> Region:
+
+        if isinstance(all, Vector):
+            left = right = all.x
+            top = bottom = all.y
+
+        elif isinstance(all, int):
+            left = right = all
+            top = bottom = all
+
+        return Region(
+            span_op_x(before=left, after=right),
+            span_op_y(before=top, after=bottom)
+        )
+
     @property
     def area(self) -> int:
         return self.x.length * self.y.length
@@ -265,17 +291,10 @@ class Region:
         bottom: int = 0
     ) -> Region:
 
-        if isinstance(all, Vector):
-            left = right = all.x
-            top = bottom = all.y
-
-        elif isinstance(all, int):
-            left = right = all
-            top = bottom = all
-
-        return Region(
-            self.x.expand(before=left, after=right),
-            self.y.expand(before=top, after=bottom)
+        return self._apply_margins(
+            self.x.expand, self.y.expand, all,
+            left=left, right=right,
+            top=top, bottom=bottom
         )
 
     def shrink(
@@ -288,17 +307,10 @@ class Region:
         bottom: int = 0
     ) -> Region:
 
-        if isinstance(all, Vector):
-            left = right = all.x
-            top = bottom = all.y
-
-        elif isinstance(all, int):
-            left = right = all
-            top = bottom = all
-
-        return Region(
-            self.x.shrink(before=left, after=right),
-            self.y.shrink(before=top, after=bottom)
+        return self._apply_margins(
+            self.x.shrink, self.y.shrink, all,
+            left=left, right=right,
+            top=top, bottom=bottom
         )
 
     def offset_to(self, other: Region) -> Vector:
