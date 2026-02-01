@@ -150,7 +150,7 @@ class Span:
     def overlaps(self, other: Span) -> bool:
         return self.end > other.start and other.end > self.start
 
-    def expand(self, margin: int) -> Span:
+    def expand(self, both: int = None, before: int = 0, after: int = 0) -> Span:
         """Expands the span outward.
 
         Args:
@@ -163,17 +163,20 @@ class Span:
             ValueError: If the margin is negative.
         """
 
-        start_expand = max(0, self.start - margin)
+        if both:
+            before = after = both
 
-        if margin < 0:
+        if after < 0 or before < 0:
             raise ValueError(
                 "Margin for expand() must be non-negative. To contract "
-                "the span, use the shrink() method with a positive margin."
+                "the span, use the shrink() method with a positive value."
             )
 
-        return Span(start_expand, self.end + margin)
+        start_expand = max(0, self.start - before)
 
-    def shrink(self, margin: int) -> Span:
+        return Span(start_expand, self.end + after)
+
+    def shrink(self, both: int = None, before: int = 0, after: int = 0) -> Span:
 
         """Shrinks the span inward.
 
@@ -186,14 +189,16 @@ class Span:
         Raises:
             ValueError: If the margin is negative.
         """
+        if both:
+            before = after = both
 
-        if margin < 0:
+        if before < 0 or after < 0:
             raise ValueError(
-                f"Margin for shrink() must be non-negative, but got {margin}. "
+                "Margin for shrink() must be non-negative. To contract "
                 "To expand the span, use the expand() method with a positive margin."
             )
 
-        return Span(self.start + margin, self.end - margin)
+        return Span(self.start + before, self.end - after)
 
     def offset_to(self, span: Span) -> int:
         """Calculates the offset between the start point of this span and another's.
