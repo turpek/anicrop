@@ -255,11 +255,51 @@ class Region:
     def height(self) -> int:
         return self.y.length
 
-    def expand(self, margin: Vector) -> Region:
-        return Region(self.x.expand(margin.x), self.y.expand(margin.y))
+    def expand(
+        self,
+        all: Vector | int | None = None,
+        *,
+        left: int = 0,
+        right: int = 0,
+        top: int = 0,
+        bottom: int = 0
+    ) -> Region:
 
-    def shrink(self, margin: Vector) -> Region:
-        return Region(self.x.shrink(margin.x), self.y.shrink(margin.y))
+        if isinstance(all, Vector):
+            left = right = all.x
+            top = bottom = all.y
+
+        elif isinstance(all, int):
+            left = right = all
+            top = bottom = all
+
+        return Region(
+            self.x.expand(before=left, after=right),
+            self.y.expand(before=top, after=bottom)
+        )
+
+    def shrink(
+        self,
+        all: Vector | int | None = None,
+        *,
+        left: int = 0,
+        right: int = 0,
+        top: int = 0,
+        bottom: int = 0
+    ) -> Region:
+
+        if isinstance(all, Vector):
+            left = right = all.x
+            top = bottom = all.y
+
+        elif isinstance(all, int):
+            left = right = all
+            top = bottom = all
+
+        return Region(
+            self.x.shrink(before=left, after=right),
+            self.y.shrink(before=top, after=bottom)
+        )
 
     def offset_to(self, other: Region) -> Vector:
         return Vector(self.x.offset_to(other.x), self.y.offset_to(other.y))
