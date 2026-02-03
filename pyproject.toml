@@ -5,6 +5,7 @@ description = "Programa para fazer stitch de animes"
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
+    "numpy>=2.4.2",
     "ovld>=0.5.14",
 ]
 
