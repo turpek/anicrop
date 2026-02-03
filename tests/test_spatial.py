@@ -150,13 +150,28 @@ def test_Span_deslocamento_para_direita():
     assert span == Span(8, 15)
 
 
+def test_Span_deslocamento_para_direita_com_span():
+    span = Span(3, 10) + Span(5, 8)
+    assert span == Span(8, 15)
+
+
 def test_Span_deslocamento_para_esquerda():
     span = Span(3, 10) - 2
     assert span == Span(1, 8)
 
 
+def test_Span_deslocamento_para_esquerda_com_span():
+    span = Span(3, 10) - Span(2, 8)
+    assert span == Span(1, 8)
+
+
 def test_Span_deslocamento_para_esquerda_com_offset_maior_que_start():
     span = Span(3, 10) - 5
+    assert span == Span(0, 5)
+
+
+def test_Span_deslocamento_para_esquerda_com_offset_maior_que_start_com_span():
+    span = Span(3, 10) - Span(5, 15)
     assert span == Span(0, 5)
 
 
@@ -230,6 +245,11 @@ def test_Region_deslocamento_para_esquerda_no_eixo_x():
 def test_Region_deslocamento_para_esquerda_no_eixo_y():
     region = Region(Span(5, 10), Span(10, 15)) - Vector(0, 3)
     assert region == Region(Span(5, 10), Span(7, 12))
+
+
+def test_Region_deslocamento_para_direita_com_Region():
+    region = Region(Span(0, 10), Span(0, 5)) + Region(Span(2, 10), Span(3, 15))
+    assert region == Region(Span(2, 12), Span(3, 8))
 
 
 def test_Region_uniao_de_duas_regioes():
