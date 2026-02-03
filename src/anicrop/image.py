@@ -21,8 +21,8 @@ class Image:
     def __region_to_slice(self, region: Region) -> slice:
 
         return (
+            slice(region.y.start, region.y.end),
             slice(region.x.start, region.x.end),
-            slice(region.y.start, region.y.end)
         )
 
     def __to_indexer(self, key: Any) -> Any:
