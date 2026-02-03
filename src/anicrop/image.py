@@ -31,7 +31,7 @@ class Image:
 
         elif isinstance(key, tuple):
             if any([isinstance(arg, Region) for arg in key[1:]]):
-                raise TypeError("Region must be the first and only spatial argument")
+                raise TypeError("Region argument is only valid at the first position")
 
             elif isinstance(key[0], Region):
                 return self.__region_to_slice(key[0]) + key[1:]

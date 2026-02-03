@@ -137,7 +137,7 @@ def test_Image_getitem_region_com_slice_de_canais():
     ],
 )
 def test_Image_getitem_com_entradas_invalidas(args):
-    with raises(TypeError, match="Region must be the first and only spatial argument"):
+    with raises(TypeError, match="Region argument is only valid at the first position"):
         img = Image(np.zeros((10, 10, 5)))
         img[args]
 
