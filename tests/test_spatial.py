@@ -352,3 +352,27 @@ def test_Region_offset_negativo():
     region = Region(Span(0, 15), Span(10, 25))
     result = Region(Span(50, 60), Span(55, 80)).offset_to(region)
     assert result == Vector(-50, -45)
+
+
+def test_Region_overlap_with_regionB_em_regionA():
+    regionA = Region(Span(0, 1920), Span(437, 1517))
+    regionB = Region(Span(236, 2206), Span(0, 1080))
+    result = regionA.overlap_with(regionB)
+    assert result == Region(Span(236, 1920), Span(0, 643))
+
+
+def test_Region_overlap_with_regionA_em_regionB():
+    regionA = Region(Span(0, 1920), Span(437, 1517))
+    regionB = Region(Span(236, 2206), Span(0, 1080))
+    result = regionB.overlap_with(regionA)
+    assert result == Region(Span(0, 1684), Span(437, 1080))
+
+
+def test_Region_overlap_with_regionB_nao_sobreposto_regionA():
+    expect = "no overlap: 'other' out of bounds"
+    with raises(ValueError) as excinfo:
+        regionA = Region(Span(0, 1920), Span(437, 1517))
+        regionB = Region(Span(2206, 3845), Span(1880, 3100))
+        regionB.overlap_with(regionA)
+    result = str(excinfo.value)
+    assert result == expect
