@@ -149,7 +149,16 @@ def test_Image_setitem_com_Region():
 
     # Pinta de branco (1)
     img[region] = 1
-    # Verifica se pintou o quadrado 2x2
     expected = np.zeros((10, 10))
     expected[0:2, 0:2] = 1
     assert np.array_equal(data, expected)
+
+
+def test_Image_getitem_respeita_ordem_x_y_da_region():
+    img = Image(np.zeros((10, 20)))
+
+    # Region W=5, H=2
+    # X=0..5, Y=0..2
+    region = Region.from_size(5, 2)
+    crop = img[region]
+    assert crop.shape == (2, 5)
