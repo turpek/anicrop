@@ -239,6 +239,10 @@ class Region:
     x: Span
     y: Span
 
+    @classmethod
+    def from_size(cls, width: int, height: int) -> Region:
+        return cls(Span(width), Span(height))
+
     def __add__(self, offset: Vector) -> Region:
         return Region(self.x + offset.x, self.y + offset.y)
 
