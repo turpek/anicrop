@@ -329,3 +329,9 @@ class Region:
 
     def overlaps(self, other: Region) -> bool:
         return self.x.overlaps(other.x) and self.y.overlaps(other.y)
+
+    def overlap_with(self, other: Region) -> Region:
+        if not self.overlaps(other):
+            raise ValueError("no overlap: 'other' out of bounds")
+        intersection = self & other
+        return intersection - self
