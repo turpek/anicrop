@@ -243,11 +243,35 @@ class Region:
     def from_size(cls, width: int, height: int) -> Region:
         return cls(Span(width), Span(height))
 
-    def __add__(self, offset: Vector) -> Region:
-        return Region(self.x + offset.x, self.y + offset.y)
+    def __add__(self, offset: int | tuple[int, int] | Region | Vector) -> Region:
+        if isinstance(offset, Vector) or isinstance(offset, Region):
+            return Region(self.x + offset.x, self.y + offset.y)
 
-    def __sub__(self, offset: Vector) -> Region:
-        return Region(self.x - offset.x, self.y - offset.y)
+        elif isinstance(offset, tuple):
+            return Region(self.x + offset[0], self.y + offset[1])
+
+        elif isinstance(offset, int):
+            return Region(self.x + offset, self.y + offset)
+
+        raise TypeError(
+            "offset must be an int, a (x, y) tuple, or a Vector instance "
+            f"(got {type(offset).__name__})"
+        )
+
+    def __sub__(self, offset: int | tuple[int, int] | Region | Vector) -> Region:
+        if isinstance(offset, (Vector, Region)):
+            return Region(self.x - offset.x, self.y - offset.y)
+
+        elif isinstance(offset, tuple):
+            return Region(self.x - offset[0], self.y - offset[1])
+
+        elif isinstance(offset, int):
+            return Region(self.x - offset, self.y - offset)
+
+        raise TypeError(
+            "offset must be an int, a (x, y) tuple, or a Vector instance "
+            f"(got {type(offset).__name__})"
+        )
 
     def __or__(self, other: Region) -> Region:
         return Region(self.x | other.x, self.y | other.y)
