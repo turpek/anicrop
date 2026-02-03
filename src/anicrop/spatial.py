@@ -65,7 +65,7 @@ class Span:
 
         return self.start == span.start and self.end == span.end
 
-    def __add__(self, offset: int) -> Span:
+    def __add__(self, offset: int | Span) -> Span:
         """Shifts the span to the right.
 
         Implements the `Span + int` operation.
@@ -76,9 +76,11 @@ class Span:
         Returns:
             A new Span object shifted to the right.
         """
+        if isinstance(offset, Span):
+            offset = offset.start
         return Span(self.start + offset, self.end + offset)
 
-    def __sub__(self, offset: int) -> Span:
+    def __sub__(self, offset: int | Span) -> Span:
         """Shifts the span to the left.
 
         Implements the `Span - int` operation. Ensures the new start point
@@ -90,6 +92,8 @@ class Span:
         Returns:
             A new Span object shifted to the left.
         """
+        if isinstance(offset, Span):
+            offset = offset.start
 
         start = max(0, self.start - offset)
         return Span(start, self.end - offset)
@@ -200,6 +204,9 @@ class Span:
             )
 
         return Span(self.start + before, self.end - after)
+
+    # def offset(self, other: Span) -> Span:
+    #    return Span(span.start )
 
     def offset_to(self, span: Span) -> int:
         """Calculates the offset between the start point of this span and another's.
