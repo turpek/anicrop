@@ -1,5 +1,5 @@
 from anicrop.image import Image
-from anicrop.spatial import Region, Vector
+from anicrop.spatial import Region
 from pytest import raises
 import numpy as np
 import pytest
@@ -140,3 +140,16 @@ def test_Image_getitem_com_entradas_invalidas(args):
     with raises(TypeError, match="Region must be the first and only spatial argument"):
         img = Image(np.zeros((10, 10, 5)))
         img[args]
+
+
+def test_Image_setitem_com_Region():
+    data = np.zeros((10, 10))
+    img = Image(data)
+    region = Region.from_size(2, 2)
+
+    # Pinta de branco (1)
+    img[region] = 1
+    # Verifica se pintou o quadrado 2x2
+    expected = np.zeros((10, 10))
+    expected[0:2, 0:2] = 1
+    assert np.array_equal(data, expected)
