@@ -252,6 +252,38 @@ def test_Region_deslocamento_para_direita_com_Region():
     assert region == Region(Span(2, 12), Span(3, 8))
 
 
+def test_Region_deslocamento_positivo_nos_eixos_xy_com_int():
+    region = Region.from_size(10, 5) + 2
+    assert region == Region(Span(2, 12), Span(2, 7))
+
+
+def test_Region_deslocamento_negativo_nos_eixos_xy_com_int():
+    region = Region(Span(5, 10), Span(10, 15)) - 2
+    assert region == Region(Span(3, 8), Span(8, 13))
+
+
+def test_Region_deslocamento_positivo_nos_eixos_xy_com_tupla():
+    region = Region.from_size(10, 5) + (2, 3)
+    assert region == Region(Span(2, 12), Span(3, 8))
+
+
+def test_Region_deslocamento_negativo_nos_eixos_xy_com_tupla():
+    region = Region(Span(5, 10), Span(10, 15)) - (2, 3)
+    assert region == Region(Span(3, 8), Span(7, 12))
+
+
+def test_Region_deslocamento_positivo_com_tipo_errado():
+    expect = r"offset must be an int, a \(x, y\) tuple, or a Vector instance \(got list\)"
+    with raises(TypeError, match=expect):
+        Region.from_size(10, 5) + [2, 3]
+
+
+def test_Region_deslocamento_negativo_com_tipo_errado():
+    expect = r"offset must be an int, a \(x, y\) tuple, or a Vector instance \(got list\)"
+    with raises(TypeError, match=expect):
+        Region(Span(2, 10), Span(5, 12)) - [2, 3]
+
+
 def test_Region_uniao_de_duas_regioes():
     region = Region(Span(5, 10), Span(10, 15)) | Region(Span(7, 20), Span(12, 25))
     assert region == Region(Span(5, 20), Span(10, 25))
