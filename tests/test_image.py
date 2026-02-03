@@ -1,7 +1,16 @@
 from anicrop.image import Image
+from anicrop.spatial import Region, Vector
 from pytest import raises
 import numpy as np
 import pytest
+
+
+def region_(size=3, offset=0):
+    return Region.from_size(size, size)
+
+
+def make_region(w=3, h=3):
+    return Region.from_size(w, h)
 
 
 @pytest.mark.parametrize(
@@ -86,3 +95,48 @@ def test_Image_com_size_10x10():
 )
 def test_Image_com_varios_canais(shape, expect):
     assert Image(np.zeros(shape)).channels == expect
+
+
+def test_Imagem_getitem_com_Region():
+    region = Region.from_size(3, 3) + 3
+    data = np.arange(10 * 10 * 3).reshape(10, 10, 3)
+    img = Image(data)
+    sub = img[region]
+    assert np.array_equal(sub, data[3:6, 3:6])
+
+
+def test_Image_getitem_region_preserva_canais():
+    img = Image(np.zeros((10, 10, 5)))
+    region = Region.from_size(2, 2)
+    assert img[region].shape[2] == 5
+
+
+def test_Image_getitem_region_grayscale():
+    img = Image(np.zeros((10, 10)))
+    region = Region.from_size(4, 4)
+    assert img[region].shape == (4, 4)
+
+
+def test_Image_getitem_region_com_slice_de_canais():
+    img = Image(np.zeros((10, 10, 5)))
+    region = Region.from_size(2, 2)
+    assert img[region, :2].shape[2] == 2
+
+
+@pytest.mark.parametrize(
+    "args",
+    [
+        (make_region(), slice(1, 2), make_region(5, 1)),
+        (slice(0, 5), slice(2, 4), slice(1, 2), make_region(5, 1)),
+        (..., slice(1, 2), make_region(5, 1)),
+    ],
+    ids=[
+        "region_slice_region",
+        "slice_slice_region",
+        "ellipsis_slice_region",
+    ],
+)
+def test_Image_getitem_com_entradas_invalidas(args):
+    with raises(TypeError, match="Region must be the first and only spatial argument"):
+        img = Image(np.zeros((10, 10, 5)))
+        img[args]
