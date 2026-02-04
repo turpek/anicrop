@@ -44,7 +44,8 @@ class EditLayer:
         """
         self.name = name
         self.region = self._calculate_content_bbox(image)
-        self.image = Image(image[self.region], image.format)
+        bbox_image = image[self.region].copy()
+        self.image = Image(bbox_image, image.format)
         self.opacity = opacity
         self.blend_mode: BlendMode = blend_mode
 
