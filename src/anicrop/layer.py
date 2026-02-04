@@ -8,6 +8,7 @@ import numpy as np
 class BlendMode(Enum):
     """Defines how an edit layer blends with the underlying content."""
     NORMAL = 'normal'
+    MULTIPLY = 'multiply'
 
 
 class EditLayer:
