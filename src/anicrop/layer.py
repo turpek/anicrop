@@ -27,6 +27,21 @@ class EditLayer:
             blend_mode: BlendMode = BlendMode.NORMAL,
             name: str = 'Edit'
     ):
+        """Initializes the EditLayer.
+
+        The layer's region is automatically calculated based on the non-transparent
+        content of the provided image. The internal image data is cropped to this
+        bounding box to optimize storage.
+
+        Args:
+            image: The source image for the layer.
+            opacity: The layer opacity (0.0 to 1.0).
+            blend_mode: The blending mode to use.
+            name: A descriptive name for the layer.
+
+        Raises:
+            ValueError: If the provided image is fully transparent (has no content).
+        """
         self.name = name
         self.region = self._calculate_content_bbox(image)
         self.image = Image(image[self.region], image.format)
@@ -34,6 +49,22 @@ class EditLayer:
         self.blend_mode: BlendMode = blend_mode
 
     def _calculate_content_bbox(self, image: Image) -> Region:
+        """Calculates the bounding box of the non-transparent content.
+
+        Iterates through the alpha channel to find the minimum and maximum
+        coordinates that contain visible pixels.
+
+        Args:
+            image: The image to analyze.
+
+        Returns:
+            A Region object representing the smallest rectangle containing all
+            non-transparent pixels. If the image has no alpha channel, returns
+            the full image region.
+
+        Raises:
+            ValueError: If the image has an alpha channel but contains no visible pixels.
+        """
         if not image.has_alpha:
             return Region.from_size(image.width, image.height)
 
