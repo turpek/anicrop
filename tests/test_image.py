@@ -14,6 +14,22 @@ def make_region(w=3, h=3):
 
 
 @pytest.mark.parametrize(
+    "fmt,has_alpha,channels",
+    [
+        (ImageFormat.GRAY, False, 1),
+        (ImageFormat.GRAY_ALPHA, True, 2),
+        (ImageFormat.RGB, False, 3),
+        (ImageFormat.RGBA, True, 4),
+        (ImageFormat.CMYK, False, 4),
+        (ImageFormat.CMYK_ALPHA, True, 5),
+    ]
+)
+def test_image_format_contract(fmt, has_alpha, channels):
+    assert fmt.has_alpha is has_alpha
+    assert fmt.channels == channels
+
+
+@pytest.mark.parametrize(
     "shape",
     [(0, 0), (0, 1), (1, 0)],
     ids=["0x0", "0x1", "1x0"]
@@ -38,8 +54,9 @@ def test_Image_rejeita_se_nao_for_2D_ou_3D(shape):
     [
         ((1, 1), ImageFormat.GRAY),        # grayscale mínimo
         ((10, 20), ImageFormat.GRAY),      # grayscale comum
-        ((1, 1, 1), ImageFormat.GRAY_ALPHA),     # grayscale com canal explícito
-        ((10, 20, 1), ImageFormat.GRAY_ALPHA),   # grayscale com canal
+        ((1, 1, 1), ImageFormat.GRAY),     # grayscale com canal explícito
+        ((10, 20, 1), ImageFormat.GRAY),   # grayscale com canal
+        ((1, 1, 2), ImageFormat.GRAY_ALPHA),     # grayscale com canal alpha
         ((10, 20, 3), ImageFormat.RGB),   # RGB
         ((10, 20, 4), ImageFormat.RGBA),   # RGBA
     ],
@@ -48,6 +65,7 @@ def test_Image_rejeita_se_nao_for_2D_ou_3D(shape):
         "gray-10x20",
         "gray-1x1x1",
         "gray-10x20x1",
+        "gray-1x1x2",
         "rgb",
         "rgba",
     ]
@@ -74,14 +92,15 @@ def test_Image_com_size_10x10():
 
 
 @pytest.mark.parametrize(
-    "shape, expect",
+    "shape, expect, fmt",
     [
-        ((1, 1), 1),       # Canal implícito
-        ((1, 1, 1), 1),    # Canal explícito
-        ((1, 1, 2), 2),    # Canal cinza+alpha
-        ((1, 1, 3), 3),    # Canal RGB
-        ((1, 1, 4), 4),    # Canal RGBA
-        ((1, 1, 10), 10),  # Muito Canais
+        ((1, 1), 1, ImageFormat.GRAY),             # Canal implícito
+        ((1, 1, 1), 1, ImageFormat.GRAY),          # Canal explícito
+        ((1, 1, 2), 2, ImageFormat.GRAY_ALPHA),    # Canal cinza+alpha
+        ((1, 1, 3), 3, ImageFormat.RGB),           # Canal RGB
+        ((1, 1, 4), 4, ImageFormat.RGBA),          # Canal RGBA
+        ((1, 1, 4), 4, ImageFormat.CMYK),          # Canal CMYK
+        ((1, 1, 5), 5, ImageFormat.CMYK_ALPHA),    # Canal CMYK+alpha
 
     ],
     ids=[
@@ -90,23 +109,24 @@ def test_Image_com_size_10x10():
         "Grayscale+Alpha",
         "RGB",
         "RGBA",
-        "Muito_Canais",
+        "CMYK",
+        "CMYK+Alpha",
     ]
 )
-def test_Image_com_varios_canais(shape, expect):
-    assert Image(np.zeros(shape), ImageFormat.GRAY).channels == expect
+def test_Image_com_varios_canais(shape, fmt, expect):
+    assert Image(np.zeros(shape), fmt).channels == expect
 
 
 def test_Imagem_getitem_com_Region():
     region = Region.from_size(3, 3) + 3
     data = np.arange(10 * 10 * 3).reshape(10, 10, 3)
-    img = Image(data, ImageFormat.GRAY)
+    img = Image(data, ImageFormat.RGB)
     sub = img[region]
     assert np.array_equal(sub, data[3:6, 3:6])
 
 
 def test_Image_getitem_region_preserva_canais():
-    img = Image(np.zeros((10, 10, 5)), ImageFormat.GRAY)
+    img = Image(np.zeros((10, 10, 5)), ImageFormat.CMYK_ALPHA)
     region = Region.from_size(2, 2)
     assert img[region].shape[2] == 5
 
@@ -118,7 +138,7 @@ def test_Image_getitem_region_grayscale():
 
 
 def test_Image_getitem_region_com_slice_de_canais():
-    img = Image(np.zeros((10, 10, 5)), ImageFormat.GRAY)
+    img = Image(np.zeros((10, 10, 5)), ImageFormat.CMYK_ALPHA)
     region = Region.from_size(2, 2)
     assert img[region, :2].shape[2] == 2
 
@@ -138,7 +158,7 @@ def test_Image_getitem_region_com_slice_de_canais():
 )
 def test_Image_getitem_com_entradas_invalidas(args):
     with raises(TypeError, match="Region argument is only valid at the first position"):
-        img = Image(np.zeros((10, 10, 5)), ImageFormat.GRAY)
+        img = Image(np.zeros((10, 10, 5)), ImageFormat.CMYK_ALPHA)
         img[args]
 
 
@@ -165,16 +185,17 @@ def test_Image_getitem_respeita_ordem_x_y_da_region():
 
 
 @pytest.mark.parametrize(
-    "fmt,has_alpha,channels",
+    "shape,fmt",
     [
-        (ImageFormat.GRAY, False, 1),
-        (ImageFormat.GRAY_ALPHA, True, 2),
-        (ImageFormat.RGB, False, 3),
-        (ImageFormat.RGBA, True, 4),
-        (ImageFormat.CMYK, False, 4),
-        (ImageFormat.CMYK_ALPHA, True, 5),
+        ((10, 10, 4), ImageFormat.RGB),
+        ((10, 10, 3), ImageFormat.RGBA),
+        ((10, 10, 1), ImageFormat.GRAY_ALPHA),
+        ((10, 10, 4), ImageFormat.CMYK_ALPHA),
     ]
 )
-def test_image_format_contract(fmt, has_alpha, channels):
-    assert fmt.has_alpha is has_alpha
-    assert fmt.channels == channels
+def test_invalid_channel_count(shape, fmt):
+    data = np.zeros(shape, dtype=np.uint8)
+    msg = f"Image format '{fmt}' expects {fmt.channels} channels, but data has {shape[-1]}."
+
+    with pytest.raises(ValueError, match=msg):
+        Image(data, fmt)
