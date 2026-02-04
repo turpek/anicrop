@@ -2,6 +2,35 @@
 from numpy import ndarray
 from anicrop.spatial import Region
 from typing import Any
+from enum import StrEnum
+
+
+class ImageFormat(StrEnum):
+    GRAY = "gray"
+    GRAY_ALPHA = "gray_alpha"
+    RGB = "rgb"
+    RGBA = "rgba"
+    CMYK = "cmyk"
+    CMYK_ALPHA = "cmyk_alpha"
+
+    @property
+    def has_alpha(self) -> bool:
+        return self in {
+            ImageFormat.GRAY_ALPHA,
+            ImageFormat.RGBA,
+            ImageFormat.CMYK_ALPHA,
+        }
+
+    @property
+    def channels(self) -> int:
+        return {
+            ImageFormat.GRAY: 1,
+            ImageFormat.GRAY_ALPHA: 2,
+            ImageFormat.RGB: 3,
+            ImageFormat.RGBA: 4,
+            ImageFormat.CMYK: 4,
+            ImageFormat.CMYK_ALPHA: 5,
+        }[self]
 
 
 class Image:
@@ -11,7 +40,7 @@ class Image:
     convenient properties for accessing image dimensions (width, height, channels).
     It ensures that the underlying image data is a valid 2D or 3D array.
     """
-    def __init__(self, image: ndarray):
+    def __init__(self, image: ndarray, image_format: ImageFormat):
         """Initializes the Image object.
 
         Args:
@@ -32,6 +61,7 @@ class Image:
 
         self._data = image
         self._channels = image.shape[2] if image.ndim > 2 else 1
+        self.format = image_format
 
     def __region_to_slice(self, region: Region) -> tuple[slice, slice]:
         """Converts a Region object to a tuple of slices for NumPy indexing."""
