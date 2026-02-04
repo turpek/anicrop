@@ -1,4 +1,4 @@
-from anicrop.image import Image
+from anicrop.image import Image, ImageFormat
 from anicrop.spatial import Region
 from pytest import raises
 import numpy as np
@@ -20,7 +20,7 @@ def make_region(w=3, h=3):
 )
 def test_Image_rejeita_dimensao_zero(shape):
     with pytest.raises(ValueError, match="image dimensions must be greater than zero"):
-        Image(np.zeros(shape))
+        Image(np.zeros(shape), ImageFormat.GRAY)
 
 
 @pytest.mark.parametrize(
@@ -30,18 +30,18 @@ def test_Image_rejeita_dimensao_zero(shape):
 )
 def test_Image_rejeita_se_nao_for_2D_ou_3D(shape):
     with raises(ValueError, match="image array must be 2D or 3D"):
-        Image(np.zeros(shape))
+        Image(np.zeros(shape), ImageFormat.GRAY)
 
 
 @pytest.mark.parametrize(
-    "shape",
+    "shape, img_format",
     [
-        (1, 1),        # grayscale mínimo
-        (10, 20),      # grayscale comum
-        (1, 1, 1),     # grayscale com canal explícito
-        (10, 20, 1),   # grayscale com canal
-        (10, 20, 3),   # RGB
-        (10, 20, 4),   # RGBA
+        ((1, 1), ImageFormat.GRAY),        # grayscale mínimo
+        ((10, 20), ImageFormat.GRAY),      # grayscale comum
+        ((1, 1, 1), ImageFormat.GRAY_ALPHA),     # grayscale com canal explícito
+        ((10, 20, 1), ImageFormat.GRAY_ALPHA),   # grayscale com canal
+        ((10, 20, 3), ImageFormat.RGB),   # RGB
+        ((10, 20, 4), ImageFormat.RGBA),   # RGBA
     ],
     ids=[
         "gray-1x1",
@@ -52,25 +52,25 @@ def test_Image_rejeita_se_nao_for_2D_ou_3D(shape):
         "rgba",
     ]
 )
-def test_Image_aceita_formatos_validos(shape):
-    Image(np.zeros(shape))
+def test_Image_aceita_formatos_validos(shape, img_format):
+    Image(np.zeros(shape), img_format)
 
 
 def test_Image_rejeita_0_canais():
     with raises(ValueError, match="image must have at least one channel"):
-        Image(np.zeros((1, 1, 0)))
+        Image(np.zeros((1, 1, 0)), ImageFormat.GRAY)
 
 
 def test_Image_com_width_10():
-    assert Image(np.zeros((10, 10))).width == 10
+    assert Image(np.zeros((10, 10)), ImageFormat.GRAY).width == 10
 
 
 def test_Image_com_height_10():
-    assert Image(np.zeros((10, 10))).height == 10
+    assert Image(np.zeros((10, 10)), ImageFormat.GRAY).height == 10
 
 
 def test_Image_com_size_10x10():
-    assert Image(np.zeros((10, 10))).size == (10, 10)
+    assert Image(np.zeros((10, 10)), ImageFormat.GRAY).size == (10, 10)
 
 
 @pytest.mark.parametrize(
@@ -94,31 +94,31 @@ def test_Image_com_size_10x10():
     ]
 )
 def test_Image_com_varios_canais(shape, expect):
-    assert Image(np.zeros(shape)).channels == expect
+    assert Image(np.zeros(shape), ImageFormat.GRAY).channels == expect
 
 
 def test_Imagem_getitem_com_Region():
     region = Region.from_size(3, 3) + 3
     data = np.arange(10 * 10 * 3).reshape(10, 10, 3)
-    img = Image(data)
+    img = Image(data, ImageFormat.GRAY)
     sub = img[region]
     assert np.array_equal(sub, data[3:6, 3:6])
 
 
 def test_Image_getitem_region_preserva_canais():
-    img = Image(np.zeros((10, 10, 5)))
+    img = Image(np.zeros((10, 10, 5)), ImageFormat.GRAY)
     region = Region.from_size(2, 2)
     assert img[region].shape[2] == 5
 
 
 def test_Image_getitem_region_grayscale():
-    img = Image(np.zeros((10, 10)))
+    img = Image(np.zeros((10, 10)), ImageFormat.GRAY)
     region = Region.from_size(4, 4)
     assert img[region].shape == (4, 4)
 
 
 def test_Image_getitem_region_com_slice_de_canais():
-    img = Image(np.zeros((10, 10, 5)))
+    img = Image(np.zeros((10, 10, 5)), ImageFormat.GRAY)
     region = Region.from_size(2, 2)
     assert img[region, :2].shape[2] == 2
 
@@ -138,13 +138,13 @@ def test_Image_getitem_region_com_slice_de_canais():
 )
 def test_Image_getitem_com_entradas_invalidas(args):
     with raises(TypeError, match="Region argument is only valid at the first position"):
-        img = Image(np.zeros((10, 10, 5)))
+        img = Image(np.zeros((10, 10, 5)), ImageFormat.GRAY)
         img[args]
 
 
 def test_Image_setitem_com_Region():
     data = np.zeros((10, 10))
-    img = Image(data)
+    img = Image(data, ImageFormat.GRAY)
     region = Region.from_size(2, 2)
 
     # Pinta de branco (1)
@@ -155,10 +155,26 @@ def test_Image_setitem_com_Region():
 
 
 def test_Image_getitem_respeita_ordem_x_y_da_region():
-    img = Image(np.zeros((10, 20)))
+    img = Image(np.zeros((10, 20)), ImageFormat.GRAY)
 
     # Region W=5, H=2
     # X=0..5, Y=0..2
     region = Region.from_size(5, 2)
     crop = img[region]
     assert crop.shape == (2, 5)
+
+
+@pytest.mark.parametrize(
+    "fmt,has_alpha,channels",
+    [
+        (ImageFormat.GRAY, False, 1),
+        (ImageFormat.GRAY_ALPHA, True, 2),
+        (ImageFormat.RGB, False, 3),
+        (ImageFormat.RGBA, True, 4),
+        (ImageFormat.CMYK, False, 4),
+        (ImageFormat.CMYK_ALPHA, True, 5),
+    ]
+)
+def test_image_format_contract(fmt, has_alpha, channels):
+    assert fmt.has_alpha is has_alpha
+    assert fmt.channels == channels
