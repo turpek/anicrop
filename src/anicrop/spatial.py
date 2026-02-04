@@ -2,7 +2,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from operator import add, sub
 from ovld import ovld
-from typing import Callable
+from typing import Callable, Optional
 
 
 class SpanError(Exception):
@@ -34,7 +34,7 @@ class Span:
         """
         self._setup(0, end)
 
-    @ovld
+    @ovld  # type: ignore[no-redef]
     def __init__(self, start: int, end: int, /):  # noqa: F811
         """Initializes a Span.
 
@@ -60,7 +60,7 @@ class Span:
     def __repr__(self):
         return f"{self.__class__.__name__}(start={self.start}, end={self.end})"
 
-    def __eq__(self, span: Span) -> bool:
+    def __eq__(self, span: object) -> bool:
         if not isinstance(span, Span):
             return NotImplemented
 
@@ -156,7 +156,7 @@ class Span:
     def overlaps(self, other: Span) -> bool:
         return self.end > other.start and other.end > self.start
 
-    def expand(self, both: int = None, *, before: int = 0, after: int = 0) -> Span:
+    def expand(self, both: Optional[int] = None, *, before: int = 0, after: int = 0) -> Span:
         """Expands the span outward.
 
         Args:
@@ -182,7 +182,7 @@ class Span:
 
         return Span(start_expand, self.end + after)
 
-    def shrink(self, both: int = None, *, before: int = 0, after: int = 0) -> Span:
+    def shrink(self, both: Optional[int] = None, *, before: int = 0, after: int = 0) -> Span:
 
         """Shrinks the span inward.
 
