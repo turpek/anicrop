@@ -61,7 +61,8 @@ class Image:
 
         self._data = image
         self._channels = image.shape[2] if image.ndim > 2 else 1
-        self.format = image_format
+        self._format = image_format
+        self._validate_format()
 
     def __region_to_slice(self, region: Region) -> tuple[slice, slice]:
         """Converts a Region object to a tuple of slices for NumPy indexing."""
@@ -114,6 +115,15 @@ class Image:
         """
         self._data[self.__to_indexer(key)] = value
 
+    def _validate_format(self):
+        channels = self.channels
+        formt = self.format
+        if channels != formt.channels:
+            raise ValueError(
+                f"Image format '{formt}' expects {formt.channels} channels, "
+                f"but data has {channels}."
+            )
+
     @property
     def shape(self) -> tuple[int, ...]:
         """The shape of the underlying image data as a tuple."""
@@ -138,3 +148,11 @@ class Image:
     def channels(self) -> int:
         """The number of channels in the image (1 for grayscale)."""
         return self._channels
+
+    @property
+    def format(self) -> ImageFormat:
+        return self._format
+
+    @property
+    def has_alpha(self) -> bool:
+        return self._format.has_alpha
