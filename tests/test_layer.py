@@ -38,10 +38,10 @@ def test_EditLayer_inicializando_com_valores_padroes():
 def test_EditLayer_inicializando_com_parametros(canvas):
     region = Region.from_size(5, 3) + (2, 5)
     canvas[region] = 1
-    edit = EditLayer(canvas, opacity=0.8, blend_mode='Mix', name='Paint')
+    edit = EditLayer(canvas, opacity=0.8, blend_mode=BlendMode.MULTIPLY, name='Paint')
     assert edit.name == 'Paint'
     assert edit.opacity == 0.8
-    assert edit.blend_mode == 'Mix'
+    assert edit.blend_mode == BlendMode.MULTIPLY
     assert edit.region == region
     assert np.array_equal(edit.image[...], canvas[region])
 
@@ -87,3 +87,32 @@ def test_EditLayer_sem_canal_alpha(canvas, region):
     edit = EditLayer(canvas)
     assert edit.region == bbox
     assert np.array_equal(edit.image[...], canvas[bbox])
+
+
+def test_EditLayer_image_interna_eh_copia():
+    canvas = make_canvas()
+    region = make_region(offset=2)
+    canvas[region] = 255
+
+    edit = EditLayer(canvas)
+    # modifica o interno
+    edit.image[..., 0] = 1
+
+    # a região original no canvas não deve ser afetada
+    assert not np.array_equal(canvas[edit.region], edit.image[...])
+
+
+def test_EditLayer_bbox_eh_um_unico_pixel():
+    canvas = make_canvas(channel=4)
+    canvas[3, 2] = [255, 0, 0, 255]  # pixel (x=2, y=3)
+    edit = EditLayer(canvas)
+    assert edit.region == Region.from_size(1, 1) + (2, 3)
+    np.testing.assert_array_equal(edit.image[...], canvas[edit.region])
+
+
+def test_EditLayer_bbox_toca_as_bordas():
+    canvas = make_canvas(channel=4)
+    canvas[0, 0] = [1, 1, 1, 255]
+    canvas[H - 1, W - 1] = [1, 1, 1, 255]
+    edit = EditLayer(canvas)
+    assert edit.region == Region.from_size(W, H)
