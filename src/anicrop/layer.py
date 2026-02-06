@@ -1,7 +1,7 @@
 from __future__ import annotations
 from enum import Enum
 from anicrop.image import Image
-from anicrop.spatial import Region, Span
+from anicrop.spatial import Region, Span, Vector
 import numpy as np
 
 
@@ -107,3 +107,77 @@ class EditLayer:
         if not isinstance(region, Region):
             raise TypeError(f"Expected Region, got {type(region).__name__}")
         self._region = region
+
+
+class Layer:
+
+    def __init__(
+        self,
+        image: Image,
+        opacity: float = 1.0,
+        rotate: float = 0.0,
+        scale: float = 1.0,
+        blend_mode: BlendMode = BlendMode.NORMAL,
+        name: str = 'Layer'
+    ):
+        self._name = name
+        self._image = image
+        self._opacity = opacity
+        self._rotate = rotate
+        self._scale = scale
+        self._blend_mode = blend_mode
+        self._region = Region.from_size(image.width, image.height)
+
+    @property
+    def name(self) -> str:
+        return self._name
+
+    @name.setter
+    def name(self, name: str) -> None:
+        self._name = name
+
+    @property
+    def opacity(self) -> float:
+        return self._opacity
+
+    @opacity.setter
+    def opacity(self, opacity: float) -> None:
+        self._opacity = opacity
+
+    @property
+    def rotate(self) -> float:
+        return self._rotate
+
+    @rotate.setter
+    def rotate(self, rotate: float) -> None:
+        self._rotate = rotate
+
+    @property
+    def scale(self) -> float:
+        return self._scale
+
+    @scale.setter
+    def scale(self, scale: float) -> None:
+        self._scale = scale
+
+    @property
+    def region(self) -> Region:
+        return self._region
+
+    @region.setter
+    def region(self, region: Region) -> None:
+        if not isinstance(region, Region):
+            raise TypeError(f"Expected Region, got {type(region).__name__}")
+        self._region = region
+
+    @property
+    def image(self) -> Image:
+        return self._image
+
+    @property
+    def blend_mode(self) -> BlendMode:
+        return self._blend_mode
+
+    @blend_mode.setter
+    def blend_mode(self, blend_mode: BlendMode) -> None:
+        self._blend_mode = blend_mode
