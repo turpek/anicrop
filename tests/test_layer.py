@@ -30,6 +30,8 @@ def test_EditLayer_inicializando_com_valores_padroes():
     edit = EditLayer(img)
     assert edit.name == 'Edit'
     assert edit.opacity == 1.0
+    assert edit.rotate == 0.0
+    assert edit.scale == 1.0
     assert edit.blend_mode == BlendMode.NORMAL
     assert edit.region == Region.from_size(10, 10)
     assert np.array_equal(edit.image[...], img[...])
@@ -116,3 +118,37 @@ def test_EditLayer_bbox_toca_as_bordas():
     canvas[H - 1, W - 1] = [1, 1, 1, 255]
     edit = EditLayer(canvas)
     assert edit.region == Region.from_size(W, H)
+
+
+def test_EditLayer_rotate_mudanca_valor(canvas):
+    canvas[...] = 1
+    edit = EditLayer(canvas)
+    edit.rotate = 45
+    assert edit.rotate == 45
+
+    edit.rotate -= 20
+    assert edit.rotate == 25
+
+
+def test_EditLayer_scale_mudanca_valor(canvas):
+    canvas[...] = 1
+    edit = EditLayer(canvas)
+    edit.scale = 0.5
+    assert edit.scale == 0.5
+
+    edit.scale += 0.3
+    assert edit.scale == 0.8
+
+
+def test_EditLayer_region_mudanca_valor(canvas):
+    canvas[...] = 1
+    edit = EditLayer(canvas)
+    edit.region += (4, 0)
+    assert edit.region == Region.from_size(H, W) + (4, 0)
+
+
+def test_EditLayer_atribuindo_valor_qualquer_ao_region(canvas):
+    canvas[...] = 1
+    with raises(TypeError, match="Expected Region, got int"):
+        edit = EditLayer(canvas)
+        edit.region = 4
