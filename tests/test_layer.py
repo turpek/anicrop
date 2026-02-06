@@ -1,5 +1,5 @@
 from anicrop.image import Image, ImageFormat
-from anicrop.layer import EditLayer, BlendMode
+from anicrop.layer import BlendMode, EditLayer, Layer
 from anicrop.spatial import Region
 from pytest import raises
 import numpy as np
@@ -152,3 +152,78 @@ def test_EditLayer_atribuindo_valor_qualquer_ao_region(canvas):
     with raises(TypeError, match="Expected Region, got int"):
         edit = EditLayer(canvas)
         edit.region = 4
+
+# ############################# Teste da classe Layer #############################################
+
+
+def test_Layer_inicializando_com_valores_padroes(canvas):
+    layer = Layer(canvas)
+    assert layer.name == 'Layer'
+    assert layer.opacity == 1.0
+    assert layer.rotate == 0.0
+    assert layer.scale == 1.0
+    assert layer.blend_mode == BlendMode.NORMAL
+    assert layer.region == Region.from_size(10, 10)
+    assert np.array_equal(layer.image[...], canvas[...])
+
+
+def test_Layer_inicializando_com_parametros(canvas):
+    layer = Layer(canvas, opacity=0.8, rotate=45, scale=0.5, blend_mode=BlendMode.MULTIPLY, name='Picture')
+    assert layer.name == 'Picture'
+    assert layer.opacity == 0.8
+    assert layer.rotate == 45
+    assert layer.scale == 0.5
+    assert layer.blend_mode == BlendMode.MULTIPLY
+    assert layer.region == Region.from_size(10, 10)
+    assert np.array_equal(layer.image[...], canvas[...])
+
+
+def test_Layer_rotate_mudanca_valor(canvas):
+    layer = Layer(canvas)
+    layer.rotate = 45
+    assert layer.rotate == 45
+
+    layer.rotate -= 20
+    assert layer.rotate == 25
+
+
+def test_Layer_scale_mudanca_valor(canvas):
+    layer = Layer(canvas)
+    layer.scale = 0.5
+    assert layer.scale == 0.5
+
+    layer.scale += 0.3
+    assert layer.scale == 0.8
+
+
+def test_Layer_opacity_mudanca_valor(canvas):
+    layer = Layer(canvas)
+    layer.opacity = 0.1
+    assert layer.opacity == 0.1
+
+    layer.opacity += 0.8
+    assert layer.opacity == 0.9
+
+
+def test_Layer_blend_mode_mudanca_valor(canvas):
+    layer = Layer(canvas)
+    layer.blend_mode = BlendMode.MULTIPLY
+    assert layer.blend_mode == BlendMode.MULTIPLY
+
+
+def test_Layer_region_mudanca_valor(canvas):
+    layer = Layer(canvas)
+    layer.region += (4, 0)
+    assert layer.region == Region.from_size(H, W) + (4, 0)
+
+
+def test_Layer_atribuindo_valor_qualquer_ao_region(canvas):
+    with raises(TypeError, match="Expected Region, got int"):
+        layer = Layer(canvas)
+        layer.region = 4
+
+
+def test_Layer_name_mudanca_valor(canvas):
+    layer = Layer(canvas)
+    layer.name = 'Picture'
+    assert layer.name == 'Picture'
