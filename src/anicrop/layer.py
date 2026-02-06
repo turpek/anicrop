@@ -1,7 +1,7 @@
 from __future__ import annotations
 from enum import Enum
 from anicrop.image import Image
-from anicrop.spatial import Region, Span, Vector
+from anicrop.spatial import Region, Span
 import numpy as np
 
 
