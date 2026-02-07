@@ -2,6 +2,7 @@ from __future__ import annotations
 from enum import Enum
 from anicrop.image import Image
 from anicrop.spatial import Region, Span
+from anicrop.type import OperationFloat as Float
 import numpy as np
 
 
@@ -47,9 +48,9 @@ class EditLayer:
         self._region = self._calculate_content_bbox(image)
         bbox_image = image[self.region].copy()
         self.image = Image(bbox_image, image.format)
-        self.opacity = opacity
-        self._rotate = 0.0
-        self._scale = 1.0
+        self.opacity = Float(opacity)
+        self._rotate = Float(0.0)
+        self._scale = Float(1.0)
         self.blend_mode: BlendMode = blend_mode
 
     def _calculate_content_bbox(self, image: Image) -> Region:
@@ -88,7 +89,7 @@ class EditLayer:
 
     @rotate.setter
     def rotate(self, rotate: float) -> None:
-        self._rotate = rotate
+        self._rotate = Float(rotate)
 
     @property
     def scale(self) -> float:
@@ -96,7 +97,7 @@ class EditLayer:
 
     @scale.setter
     def scale(self, scale: float) -> None:
-        self._scale = scale
+        self._scale = Float(scale)
 
     @property
     def region(self) -> Region:
@@ -122,9 +123,9 @@ class Layer:
     ):
         self._name = name
         self._image = image
-        self._opacity = opacity
-        self._rotate = rotate
-        self._scale = scale
+        self._opacity = Float(opacity)
+        self._rotate = Float(rotate)
+        self._scale = Float(scale)
         self._blend_mode = blend_mode
         self._region = Region.from_size(image.width, image.height)
 
@@ -142,7 +143,7 @@ class Layer:
 
     @opacity.setter
     def opacity(self, opacity: float) -> None:
-        self._opacity = opacity
+        self._opacity = Float(opacity)
 
     @property
     def rotate(self) -> float:
@@ -150,7 +151,7 @@ class Layer:
 
     @rotate.setter
     def rotate(self, rotate: float) -> None:
-        self._rotate = rotate
+        self._rotate = Float(rotate)
 
     @property
     def scale(self) -> float:
@@ -158,7 +159,7 @@ class Layer:
 
     @scale.setter
     def scale(self, scale: float) -> None:
-        self._scale = scale
+        self._scale = Float(scale)
 
     @property
     def region(self) -> Region:
