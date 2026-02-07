@@ -4,6 +4,15 @@ from typing import Optional
 from dataclasses import dataclass
 
 
+@dataclass(frozen=True)
+class Vector:
+    x: float = 0
+    y: float = 0
+
+    def __abs__(self) -> Vector:
+        return Vector(abs(self.x), abs(self.y))
+
+
 class OperationFloat(float):
     """
     Um float que lembra qual operação matemática o criou.

@@ -3,6 +3,7 @@ from dataclasses import dataclass
 from operator import add, sub
 from ovld import ovld
 from typing import Callable, Optional
+from anicrop.type import Vector
 
 
 class SpanError(Exception):
@@ -224,15 +225,6 @@ class Span:
         """
 
         return span.start - self.start
-
-
-@dataclass(frozen=True)
-class Vector:
-    x: int = 0
-    y: int = 0
-
-    def __abs__(self) -> Vector:
-        return Vector(abs(self.x), abs(self.y))
 
 
 @dataclass(frozen=True)
