@@ -1,17 +1,17 @@
 from anicrop.layer import EditLayer, Layer
-from anicrop.type import OperationFloat
+from anicrop.type import Rotation
 
 
 class RotationHandler:
-    def __init__(self, layer: Layer, edits: list[EditLayer], value: OperationFloat):
-        self.__layer = layer
-        self.__edits = edits
-        self.__value = value
-        self.__state = layer.rotate
+    def __init__(self, layer: Layer, edits: list[EditLayer], value: Rotation):
+        self._layer = layer
+        self._edits = edits
+        self._value = value
+        self._state = layer.rotate
 
     def rotate(self) -> None:
-        operation = self.__value.operation
-        origin = self.__value.origin_value
-        self.__layer.rotate = self.__value
-        for edit in self.__edits:
+        operation = self._value.operation
+        origin = self._value.origin
+        self._layer.rotate = self._value
+        for edit in self._edits:
             edit.rotate = operation(edit.rotate, origin)
