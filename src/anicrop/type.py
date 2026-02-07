@@ -41,8 +41,9 @@ class OperationFloat(float):
         return OperationFloat(res, operation=truediv, origin_value=float(other))
 
     def __rtruediv__(self, other):
-        res = super().__rtruediv__(other)
-        return OperationFloat(res, operation=truediv, origin_value=float(other))
+        raise NotImplementedError
+        # res = super().__rtruediv__(other)
+        # return OperationFloat(res, operation=truediv, origin_value=float(other))
 
     def __repr__(self):
         return f"{float(self)}"
