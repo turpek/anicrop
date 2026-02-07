@@ -2,7 +2,7 @@ from __future__ import annotations
 from enum import Enum
 from anicrop.image import Image
 from anicrop.spatial import Region, Span
-from anicrop.type import OperationFloat as Float
+from anicrop.type import OperationFloat as Float, Rotation
 import numpy as np
 
 
@@ -124,7 +124,7 @@ class Layer:
         self._name = name
         self._image = image
         self._opacity = Float(opacity)
-        self._rotate = Float(rotate)
+        self._rotate = Rotation(rotate)
         self._scale = Float(scale)
         self._blend_mode = blend_mode
         self._region = Region.from_size(image.width, image.height)
@@ -150,8 +150,8 @@ class Layer:
         return self._rotate
 
     @rotate.setter
-    def rotate(self, rotate: float) -> None:
-        self._rotate = Float(rotate)
+    def rotate(self, rotate: Rotation) -> None:
+        self._rotate = Rotation(rotate)
 
     @property
     def scale(self) -> float:
