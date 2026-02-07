@@ -1,4 +1,7 @@
+from __future__ import annotations
 from operator import add, sub, mul, truediv
+from typing import Optional
+from dataclasses import dataclass
 
 
 class OperationFloat(float):
@@ -47,3 +50,59 @@ class OperationFloat(float):
 
     def __repr__(self):
         return f"{float(self)}"
+
+
+class Rotation:
+    def __init__(self, value: float = 0.0, pivo: Vector = Vector(0, 0), operation=None, origin: Optional[float] = None):
+        self._value = float(value)
+        self._operation = operation
+        self._origin = origin
+        self._pivo = pivo
+
+    def __format_param(self, other: float | tuple[float, float, float]):
+        if isinstance(other, tuple):
+            origin = float(other[0])
+            pivo = Vector(other[1], other[2])
+            return origin, pivo
+        return float(other), Vector(0, 0)
+
+    def __eq__(self, other):
+        return self._value == float(other)
+
+    def __add__(self, other: float | tuple[float, float, float]):
+        origin, pivo = self.__format_param(other)
+        return Rotation(self._value + origin, pivo=pivo, operation=add, origin=origin)
+
+    def __sub__(self, other: float):
+        origin, pivo = self.__format_param(other)
+        return Rotation(self._value - origin, pivo=pivo, operation=sub, origin=origin)
+
+    def __mul__(self, other: float):
+        origin, pivo = self.__format_param(other)
+        return Rotation(self._value * origin, pivo=pivo, operation=mul, origin=origin)
+
+    def __truediv__(self, other: float):
+        origin, pivo = self.__format_param(other)
+        return Rotation(self._value / origin, pivo=pivo, operation=truediv, origin=origin)
+
+    def __float__(self) -> float:
+        return self._value
+
+    @property
+    def pivo(self) -> Vector:
+        return self._pivo
+
+    @property
+    def operation(self):
+        return self._operation
+
+    @property
+    def origin(self):
+        return self._origin
+
+    @property
+    def value(self):
+        return self._value
+
+    def __repr__(self):
+        return f'{self.__class__.__name__}(Angle=({self._value}), Pivo=({self.pivo.x},{self.pivo.y}))'
