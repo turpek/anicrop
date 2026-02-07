@@ -2,7 +2,6 @@ from anicrop.image import Image, ImageFormat
 from anicrop.layer import EditLayer, Layer
 from anicrop.receiver import RotationHandler
 from anicrop.spatial import Region
-from anicrop.type import OperationFloat as Float
 import operator
 # from pytest import raises
 import numpy as np
@@ -11,6 +10,7 @@ import pytest
 
 W = H = 10  # Tamanhos padrão das imgs
 VALUES = (0, -45, 45)   # note: use 1 em vez de 0 para divisão segura
+VALUES_DIV = (1, -2, 2, -45, 45)
 OPS = [
     (operator.add, "add"),
     (operator.sub, "sub"),
@@ -88,3 +88,30 @@ def test_RotationHandler_com_valores_variados(img, value, op, op_name):
     assert layer.rotate == result
     for edit, rot in zip(edits, initial_rotations):
         assert edit.rotate == op(rot, value)
+
+
+@pytest.mark.parametrize('value', VALUES_DIV)
+def test_RotationHandler_divisao_com_valores_variados(img, value):
+    op = operator.truediv
+    initial_rotations = [-90, -45, 45, 90]
+    edits = [EditLayer(img) for _ in range(len(initial_rotations))]
+    for edit, rot in zip(edits, initial_rotations):
+        edit.rotate = rot
+
+    layer = Layer(img)
+    layer.rotate = 180
+
+    result = op(layer.rotate, value)
+    receiver = RotationHandler(layer, edits, result)
+    receiver.rotate()
+
+    assert layer.rotate == result
+    for edit, rot in zip(edits, initial_rotations):
+        assert edit.rotate == op(rot, value)
+
+
+def test_RotationHandler_divisao_por_zero_levanta_erro(img):
+    layer = Layer(img)
+    layer.rotate = 90
+    with pytest.raises(ZeroDivisionError):
+        operator.truediv(layer.rotate, 0)
