@@ -38,7 +38,9 @@ class ProxyLayer:
         # self._history.append(handler)
 
     def __dir__(self) -> dict:
-        return dir(self._layer)
+        own_attrs = set(super().__dir__())
+        layer_attrs = set(dir(self._layer))
+        return sorted(own_attrs | layer_attrs)
 
     @property
     def translation(self) -> Translation:
