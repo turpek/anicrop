@@ -12,6 +12,9 @@ class Vector:
     def __abs__(self) -> Vector:
         return Vector(abs(self.x), abs(self.y))
 
+    def __tuple__(self) -> tuple[float, float]:
+        return (self.x, self.y)
+
 
 class OperationFloat(float):
     """
