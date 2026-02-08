@@ -91,7 +91,7 @@ def test_Rotation_valor_padrao():
 
 @pytest.mark.parametrize("op,op_name", OPS, ids=[name for _, name in OPS])
 @pytest.mark.parametrize('value', [-45, 0, 45], ids=['-45', '0', '45'])
-def testRotation_operacoes_com_valor_padrao(op, op_name, value):
+def test_Rotation_operacoes_com_valor_padrao(op, op_name, value):
     rot = Rotation()
     if op_name == 'div' and value == 0:
         with raises(ZeroDivisionError, match='float division by zero'):
@@ -104,7 +104,7 @@ def testRotation_operacoes_com_valor_padrao(op, op_name, value):
 
 @pytest.mark.parametrize("op,op_name", OPS, ids=[name for _, name in OPS])
 @pytest.mark.parametrize('value', [-45, 0, 45], ids=['-45', '0', '45'])
-def testRotation_operacoes_com_valor_nao_padrao(op, op_name, value):
+def test_Rotation_operacoes_com_valor_nao_padrao(op, op_name, value):
     rot = Rotation()
     if op_name == 'div' and value == 0:
         with raises(ZeroDivisionError, match='float division by zero'):
@@ -118,7 +118,7 @@ def testRotation_operacoes_com_valor_nao_padrao(op, op_name, value):
 
 @pytest.mark.parametrize("op,op_name", OPS, ids=[name for _, name in OPS])
 @pytest.mark.parametrize('value', [(-45, 0.5, 0.5), (0, 0, 0), (45, 1, 1)], ids=['-45', '0', '45'])
-def testRotation_operacoes_com_valor_nao_padrao_e_pivo(op, op_name, value):
+def test_Rotation_operacoes_com_valor_nao_padrao_e_pivo(op, op_name, value):
     rot = Rotation()
     if op_name == 'div' and value[0] == 0:
         with raises(ZeroDivisionError, match='float division by zero'):
