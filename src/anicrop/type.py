@@ -68,7 +68,7 @@ class Rotation:
         self._origin = origin
         self._pivo = pivo
 
-    def __format_param(self, other: float | tuple[float, float, float]):
+    def _normalize(self, other: float | tuple[float, float, float]):
         if isinstance(other, tuple):
             origin = float(other[0])
             pivo = Vector(other[1], other[2])
@@ -79,19 +79,19 @@ class Rotation:
         return self._value == float(other)
 
     def __add__(self, other: float | tuple[float, float, float]):
-        origin, pivo = self.__format_param(other)
+        origin, pivo = self._normalize(other)
         return Rotation(self._value + origin, pivo=pivo, operation=add, origin=origin)
 
     def __sub__(self, other: float):
-        origin, pivo = self.__format_param(other)
+        origin, pivo = self._normalize(other)
         return Rotation(self._value - origin, pivo=pivo, operation=sub, origin=origin)
 
     def __mul__(self, other: float):
-        origin, pivo = self.__format_param(other)
+        origin, pivo = self._normalize(other)
         return Rotation(self._value * origin, pivo=pivo, operation=mul, origin=origin)
 
     def __truediv__(self, other: float):
-        origin, pivo = self.__format_param(other)
+        origin, pivo = self._normalize(other)
         return Rotation(self._value / origin, pivo=pivo, operation=truediv, origin=origin)
 
     def __float__(self) -> float:
