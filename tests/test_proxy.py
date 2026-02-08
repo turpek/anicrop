@@ -14,9 +14,7 @@ def make_img(w=100, h=100):
 
 @pytest.fixture
 def canvas_mock(mocker):
-    # Cria um mock da classe Canvas com o atributo region configurado
     mock = mocker.Mock()
-    # O region do canvas começa na origem (0,0) por padrão
     mock.region = Region.from_size(500, 500)
     return mock
 
