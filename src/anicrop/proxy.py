@@ -1,5 +1,5 @@
 from anicrop.canvas import Canvas
-from anicrop.layer import Layer
+from anicrop.layer import Layer, EditLayer
 from anicrop.receiver import RotationHandler
 from anicrop.type import Translation, Vector
 
@@ -57,6 +57,8 @@ class ProxyLayer:
         canvas = self._canvas.region
         return canvas.offset_to(self._layer.region)
 
-    # @position.setter
-    # def position(self, other) -> Vector:
-    #     raise NotImplementedError
+    def add_edits(self, edits: EditLayer | list[EditLayer]) -> None:
+        if isinstance(edits, list):
+            self._edits.extend(edits)
+        else:
+            self._edits.append(edits)
