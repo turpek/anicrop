@@ -1,17 +1,31 @@
-from anicrop.layer import EditLayer, Layer
-from anicrop.type import Rotation
+from __future__ import annotations
+from typing import TYPE_CHECKING
+from anicrop.spatial import Region
+from anicrop.type import Rotation, Vector
+
+
+if TYPE_CHECKING:
+    from anicrop.proxy import ProxyLayer
+
+
 
 
 class RotationHandler:
-    def __init__(self, layer: Layer, edits: list[EditLayer], value: Rotation):
-        self._layer = layer
-        self._edits = edits
-        self._value = value
-        self._state = layer.rotate
+    def __init__(self, proxy: ProxyLayer, value: Rotation | float | int):
+        self._proxy = proxy
+        self._value = self._normalize_rotation(value)
+        self._state = proxy.rotate
+
+    def _normalize_rotation(self, value: Rotation | float | int) -> Rotation:
+        if isinstance(value, (float, int)):
+            rotate = self._proxy.rotate
+            delta = value - rotate.value
+            return rotate + delta
+        return value
 
     def rotate(self) -> None:
         operation = self._value.operation
         origin = self._value.origin
-        self._layer.rotate = self._value
-        for edit in self._edits:
+        self._proxy._layer.rotate = self._value
+        for edit in self._proxy._edits:
             edit.rotate = operation(edit.rotate, origin)
