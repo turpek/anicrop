@@ -1,4 +1,4 @@
-from anicrop.type import OperationFloat, Rotation, Vector
+from anicrop.type import OperationFloat, Rotation, Translation, Vector
 from operator import add, sub, mul, truediv
 from pytest import raises
 import pytest
@@ -130,3 +130,70 @@ def test_Rotation_operacoes_com_valor_nao_padrao_e_pivo(op, op_name, value):
         result = op(rot, value)
         assert result == expect
         assert result.pivo == pivo
+
+
+def test_Translation_valor_padrao():
+    value = Translation()
+    assert value.x == 0
+    assert value.y == 0
+
+
+@pytest.mark.parametrize("op,op_name", OPS[:2], ids=[name for _, name in OPS[:2]])
+@pytest.mark.parametrize('value', [-45, 0, 45], ids=['-45', '0', '45'])
+def test_Translation_operacoes_com_valores_padroes_nos_eixos(op, op_name, value):
+    trans = Translation()
+    expect = Translation(op(0, value), op(0, value))
+
+    result_x = op(trans.x, value)
+    result_y = op(trans.y, value)
+
+    assert result_x == expect.x
+    assert result_y == expect.y
+
+
+@pytest.mark.parametrize("op,op_name", OPS[:2], ids=[name for _, name in OPS[:2]])
+@pytest.mark.parametrize('value', [-45, 0, 45], ids=['-45', '0', '45'])
+def test_Translation_operacoes_com_valores_nao_padroes_nos_eixos(op, op_name, value):
+    trans = Translation(10, -10)
+    expect = Translation(op(10, value), op(-10, value))
+
+    result_x = op(trans.x, value)
+    result_y = op(trans.y, value)
+
+    assert result_x == expect.x
+    assert result_y == expect.y
+
+
+@pytest.mark.parametrize("op,op_name", OPS[:2], ids=[name for _, name in OPS[:2]])
+@pytest.mark.parametrize('value', [-45, 0, 45], ids=['-45', '0', '45'])
+def test_Translation_simetrica_nos_dois_eixos(op, op_name, value):
+    trans = Translation()
+    expect = Translation(op(0, value), op(0, value))
+    result = op(trans, value)
+    assert result == expect
+
+
+@pytest.mark.parametrize("op,op_name", OPS[:2], ids=[name for _, name in OPS[:2]])
+@pytest.mark.parametrize('dx,dy', [(-45, 15), (0, 0), (45, -15)], ids=['-45,15', '0,0', '45,-15'])
+def test_Translation_com_tupla_valores_nao_padroes(op, op_name, dx, dy):
+    trans = Translation(10, -15)
+    expect = Translation(op(10, dx), op(-15, dy))
+    result = op(trans, (dx, dy))
+    assert result == expect
+
+
+@pytest.mark.parametrize("op,op_name", OPS[:2], ids=[name for _, name in OPS[:2]])
+@pytest.mark.parametrize('dx,dy', [(-45, 15), (0, 0), (45, -15)], ids=['-45,15', '0,0', '45,-15'])
+def test_Translation_com_Vector_valores_nao_padroes(op, op_name, dx, dy):
+    trans = Translation(10, -15)
+    expect = Translation(op(10, dx), op(-15, dy))
+    result = op(trans, Vector(dx, dy))
+    assert result == expect
+
+
+@pytest.mark.parametrize("op,op_name", OPS[:2], ids=[name for _, name in OPS[:2]])
+@pytest.mark.parametrize('value', [{-45, 15}, {0, 0}, {45, -15}], ids=['-45,15', '0,0', '45,-15'])
+def test_Translation_com_tipo_invalido(op, op_name, value):
+    with raises(NotImplementedError, match='Unsupported type: set'):
+        trans = Translation(10, -15)
+        op(trans, value)
