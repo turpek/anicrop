@@ -1,47 +1,27 @@
 from anicrop.spatial import Span, SpanError, Region, Vector
 from pytest import raises
+import pytest
+import re
 
 
-def test_Span_instanciacao_com_um_parametro():
+def test_Span_com_start_padrao():
     assert Span(5) == Span(0, 5)
 
 
-def test_Span_com_start_igual_a_end():
-    expect = "start must be < end (start=0, end=0)"
-    with raises(ValueError) as excinfo:
-        Span(0, 0)
-    result = str(excinfo.value)
-    assert result == expect
+@pytest.mark.parametrize('value', [-5, 0, 5], ids=['-5', '0', '5'])
+def test_Span_com_start_variado(value):
+    span = Span(value, 5)
+    assert span.start == value
+    assert span.length == 5
+
+    end_expect = value + 5
+    assert span.end == end_expect
 
 
-def test_Span_com_start_maior_que_end():
-    expect = "start must be < end (start=1, end=0)"
-    with raises(ValueError) as excinfo:
-        Span(1, 0)
-    result = str(excinfo.value)
-    assert result == expect
-
-
-def test_Span_com_start_negativo():
-    expect = 'start cannot be less than 0 (start=-1)'
-    with raises(ValueError) as excinfo:
-        Span(-1, -10)
-    result = str(excinfo.value)
-    assert result == expect
-
-
-def test_Span_com_end_negativo():
-    expect = "start must be < end (start=0, end=-1)"
-    with raises(ValueError) as excinfo:
-        Span(0, -1)
-    result = str(excinfo.value)
-    assert result == expect
-
-
-def test_Span_length_com_valores_positivos():
-    span = Span(0, 1)
-    result = span.length
-    assert result == 1
+@pytest.mark.parametrize('value', [-1, 0], ids=['-1', '0'])
+def test_Span_com_valores_de_length_invalidos(value):
+    with raises(ValueError, match=re.escape(f'length must be greater than 0 (length={value})')):
+        Span(value)
 
 
 def test_Span_expand_com_valor_negativo():
@@ -55,19 +35,11 @@ def test_Span_expand_com_valor_negativo():
     assert result == expect
 
 
-def test_Span_expand_com_zero():
-    span = Span(0, 10).expand(0)
-    assert span == Span(0, 10)
-
-
-def test_Span_expand_com_start_zero():
-    span = Span(0, 10).expand(1)
-    assert span == Span(0, 11)
-
-
-def test_Span_expand_com_start_maior_que_zero():
-    span = Span(1, 10).expand(1)
-    assert span == Span(0, 11)
+@pytest.mark.parametrize('expand', [0, 1, 5], ids=['expand=0', 'expand=1', 'expand=5'])
+@pytest.mark.parametrize('start', [-1, 0, 1], ids=['start=-1', 'start=0', 'start=1'])
+def test_Span_expand_com_varios_valores_de_expand_e_start(start, expand):
+    span = Span(start, 10).expand(expand)
+    assert span == Span(start - expand, 10 + 2 * expand)
 
 
 def test_Span_expand_com_after():
@@ -77,17 +49,17 @@ def test_Span_expand_com_after():
 
 def test_Span_expand_com_before():
     span = Span(1, 10).expand(before=1)
-    assert span == Span(0, 10)
+    assert span == Span(0, 11)
 
 
 def test_Span_expand_com_both():
     span = Span(1, 10).expand(both=1)
-    assert span == Span(0, 11)
+    assert span == Span(0, 12)
 
 
 def test_Span_expand_com_both_e_after():
     span = Span(1, 10).expand(both=1, after=3)
-    assert span == Span(0, 11)
+    assert span == Span(0, 12)
 
 
 def test_Span_shrink_com_valor_negativo():
@@ -99,117 +71,105 @@ def test_Span_shrink_com_valor_negativo():
     assert result == expect
 
 
-def test_Span_shrink_com_valor_zero():
-    span = Span(0, 10).shrink(0)
-    assert span == Span(0, 10)
+@pytest.mark.parametrize('shrink', [0, 1, 4], ids=['shrink=0', 'shrink=1', 'shrink=4'])
+@pytest.mark.parametrize('start', [-1, 0, 1], ids=['start=-1', 'start=0', 'start=1'])
+def test_Span_shrink_com_varios_valores_de_both_e_start(shrink, start):
+    span = Span(start, 10).shrink(shrink)
+    assert span == Span(start + shrink, 10 - shrink * 2)
 
 
-def test_Span_shrink_com_valor_positivo():
-    span = Span(0, 10).shrink(1)
-    assert span == Span(1, 9)
+@pytest.mark.parametrize(
+    'before, after, expect',
+    [
+        (2, 3, (2, 5)),
+        (100, 0, (9, 1)),
+        (0, 100, (0, 1)),
+    ],
+    ids=['(2,3)', '(100,0)', '(0,100)']
+)
+def test_Span_shrink_com_varios_valores_after_e_before(before, after, expect):
+    span = Span(0, 10).shrink(before=before, after=after)
+    assert span == Span(*expect)
 
 
-def test_Span_shrink_com_before():
-    span = Span(0, 10).shrink(before=1)
-    assert span == Span(1, 10)
-
-
-def test_Span_shrink_com_after():
-    span = Span(0, 10).shrink(after=1)
-    assert span == Span(0, 9)
-
-
-def test_Span_shrink_com_both():
-    span = Span(0, 10).shrink(both=1)
-    assert span == Span(1, 9)
-
-
-def test_Span_shrink_com_both_e_after():
-    span = Span(0, 10).shrink(both=1, after=3)
-    assert span == Span(1, 9)
-
-
-def test_Span_shrink_gerando_start_igual_a_end():
-    expect = "start must be < end (start=1, end=1)"
-    with raises(ValueError) as excinfo:
-        Span(0, 2).shrink(1)
-    result = str(excinfo.value)
-    assert result == expect
-
-
-def test_Span_shrink_gerando_start_maior_que_end():
-    expect = "start must be < end (start=1, end=0)"
-    with raises(ValueError) as excinfo:
-        Span(0, 1).shrink(1)
-    result = str(excinfo.value)
-    assert result == expect
+@pytest.mark.parametrize(
+    'before, after, expect',
+    [
+        (5, 5, (-45, 10)),
+        (100, 100, (-31, 1)),
+    ],
+    ids=['(5,5)', '(100,100)']
+)
+def test_Span_shrink_com_varios_valores_after_e_before_e_start_negativo(before, after, expect):
+    span = Span(-50, 20).shrink(before=before, after=after)
+    assert span == Span(*expect)
 
 
 def test_Span_deslocamento_para_direita():
     span = Span(3, 10) + 5
-    assert span == Span(8, 15)
-
-
-def test_Span_deslocamento_para_direita_com_span():
-    span = Span(3, 10) + Span(5, 8)
-    assert span == Span(8, 15)
+    assert span == Span(8, 10)
 
 
 def test_Span_deslocamento_para_esquerda():
     span = Span(3, 10) - 2
-    assert span == Span(1, 8)
-
-
-def test_Span_deslocamento_para_esquerda_com_span():
-    span = Span(3, 10) - Span(2, 8)
-    assert span == Span(1, 8)
+    assert span == Span(1, 10)
 
 
 def test_Span_deslocamento_para_esquerda_com_offset_maior_que_start():
     span = Span(3, 10) - 5
-    assert span == Span(0, 5)
+    assert span == Span(-2, 10)
+
+
+def test_Span_deslocamento_para_direita_com_span():
+    span = Span(3, 10) + Span(5, 8)
+    assert span == Span(8, 10)
+
+
+def test_Span_deslocamento_para_esquerda_com_span():
+    span = Span(3, 10) - Span(2, 8)
+    assert span == Span(1, 10)
 
 
 def test_Span_deslocamento_para_esquerda_com_offset_maior_que_start_com_span():
     span = Span(3, 10) - Span(5, 15)
-    assert span == Span(0, 5)
+    assert span == Span(-2, 10)
 
 
 def test_Span_uniao_de_dois_span():
     span = Span(6, 15) | Span(2, 10)
-    assert span == Span(2, 15)
+    assert span == Span(2, 19)
 
 
 def test_Span_sobreposicao_de_dois_span():
     span = Span(6, 15) & Span(2, 10)
-    assert span == Span(6, 10)
+    assert span == Span(6, 6)
 
 
 def test_Span_sobreposicao_de_dois_span_sem_sobreposicao():
     expect = "no overlap between spans."
     with raises(SpanError) as excinfo:
-        Span(6, 15) & Span(15, 30)
+        Span(6, 9) & Span(15, 15)
     result = str(excinfo.value)
     assert result == expect
 
 
 def test_Span_overlaps_de_dois_span():
-    span = Span(6, 15)
-    assert span.overlaps(Span(2, 10))
+    span = Span(6, 9)
+    assert span.overlaps(Span(2, 8))
 
 
 def test_Span_overlaps_de_dois_span_sem_sobreposicao():
-    span = Span(6, 15)
-    assert not span.overlaps(Span(15, 30))
+    span = Span(6, 9)
+    assert not span.overlaps(Span(15, 15))
 
 
 def test_Span_offset_to_com_distancia_poisitiva():
-    result = Span(2, 10).offset_to(Span(6, 15))
+    result = Span(2, 8).offset_to(Span(6, 9))
     assert result == 4
 
 
 def test_Span_offset_to_com_distancia_negativa():
-    result = Span(6, 15).offset_to(Span(2, 10))
+    result = Span(6, 9).offset_to(Span(2, 9))
     assert result == -4
 
 
@@ -218,58 +178,58 @@ def test_duas_Region_iguais():
 
 
 def test_Region_deslocamento_para_direita_no_eixo_xy():
-    region = Region(Span(0, 10), Span(0, 5)) + Vector(2, 3)
-    assert region == Region(Span(2, 12), Span(3, 8))
+    region = Region.from_size(10, 5) + (2, 3)
+    assert region == Region(Span(2, 10), Span(3, 5))
 
 
 def test_Region_deslocamento_para_direita_no_eixo_x():
-    region = Region(Span(0, 10), Span(0, 5)) + Vector(2, 0)
-    assert region == Region(Span(2, 12), Span(0, 5))
+    region = Region.from_size(10, 5) + (2, 0)
+    assert region == Region(Span(2, 10), Span(5))
 
 
 def test_Region_deslocamento_para_direita_no_eixo_y():
-    region = Region(Span(0, 10), Span(0, 5)) + Vector(0, 3)
-    assert region == Region(Span(0, 10), Span(3, 8))
+    region = Region(Span(10), Span(5)) + Vector(0, 3)
+    assert region == Region(Span(10), Span(3, 5))
 
 
 def test_Region_deslocamento_para_esquerda_no_eixo_xy():
-    region = Region(Span(5, 10), Span(10, 15)) - Vector(2, 3)
-    assert region == Region(Span(3, 8), Span(7, 12))
+    region = Region(Span(5, 5), Span(10, 5)) - Vector(2, 3)
+    assert region == Region(Span(3, 5), Span(7, 5))
 
 
 def test_Region_deslocamento_para_esquerda_no_eixo_x():
-    region = Region(Span(5, 10), Span(10, 15)) - Vector(2, 0)
-    assert region == Region(Span(3, 8), Span(10, 15))
+    region = Region(Span(5, 5), Span(10, 5)) - (2, 0)
+    assert region == Region(Span(3, 5), Span(10, 5))
 
 
 def test_Region_deslocamento_para_esquerda_no_eixo_y():
-    region = Region(Span(5, 10), Span(10, 15)) - Vector(0, 3)
-    assert region == Region(Span(5, 10), Span(7, 12))
+    region = Region(Span(5, 5), Span(10, 5)) - (0, 3)
+    assert region == Region(Span(5, 5), Span(7, 5))
 
 
 def test_Region_deslocamento_para_direita_com_Region():
-    region = Region(Span(0, 10), Span(0, 5)) + Region(Span(2, 10), Span(3, 15))
-    assert region == Region(Span(2, 12), Span(3, 8))
+    region = Region(Span(10), Span(5)) + Region(Span(2, 8), Span(3, 12))
+    assert region == Region(Span(2, 10), Span(3, 5))
 
 
 def test_Region_deslocamento_positivo_nos_eixos_xy_com_int():
     region = Region.from_size(10, 5) + 2
-    assert region == Region(Span(2, 12), Span(2, 7))
+    assert region == Region(Span(2, 10), Span(2, 5))
 
 
 def test_Region_deslocamento_negativo_nos_eixos_xy_com_int():
-    region = Region(Span(5, 10), Span(10, 15)) - 2
-    assert region == Region(Span(3, 8), Span(8, 13))
+    region = Region(Span(5, 5), Span(10, 5)) - 2
+    assert region == Region(Span(3, 5), Span(8, 5))
 
 
 def test_Region_deslocamento_positivo_nos_eixos_xy_com_tupla():
     region = Region.from_size(10, 5) + (2, 3)
-    assert region == Region(Span(2, 12), Span(3, 8))
+    assert region == Region(Span(2, 10), Span(3, 5))
 
 
 def test_Region_deslocamento_negativo_nos_eixos_xy_com_tupla():
-    region = Region(Span(5, 10), Span(10, 15)) - (2, 3)
-    assert region == Region(Span(3, 8), Span(7, 12))
+    region = Region(Span(5, 5), Span(10, 5)) - (2, 3)
+    assert region == Region(Span(3, 5), Span(7, 5))
 
 
 def test_Region_deslocamento_positivo_com_tipo_errado():
@@ -285,126 +245,123 @@ def test_Region_deslocamento_negativo_com_tipo_errado():
 
 
 def test_Region_uniao_de_duas_regioes():
-    region = Region(Span(5, 10), Span(10, 15)) | Region(Span(7, 20), Span(12, 25))
-    assert region == Region(Span(5, 20), Span(10, 25))
+    region = Region(Span(5, 5), Span(10, 5)) | Region(Span(7, 13), Span(12, 13))
+    assert region == Region(Span(5, 15), Span(10, 15))
 
 
 def test_Region_sobreposicao_de_duas_regioes():
-    region = Region(Span(5, 10), Span(10, 15)) & Region(Span(7, 20), Span(12, 25))
-    assert region == Region(Span(7, 10), Span(12, 15))
+    region = Region(Span(5, 5), Span(10, 5)) & Region(Span(7, 13), Span(12, 13))
+    assert region == Region(Span(7, 3), Span(12, 3))
 
 
 def test_Region_overlaps_no_eixo_xy():
-    region = Region(Span(5, 10), Span(10, 15))
-    assert region.overlaps(Region(Span(7, 20), Span(12, 25)))
+    region = Region(Span(5, 5), Span(10, 5))
+    assert region.overlaps(Region(Span(7, 13), Span(12, 13)))
 
 
 def test_Region_overlaps_no_eixo_x():
-    region = Region(Span(5, 10), Span(10, 15))
-    assert not region.overlaps(Region(Span(15, 20), Span(12, 25)))
+    region = Region(Span(5, 5), Span(10, 5))
+    assert not region.overlaps(Region(Span(15, 5), Span(12, 13)))
 
 
 def test_Region_overlaps_no_eixo_y():
-    region = Region(Span(5, 10), Span(10, 15))
-    assert not region.overlaps(Region(Span(15, 20), Span(22, 25)))
+    region = Region(Span(5, 5), Span(10, 5))
+    assert not region.overlaps(Region(Span(15, 5), Span(22, 3)))
 
 
 def test_Region_area():
-    region = Region(Span(5, 10), Span(10, 15))
+    region = Region(Span(5, 5), Span(10, 5))
     assert region.area == 25
 
 
 def test_Region_width():
-    region = Region(Span(5, 10), Span(10, 15))
+    region = Region(Span(5, 5), Span(10, 5))
     assert region.width == 5
 
 
 def test_Region_height():
-    region = Region(Span(5, 10), Span(10, 15))
+    region = Region(Span(5, 5), Span(10, 5))
     assert region.height == 5
 
 
 def test_Region_expand_em_no_eixo_xy():
-    region = Region(Span(5, 10), Span(10, 15)).expand(Vector(5, 5))
-    assert region == Region(Span(0, 15), Span(5, 20))
+    region = Region(Span(5, 5), Span(10, 5)).expand(Vector(5, 5))
+    assert region == Region(Span(0, 15), Span(5, 15))
 
 
 def test_Region_expand_em_no_eixo_x():
-    region = Region(Span(5, 10), Span(10, 15)).expand(Vector(5, 0))
-    assert region == Region(Span(0, 15), Span(10, 15))
+    region = Region(Span(5, 5), Span(10, 5)).expand(Vector(5, 0))
+    assert region == Region(Span(0, 15), Span(10, 5))
 
 
 def test_Region_expand_em_no_eixo_y():
-    region = Region(Span(5, 10), Span(10, 15)).expand(Vector(0, 5))
-    assert region == Region(Span(5, 10), Span(5, 20))
+    region = Region(Span(5, 5), Span(10, 5)).expand(Vector(0, 5))
+    assert region == Region(Span(5, 5), Span(5, 15))
 
 
 def test_Region_expand_left_e_top():
-    region = Region(Span(5, 10), Span(10, 15)).expand(left=5, top=5)
-    assert region == Region(Span(0, 10), Span(5, 15))
+    region = Region(Span(5, 5), Span(10, 5)).expand(left=5, top=5)
+    assert region == Region(Span(0, 10), Span(5, 10))
 
 
 def test_Region_expand_right_e_bottom():
-    region = Region(Span(5, 10), Span(10, 15)).expand(right=5, bottom=5)
-    assert region == Region(Span(5, 15), Span(10, 20))
+    region = Region(Span(5, 5), Span(10, 5)).expand(right=5, bottom=5)
+    assert region == Region(Span(5, 10), Span(10, 10))
 
 
 def test_Region_shrink_em_no_eixo_xy():
-    region = Region(Span(0, 15), Span(10, 25)).shrink(Vector(5, 5))
-    assert region == Region(Span(5, 10), Span(15, 20))
+    region = Region(Span(0, 15), Span(10, 15)).shrink(Vector(5, 5))
+    assert region == Region(Span(5, 5), Span(15, 5))
 
 
 def test_Region_shrink_em_no_eixo_x():
-    region = Region(Span(0, 15), Span(10, 25)).shrink(Vector(5, 0))
-    assert region == Region(Span(5, 10), Span(10, 25))
+    region = Region(Span(0, 15), Span(10, 15)).shrink(Vector(5, 0))
+    assert region == Region(Span(5, 5), Span(10, 15))
 
 
 def test_Region_shrink_em_no_eixo_y():
-    region = Region(Span(0, 15), Span(10, 25)).shrink(Vector(0, 5))
-    assert region == Region(Span(0, 15), Span(15, 20))
+    region = Region(Span(0, 15), Span(10, 15)).shrink(Vector(0, 5))
+    assert region == Region(Span(0, 15), Span(15, 5))
 
 
 def test_Region_shrink_left_e_top():
-    region = Region(Span(0, 15), Span(10, 25)).shrink(left=5, top=5)
-    assert region == Region(Span(5, 15), Span(15, 25))
+    region = Region(Span(0, 15), Span(10, 15)).shrink(left=5, top=5)
+    assert region == Region(Span(5, 10), Span(15, 10))
 
 
 def test_Region_shrink_right_e_bottom():
-    region = Region(Span(0, 15), Span(10, 25)).shrink(right=5, bottom=5)
-    assert region == Region(Span(0, 10), Span(10, 20))
+    region = Region(Span(0, 15), Span(10, 15)).shrink(right=5, bottom=5)
+    assert region == Region(Span(0, 10), Span(10, 10))
 
 
 def test_Region_offset_positivo():
-    region = Region(Span(50, 60), Span(55, 80))
-    result = Region(Span(0, 15), Span(10, 25)).offset_to(region)
+    region = Region(Span(50, 110), Span(55, 135))
+    result = Region(Span(0, 15), Span(10, 15)).offset_to(region)
     assert result == Vector(50, 45)
 
 
 def test_Region_offset_negativo():
-    region = Region(Span(0, 15), Span(10, 25))
-    result = Region(Span(50, 60), Span(55, 80)).offset_to(region)
+    region = Region(Span(0, 15), Span(10, 15))
+    result = Region(Span(50, 110), Span(55, 135)).offset_to(region)
     assert result == Vector(-50, -45)
 
 
 def test_Region_overlap_with_regionB_em_regionA():
-    regionA = Region(Span(0, 1920), Span(437, 1517))
-    regionB = Region(Span(236, 2206), Span(0, 1080))
+    regionA = Region(Span(0, 1920), Span(437, 1080))
+    regionB = Region(Span(236, 1970), Span(0, 1080))
     result = regionA.overlap_with(regionB)
-    assert result == Region(Span(236, 1920), Span(0, 643))
+    assert result == Region(Span(236, 1684), Span(0, 643))
 
 
 def test_Region_overlap_with_regionA_em_regionB():
-    regionA = Region(Span(0, 1920), Span(437, 1517))
-    regionB = Region(Span(236, 2206), Span(0, 1080))
+    regionA = Region(Span(0, 1920), Span(437, 1080))
+    regionB = Region(Span(236, 1970), Span(0, 1080))
     result = regionB.overlap_with(regionA)
-    assert result == Region(Span(0, 1684), Span(437, 1080))
+    assert result == Region(Span(0, 1684), Span(437, 643))
 
 
 def test_Region_overlap_with_regionB_nao_sobreposto_regionA():
-    expect = "no overlap: 'other' out of bounds"
-    with raises(ValueError) as excinfo:
-        regionA = Region(Span(0, 1920), Span(437, 1517))
-        regionB = Region(Span(2206, 3845), Span(1880, 3100))
+    with raises(ValueError, match="no overlap: 'other' out of bounds"):
+        regionA = Region(Span(0, 1920), Span(437, 1080))
+        regionB = Region(Span(2206, 1639), Span(1880, 1220))
         regionB.overlap_with(regionA)
-    result = str(excinfo.value)
-    assert result == expect
