@@ -23,7 +23,7 @@ class Span:
     """
 
     @ovld
-    def __init__(self, end: int, /):
+    def __init__(self, length: int, /):
         """Initializes a Span with start=0.
 
         Args:
@@ -33,10 +33,10 @@ class Span:
         Raises:
             ValueError: If `start >= end`.
         """
-        self._setup(0, end)
+        self._setup(0, length)
 
     @ovld  # type: ignore[no-redef]
-    def __init__(self, start: int, end: int, /):  # noqa: F811
+    def __init__(self, start: int, length: int, /):  # noqa: F811
         """Initializes a Span.
 
         Args:
@@ -46,26 +46,23 @@ class Span:
         Raises:
             ValueError: If `start < 0` or if `start >= end`.
         """
-        self._setup(start, end)
+        self._setup(start, length)
 
-    def _setup(self, start: int, end: int) -> None:
-        if start < 0:
-            raise ValueError(f'start cannot be less than 0 (start={start})')
-
-        if start >= end:
-            raise ValueError(f'start must be < end (start={start}, end={end})')
+    def _setup(self, start: int, length: int) -> None:
+        if length <= 0:
+            raise ValueError(f'length must be greater than 0 (length={length})')
 
         self._start = start
-        self._end = end
+        self._length = length
 
     def __repr__(self):
-        return f"{self.__class__.__name__}(start={self.start}, end={self.end})"
+        return f"{self.__class__.__name__}(start={self.start}, length={self.length})"
 
     def __eq__(self, span: object) -> bool:
         if not isinstance(span, Span):
             return NotImplemented
 
-        return self.start == span.start and self.end == span.end
+        return self.start == span.start and self.length == span.length
 
     def __add__(self, offset: int | Span) -> Span:
         """Shifts the span to the right.
@@ -80,7 +77,7 @@ class Span:
         """
         if isinstance(offset, Span):
             offset = offset.start
-        return Span(self.start + offset, self.end + offset)
+        return Span(self.start + offset, self.length)
 
     def __sub__(self, offset: int | Span) -> Span:
         """Shifts the span to the left.
@@ -97,8 +94,7 @@ class Span:
         if isinstance(offset, Span):
             offset = offset.start
 
-        start = max(0, self.start - offset)
-        return Span(start, self.end - offset)
+        return Span(self.start - offset, self.length)
 
     def __or__(self, span: Span) -> Span:
         """Computes the union of this span and another.
@@ -115,7 +111,7 @@ class Span:
 
         start = min(self.start, span.start)
         end = max(self.end, span.end)
-        return Span(start, end)
+        return Span(start, end - start)
 
     def __and__(self, span: Span) -> Span:
         """Computes the intersection of this span and another.
@@ -137,12 +133,12 @@ class Span:
 
         overlap_start = max(self.start, span.start)
         overlap_end = min(self.end, span.end)
-        return Span(overlap_start, overlap_end)
+        return Span(overlap_start, overlap_end - overlap_start)
 
     @property
     def length(self) -> int:
         """The length of the span, calculated as `end - start`."""
-        return self._end - self._start
+        return self._length
 
     @property
     def start(self) -> int:
@@ -152,7 +148,7 @@ class Span:
     @property
     def end(self) -> int:
         """The ending point of the span."""
-        return self._end
+        return self.start + self.length
 
     def overlaps(self, other: Span) -> bool:
         return self.end > other.start and other.end > self.start
@@ -178,10 +174,7 @@ class Span:
                 "Margin for expand() must be non-negative. To contract "
                 "the span, use the shrink() method with a positive value."
             )
-
-        start_expand = max(0, self.start - before)
-
-        return Span(start_expand, self.end + after)
+        return Span(self.start - before, before + self.length + after)
 
     def shrink(self, both: Optional[int] = None, *, before: int = 0, after: int = 0) -> Span:
 
@@ -205,10 +198,15 @@ class Span:
                 "To expand the span, use the expand() method with a positive margin."
             )
 
-        return Span(self.start + before, self.end - after)
+        start = min(self.start + before, self.end)
+        end = max(self.end - after, self.start)
 
-    # def offset(self, other: Span) -> Span:
-    #    return Span(span.start )
+        if start >= self.end:
+            start -= 1
+        if start >= end:
+            end = start + 1
+
+        return Span(start, end - start)
 
     def offset_to(self, span: Span) -> int:
         """Calculates the offset between the start point of this span and another's.
