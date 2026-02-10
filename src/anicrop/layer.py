@@ -80,8 +80,9 @@ class EditLayer:
 
         start_x, end_x = int(axis_x.min()), int(axis_x.max())
         start_y, end_y = int(axis_y.min()), int(axis_y.max())
-
-        return Region(Span(start_x, end_x + 1), Span(start_y, end_y + 1))
+        width = end_x - start_x + 1
+        height = end_y - start_y + 1
+        return Region(Span(start_x, width), Span(start_y, height))
 
     @property
     def rotate(self) -> float:
