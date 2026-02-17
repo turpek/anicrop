@@ -14,17 +14,26 @@ class GlobalHistory:
     def _clear_redo(self) -> None:
         self._redo_stack.clear()
 
-    def push(self, command_cls: Command, layer: Layer, value: Any) -> None:
+    def _instantiate_command(self, command_cls: type[Command], layer: Layer, value: Any) -> Command:
+        cmd = command_cls(layer, value)
+        self._undo_stack.append(cmd)
+        return cmd
+
+    def _can_instantiate_command(self, command_cls: type[Command], layer: Layer) -> bool:
+        return self.undo_empty() or not self._undo_stack[-1].can_merge(command_cls, layer)
+
+    def _update_command(self, value: Any) -> Command:
+        cmd = self._undo_stack[-1]
+        cmd.update_value(value)
+        return cmd
+
+    def push(self, command_cls: type[Command], layer: Layer, value: Any) -> None:
         self._clear_redo()
-        if self.undo_empty():
-            cmd = command_cls(layer, value)
-            self._undo_stack.append(cmd)
-        elif self._undo_stack[-1].can_merge(command_cls, layer):
-            cmd = self._undo_stack[-1]
-            cmd.update_value(value)
+
+        if self._can_instantiate_command(command_cls, layer):
+            cmd = self._instantiate_command(command_cls, layer, value)
         else:
-            cmd = command_cls(layer, value)
-            self._undo_stack.append(cmd)
+            cmd = self._update_command(value)
         cmd.execute()
 
     def undo(self) -> None:
