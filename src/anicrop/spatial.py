@@ -308,6 +308,16 @@ class Region:
     def height(self) -> int:
         return self.y.length
 
+    @property
+    def size(self) -> tuple[int, int]:
+        """Returns the dimensions of the region as a (width, height) tuple."""
+        return (self.width, self.height)
+
+    @property
+    def top_left(self) -> tuple[int, int]:
+        """Returns the top-left coordinates as an (x, y) tuple."""
+        return (self.x.start, self.y.start)
+
     def expand(
         self,
         all: Vector | int | None = None,
