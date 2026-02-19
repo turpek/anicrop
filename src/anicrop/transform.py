@@ -90,3 +90,7 @@ def mat_final(layer: Layer, x: float, y: float) -> np.ndarray:
 
     # Retornamos a matriz e o tamanho (arredondado para cima para evitar bordas cortadas)
     return m_render
+
+
+def mat_inverse(matrix: np.ndarray) -> np.ndarray:
+    return np.linalg.inv(matrix)
