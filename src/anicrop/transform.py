@@ -5,7 +5,7 @@ from anicrop.type import Transform
 import numpy as np
 
 
-def calculate_new_bbox(m_global: np.ndarray, size: tuple[int, int]) -> tuple[float, float, float, float]:
+def calculate_new_bbox(m_global: np.ndarray, size: tuple[int, int]) -> tuple[int, int, int, int]:
     """
     Calcula o Axis-Aligned Bounding Box (AABB) projetando os 4 cantos
     locais da imagem através da matriz global.
@@ -19,16 +19,17 @@ def calculate_new_bbox(m_global: np.ndarray, size: tuple[int, int]) -> tuple[flo
     # 2. Projetar cantos para o Espaço Global (Mundo)
     projected = corners @ m_global.T
 
-    # 3. Encontrar os limites Min/Max
+    # 3. Encontrar os limites Min/Max com arredondamento conservador
     min_xy = np.min(projected[:, :2], axis=0)
     max_xy = np.max(projected[:, :2], axis=0)
 
-    return (
-        float(min_xy[0]),  # x
-        float(min_xy[1]),  # y
-        float(max_xy[0] - min_xy[0]),  # w
-        float(max_xy[1] - min_xy[1])   # h
-    )
+    # Arredondamento Enveloping: expande para fora para garantir que caiba na grade de pixels
+    x = int(np.floor(min_xy[0]))
+    y = int(np.floor(min_xy[1]))
+    width = int(np.ceil(max_xy[0])) - x
+    height = int(np.ceil(max_xy[1])) - y
+
+    return (x, y, width, height)
 
 
 def calculate_new_bbox_from_layer(layer) -> tuple[float, float, float, float]:
