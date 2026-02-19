@@ -1,7 +1,7 @@
 from __future__ import annotations
 from anicrop.spatial import Region
 from anicrop.layer import Layer
-from anicrop.type import Rotation, Scale
+from anicrop.type import Transform
 import numpy as np
 
 
@@ -61,7 +61,7 @@ def mat_position(region: Region) -> np.ndarray:
     return mat_translation(region.x.start, region.y.start)
 
 
-def mat_pivot(transform: Rotation | Scale, size: tuple[int, int]) -> np.ndarray:
+def mat_pivot(transform: Transform, size: tuple[int, int]) -> np.ndarray:
     return create_pivot_transform(transform.matrix, *size, *transform.pivot)
 
 
