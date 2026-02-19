@@ -2,7 +2,8 @@ from __future__ import annotations
 from enum import Enum
 from anicrop.image import Image
 from anicrop.spatial import Region, Span
-from anicrop.type import OperationFloat as Float, Rotation
+from anicrop.type import Rotation, RotationInput, Scale, ScaleInput
+from anicrop.transform import calculate_new_bbox_from_layer, mat_global, mat_inverse
 import numpy as np
 
 
@@ -117,18 +118,22 @@ class Layer:
         self,
         image: Image,
         opacity: float = 1.0,
-        rotate: float = 0.0,
+        rotation: float = 0.0,
         scale: float = 1.0,
         blend_mode: BlendMode = BlendMode.NORMAL,
         name: str = 'Layer'
     ):
         self._name = name
         self._image = image
-        self._opacity = Float(opacity)
-        self._rotate = Rotation(rotate)
-        self._scale = Float(scale)
+        self._opacity = opacity
+        self._rotation = Rotation(rotation)
+        self._scale = Scale(1.0, 1.0)
         self._blend_mode = blend_mode
         self._region = Region.from_size(image.width, image.height)
+        self._edits: deque[EditLayer] = deque()
+
+    def __repr__(self) -> str:
+        return f"Layer(x={self.x.start}, y={self.y.start}, size={self.image.size})"
 
     @property
     def name(self) -> str:
@@ -139,28 +144,50 @@ class Layer:
         self._name = name
 
     @property
+    def x(self) -> Span:
+        return self.region.x
+
+    @x.setter
+    def x(self, value: int | Span):
+        if isinstance(value, Span):
+            self._region = Region(value, self.y)
+        elif isinstance(value, int):
+            self._region = Region(Span(value, self.x.length), self.y)
+
+    @property
+    def y(self) -> Span:
+        return self.region.y
+
+    @y.setter
+    def y(self, value: int | Span):
+        if isinstance(value, Span):
+            self._region = Region(self.x, value)
+        elif isinstance(value, int):
+            self._region = Region(self.x, Span(value, self.y.length))
+
+    @property
     def opacity(self) -> float:
         return self._opacity
 
     @opacity.setter
     def opacity(self, opacity: float) -> None:
-        self._opacity = Float(opacity)
+        self._opacity = opacity
 
     @property
-    def rotate(self) -> float:
-        return self._rotate
+    def rotation(self) -> Rotation:
+        return self._rotation
 
-    @rotate.setter
-    def rotate(self, rotate: Rotation) -> None:
-        self._rotate = Rotation(rotate)
+    @rotation.setter
+    def rotation(self, value: Rotation | RotationInput) -> None:
+        self._rotation = self._rotation.from_input(value)
 
     @property
-    def scale(self) -> float:
+    def scale(self) -> Scale:
         return self._scale
 
     @scale.setter
-    def scale(self, scale: float) -> None:
-        self._scale = Float(scale)
+    def scale(self, value: Scale | ScaleInput) -> None:
+        self._scale = self._scale.from_input(value)
 
     @property
     def region(self) -> Region:
@@ -183,3 +210,14 @@ class Layer:
     @blend_mode.setter
     def blend_mode(self, blend_mode: BlendMode) -> None:
         self._blend_mode = blend_mode
+
+    @property
+    def canvas_region(self) -> Region:
+        """Retorna o BBox (AABB) real do layer no espaço do Canvas."""
+        x, y, w, h = calculate_new_bbox_from_layer(self)
+        return Region(Span(x, w), Span(y, h))
+
+    def add_edit(self, image: Image, region: Region, blend_mode: BlendMode = BlendMode.NORMAL) -> None:
+        name = f'Edit-{len(self._edits) + 1}'
+        matrix = mat_inverse(mat_global(self))
+        self._edits.append(EditLayer(image, region, matrix, blend_mode, name))
