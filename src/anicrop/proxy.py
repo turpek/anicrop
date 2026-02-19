@@ -1,18 +1,12 @@
-from anicrop.canvas import Canvas
-from anicrop.layer import Layer, EditLayer
-from anicrop.receiver import RotationHandler
-from anicrop.type import Translation, Vector
-
-HANDLERS = {'rotate': RotationHandler}
+from anicrop.layer import Layer
+from anicrop.command import SetAttributeCommand
+from anicrop.history import GlobalHistory
 
 
 class ProxyLayer:
-    def __init__(self, layer: Layer, canvas: Canvas):
-        super().__setattr__('_canvas', canvas)
-        super().__setattr__('_edits', [])
+    def __init__(self, layer: Layer, history: GlobalHistory):
         super().__setattr__('_layer', layer)
-        super().__setattr__('_history', [])
-        super().__setattr__('_translation', Translation())
+        super().__setattr__('_history', history)
 
     def __getattr__(self, name):
         original = object.__getattribute__(self, '_layer')
@@ -20,12 +14,8 @@ class ProxyLayer:
 
     def __setattr__(self, name, value):
         if name in (
-            '_canvas',
-            '_edits',
             '_layer',
             '_history',
-            '_translation',
-            'translation',
         ):
             super().__setattr__(name, value)
             return
@@ -33,32 +23,12 @@ class ProxyLayer:
         if not hasattr(self._layer, name):
             raise AttributeError(f"A propriedade '{name}' não existe no objeto original.")
 
-        # handler = HANDLERS[name](self._layer, self._edits, value)
-        # handler.rotate()
-        # self._history.append(handler)
+        self._history.push(SetAttributeCommand, name, self._layer, value)
 
     def __dir__(self) -> dict:
         own_attrs = set(super().__dir__())
         layer_attrs = set(dir(self._layer))
         return sorted(own_attrs | layer_attrs)
 
-    @property
-    def translation(self) -> Translation:
-        return self._translation
-
-    @translation.setter
-    def translation(self, translation: Translation) -> None:
-        if not isinstance(translation, Translation):
-            raise TypeError("tipo errado")
-        self._translation = translation
-
-    @property
-    def position(self) -> Vector:
-        canvas = self._canvas.region
-        return canvas.offset_to(self._layer.region)
-
-    def add_edits(self, edits: EditLayer | list[EditLayer]) -> None:
-        if isinstance(edits, list):
-            self._edits.extend(edits)
-        else:
-            self._edits.append(edits)
+    def __repr__(self) -> str:
+        return str(self._layer)
