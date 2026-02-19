@@ -6,6 +6,7 @@ readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
     "numpy>=2.4.2",
+    "opencv-python>=4.13.0.92",
     "ovld>=0.5.14",
 ]
 
