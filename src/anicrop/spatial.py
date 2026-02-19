@@ -13,13 +13,13 @@ class SpanError(Exception):
 class Span:
     """Represents a continuous numerical interval (span) in one dimension.
 
-    The class operates on non-negative coordinates and ensures that `start < end`.
-    It is an immutable object.
+    Defined by a `start` coordinate and a positive `length`.
+    Supports negative coordinates. This class is immutable.
 
     Attributes:
         start (int): The starting point of the span.
-        end (int): The ending point of the span.
-        length (int): The length of the span, calculated as `end - start`.
+        length (int): The length of the span (must be > 0).
+        end (int): The ending point (start + length).
     """
 
     @ovld
@@ -27,11 +27,10 @@ class Span:
         """Initializes a Span with start=0.
 
         Args:
-            start: The starting point of the span. Must be non-negative.
-            end: The ending point of the span. Must be greater than start.
+            length: The length of the span. Must be positive.
 
         Raises:
-            ValueError: If `start >= end`.
+            ValueError: If `length <= 0`.
         """
         self._setup(0, length)
 
@@ -40,11 +39,11 @@ class Span:
         """Initializes a Span.
 
         Args:
-            start: The starting point of the span. Must be non-negative.
-            end: The ending point of the span. Must be greater than start.
+            start: The starting point of the span (can be negative).
+            length: The length of the span. Must be positive.
 
         Raises:
-            ValueError: If `start < 0` or if `start >= end`.
+            ValueError: If `length <= 0`.
         """
         self._setup(start, length)
 
@@ -82,11 +81,10 @@ class Span:
     def __sub__(self, offset: int | Span) -> Span:
         """Shifts the span to the left.
 
-        Implements the `Span - int` operation. Ensures the new start point
-        is not less than zero.
+        Implements the `Span - int` operation.
 
         Args:
-            offset: The integer value to subtract from the start and end points.
+            offset: The integer value to subtract from the start.
 
         Returns:
             A new Span object shifted to the left.
@@ -137,7 +135,7 @@ class Span:
 
     @property
     def length(self) -> int:
-        """The length of the span, calculated as `end - start`."""
+        """The length of the span."""
         return self._length
 
     @property
@@ -147,7 +145,7 @@ class Span:
 
     @property
     def end(self) -> int:
-        """The ending point of the span."""
+        """The ending point of the span (start + length)."""
         return self.start + self.length
 
     def overlaps(self, other: Span) -> bool:
@@ -157,13 +155,15 @@ class Span:
         """Expands the span outward.
 
         Args:
-            margin: The number of units to expand on each side.
+            both: Amount to expand on both sides.
+            before: Amount to expand the start (moves left).
+            after: Amount to expand the end (moves right).
 
         Returns:
             A new Span object expanded.
 
         Raises:
-            ValueError: If the margin is negative.
+            ValueError: If any margin is negative.
         """
 
         if both:
@@ -177,17 +177,21 @@ class Span:
         return Span(self.start - before, before + self.length + after)
 
     def shrink(self, both: Optional[int] = None, *, before: int = 0, after: int = 0) -> Span:
-
         """Shrinks the span inward.
 
+        Guarantees that the resulting span stays within the original bounds
+        (no drift) and has a minimum length of 1.
+
         Args:
-            margin: The non-negative number of units to shrink on each side.
+            both: Amount to shrink on both sides.
+            before: Amount to shrink from the start (moves right).
+            after: Amount to shrink from the end (moves left).
 
         Returns:
             A new, smaller Span object.
 
         Raises:
-            ValueError: If the margin is negative.
+            ValueError: If any margin is negative.
         """
         if both:
             before = after = both
@@ -261,6 +265,10 @@ class Region:
         return Region(self.x | other.x, self.y | other.y)
 
     def __and__(self, other: Region) -> Region:
+        """Computes the intersection in global coordinates (Canvas space).
+
+        Useful for determining the shared area on the canvas (Destination).
+        """
         return Region(self.x & other.x, self.y & other.y)
 
     def _apply_margins(
@@ -309,7 +317,7 @@ class Region:
         top: int = 0,
         bottom: int = 0
     ) -> Region:
-
+        """Expands the region outward."""
         return self._apply_margins(
             self.x.expand, self.y.expand, all,
             left=left, right=right,
@@ -325,7 +333,7 @@ class Region:
         top: int = 0,
         bottom: int = 0
     ) -> Region:
-
+        """Shrinks the region inward."""
         return self._apply_margins(
             self.x.shrink, self.y.shrink, all,
             left=left, right=right,
@@ -339,6 +347,11 @@ class Region:
         return self.x.overlaps(other.x) and self.y.overlaps(other.y)
 
     def overlap_with(self, other: Region) -> Region:
+        """Calculates the intersection relative to this region (Source Slice).
+
+        Returns a Region expressed in local coordinates (0,0 is top-left of self).
+        Useful for NumPy slicing: `slice = img.overlap_with(canvas)`.
+        """
         if not self.overlaps(other):
             raise ValueError("no overlap: 'other' out of bounds")
         intersection = self & other
