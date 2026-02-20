@@ -1,8 +1,11 @@
 from __future__ import annotations
-from anicrop.spatial import Region
-from anicrop.layer import Layer
-from anicrop.type import Transform
+from typing import TYPE_CHECKING
 import numpy as np
+
+if TYPE_CHECKING:
+    from anicrop.spatial import Region
+    from anicrop.layer import Layer
+    from anicrop.type import Transform
 
 
 def calculate_new_bbox(m_global: np.ndarray, size: tuple[int, int]) -> tuple[int, int, int, int]:
