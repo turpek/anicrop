@@ -67,7 +67,7 @@ class Layer:
         self._image = image
         self._opacity = opacity
         self._rotation = Rotation(rotation)
-        self._scale = Scale(1.0, 1.0)
+        self._scale = Scale(scale, scale)
         self._blend_mode = blend_mode
         self._region = Region.from_size(image.width, image.height)
         self._edits: deque[EditLayer] = deque()
