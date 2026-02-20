@@ -13,10 +13,7 @@ class ProxyLayer:
         return getattr(original, name)
 
     def __setattr__(self, name, value):
-        if name in (
-            '_layer',
-            '_history',
-        ):
+        if name in ('_layer', '_history'):
             super().__setattr__(name, value)
             return
 
