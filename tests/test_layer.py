@@ -1,5 +1,6 @@
 from anicrop.image import Image, ImageFormat
 from anicrop.layer import BlendMode, EditLayer, Layer
+from anicrop.layer import Rotation, Scale
 from anicrop.spatial import Region
 from pytest import raises
 import numpy as np
@@ -25,154 +26,42 @@ def canvas():
     return make_canvas()
 
 
-def test_EditLayer_inicializando_com_valores_padroes():
-    img = Image(np.zeros((10, 10, 3), dtype=np.uint8), ImageFormat.RGB)
-    edit = EditLayer(img)
-    assert edit.name == 'Edit'
-    assert edit.opacity == 1.0
-    assert edit.rotate == 0.0
-    assert edit.scale == 1.0
+@pytest.fixture
+def identity_matrix():
+    return np.eye(3, dtype=np.float32)
+
+
+# Novos testes para EditLayer (API atualizada)
+def test_EditLayer_inicializacao(canvas, identity_matrix):
+    region = make_region()
+    edit = EditLayer(canvas, region, identity_matrix, name="Custom")
+
+    assert edit.name == "Custom"
+    assert edit.region == region
+    assert np.array_equal(edit.matrix, identity_matrix)
     assert edit.blend_mode == BlendMode.NORMAL
-    assert edit.region == Region.from_size(10, 10)
-    assert np.array_equal(edit.image[...], img[...])
+    assert edit.image is canvas
 
-
-def test_EditLayer_inicializando_com_parametros(canvas):
-    region = Region.from_size(5, 3) + (2, 5)
-    canvas[region] = 1
-    edit = EditLayer(canvas, opacity=0.8, blend_mode=BlendMode.MULTIPLY, name='Paint')
-    assert edit.name == 'Paint'
-    assert edit.opacity == 0.8
-    assert edit.blend_mode == BlendMode.MULTIPLY
-    assert edit.region == region
-    assert np.array_equal(edit.image[...], canvas[region])
-
-
-@pytest.mark.parametrize(
-    "canvas",
-    [make_canvas(channel=2), make_canvas(channel=4), make_canvas(channel=5)],
-    ids=["Gray+Alpha", "RGBA", "CMYK+Alpha"]
-)
-def test_EditLayer_com_alpha_e_sem_conteudo(canvas):
-    with raises(ValueError, match="EditLayer cannot be created from a fully transparent image."):
-        EditLayer(canvas)
-
-
-@pytest.mark.parametrize(
-    "canvas, region",
-    [
-        (make_canvas(channel=2), make_region(w=4, offset=2)),
-        (make_canvas(channel=4), make_region(h=4, offset=2)),
-        (make_canvas(channel=5), make_region(offset=2))
-    ],
-    ids=["Gray+Alpha", "RGBA", "CMYK+Alpha"]
-)
-def test_EditLayer_com_alpha_e_com_conteudo(canvas, region):
-    canvas[region] = 1
-    edit = EditLayer(canvas)
-    assert edit.region == region
-    assert np.array_equal(edit.image[...], canvas[region])
-
-
-@pytest.mark.parametrize(
-    "canvas, region",
-    [
-        (make_canvas(channel=1), make_region(w=4, offset=2)),
-        (make_canvas(channel=3), make_region(h=4, offset=2)),
-        (make_canvas(channel=-4), make_region(offset=2))  # canal -4 -> CMYK
-    ],
-    ids=["Gray", "RGB", "CMYK"]
-)
-def test_EditLayer_sem_canal_alpha(canvas, region):
-    canvas[region] = 1
-    bbox = Region.from_size(W, H)
-    edit = EditLayer(canvas)
-    assert edit.region == bbox
-    assert np.array_equal(edit.image[...], canvas[bbox])
-
-
-def test_EditLayer_image_interna_eh_copia():
-    canvas = make_canvas()
-    region = make_region(offset=2)
-    canvas[region] = 255
-
-    edit = EditLayer(canvas)
-    # modifica o interno
-    edit.image[..., 0] = 1
-
-    # a região original no canvas não deve ser afetada
-    assert not np.array_equal(canvas[edit.region], edit.image[...])
-
-
-def test_EditLayer_bbox_eh_um_unico_pixel():
-    canvas = make_canvas(channel=4)
-    canvas[3, 2] = [255, 0, 0, 255]  # pixel (x=2, y=3)
-    edit = EditLayer(canvas)
-    assert edit.region == Region.from_size(1, 1) + (2, 3)
-    np.testing.assert_array_equal(edit.image[...], canvas[edit.region])
-
-
-def test_EditLayer_bbox_toca_as_bordas():
-    canvas = make_canvas(channel=4)
-    canvas[0, 0] = [1, 1, 1, 255]
-    canvas[H - 1, W - 1] = [1, 1, 1, 255]
-    edit = EditLayer(canvas)
-    assert edit.region == Region.from_size(W, H)
-
-
-def test_EditLayer_rotate_mudanca_valor(canvas):
-    canvas[...] = 1
-    edit = EditLayer(canvas)
-    edit.rotate = 45
-    assert edit.rotate == 45
-
-    edit.rotate -= 20
-    assert edit.rotate == 25
-
-
-def test_EditLayer_scale_mudanca_valor(canvas):
-    canvas[...] = 1
-    edit = EditLayer(canvas)
-    edit.scale = 0.5
-    assert edit.scale == 0.5
-
-    edit.scale += 0.3
-    assert edit.scale == 0.8
-
-
-def test_EditLayer_region_mudanca_valor(canvas):
-    canvas[...] = 1
-    edit = EditLayer(canvas)
-    edit.region += (4, 0)
-    assert edit.region == Region.from_size(H, W) + (4, 0)
-
-
-def test_EditLayer_atribuindo_valor_qualquer_ao_region(canvas):
-    canvas[...] = 1
-    with raises(TypeError, match="Expected Region, got int"):
-        edit = EditLayer(canvas)
-        edit.region = 4
-
-# ############################# Teste da classe Layer #############################################
+# ############################# Teste da classe Layer (Originais) #############################################
 
 
 def test_Layer_inicializando_com_valores_padroes(canvas):
     layer = Layer(canvas)
     assert layer.name == 'Layer'
     assert layer.opacity == 1.0
-    assert layer.rotate == 0.0
-    assert layer.scale == 1.0
+    assert layer.rotation == Rotation()
+    assert layer.scale == Scale(1.0, 1.0)
     assert layer.blend_mode == BlendMode.NORMAL
     assert layer.region == Region.from_size(10, 10)
     assert np.array_equal(layer.image[...], canvas[...])
 
 
 def test_Layer_inicializando_com_parametros(canvas):
-    layer = Layer(canvas, opacity=0.8, rotate=45, scale=0.5, blend_mode=BlendMode.MULTIPLY, name='Picture')
+    layer = Layer(canvas, opacity=0.8, rotation=45, scale=0.5, blend_mode=BlendMode.MULTIPLY, name='Picture')
     assert layer.name == 'Picture'
     assert layer.opacity == 0.8
-    assert layer.rotate == 45
-    assert layer.scale == 0.5
+    assert layer.rotation == Rotation(45)
+    assert layer.scale == Scale(0.5, 0.5)
     assert layer.blend_mode == BlendMode.MULTIPLY
     assert layer.region == Region.from_size(10, 10)
     assert np.array_equal(layer.image[...], canvas[...])
@@ -180,20 +69,20 @@ def test_Layer_inicializando_com_parametros(canvas):
 
 def test_Layer_rotate_mudanca_valor(canvas):
     layer = Layer(canvas)
-    layer.rotate = 45
-    assert layer.rotate == 45
+    layer.rotation = 45
+    assert layer.rotation == Rotation(45)
 
-    layer.rotate -= 20
-    assert layer.rotate == 25
+    layer.rotation -= 20
+    assert layer.rotation == Rotation(25)
 
 
 def test_Layer_scale_mudanca_valor(canvas):
     layer = Layer(canvas)
     layer.scale = 0.5
-    assert layer.scale == 0.5
+    assert layer.scale == Scale(0.5, 0.5)
 
     layer.scale += 0.3
-    assert layer.scale == 0.8
+    assert layer.scale == Scale(0.8, 0.8)
 
 
 def test_Layer_opacity_mudanca_valor(canvas):
@@ -227,3 +116,61 @@ def test_Layer_name_mudanca_valor(canvas):
     layer = Layer(canvas)
     layer.name = 'Picture'
     assert layer.name == 'Picture'
+
+
+# ############################# Testes para add_edit (Novos) #####################################
+
+def test_Layer_add_edit_cria_e_adiciona_edit_layer(canvas):
+    layer = Layer(canvas)
+    edit_image = make_canvas(w=5, h=5)
+    region = make_region(w=5, h=5)
+
+    layer.add_edit(edit_image, region)
+
+    assert len(layer._edits) == 1
+    edit = layer._edits[0]
+
+    assert isinstance(edit, EditLayer)
+    assert edit.image is edit_image
+    assert edit.region == region
+    assert edit.name == "Edit-1"
+    # Verifica se a matriz foi calculada e armazenada
+    assert isinstance(edit.matrix, np.ndarray)
+
+
+def test_Layer_add_edit_calcula_inversa_corretamente(canvas):
+    layer = Layer(canvas)
+    # Acessando propriedades do Layer para transformar
+    # Assumindo que x/y usam setters que atualizam a região internamente
+    layer.x = 10
+    layer.y = 20
+
+    region = make_region()
+    layer.add_edit(canvas, region)
+
+    edit = layer._edits[0]
+
+    # Matriz global esperada: Translação(10, 20)
+    # Inversa esperada: Translação(-10, -20)
+    expected_inv = np.array([
+        [1., 0., -10.],
+        [0., 1., -20.],
+        [0., 0., 1.]
+    ], dtype=np.float32)
+
+    np.testing.assert_array_almost_equal(edit.matrix, expected_inv)
+
+
+def test_Layer_add_edit_usa_blend_mode_passado(canvas):
+    layer = Layer(canvas)
+    layer.add_edit(canvas, make_region(), blend_mode=BlendMode.MULTIPLY)
+    assert layer._edits[0].blend_mode == BlendMode.MULTIPLY
+
+
+def test_Layer_add_edit_incrementa_nomes(canvas):
+    layer = Layer(canvas)
+    layer.add_edit(canvas, make_region())
+    layer.add_edit(canvas, make_region())
+
+    assert layer._edits[0].name == "Edit-1"
+    assert layer._edits[1].name == "Edit-2"
