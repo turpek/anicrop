@@ -111,31 +111,31 @@ def test_Scale_tipo_invalido():
 
 def test_Rotation_matrix_identidade():
     rot = Rotation(0.0)
-    m = rot.matrix()
+    m = rot.matrix
     np.testing.assert_allclose(m, np.eye(3), atol=1e-5)
 
 
 def test_Rotation_matrix_90_graus():
     # Sentido horário para Y-down: cos(90)=0, sin(90)=1
     rot = Rotation(90.0)
-    m = rot.matrix()
+    m = rot.matrix
     expected = np.array([
         [0, -1, 0],
-        [1,  0, 0],
-        [0,  0, 1]
+        [1, 0, 0],
+        [0, 0, 1]
     ], dtype=np.float32)
     np.testing.assert_allclose(m, expected, atol=1e-5)
 
 
 def test_Scale_matrix_identidade():
     s = Scale(1.0, 1.0)
-    m = s.matrix()
+    m = s.matrix
     np.testing.assert_allclose(m, np.eye(3), atol=1e-5)
 
 
 def test_Scale_matrix_com_valores():
     s = Scale(2.0, 3.0)
-    m = s.matrix()
+    m = s.matrix
     expected = np.array([
         [2, 0, 0],
         [0, 3, 0],
