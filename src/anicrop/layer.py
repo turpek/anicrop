@@ -55,6 +55,8 @@ class EditLayer:
     def local_matrix(self) -> np.ndarray:
         return self.matrix @ mat_translation(*self.region.top_left)
 
+    def offset(self, offset_x: int, offset_y: int) -> None:
+        self._region += (offset_x, offset_y)
 
 
 class Layer:
