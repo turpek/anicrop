@@ -11,13 +11,12 @@ if TYPE_CHECKING:
 def calculate_new_bbox(matrix: np.ndarray, size: tuple[int, int]) -> tuple[int, int, int, int]:
     w, h = size
 
-    # O SEGREDO ESTÁ AQUI: Usar w-1 e h-1 para pegar o índice exato do último pixel
     corners = np.array([
         [0, 0, 1.0],
         [w - 1, 0, 1.0],
         [w - 1, h - 1, 1.0],
         [0, h - 1, 1.0]
-    ]).T  # Transpõe para (3, 4) para multiplicar pela matriz
+    ]).T
 
     # Multiplica os cantos pela matriz de transformação
     transformed_corners = matrix @ corners
