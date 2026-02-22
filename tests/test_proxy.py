@@ -67,9 +67,9 @@ def test_ProxyLayer_delegacao_de_metodos(proxy, layer):
     proxy.add_edit(img, region)
 
     # Verifica se o efeito ocorreu no layer
-    assert len(layer._edits) == 1
-    assert isinstance(layer._edits[0], EditLayer)
-    assert layer._edits[0].region == region
+    assert len(layer._edits) == 2
+    assert isinstance(layer._edits[1], EditLayer)
+    assert layer._edits[1].region == region
 
 
 def test_ProxyLayer_acesso_a_atributos_inexistentes(proxy):

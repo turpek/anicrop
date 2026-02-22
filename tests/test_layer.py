@@ -127,13 +127,13 @@ def test_Layer_add_edit_cria_e_adiciona_edit_layer(canvas):
 
     layer.add_edit(edit_image, region)
 
-    assert len(layer._edits) == 1
-    edit = layer._edits[0]
+    assert len(layer._edits) == 2
+    edit = layer._edits[1]
 
     assert isinstance(edit, EditLayer)
     assert edit.image is edit_image
     assert edit.region == region
-    assert edit.name == "Edit-1"
+    assert edit.name == "Edit-2"
     # Verifica se a matriz foi calculada e armazenada
     assert isinstance(edit.matrix, np.ndarray)
 
@@ -148,7 +148,7 @@ def test_Layer_add_edit_calcula_inversa_corretamente(canvas):
     region = make_region()
     layer.add_edit(canvas, region)
 
-    edit = layer._edits[0]
+    edit = layer._edits[1]
 
     # Matriz global esperada: Translação(10, 20)
     # Inversa esperada: Translação(-10, -20)
@@ -164,7 +164,7 @@ def test_Layer_add_edit_calcula_inversa_corretamente(canvas):
 def test_Layer_add_edit_usa_blend_mode_passado(canvas):
     layer = Layer(canvas)
     layer.add_edit(canvas, make_region(), blend_mode=BlendMode.MULTIPLY)
-    assert layer._edits[0].blend_mode == BlendMode.MULTIPLY
+    assert layer._edits[1].blend_mode == BlendMode.MULTIPLY
 
 
 def test_Layer_add_edit_incrementa_nomes(canvas):

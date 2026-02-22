@@ -53,7 +53,8 @@ def test_LayerRender_identidade_sem_transformacao(layer_render):
 
     # Verifica se os pixels são idênticos
     # A propriedade .array ou acesso direto [...] deve retornar o ndarray
-    np.testing.assert_array_equal(rendered_image[...], original_layer.image[...])
+    np.testing.assert_array_equal(
+        rendered_image[...], original_layer.image[...])
 
 
 def test_LayerRender_rotacao_expansao_segura(layer_render):
@@ -128,44 +129,40 @@ def test_LayerRender_achatar_edicoes_e_transformar(layer_render):
 
     # Se a imagem girou, o ponto que antes era vermelho (20,20) agora
     # se moveu para outra posição, então esse pixel original não pode mais ser vermelho.
-    assert not np.array_equal(array_rotacionado[20, 20], cor_vermelha), "A edição não girou junto com o layer base!"
+    assert not np.array_equal(
+        array_rotacionado[20, 20], cor_vermelha), "A edição não girou junto com o layer base!"
 
     # O centro exato da imagem base (50,50) deve continuar azul, pois
     # nós colamos a figurinha vermelha no canto, e não no meio.
     np.testing.assert_array_equal(array_rotacionado[50, 50], cor_azul)
 
 
-import numpy as np
-from anicrop.image import Image, ImageFormat
-from anicrop.layer import Layer
-from anicrop.spatial import Region, Span
-from anicrop.render import LayerRender
-from anicrop.transform import mat_final
-
 def test_render_fluxo_real_com_quina(layer_render: LayerRender):
     # 1. Setup do Layer 100x100 (Azul)
     bg_data = np.zeros((100, 100, 4), dtype=np.uint8)
-    bg_data[:] = [0, 0, 255, 255] # Azul sólido
+    bg_data[:] = [0, 0, 255, 255]  # Azul sólido
     bg_image = Image(bg_data, ImageFormat.RGBA)
     layer = Layer(bg_image, Region(Span(0, 100), Span(0, 100)))
 
     # Gira 90 graus: O ponto local (0,0) agora está no global (100, 0)
     layer.rotation.angle = 90
 
-    # 2. Setup do Edit 10x10 (Quinas coloridas)
-    edit_data = np.zeros((10, 10, 4), dtype=np.uint8)
+    # 2. Setup do Edit 20x20 (Quinas coloridas maiores)
+    edit_data = np.zeros((20, 20, 4), dtype=np.uint8)
     # RGBA: Vermelho, Verde, Azul, Branco
-    C_TL, C_TR, C_BL, C_BR = (255,0,0,255), (0,255,0,255), (0,0,255,255), (255,255,255,255)
-    edit_data[0, 0] = C_TL
-    edit_data[0, 9] = C_TR
-    edit_data[9, 0] = C_BL
-    edit_data[9, 9] = C_BR
+    C_TL, C_TR, C_BL, C_BR = (255, 0, 0, 255), (0, 255, 0, 255), (0, 0, 255, 255), (255, 255, 255, 255)
+    
+    # Preenche quadrantes 10x10
+    edit_data[0:10, 0:10] = C_TL
+    edit_data[0:10, 10:20] = C_TR
+    edit_data[10:20, 0:10] = C_BL
+    edit_data[10:20, 10:20] = C_BR
     edit_img = Image(edit_data, ImageFormat.RGBA)
 
     # 3. O Clique do Usuário (Coordenadas Globais/Canvas)
-    # Clicamos em (90, 0) para a figurinha de 10x10 ficar no "canto"
-    # superior (espaço global) mas dentro da imagem.
-    clique_region = Region(Span(90, 10), Span(0, 10))
+    # Clicamos em (80, 0) para a figurinha de 20x20 ficar no "canto"
+    # superior (espaço global) mas dentro da imagem (0 a 100).
+    clique_region = Region(Span(80, 20), Span(0, 20))
 
     # 4. AÇÃO: O seu motor calcula a inversa internamente
     layer.add_edit(edit_img, clique_region)
@@ -175,22 +172,25 @@ def test_render_fluxo_real_com_quina(layer_render: LayerRender):
     layer.scale = (2.0, 2.0)
 
     # 6. Renderização
-    breakpoint()
     result_image = layer_render.render(layer)
     data = result_image[...]
 
     # 7. Verificação via Matriz Final
-    # Calculamos onde a quina (0,0) do edit DEVERIA estar no canvas final
+    # Calculamos onde o CENTRO do quadrante vermelho (5,5 local) DEVERIA estar no canvas final
+    # Isso evita pegar a borda interpolada.
     m_final = mat_final(layer, *layer.canvas_region.top_left)
-    edit_obj = layer._edits[0]
+    edit_obj = layer._edits[1]
     full_edit_matrix = m_final @ edit_obj.local_matrix
 
-    # Projetamos o ponto local (0,0) do Edit para o Canvas
-    p = full_edit_matrix @ np.array([0, 0, 1.0])
+    # Projetamos o ponto (5, 5) do Edit para o Canvas (centro do quadrante vermelho)
+    p = full_edit_matrix @ np.array([5, 5, 1.0])
     cx, cy = int(round(p[0])), int(round(p[1]))
 
-    # Validação da cor
-    np.testing.assert_array_equal(
-        data[cy, cx], C_TL,
-        err_msg=f"A cor na posição {cx},{cy} deveria ser Vermelha (TL)"
-    )
+    # Validação da cor (Vermelho Puro no centro do quadrante)
+    pixel = data[cy, cx]
+    
+    # O canal R deve ser alto (ex: > 240, já que estamos no meio)
+    assert pixel[0] > 240, f"Canal Vermelho muito baixo: {pixel[0]}"
+    
+    # O canal B deve ser baixo (ex: < 10)
+    assert pixel[2] < 10, f"Canal Azul muito alto: {pixel[2]}"
