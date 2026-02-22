@@ -32,7 +32,7 @@ class LayerRender:
             local_region = Region(Span(x, w), Span(y, h))
             size = local_region.size
 
-            x, y, w, h = calculate_new_bbox(matrix_final, layer.image.size)
+            x, y, w, h = calculate_new_bbox(matrix_final, layer.region.size)
             layer_bbox = Region(Span(x, w), Span(y, h))
             local_region = local_region & layer_bbox
 
@@ -52,12 +52,13 @@ class LayerRender:
         matrix = mat_final(layer, *region_final.top_left)
         size = region_final.size
 
-        layer_data = cv2.warpPerspective(
-            layer.image[...],
-            matrix,
-            size,
-            flags=cv2.INTER_LANCZOS4
-        )
+        # layer_data = cv2.warpPerspective(
+        #     layer.image[...],
+        #     matrix,
+        #     size,
+        #     flags=cv2.INTER_LANCZOS4
+        # )
 
-        layer_image = Image(layer_data, layer.image.format)
+        # layer_image = Image.new(size, layer.format, color=(0, 0, 255, 255))
+        layer_image = Image.new(size, layer.format)
         return self.__flatten_edits(layer, matrix, layer_image)

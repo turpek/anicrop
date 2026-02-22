@@ -35,10 +35,9 @@ class EditLayer:
 
         self._image = image
         self._region = region
-        self.blend_mode: BlendMode = blend_mode
+        self.blend_mode = blend_mode
         self.name = name
         self._matrix = matrix
-        self._local_matrix = matrix @ mat_translation(*region.top_left)
 
     @property
     def region(self) -> Region:
@@ -54,7 +53,8 @@ class EditLayer:
 
     @property
     def local_matrix(self) -> np.ndarray:
-        return self._local_matrix
+        return self.matrix @ mat_translation(*self.region.top_left)
+
 
 
 class Layer:
@@ -69,16 +69,22 @@ class Layer:
         name: str = 'Layer'
     ):
         self._name = name
-        self._image = image
         self._opacity = opacity
         self._rotation = Rotation(rotation)
         self._scale = Scale(scale, scale)
         self._blend_mode = blend_mode
-        self._region = Region.from_size(image.width, image.height)
+        self._region = Region.from_size(*image.size)
         self._edits: deque[EditLayer] = deque()
+
+        self.add_edit(image, self._region, blend_mode)
+        self._image = self._edits[0]
 
     def __repr__(self) -> str:
         return f"Layer(x={self.x.start}, y={self.y.start}, size={self.image.size})"
+
+    @property
+    def format(self):
+        return self.image.format
 
     @property
     def name(self) -> str:
@@ -146,7 +152,7 @@ class Layer:
 
     @property
     def image(self) -> Image:
-        return self._image
+        return self._image.image
 
     @property
     def blend_mode(self) -> BlendMode:

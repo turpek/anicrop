@@ -40,7 +40,7 @@ def calculate_new_bbox(matrix: np.ndarray, size: tuple[int, int]) -> tuple[int, 
 
 
 def calculate_new_bbox_from_layer(layer) -> tuple[float, float, float, float]:
-    return calculate_new_bbox(mat_global(layer), layer.image.size)
+    return calculate_new_bbox(mat_global(layer), layer.region.size)
 
 
 def create_pivot_transform(matrix_pure: np.ndarray, w: float, h: float, px_rel: float, py_rel: float) -> np.ndarray:
@@ -75,8 +75,8 @@ def mat_pivot(transform: Transform, size: tuple[int, int]) -> np.ndarray:
 
 def mat_global(layer: Layer) -> np.ndarray:
     m_translation = mat_position(layer.region)
-    m_rotation = mat_pivot(layer.rotation, layer.image.size)
-    m_scale = mat_pivot(layer.scale, layer.image.size)
+    m_rotation = mat_pivot(layer.rotation, layer.region.size)
+    m_scale = mat_pivot(layer.scale, layer.region.size)
     return m_translation @ m_rotation @ m_scale
 
 
