@@ -50,17 +50,20 @@ def hard_masking(base: Image, overlay: Image) -> Image:
 
     elif not overlay.format.same_spaces(base.format):
         raise NotImplementedError(f"Format mismatch: cannot blend '{overlay.format}' into '{base.format}'.")
+
     elif base.shape == overlay.shape:
         if overlay.has_alpha:
-            ch = overlay.channels - 1
             mask = overlay[..., -1:] > 0
             np.copyto(base[...], overlay[...], where=mask)
+
         else:
             base[...] = overlay[...]
+
     elif overlay.has_alpha:
         ch = overlay.channels - 1
         mask = overlay[..., -1:] > 0
         np.copyto(base[...], overlay[..., :ch], where=mask)
+
     else:
         ch = base.channels - 1
         base[..., :ch] = overlay[...]
