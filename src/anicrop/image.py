@@ -171,6 +171,12 @@ class Image:
     def has_alpha(self) -> bool:
         return self._format.has_alpha
 
+    def view(self, region: Ellipsis | Region) -> Image:
+        return Image(self[region], self.format)
+
+    def crop(self, region: Ellipsis | Region) -> Image:
+        return Image(self[region].copy(), self.format)
+
 
 def calculate_content_bbox(image: Image) -> Region:
     """Calculates the bounding box of the non-transparent content.
