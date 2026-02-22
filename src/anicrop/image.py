@@ -171,6 +171,31 @@ class Image:
     def has_alpha(self) -> bool:
         return self._format.has_alpha
 
+    @classmethod
+    def new(cls, size: tuple[int, int], fmt: ImageFormat, color: int | tuple[int, ...] = 0) -> Image:
+        """Creates a new Image with the specified dimensions and format.
+
+        Args:
+            size: A tuple (width, height) specifying the image dimensions.
+            fmt: The ImageFormat (e.g., RGBA, RGB, GRAY).
+            color: The initial fill color. Can be a single integer (applied to all channels)
+                   or a tuple matching the number of channels. Defaults to 0 (black/transparent).
+
+        Returns:
+            A new Image instance.
+        """
+        width, height = size
+        channels = fmt.channels
+
+        # Cria o array vazio com o shape correto
+        # Nota: Imagens com 1 canal são tratadas como 3D (H, W, 1) na classe Image.__init__
+        # Mas np.full pode criar 2D se quisermos. Para consistência com __init__, vamos criar 3D logo.
+        shape = (height, width, channels)
+
+        buffer = np.full(shape, color, dtype=np.uint8)
+
+        return cls(buffer, fmt)
+
     def view(self, region: Ellipsis | Region) -> Image:
         return Image(self[region], self.format)
 
