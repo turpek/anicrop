@@ -67,6 +67,7 @@ def hard_masking(base: Image, overlay: Image) -> Image:
     else:
         ch = base.channels - 1
         base[..., :ch] = overlay[...]
+        base[..., ch] = 255
 
     return base
 
