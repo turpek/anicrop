@@ -4,35 +4,40 @@ import numpy as np
 
 if TYPE_CHECKING:
     from anicrop.spatial import Region
-    from anicrop.layer import Layer
+    from anicrop.layer import EditLayer, Layer
     from anicrop.type import Transform
 
 
-def calculate_new_bbox(m_global: np.ndarray, size: tuple[int, int]) -> tuple[int, int, int, int]:
-    """
-    Calcula o Axis-Aligned Bounding Box (AABB) projetando os 4 cantos
-    locais da imagem através da matriz global.
-    """
+def calculate_new_bbox(matrix: np.ndarray, size: tuple[int, int]) -> tuple[int, int, int, int]:
     w, h = size
-    # 1. Definir os 4 cantos originais (Locais) [x, y, 1]
+
+    # O SEGREDO ESTÁ AQUI: Usar w-1 e h-1 para pegar o índice exato do último pixel
     corners = np.array([
-        [0, 0, 1], [w, 0, 1], [w, h, 1], [0, h, 1]
-    ], dtype=np.float32)
+        [0, 0, 1.0],
+        [w - 1, 0, 1.0],
+        [w - 1, h - 1, 1.0],
+        [0, h - 1, 1.0]
+    ]).T  # Transpõe para (3, 4) para multiplicar pela matriz
 
-    # 2. Projetar cantos para o Espaço Global (Mundo)
-    projected = corners @ m_global.T
+    # Multiplica os cantos pela matriz de transformação
+    transformed_corners = matrix @ corners
 
-    # 3. Encontrar os limites Min/Max com arredondamento conservador
-    min_xy = np.min(projected[:, :2], axis=0)
-    max_xy = np.max(projected[:, :2], axis=0)
+    # Normaliza (divide por Z, se houver projeção 3D/perspectiva)
+    transformed_corners[0, :] /= transformed_corners[2, :]
+    transformed_corners[1, :] /= transformed_corners[2, :]
 
-    # Arredondamento Enveloping: expande para fora para garantir que caiba na grade de pixels
-    x = int(np.floor(min_xy[0]))
-    y = int(np.floor(min_xy[1]))
-    width = int(np.ceil(max_xy[0])) - x
-    height = int(np.ceil(max_xy[1])) - y
+    # Acha os novos limites (usando o round para o vizinho mais próximo)
+    min_x = int(np.round(np.min(transformed_corners[0, :])))
+    min_y = int(np.round(np.min(transformed_corners[1, :])))
+    max_x = int(np.round(np.max(transformed_corners[0, :])))
+    max_y = int(np.round(np.max(transformed_corners[1, :])))
 
-    return (x, y, width, height)
+    # A nova largura/altura soma +1 porque (max - min) de índices conta os intervalos.
+    # Ex: (99 - 0) = 99 intervalos, o que significa 100 pixels de largura real!
+    new_w = max_x - min_x + 1
+    new_h = max_y - min_y + 1
+
+    return min_x, min_y, new_w, new_h
 
 
 def calculate_new_bbox_from_layer(layer) -> tuple[float, float, float, float]:
