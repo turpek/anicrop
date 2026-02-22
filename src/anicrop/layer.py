@@ -1,17 +1,17 @@
 from __future__ import annotations
-from enum import Enum
+
+from anicrop.blend import BlendMode
 from anicrop.image import Image
 from anicrop.spatial import Region, Span
 from anicrop.type import Rotation, RotationInput, Scale, ScaleInput
-from anicrop.transform import calculate_new_bbox_from_layer, mat_global, mat_inverse, mat_translation
+from anicrop.transform import (
+    calculate_new_bbox_from_layer,
+    mat_global,
+    mat_inverse,
+    mat_translation
+)
 from collections import deque
 import numpy as np
-
-
-class BlendMode(Enum):
-    """Defines how an edit layer blends with the underlying content."""
-    NORMAL = 'normal'
-    MULTIPLY = 'multiply'
 
 
 class EditLayer:
@@ -162,7 +162,13 @@ class Layer:
         x, y, w, h = calculate_new_bbox_from_layer(self)
         return Region(Span(x, w), Span(y, h))
 
-    def add_edit(self, image: Image, region: Region, blend_mode: BlendMode = BlendMode.NORMAL) -> None:
+    def add_edit(
+        self,
+        image: Image,
+        region: Region,
+        blend_mode: BlendMode = BlendMode.NORMAL
+    ) -> None:
+
         name = f'Edit-{len(self._edits) + 1}'
         matrix = mat_inverse(mat_global(self))
         self._edits.append(EditLayer(image, region, matrix, blend_mode, name))
