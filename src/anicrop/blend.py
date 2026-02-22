@@ -1,5 +1,4 @@
 from anicrop.image import Image
-from anicrop.spatial import Region
 from enum import Enum
 import numpy as np
 
