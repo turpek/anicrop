@@ -95,5 +95,21 @@ def mat_final(layer: Layer, x: float, y: float) -> np.ndarray:
     return m_render
 
 
+def mat_edit_global(edit_layer: EditLayer, matrix_global: np.ndarray):
+    return matrix_global @ edit_layer.local_matrix
+
+
+def mat_edit_local(edit_layer: EditLayer, matrix_final: np.ndarray) -> np.ndarray:
+    return matrix_final @ edit_layer.local_matrix
+
+
+def mat_edit_final(edit_layer: EditLayer, matrix_final: np.ndarray):
+    """matrix_final é a matriz gerada pela função `mat_final."""
+    local_matrix = mat_edit_local(edit_layer, matrix_final)
+    x, y, *_ = calculate_new_bbox(local_matrix, edit_layer.image.size)
+    m_compensation = mat_translation(-x, -y)
+    return m_compensation @ local_matrix
+
+
 def mat_inverse(matrix: np.ndarray) -> np.ndarray:
     return np.linalg.inv(matrix)
