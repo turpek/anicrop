@@ -18,6 +18,11 @@ dev = [
     "pytest>=9.0.2",
     "pytest-cov>=7.0.0",
     "pytest-mock>=3.15.1",
+    "ruff>=0.15.2",
 ]
 
+[tool.ruff]
+line-length = 88
 
+[tool.ruff.lint]
+select = ["E", "W", "F", "I", "B", "UP"]
