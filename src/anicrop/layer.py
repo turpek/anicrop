@@ -3,7 +3,7 @@ from enum import Enum
 from anicrop.image import Image
 from anicrop.spatial import Region, Span
 from anicrop.type import Rotation, RotationInput, Scale, ScaleInput
-from anicrop.transform import calculate_new_bbox_from_layer, mat_global, mat_inverse
+from anicrop.transform import calculate_new_bbox_from_layer, mat_global, mat_inverse, mat_translation
 from collections import deque
 import numpy as np
 
@@ -38,6 +38,7 @@ class EditLayer:
         self.blend_mode: BlendMode = blend_mode
         self.name = name
         self._matrix = matrix
+        self._local_matrix = matrix @ mat_translation(*region.top_left)
 
     @property
     def region(self) -> Region:
@@ -50,6 +51,10 @@ class EditLayer:
     @property
     def matrix(self) -> np.ndarray:
         return self._matrix
+
+    @property
+    def local_matrix(self) -> np.ndarray:
+        return self._local_matrix
 
 
 class Layer:
