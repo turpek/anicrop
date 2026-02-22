@@ -150,8 +150,9 @@ def test_render_fluxo_real_com_quina(layer_render: LayerRender):
     # 2. Setup do Edit 20x20 (Quinas coloridas maiores)
     edit_data = np.zeros((20, 20, 4), dtype=np.uint8)
     # RGBA: Vermelho, Verde, Azul, Branco
-    C_TL, C_TR, C_BL, C_BR = (255, 0, 0, 255), (0, 255, 0, 255), (0, 0, 255, 255), (255, 255, 255, 255)
-    
+    C_TL, C_TR, C_BL, C_BR = (255, 0, 0, 255), (0, 255,
+                                                0, 255), (0, 0, 255, 255), (255, 255, 255, 255)
+
     # Preenche quadrantes 10x10
     edit_data[0:10, 0:10] = C_TL
     edit_data[0:10, 10:20] = C_TR
@@ -188,9 +189,130 @@ def test_render_fluxo_real_com_quina(layer_render: LayerRender):
 
     # Validação da cor (Vermelho Puro no centro do quadrante)
     pixel = data[cy, cx]
-    
+
     # O canal R deve ser alto (ex: > 240, já que estamos no meio)
     assert pixel[0] > 240, f"Canal Vermelho muito baixo: {pixel[0]}"
-    
+
     # O canal B deve ser baixo (ex: < 10)
     assert pixel[2] < 10, f"Canal Azul muito alto: {pixel[2]}"
+
+
+def test_render_bug_offset_translation(layer_render):
+    """
+    Reproduz o bug onde warpPerspective desenha fora do buffer local
+    se a matriz de transformação não for ajustada pela origem do recorte.
+    """
+    # 1. Layer Base Transparente 100x100
+    base_img = Image.new((100, 100), ImageFormat.RGBA, color=0)
+    layer = Layer(base_img)
+
+    # 2. Edit Vermelho 10x10
+    edit_data = np.zeros((10, 10, 4), dtype=np.uint8)
+    edit_data[:] = [255, 0, 0, 255]  # Vermelho Sólido
+    edit_img = Image(edit_data, ImageFormat.RGBA)
+
+    # 3. Adiciona o Edit deslocado (x=50, y=50)
+    # A região define onde ele vai parar no espaço do layer
+    offset_region = Region(Span(50, 10), Span(50, 10))
+    layer.add_edit(edit_img, offset_region)
+
+    # 4. Renderiza
+    result = layer_render.render(layer)
+    data = result[...]
+
+    # 5. Verificação
+    # O pixel (55, 55) deve ser vermelho.
+    # Se o bug existir, ele será transparente (0,0,0,0) porque o warp desenhou fora.
+    pixel_center = data[55, 55]
+
+    np.testing.assert_array_equal(
+        pixel_center, [255, 0, 0, 255],
+        err_msg="O Edit desapareceu! WarpPerspective desenhou fora do buffer local."
+    )
+
+
+def test_render_edit_parcialmente_fora(layer_render):
+    """
+    Testa se um Edit posicionado parcialmente fora da tela (coordenadas negativas)
+    é renderizado corretamente na parte visível, sem erros de broadcast ou sumiço.
+    Cenário: Edit 20x20 posicionado em x=-10 (metade pra fora).
+    """
+    # 1. Canvas 100x100
+    base_img = Image.new((100, 100), ImageFormat.RGBA, color=0)
+    layer = Layer(base_img)
+
+    # 2. Edit Vermelho 20x20
+    edit_data = np.zeros((20, 20, 4), dtype=np.uint8)
+    edit_data[:] = [255, 0, 0, 255]
+    edit_img = Image(edit_data, ImageFormat.RGBA)
+
+    # 3. Posiciona em x=-10, y=10
+    # A região do edit vai de -10 a 10.
+    # O canvas vai de 0 a 100.
+    # A interseção deve ser de 0 a 10.
+    offset_region = Region(Span(-10, 20), Span(10, 20))
+    layer.add_edit(edit_img, offset_region)
+
+    # 4. Renderiza
+    result = layer_render.render(layer)
+    data = result[...]
+
+    # 5. Verificações
+
+    # Pixel na borda esquerda (0, 15) deve ser vermelho (parte visível do violão)
+    # y=15 está no meio vertical do edit (10 a 30)
+    assert np.array_equal(data[15, 0], [255, 0, 0, 255]
+                          ), "Borda esquerda deveria ter o edit cortado."
+
+    # Pixel logo após o fim do edit (x=11, y=15) deve ser transparente
+    assert np.array_equal(data[15, 11], [0, 0, 0, 0]
+                          ), "O edit vazou além do tamanho esperado."
+
+
+def test_render_edit_parcialmente_fora_bicolor(layer_render):
+    """
+    Prova se o motor está colando a parte CORRETA do Edit.
+    Cenário: Edit 20x20 posicionado em x=-10 (metade pra fora).
+    A metade esquerda (Verde) deve ficar fora da tela.
+    A metade direita (Vermelha) deve aparecer na tela.
+    """
+    base_img = Image.new((100, 100), ImageFormat.RGBA, color=0)
+    layer = Layer(base_img)
+
+    # Edit 20x20: Esquerda Verde, Direita Vermelha
+    edit_data = np.zeros((20, 20, 4), dtype=np.uint8)
+    edit_data[:, :10] = [0, 255, 0, 255]  # Esquerda = Verde
+    edit_data[:, 10:] = [255, 0, 0, 255]  # Direita = Vermelho
+    edit_img = Image(edit_data, ImageFormat.RGBA)
+
+    # Posiciona metade fora (x = -10)
+    offset_region = Region(Span(-10, 20), Span(10, 20))
+    layer.add_edit(edit_img, offset_region)
+
+    result = layer_render.render(layer)
+    data = result[...]
+
+    # O primeiro pixel do Canvas (x=0) deveria ser Vermelho (a metade direita)
+    # Se o resultado for Verde, o motor desenhou a metade invisível do violão!
+    assert np.array_equal(data[15, 0], [
+                          255, 0, 0, 255]), "BUG VISUAL: O motor colou a metade errada da imagem!"
+
+
+def test_render_edit_borda_direita(layer_render):
+    """Testa se o recorte funciona na borda direita (x=90 em canvas de 100)"""
+    base_img = Image.new((100, 100), ImageFormat.RGBA, color=0)
+    layer = Layer(base_img)
+
+    edit_data = np.zeros((20, 20, 4), dtype=np.uint8)
+    edit_data[:] = [0, 0, 255, 255]  # Azul
+    edit_img = Image(edit_data, ImageFormat.RGBA)
+
+    # Posiciona em x=90. O edit vai de 90 a 110. O Canvas corta em 100.
+    offset_region = Region(Span(90, 20), Span(10, 20))
+    layer.add_edit(edit_img, offset_region)
+
+    result = layer_render.render(layer)
+
+    # O pixel x=95 ainda deveria ser do violão (Azul)
+    assert np.array_equal(
+        result[15, 95], [0, 0, 255, 255]), "O Edit sumiu na borda direita do Canvas!"
