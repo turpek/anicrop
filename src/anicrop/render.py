@@ -2,7 +2,13 @@ from anicrop.blend import blend_normal
 from anicrop.image import Image
 from anicrop.layer import Layer
 from anicrop.spatial import Region, Span
-from anicrop.transform import calculate_new_bbox, mat_edit_final, mat_edit_local, mat_final
+from anicrop.transform import (
+    calculate_new_bbox,
+    mat_edit_final,
+    mat_edit_local,
+    mat_final
+)
+
 import cv2
 import numpy as np
 
