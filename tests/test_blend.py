@@ -119,3 +119,97 @@ def test_hard_masking_grayscale():
     assert np.all(result._data[..., 0] == 128)
     # O canal alpha (índice 1) deve continuar 0
     assert np.all(result._data[..., 1] == 0)
+
+
+# --- Testes para blend_normal ---
+from anicrop.blend import blend_normal
+
+
+def test_blend_normal_size_mismatch_clipping():
+    """
+    Testa se blend_normal recorta (clip) corretamente quando as imagens
+    têm tamanhos diferentes, operando na interseção (min_w, min_h).
+    """
+    # Base: 10x10 Azul
+    base_arr = np.zeros((10, 10, 3), dtype=np.uint8)
+    base_arr[..., 2] = 255
+    base = Image(base_arr, ImageFormat.RGB)
+
+    # Edit: 20x20 Vermelho (Sò vai usar os primeiros 10x10)
+    edit_arr = np.zeros((20, 20, 3), dtype=np.uint8)
+    edit_arr[..., 0] = 255
+    edit = Image(edit_arr, ImageFormat.RGB)
+
+    blend_normal(base, edit)
+
+    # Base inteira (10x10) deve virar vermelha
+    assert np.all(base._data[..., 0] == 255)
+    assert np.all(base._data[..., 2] == 0)
+
+
+def test_blend_normal_alpha_blending_50_percent():
+    """
+    Testa a matemática do blend: 50% Vermelho sobre Azul = Roxo Escuro/Misturado.
+    Formula: Out = Src * alpha + Dst * (1 - alpha)
+    """
+    # Base: Azul sólido (0, 0, 255)
+    base_arr = np.zeros((10, 10, 3), dtype=np.uint8)
+    base_arr[..., 2] = 255
+    base = Image(base_arr, ImageFormat.RGB)
+
+    # Edit: Vermelho com 50% de Alpha (255, 0, 0, 128)
+    # Alpha ~0.502 (128/255)
+    edit_arr = np.zeros((10, 10, 4), dtype=np.uint8)
+    edit_arr[..., 0] = 255
+    edit_arr[..., 3] = 128
+    edit = Image(edit_arr, ImageFormat.RGBA)
+
+    blend_normal(base, edit)
+
+    # Calculo esperado:
+    # R: 255 * 0.502 + 0 * 0.498 = ~128
+    # G: 0
+    # B: 0 * 0.502 + 255 * 0.498 = ~127
+    px = base._data[0, 0]
+    assert 126 <= px[0] <= 129  # Margem de erro de arredondamento
+    assert px[1] == 0
+    assert 126 <= px[2] <= 129
+
+
+def test_blend_normal_full_transparency_skipped():
+    """Garante que áreas com Alpha 0 no edit não alteram a base."""
+    # Base: Branco
+    base_arr = np.ones((10, 10, 3), dtype=np.uint8) * 255
+    base = Image(base_arr, ImageFormat.RGB)
+
+    # Edit: Preto totalmente transparente
+    edit_arr = np.zeros((10, 10, 4), dtype=np.uint8)
+    # Alpha já é 0
+    edit = Image(edit_arr, ImageFormat.RGBA)
+
+    blend_normal(base, edit)
+
+    # Base continua branca
+    assert np.all(base._data == 255)
+
+
+def test_blend_normal_sets_base_alpha_to_opaque():
+    """
+    Se a base tem canal Alpha, blend_normal deve forçar o Alpha da base
+    para 255 nas áreas afetadas, garantindo opacidade do resultado.
+    """
+    # Base: Transparente (0,0,0,0)
+    base_arr = np.zeros((10, 10, 4), dtype=np.uint8)
+    base = Image(base_arr, ImageFormat.RGBA)
+
+    # Edit: Vermelho Opaco
+    edit_arr = np.zeros((10, 10, 3), dtype=np.uint8)
+    edit_arr[..., 0] = 255
+    edit = Image(edit_arr, ImageFormat.RGB)
+
+    blend_normal(base, edit)
+
+    # Base deve ser Vermelha e Opaca
+    assert np.all(base._data[..., 0] == 255)
+    assert np.all(base._data[..., 3] == 255)
+
