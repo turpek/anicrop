@@ -68,12 +68,13 @@ class Image:
 
         elif image.shape[0] == 0 or image.shape[1] == 0:
             raise ValueError("image dimensions must be greater than zero")
-
+        elif image.ndim == 2:
+            image = image[..., np.newaxis]
         elif image.ndim == 3 and image.shape[2] == 0:
             raise ValueError("image must have at least one channel")
 
         self._data = image
-        self._channels = image.shape[2] if image.ndim > 2 else 1
+        self._channels = image.shape[2]
         self._format = image_format
         self._validate_format()
 
