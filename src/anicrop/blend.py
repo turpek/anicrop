@@ -44,30 +44,46 @@ def blend_normal(base: Image, edit: Image) -> None:
         b_view[mask, 3] = 255
 
 
+def hard_masking_overlay_with_alpha(
+    base: Image,
+    overlay: Image,
+    color_channels: int
+) -> None:
+
+    mask = overlay[..., -1:] > 0
+    np.copyto(base[..., :color_channels], overlay[..., :color_channels], where=mask)
+
+    if base.has_alpha:
+        np.copyto(base[..., -1:], overlay[..., -1:], where=mask)
+
+
+def hard_masking_overlay_without_alpha(
+    base: Image,
+    overlay: Image,
+    color_channels: int
+) -> None:
+
+    base[..., :color_channels] = overlay[..., :color_channels]
+    if base.has_alpha:
+        base[..., -1] = 255
+
+
 def hard_masking(base: Image, overlay: Image) -> Image:
+
     if base.size != overlay.size:
         raise ValueError(f"Size mismatch: base {base.size} != overlay {overlay.size}.")
 
     elif not overlay.format.same_spaces(base.format):
-        raise NotImplementedError(f"Format mismatch: cannot blend '{overlay.format}' into '{base.format}'.")
+        raise NotImplementedError(
+            f"Format mismatch: cannot blend '{overlay.format}' into '{base.format}'."
+        )
 
-    elif base.shape == overlay.shape:
-        if overlay.has_alpha:
-            mask = overlay[..., -1:] > 0
-            np.copyto(base[...], overlay[...], where=mask)
+    color_channels = overlay.channels
 
-        else:
-            base[...] = overlay[...]
-
-    elif overlay.has_alpha:
-        ch = overlay.channels - 1
-        mask = overlay[..., -1:] > 0
-        np.copyto(base[...], overlay[..., :ch], where=mask)
-
+    if overlay.has_alpha:
+        hard_masking_overlay_with_alpha(base, overlay, color_channels - 1)
     else:
-        ch = base.channels - 1
-        base[..., :ch] = overlay[...]
-        base[..., ch] = 255
+        hard_masking_overlay_without_alpha(base, overlay, color_channels)
 
     return base
 
