@@ -1,5 +1,5 @@
 from anicrop.image import Image, ImageFormat
-from anicrop.blender import hard_masking
+from anicrop.blend import hard_masking
 import numpy as np
 import pytest
 
