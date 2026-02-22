@@ -134,7 +134,7 @@ def test_Image_getitem_region_preserva_canais():
 def test_Image_getitem_region_grayscale():
     img = Image(np.zeros((10, 10)), ImageFormat.GRAY)
     region = Region.from_size(4, 4)
-    assert img[region].shape == (4, 4)
+    assert img[region].shape == (4, 4, 1)
 
 
 def test_Image_getitem_region_com_slice_de_canais():
@@ -181,7 +181,7 @@ def test_Image_getitem_respeita_ordem_x_y_da_region():
     # X=0..5, Y=0..2
     region = Region.from_size(5, 2)
     crop = img[region]
-    assert crop.shape == (2, 5)
+    assert crop.shape == (2, 5, 1)
 
 
 @pytest.mark.parametrize(
