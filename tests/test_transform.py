@@ -59,6 +59,9 @@ def test_calculate_new_bbox_apenas_translacao():
     size = (100, 50)
     bbox = calculate_new_bbox(m, size)
     # x, y, w, h
+    # Corners: (0,0)->(10,20), (99,0)->(109,20), (99,49)->(109,69), (0,49)->(10,69)
+    # MinX: 10, MaxX: 109. W: 109-10+1 = 100.
+    # MinY: 20, MaxY: 69. H: 69-20+1 = 50.
     np.testing.assert_allclose(bbox, (10.0, 20.0, 100.0, 50.0), atol=1e-5)
 
 
@@ -74,12 +77,12 @@ def test_calculate_new_bbox_rotacao_90_graus():
     bbox = calculate_new_bbox(rot_90, size)
 
     # (0,0) -> (0,0)
-    # (100,0) -> (0, 100)
-    # (100,50) -> (-50, 100)
-    # (0,50) -> (-50, 0)
-    # Min: (-50, 0), Max: (0, 100)
-    # W: 0 - (-50) = 50, H: 100 - 0 = 100
-    np.testing.assert_allclose(bbox, (-50.0, 0.0, 50.0, 100.0), atol=1e-5)
+    # (99, 0) -> (0, 99)
+    # (99, 49) -> (-49, 99)
+    # (0, 49) -> (-49, 0)
+    # Min: (-49, 0), Max: (0, 99)
+    # W: 0 - (-49) + 1 = 50, H: 99 - 0 + 1 = 100
+    np.testing.assert_allclose(bbox, (-49.0, 0.0, 50.0, 100.0), atol=1e-5)
 
 
 def test_calculate_new_bbox_com_escala():
@@ -92,7 +95,9 @@ def test_calculate_new_bbox_com_escala():
 
     size = (100, 50)
     bbox = calculate_new_bbox(scale, size)
-    np.testing.assert_allclose(bbox, (0.0, 0.0, 200.0, 100.0), atol=1e-5)
+    # (0,0)->(0,0), (99,49)->(198,98)
+    # W: 198-0+1 = 199, H: 98-0+1 = 99
+    np.testing.assert_allclose(bbox, (0.0, 0.0, 199.0, 99.0), atol=1e-5)
 
 
 def test_calculate_new_bbox_com_flip_horizontal():
@@ -104,13 +109,14 @@ def test_calculate_new_bbox_com_flip_horizontal():
     ], dtype=np.float32)
 
     size = (100, 50)
-    # Com pivô na origem (0,0), o (100, 0) vai para (-100, 0)
+    # Com pivô na origem (0,0), o (99, 0) vai para (-99, 0)
     bbox = calculate_new_bbox(flip_h, size)
-    np.testing.assert_allclose(bbox, (-100.0, 0.0, 100.0, 50.0), atol=1e-5)
+    # MinX: -99, MaxX: 0. W: 100.
+    np.testing.assert_allclose(bbox, (-99.0, 0.0, 100.0, 50.0), atol=1e-5)
 
 
 def test_calculate_new_bbox_escala_zero():
-    # Escala zero deve resultar em largura e altura zero
+    # Escala zero deve resultar em largura e altura 1 (ponto singular)
     scale_zero = np.array([
         [0, 0, 0],
         [0, 0, 0],
@@ -118,7 +124,7 @@ def test_calculate_new_bbox_escala_zero():
     ], dtype=np.float32)
     size = (100, 50)
     bbox = calculate_new_bbox(scale_zero, size)
-    np.testing.assert_allclose(bbox, (0.0, 0.0, 0.0, 0.0), atol=1e-5)
+    np.testing.assert_allclose(bbox, (0.0, 0.0, 1.0, 1.0), atol=1e-5)
 
 
 def test_calculate_new_bbox_escala_negativa_extrema():
@@ -130,9 +136,12 @@ def test_calculate_new_bbox_escala_negativa_extrema():
     ], dtype=np.float32)
     size = (100, 50)
     # (0,0) -> (0,0)
-    # (100, 50) -> (-250, -125)
+    # (99, 49) -> (-247.5, -122.5) -> Round -> (-248, -122)
+    # Min: (-248, -122), Max: (0, 0)
+    # W: 0 - (-248) + 1 = 249
+    # H: 0 - (-122) + 1 = 123
     bbox = calculate_new_bbox(scale_neg, size)
-    np.testing.assert_allclose(bbox, (-250.0, -125.0, 250.0, 125.0), atol=1e-5)
+    np.testing.assert_allclose(bbox, (-248.0, -122.0, 249.0, 123.0), atol=1e-5)
 
 
 def test_create_pivot_transform_pivo_excentrico():
