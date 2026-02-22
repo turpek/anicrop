@@ -96,9 +96,9 @@ def test_hard_masking_opaque_overlay_on_transparent_base():
 
     # Os canais RGB da base devem ter recebido o azul
     assert np.all(result._data[..., 2] == 255)
-    # O canal Alpha da base deve ter permanecido zerado (intacto),
-    # pois a sobreposição opaca não injeta Alpha.
-    assert np.all(result._data[..., 3] == 0)
+    # O canal Alpha da base deve ficar totalmente opaco (255),
+    # pois a sobreposição opaca substitui a transparência.
+    assert np.all(result._data[..., 3] == 255)
 
 
 def test_hard_masking_grayscale():
@@ -117,8 +117,8 @@ def test_hard_masking_grayscale():
 
     # O canal de cor (índice 0) deve ser 128
     assert np.all(result._data[..., 0] == 128)
-    # O canal alpha (índice 1) deve continuar 0
-    assert np.all(result._data[..., 1] == 0)
+    # O canal alpha (índice 1) deve ficar opaco (255)
+    assert np.all(result._data[..., 1] == 255)
 
 
 # --- Testes para blend_normal ---
