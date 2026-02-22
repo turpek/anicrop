@@ -3,3 +3,5 @@ guia
 Makefile
 anicrop.egg-info
 .coverage
+prog.py
+debug.py
