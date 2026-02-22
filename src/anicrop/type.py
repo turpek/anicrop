@@ -1,16 +1,17 @@
 from __future__ import annotations
+
+from collections.abc import Callable, Iterator
 from dataclasses import dataclass
 from operator import add, sub
-from typing import Callable, Iterator, Protocol, Tuple, Union
+from typing import Protocol
+
 import numpy as np
 
-
-RotationInput = Union[float, Tuple[float, float, float]]
-ScaleInput = Union[float, Tuple[float, float], Tuple[float, float, float, float]]
+RotationInput = float | tuple[float, float, float]
+ScaleInput = float | tuple[float, float], tuple[float, float, float, float]
 
 
 class Transform(Protocol):
-
     @property
     def matrix(self) -> np.ndarray:
         ...
@@ -38,11 +39,14 @@ class Rotation:
     pivot_x: float = 0.5
     pivot_y: float = 0.5
 
-    def _apply_operation(self, value: RotationInput, op: Callable) -> tuple[float, float, float]:
+    def _apply_operation(
+        self, value: RotationInput, op: Callable
+    ) -> tuple[float, float, float]:
         """
         Centraliza a matemática:
         - Se for número: Aplica operação no valor, MANTÉM pivô.
-        - Se for tupla: Aplica operação no valor (índice 0), SUBSTITUI pivô (índices 1,2).
+        - Se for tupla: Aplica operação no valor (índice 0), SUBSTITUI pivô
+        - (índices 1,2).
         """
         if isinstance(value, (float, int)):
             return (op(self.angle, value), self.pivot_x, self.pivot_y)
@@ -76,11 +80,7 @@ class Rotation:
         theta = np.radians(self.angle)
         c, s = np.cos(theta), np.sin(theta)
 
-        m = np.array([
-            [c, -s, 0],
-            [s, c, 0],
-            [0, 0, 1]
-        ], dtype=np.float32)
+        m = np.array([[c, -s, 0], [s, c, 0], [0, 0, 1]], dtype=np.float32)
         return m
 
 
@@ -91,20 +91,33 @@ class Scale:
     pivot_x: float = 0.5
     pivot_y: float = 0.5
 
-    def _apply_operation(self, value: ScaleInput, op: Callable) -> tuple[float, float, float, float]:
+    def _apply_operation(
+        self, value: ScaleInput, op: Callable
+    ) -> tuple[float, float, float, float]:
         """
         Centraliza a matemática:
         - Se for número: Aplica operação no valor, MANTÉM pivô.
-        - Se for tupla: Aplica operação no valor (índice 0), SUBSTITUI pivô (índices 1,2).
+        - Se for tupla: Aplica operação no valor (índice 0), SUBSTITUI pivô
+        - (índices 1,2).
         """
         if isinstance(value, (float, int)):
             return (op(self.sx, value), op(self.sy, value), self.pivot_x, self.pivot_y)
 
         elif isinstance(value, tuple) and len(value) == 4:
-            return (op(self.sx, value[0]), op(self.sy, value[1]), float(value[2]), float(value[3]))
+            return (
+                op(self.sx, value[0]),
+                op(self.sy, value[1]),
+                float(value[2]),
+                float(value[3]),
+            )
 
         elif isinstance(value, tuple) and len(value) == 2:
-            return (op(self.sx, value[0]), op(self.sy, value[1]), self.pivot_x, self.pivot_y)
+            return (
+                op(self.sx, value[0]),
+                op(self.sy, value[1]),
+                self.pivot_x,
+                self.pivot_y,
+            )
 
         return NotImplemented
 
@@ -132,8 +145,4 @@ class Scale:
     @property
     def matrix(self) -> np.ndarray:
         """Retorna a matriz de escala PURA (em torno de 0,0)"""
-        return np.array([
-            [self.sx, 0, 0],
-            [0, self.sy, 0],
-            [0, 0, 1]
-        ], dtype=np.float32)
+        return np.array([[self.sx, 0, 0], [0, self.sy, 0], [0, 0, 1]], dtype=np.float32)
