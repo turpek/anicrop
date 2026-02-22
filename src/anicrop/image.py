@@ -1,4 +1,5 @@
 """Provides the Image class, a wrapper for image data processing."""
+from __future__ import annotations
 from numpy import ndarray
 from anicrop.spatial import Region, Span
 from typing import Any
@@ -32,6 +33,17 @@ class ImageFormat(StrEnum):
             ImageFormat.CMYK: 4,
             ImageFormat.CMYK_ALPHA: 5,
         }[self]
+
+    def same_spaces(self, other: ImageFormat) -> bool:
+        color_spaces = {
+            "gray": "gray",
+            "gray_alpha": "gray",
+            "rgb": "rgb",
+            "rgba": "rgb",
+            "cmyk": "cmyk",
+            "cmyk_alpha": "cmyk",
+        }
+        return color_spaces[other] == color_spaces[self]
 
 
 class Image:
