@@ -1,16 +1,61 @@
-from anicrop.blend import blend_normal
+from anicrop.blend import BLEND_MODE
 from anicrop.image import Image
 from anicrop.layer import Layer
 from anicrop.spatial import Region, Span
 from anicrop.transform import (
     calculate_new_bbox,
+    calculate_region_bbox,
     mat_edit_final,
     mat_edit_local,
-    mat_final
+    mat_final,
+    mat_inverse,
+    mat_translation
 )
+from typing import Optional
 
 import cv2
 import numpy as np
+
+
+def perf_render(edit_layer, matrix, local_region, edit_region):
+
+    src_x, src_y, src_w, src_h = calculate_region_bbox(mat_inverse(matrix), edit_region)
+
+    # 2. Clamping Manual Blindado (Impede o NumPy de ler pixels de trás pra frente)
+    # Adicionamos a margem de 2 pixels do Lanczos4
+    img_w, img_h = edit_layer.image.size
+
+    start_x = max(0, int(src_x - 2))
+    start_y = max(0, int(src_y - 2))
+    end_x = min(img_w, int(src_x + src_w + 2))
+    end_y = min(img_h, int(src_y + src_h + 2))
+
+    # Se a região rotacionada/movida ficou 100% fora da imagem, aborta
+    if start_x >= end_x or start_y >= end_y:
+        return None
+    region_mask = Region(Span(start_x, end_x - start_x), Span(start_y, end_y - start_y))
+
+    # 3. Fatiamento Seguro
+    src_data = np.ascontiguousarray(edit_layer.image[region_mask][...])
+
+    # 4. As Únicas Duas Matrizes que Importam
+    # M_src_offset: Avisa o OpenCV que o fatiamento começou deslocado da origem
+    M_src_offset = mat_translation(*region_mask.top_left)
+
+    # M_dst_offset_inv: Puxa o resultado usando o EDIT_REGION (que é relativo à matrix), não o local_region!
+    M_dst_offset_inv = mat_translation(-edit_region.x.start, -edit_region.y.start)
+
+    # A COMPOSIÇÃO PURA: A própria "matrix" já resolve a rotação, escala e posição do Edit!
+    M_cv2 = (M_dst_offset_inv @ matrix @ M_src_offset).astype(np.float64)
+
+    # 4. Processa apenas os pixels estritamente necessários
+    edit_data = cv2.warpPerspective(
+        src_data,
+        M_cv2,
+        local_region.size,
+        flags=cv2.INTER_LANCZOS4
+    )
+    return edit_data
 
 
 class LayerRender:
