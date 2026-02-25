@@ -76,6 +76,9 @@ class LayerRender:
             x, y, w, h = calculate_new_bbox(matrix_local, edit_layer.image.size)
             local_region = Region(Span(x, w), Span(y, h))
             size = local_region.size
+            print()
+            print(matrix)
+            print(matrix_local)
 
             x, y, w, h = calculate_new_bbox(matrix_final, layer.region.size)
             layer_bbox = Region(Span(x, w), Span(y, h))
@@ -89,7 +92,8 @@ class LayerRender:
                 flags=cv2.INTER_LANCZOS4
             )
             edit_image = Image(edit_data, edit_layer.image.format)
-            blend_normal(layer_image[local_region], edit_image[edit_region])
+            blend = BLEND_MODE.get(edit_layer.blend_mode)
+            blend(layer_image.view(local_region), edit_image.view(edit_region))
 
         return layer_image
 
@@ -101,3 +105,49 @@ class LayerRender:
 
         layer_image = Image.new(size, layer.format)
         return self.__flatten_edits(layer, matrix, layer_image)
+
+    def __flatten_edits_perf(
+        self,
+        layer: Layer,
+        matrix_final: np.ndarray,
+        layer_image: Image,
+        render_region: Region,
+    ) -> np.ndarray:
+
+        for edit_layer in layer._edits:
+
+            matrix = mat_edit_final(edit_layer, matrix_final)
+            x, y, w, h = calculate_new_bbox(matrix, edit_layer.image.size)
+
+            matrix_local = mat_edit_local(edit_layer, matrix_final)
+            x, y, w, h = calculate_new_bbox(matrix_local, edit_layer.image.size)
+            local_region = Region(Span(x, w), Span(y, h))
+
+            x, y, w, h = calculate_new_bbox(matrix_final, layer.region.size)
+            layer_bbox = Region(Span(x, w), Span(y, h))
+            edit_region = local_region.overlap_with(layer_bbox)
+            local_region = layer_bbox.overlap_with(local_region)
+
+            edit_data2 = perf_render(edit_layer, matrix, local_region, edit_region)
+            edit_image2 = Image(edit_data2, edit_layer.image.format)
+            blend = BLEND_MODE.get(edit_layer.blend_mode)
+            blend(layer_image.view(local_region), edit_image2)
+
+        return layer_image
+
+    def render_perf(self, layer: Layer, view_region: Optional[Region] = None) -> Image | None:
+
+        view_region = view_region if view_region else view_region
+
+        final_region = layer.canvas_region
+
+        if not view_region.overlaps(final_region):
+            return None
+
+        render_region = view_region & final_region
+        size = render_region.size
+
+        matrix = mat_final(layer, *final_region.top_left)
+
+        layer_image = Image.new(size, layer.format)
+        return self.__flatten_edits_perf(layer, matrix, layer_image, render_region)
