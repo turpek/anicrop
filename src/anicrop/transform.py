@@ -39,6 +39,39 @@ def calculate_new_bbox(matrix: np.ndarray, size: tuple[int, int]) -> tuple[int, 
     return min_x, min_y, new_w, new_h
 
 
+def calculate_region_bbox(matrix: np.ndarray, region: Region) -> tuple[int, int, int, int]:
+    x, y = region.top_left
+    w, h = region.size
+
+    # Agora os cantos consideram a posição inicial (x, y) exata da Região,
+    # e não apenas a largura e altura partindo do zero.
+    corners = np.array([
+        [x, y, 1.0],
+        [x + w - 1, y, 1.0],
+        [x + w - 1, y + h - 1, 1.0],
+        [x, y + h - 1, 1.0]
+    ]).T
+
+    transformed_corners = matrix @ corners
+
+    # Normaliza (divide por Z, se houver projeção 3D/perspectiva)
+    transformed_corners[0, :] /= transformed_corners[2, :]
+    transformed_corners[1, :] /= transformed_corners[2, :]
+
+    # Acha os novos limites (usando o round para o vizinho mais próximo)
+    min_x = int(np.round(np.min(transformed_corners[0, :])))
+    min_y = int(np.round(np.min(transformed_corners[1, :])))
+    max_x = int(np.round(np.max(transformed_corners[0, :])))
+    max_y = int(np.round(np.max(transformed_corners[1, :])))
+
+    # A nova largura/altura soma +1 porque (max - min) de índices conta os intervalos.
+    # Ex: (99 - 0) = 99 intervalos, o que significa 100 pixels de largura real!
+    new_w = max_x - min_x + 1
+    new_h = max_y - min_y + 1
+
+    return min_x, min_y, new_w, new_h
+
+
 def calculate_new_bbox_from_layer(layer) -> tuple[float, float, float, float]:
     return calculate_new_bbox(mat_global(layer), layer.region.size)
 
