@@ -370,4 +370,4 @@ class Region:
 
 def bbox_to_region(bbox: tuple[int, int, int, int]):
     x, y, w, h = bbox
-    return Region(Span(x, w), Span(w, h))
+    return Region(Span(x, w), Span(y, h))
