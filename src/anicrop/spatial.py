@@ -366,3 +366,8 @@ class Region:
             raise ValueError("no overlap: 'other' out of bounds")
         intersection = self & other
         return intersection - self
+
+
+def bbox_to_region(bbox: tuple[int, int, int, int]):
+    x, y, w, h = bbox
+    return Region(Span(x, w), Span(w, h))
