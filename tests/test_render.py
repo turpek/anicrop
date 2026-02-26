@@ -14,6 +14,10 @@ def layer_render():
     return LayerRender()
 
 
+def make_render():
+    return LayerRender()
+
+
 # Funções auxiliares para gerar Layers e Edits
 def make_img(w=100, h=100, color=(255, 0, 0, 255)):
     # Gera uma imagem com uma cor sólida
@@ -35,7 +39,12 @@ def make_layer(w=100, h=100, x=0, y=0, color=(255, 0, 0, 255)):
     return layer
 
 
-def test_LayerRender_identidade_sem_transformacao(layer_render):
+@pytest.mark.parametrize(
+    'render',
+    (make_render().render, make_render().render_area),
+    ids=['render', 'render_area']
+)
+def test_LayerRender_identidade_sem_transformacao(render):
     """
     Testa se um Layer sem transformações (Escala=1, Rotação=0, Pos=0,0)
     é renderizado exatamente igual à imagem original, pixel por pixel.
@@ -45,7 +54,7 @@ def test_LayerRender_identidade_sem_transformacao(layer_render):
     original_layer = make_layer(w=width, h=height, color=(100, 150, 200, 255))
 
     # Renderiza o layer
-    rendered_image = layer_render.render(original_layer)
+    rendered_image = render(original_layer)
 
     # Verificações básicas
     assert rendered_image.width == width
@@ -57,7 +66,12 @@ def test_LayerRender_identidade_sem_transformacao(layer_render):
         rendered_image[...], original_layer.image[...])
 
 
-def test_LayerRender_rotacao_expansao_segura(layer_render):
+@pytest.mark.parametrize(
+    'render',
+    (make_render().render, make_render().render_area),
+    ids=['render', 'render_area']
+)
+def test_LayerRender_rotacao_expansao_segura(render):
     """
     Testa se o LayerRender expande a imagem corretamente ao rotacionar
     em 45 graus, garantindo que as pontas não sejam cortadas pelo OpenCV
@@ -72,7 +86,7 @@ def test_LayerRender_rotacao_expansao_segura(layer_render):
     layer.rotation.angle = 45
 
     # Ação: Renderiza o layer
-    rendered_image = layer_render.render(layer)
+    rendered_image = render(layer)
     bbox = layer.canvas_region
 
     # 1. A imagem final TEM que ter o tamanho exato do Bounding Box calculado
@@ -94,7 +108,12 @@ def test_LayerRender_rotacao_expansao_segura(layer_render):
     assert pixel_canto[3] == 0
 
 
-def test_LayerRender_achatar_edicoes_e_transformar(layer_render):
+@pytest.mark.parametrize(
+    'render',
+    (make_render().render, make_render().render_area),
+    ids=['render', 'render_area']
+)
+def test_LayerRender_achatar_edicoes_e_transformar(render):
     """
     Testa se o renderizador consegue fazer o merge das edições (EditLayer)
     sobre a imagem base ANTES de aplicar a transformação espacial do OpenCV.
@@ -113,7 +132,7 @@ def test_LayerRender_achatar_edicoes_e_transformar(layer_render):
     layer.add_edit(img_edicao, regiao_edicao)
 
     # --- AÇÃO 1: Renderização Pura (Sem Rotação) ---
-    img_renderizada = layer_render.render(layer)
+    img_renderizada = render(layer)
     array_final = img_renderizada[...]
 
     # O canto extremo (0,0) deve ser azul (é o fundo)
@@ -124,7 +143,7 @@ def test_LayerRender_achatar_edicoes_e_transformar(layer_render):
 
     # --- AÇÃO 2: Renderização com Rotação (90 Graus) ---
     layer.rotation.angle = 90
-    img_rotacionada = layer_render.render(layer)
+    img_rotacionada = render(layer)
     array_rotacionado = img_rotacionada[...]
 
     # Se a imagem girou, o ponto que antes era vermelho (20,20) agora
@@ -136,8 +155,12 @@ def test_LayerRender_achatar_edicoes_e_transformar(layer_render):
     # nós colamos a figurinha vermelha no canto, e não no meio.
     np.testing.assert_array_equal(array_rotacionado[50, 50], cor_azul)
 
-
-def test_render_fluxo_real_com_quina(layer_render: LayerRender):
+@pytest.mark.parametrize(
+    'render',
+    (make_render().render, make_render().render_area),
+    ids=['render', 'render_area']
+)
+def test_render_fluxo_real_com_quina(render):
     # 1. Setup do Layer 100x100 (Azul)
     bg_data = np.zeros((100, 100, 4), dtype=np.uint8)
     bg_data[:] = [0, 0, 255, 255]  # Azul sólido
@@ -173,7 +196,7 @@ def test_render_fluxo_real_com_quina(layer_render: LayerRender):
     layer.scale = (2.0, 2.0)
 
     # 6. Renderização
-    result_image = layer_render.render(layer)
+    result_image = render(layer)
     data = result_image[...]
 
     # 7. Verificação via Matriz Final
@@ -197,7 +220,12 @@ def test_render_fluxo_real_com_quina(layer_render: LayerRender):
     assert pixel[2] < 10, f"Canal Azul muito alto: {pixel[2]}"
 
 
-def test_render_bug_offset_translation(layer_render):
+@pytest.mark.parametrize(
+    'render',
+    (make_render().render, make_render().render_area),
+    ids=['render', 'render_area']
+)
+def test_render_bug_offset_translation(render):
     """
     Reproduz o bug onde warpPerspective desenha fora do buffer local
     se a matriz de transformação não for ajustada pela origem do recorte.
@@ -217,7 +245,7 @@ def test_render_bug_offset_translation(layer_render):
     layer.add_edit(edit_img, offset_region)
 
     # 4. Renderiza
-    result = layer_render.render(layer)
+    result = render(layer)
     data = result[...]
 
     # 5. Verificação
@@ -231,7 +259,12 @@ def test_render_bug_offset_translation(layer_render):
     )
 
 
-def test_render_edit_parcialmente_fora(layer_render):
+@pytest.mark.parametrize(
+    'render',
+    (make_render().render, make_render().render_area),
+    ids=['render', 'render_area']
+)
+def test_render_edit_parcialmente_fora(render):
     """
     Testa se um Edit posicionado parcialmente fora da tela (coordenadas negativas)
     é renderizado corretamente na parte visível, sem erros de broadcast ou sumiço.
@@ -254,7 +287,7 @@ def test_render_edit_parcialmente_fora(layer_render):
     layer.add_edit(edit_img, offset_region)
 
     # 4. Renderiza
-    result = layer_render.render(layer)
+    result = render(layer)
     data = result[...]
 
     # 5. Verificações
@@ -269,7 +302,12 @@ def test_render_edit_parcialmente_fora(layer_render):
                           ), "O edit vazou além do tamanho esperado."
 
 
-def test_render_edit_parcialmente_fora_bicolor(layer_render):
+@pytest.mark.parametrize(
+    'render',
+    (make_render().render, make_render().render_area),
+    ids=['render', 'render_area']
+)
+def test_render_edit_parcialmente_fora_bicolor(render):
     """
     Prova se o motor está colando a parte CORRETA do Edit.
     Cenário: Edit 20x20 posicionado em x=-10 (metade pra fora).
@@ -289,7 +327,7 @@ def test_render_edit_parcialmente_fora_bicolor(layer_render):
     offset_region = Region(Span(-10, 20), Span(10, 20))
     layer.add_edit(edit_img, offset_region)
 
-    result = layer_render.render(layer)
+    result = render(layer)
     data = result[...]
 
     # O primeiro pixel do Canvas (x=0) deveria ser Vermelho (a metade direita)
@@ -298,7 +336,12 @@ def test_render_edit_parcialmente_fora_bicolor(layer_render):
                           255, 0, 0, 255]), "BUG VISUAL: O motor colou a metade errada da imagem!"
 
 
-def test_render_edit_borda_direita(layer_render):
+@pytest.mark.parametrize(
+    'render',
+    (make_render().render, make_render().render_area),
+    ids=['render', 'render_area']
+)
+def test_render_edit_borda_direita(render):
     """Testa se o recorte funciona na borda direita (x=90 em canvas de 100)"""
     base_img = Image.new((100, 100), ImageFormat.RGBA, color=0)
     layer = Layer(base_img)
@@ -311,7 +354,7 @@ def test_render_edit_borda_direita(layer_render):
     offset_region = Region(Span(90, 20), Span(10, 20))
     layer.add_edit(edit_img, offset_region)
 
-    result = layer_render.render(layer)
+    result = render(layer)
 
     # O pixel x=95 ainda deveria ser do violão (Azul)
     assert np.array_equal(
