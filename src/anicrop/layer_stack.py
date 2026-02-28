@@ -56,3 +56,11 @@ class LayerStack:
         index = self.__normalize_index(index)
         if index != 0:
             self.__swap(index, index - 1)
+
+    def move_to_front(self, index: int) -> None:
+        layer = self.remove(index)
+        self.add(layer)
+
+    def move_to_back(self, index: int) -> None:
+        layer = self.remove(index)
+        self.add(layer, 0)
