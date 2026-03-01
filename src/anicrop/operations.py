@@ -5,7 +5,7 @@ from anicrop.render import LayerRender
 
 
 def merge_down(layer_up: Layer, layer_down: Layer) -> Layer:
-    region_up, region_down = layer_up.region, layer_down.region
+    region_up, region_down = layer_up.canvas_region, layer_down.canvas_region
     canvas_region = region_up | region_down
     view_up = canvas_region.overlap_with(region_up)
     view_down = canvas_region.overlap_with(region_down)
