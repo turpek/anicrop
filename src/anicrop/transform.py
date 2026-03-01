@@ -13,10 +13,10 @@ def calculate_new_bbox(matrix: np.ndarray, size: tuple[int, int]) -> tuple[int, 
 
     corners = np.array([
         [0, 0, 1.0],
-        [w - 1, 0, 1.0],
-        [w - 1, h - 1, 1.0],
-        [0, h - 1, 1.0]
-    ]).T
+        [w, 0, 1.0],
+        [w, h, 1.0],
+        [0, h, 1.0]
+    ], dtype=np.float32).T
 
     # Multiplica os cantos pela matriz de transformação
     transformed_corners = matrix @ corners
@@ -25,16 +25,17 @@ def calculate_new_bbox(matrix: np.ndarray, size: tuple[int, int]) -> tuple[int, 
     transformed_corners[0, :] /= transformed_corners[2, :]
     transformed_corners[1, :] /= transformed_corners[2, :]
 
+    # breakpoint()
     # Acha os novos limites (usando o round para o vizinho mais próximo)
-    min_x = int(np.round(np.min(transformed_corners[0, :])))
-    min_y = int(np.round(np.min(transformed_corners[1, :])))
-    max_x = int(np.round(np.max(transformed_corners[0, :])))
-    max_y = int(np.round(np.max(transformed_corners[1, :])))
+    min_x = int(np.floor(np.min(transformed_corners[0, :])))
+    min_y = int(np.floor(np.min(transformed_corners[1, :])))
+    max_x = int(np.ceil(np.max(transformed_corners[0, :])))
+    max_y = int(np.ceil(np.max(transformed_corners[1, :])))
 
     # A nova largura/altura soma +1 porque (max - min) de índices conta os intervalos.
     # Ex: (99 - 0) = 99 intervalos, o que significa 100 pixels de largura real!
-    new_w = max_x - min_x + 1
-    new_h = max_y - min_y + 1
+    new_w = max(1, max_x - min_x)
+    new_h = max(1, max_y - min_y)
 
     return min_x, min_y, new_w, new_h
 
@@ -47,10 +48,10 @@ def calculate_region_bbox(matrix: np.ndarray, region: Region) -> tuple[int, int,
     # e não apenas a largura e altura partindo do zero.
     corners = np.array([
         [x, y, 1.0],
-        [x + w - 1, y, 1.0],
-        [x + w - 1, y + h - 1, 1.0],
-        [x, y + h - 1, 1.0]
-    ]).T
+        [x + w, y, 1.0],
+        [x + w, y + h, 1.0],
+        [x, y + h, 1.0]
+    ], dtype=np.float32).T
 
     transformed_corners = matrix @ corners
 
@@ -58,16 +59,16 @@ def calculate_region_bbox(matrix: np.ndarray, region: Region) -> tuple[int, int,
     transformed_corners[0, :] /= transformed_corners[2, :]
     transformed_corners[1, :] /= transformed_corners[2, :]
 
-    # Acha os novos limites (usando o round para o vizinho mais próximo)
-    min_x = int(np.round(np.min(transformed_corners[0, :])))
-    min_y = int(np.round(np.min(transformed_corners[1, :])))
-    max_x = int(np.round(np.max(transformed_corners[0, :])))
-    max_y = int(np.round(np.max(transformed_corners[1, :])))
+    # Acha os novos limites (usando o floor/ceil para garantir cobertura completa)
+    min_x = int(np.floor(np.min(transformed_corners[0, :])))
+    min_y = int(np.floor(np.min(transformed_corners[1, :])))
+    max_x = int(np.ceil(np.max(transformed_corners[0, :])))
+    max_y = int(np.ceil(np.max(transformed_corners[1, :])))
 
     # A nova largura/altura soma +1 porque (max - min) de índices conta os intervalos.
     # Ex: (99 - 0) = 99 intervalos, o que significa 100 pixels de largura real!
-    new_w = max_x - min_x + 1
-    new_h = max_y - min_y + 1
+    new_w = max(1, max_x - min_x)
+    new_h = max(1, max_y - min_y)
 
     return min_x, min_y, new_w, new_h
 
