@@ -3,6 +3,83 @@ from enum import Enum
 import numpy as np
 
 
+def blend_normal_linear(base: Image, edit: Image, opacity: float = 1.0) -> None:
+    """
+    Realiza o blend de forma fisicamente correta (Linear Blending).
+    Converte as cores sRGB para espaço linear antes da mistura (evitando o escurecimento
+    dos tons médios) e converte de volta para sRGB ao final.
+    """
+    if opacity <= 0.0:
+        return
+
+    base = base[...]
+    edit = edit[...]
+    h, w = min(base.shape[0], edit.shape[0]), min(base.shape[1], edit.shape[1])
+
+    b_view = base[:h, :w]
+    e_view = edit[:h, :w]
+
+    # 1. Criar a máscara (Otimização)
+    if e_view.shape[-1] == 4:
+        mask = e_view[..., 3] > 0
+    else:
+        mask = np.ones((h, w), dtype=bool)
+
+    if not np.any(mask):
+        return
+
+    # =====================================================================
+    # 2. EXTRAÇÃO E LINEARIZAÇÃO DO OVERLAY (EDIT)
+    # =====================================================================
+    # Para a curva Gamma funcionar, precisamos converter a cor para a escala 0.0 a 1.0 primeiro
+    rgb_e_srgb = e_view[mask, :3].astype(np.float32) / 255.0
+
+    # LINEARIZA: Eleva a 2.2 para remover a curva da tela
+    rgb_e_lin = rgb_e_srgb ** 2.2
+
+    if e_view.shape[-1] == 4:
+        # ATENÇÃO: O canal Alpha NUNCA sofre correção de Gamma, ele é sempre linear!
+        alpha_e = (e_view[mask, 3:4].astype(np.float32) / 255.0) * opacity
+    else:
+        alpha_e = np.full((np.count_nonzero(mask), 1), opacity, dtype=np.float32)
+
+    # =====================================================================
+    # 3. MATEMÁTICA E DESLINEARIZAÇÃO (BASE)
+    # =====================================================================
+    if b_view.shape[-1] == 4:
+        # Fundo COM transparência
+        rgb_b_srgb = b_view[mask, :3].astype(np.float32) / 255.0
+        rgb_b_lin = rgb_b_srgb ** 2.2  # Lineariza o fundo
+        alpha_b = b_view[mask, 3:4].astype(np.float32) / 255.0
+
+        # Calcula o Alpha resultante da mesclagem (mesma fórmula Porter-Duff)
+        out_a = alpha_e + alpha_b * (1.0 - alpha_e)
+        out_a_safe = np.where(out_a == 0, 1.0, out_a)
+
+        # A Mágica: Mistura as luzes LINEARES usando os Alphas
+        out_rgb_lin = (rgb_e_lin * alpha_e + rgb_b_lin * alpha_b * (1.0 - alpha_e)) / out_a_safe
+
+        # DESLINEARIZA: Eleva a (1 / 2.2) para devolver a curva sRGB que o monitor espera ver
+        out_rgb_srgb = out_rgb_lin ** (1.0 / 2.2)
+
+        # Injeta de volta (Cor sRGB e Alpha original)
+        b_view[mask, :3] = np.clip(out_rgb_srgb * 255, 0, 255).astype(np.uint8)
+        b_view[mask, 3:4] = np.clip(out_a * 255, 0, 255).astype(np.uint8)
+
+    else:
+        # Fundo SÓLIDO (Ex: RGB puro)
+        rgb_b_srgb = b_view[mask, :3].astype(np.float32) / 255.0
+        rgb_b_lin = rgb_b_srgb ** 2.2  # Lineariza o fundo
+
+        # Alpha Blending comum com as cores lineares
+        out_rgb_lin = (rgb_e_lin * alpha_e) + (rgb_b_lin * (1.0 - alpha_e))
+
+        # Deslineariza o resultado final
+        out_rgb_srgb = out_rgb_lin ** (1.0 / 2.2)
+
+        b_view[mask, :3] = np.clip(out_rgb_srgb * 255, 0, 255).astype(np.uint8)
+
+
 def blend_normal(base: Image, edit: Image, opacity: float = 1.0) -> None:
     """
     Realiza o blend de forma segura usando a fórmula Porter-Duff 'Over',
@@ -123,11 +200,13 @@ def hard_masking(base: Image, overlay: Image, opacity: float = 1.0) -> Image:
 class BlendMode(Enum):
     """Defines how an edit layer blends with the underlying content."""
     NORMAL = 'normal'
+    NORMAL_LINEAR = 'normal_linear'
     MULTIPLY = 'multiply'
     HARD_MASKING = 'hard_masking'
 
 
 BLEND_MODE = {
     BlendMode.NORMAL: blend_normal,
+    BlendMode.NORMAL_LINEAR: blend_normal_linear,
     BlendMode.HARD_MASKING: hard_masking,
 }
