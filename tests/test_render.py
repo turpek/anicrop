@@ -155,6 +155,7 @@ def test_LayerRender_achatar_edicoes_e_transformar(render):
     # nós colamos a figurinha vermelha no canto, e não no meio.
     np.testing.assert_array_equal(array_rotacionado[50, 50], cor_azul)
 
+
 @pytest.mark.parametrize(
     'render',
     (make_render().render, make_render().render_area),
