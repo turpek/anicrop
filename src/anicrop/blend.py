@@ -3,10 +3,15 @@ from enum import Enum
 import numpy as np
 
 
-def blend_normal(base: Image, edit: Image) -> None:
+def blend_normal(base: Image, edit: Image, opacity: float = 1.0) -> None:
     """
-    Realiza o blend de forma segura, validando a existência do canal Alfa.
+    Realiza o blend de forma segura usando a fórmula Porter-Duff 'Over',
+    preservando as bordas suaves (anti-aliasing) em fundos transparentes.
     """
+    # Otimização suprema: se a camada for invisível, não fazemos nada!
+    if opacity <= 0.0:
+        return
+
     base = base[...]
     edit = edit[...]
     h, w = min(base.shape[0], edit.shape[0]), min(base.shape[1], edit.shape[1])
@@ -14,60 +19,88 @@ def blend_normal(base: Image, edit: Image) -> None:
     b_view = base[:h, :w]
     e_view = edit[:h, :w]
 
-    # 1. Criar a máscara
+    # 1. Criar a máscara (Otimização)
     if e_view.shape[-1] == 4:
         mask = e_view[..., 3] > 0
     else:
         mask = np.ones((h, w), dtype=bool)
 
-    # Otimização: Se a máscara for toda falsa (Edit invisível), encerra aqui
     if not np.any(mask):
         return
 
-    # 2. Extrair o Alpha APENAS se o canal existir
+    # 2. Extrair dados da imagem Edit (Cima)
+    rgb_e = e_view[mask, :3].astype(np.float32)
     if e_view.shape[-1] == 4:
-        # e_view[mask] retorna (N, 4). O slice [:, 3:4] deixa no formato (N, 1) para o broadcast
-        alpha = (e_view[mask, 3:4].astype(np.float32) / 255.0)
+        # AQUI ENTRA O OPACITY: Multiplicamos o alfa extraído pela opacidade da camada
+        alpha_e = (e_view[mask, 3:4].astype(np.float32) / 255.0) * opacity
     else:
-        # Se for RGB, é 100% sólido. O float 1.0 funciona perfeitamente no broadcast.
-        alpha = 1.0
+        # Se a imagem não tiver alfa, a opacidade vira o próprio alfa!
+        alpha_e = np.full((np.count_nonzero(mask), 1), opacity, dtype=np.float32)
 
-    # 3. Matemática do Blend restrita aos pixels da máscara
-    pixel_blend = (e_view[mask, :3] * alpha) + (b_view[mask, :3] * (1.0 - alpha))
-
-    # 4. Injeta de volta
-    b_view[mask, :3] = pixel_blend.astype(np.uint8)
-
-    # 5. Tratamento de transparência da base
+    # 3. Matemática baseada no formato do Fundo (Base)
     if b_view.shape[-1] == 4:
-        b_view[mask, 3] = 255
+        # Fundo COM transparência (Usa Porter-Duff Over)
+        rgb_b = b_view[mask, :3].astype(np.float32)
+        alpha_b = b_view[mask, 3:4].astype(np.float32) / 255.0
+
+        # Calcula o Alpha resultante da mesclagem das duas camadas
+        out_a = alpha_e + alpha_b * (1.0 - alpha_e)
+
+        # Evita divisão por zero onde o pixel final for 100% transparente
+        out_a_safe = np.where(out_a == 0, 1.0, out_a)
+
+        # A Mágica: Multiplica as cores pelos seus respectivos Alphas
+        out_rgb = (rgb_e * alpha_e + rgb_b * alpha_b * (1.0 - alpha_e)) / out_a_safe
+
+        # Injeta de volta (Cor e Alpha novo)
+        b_view[mask, :3] = np.clip(out_rgb, 0, 255).astype(np.uint8)
+        b_view[mask, 3:4] = np.clip(out_a * 255, 0, 255).astype(np.uint8)
+
+    else:
+        # Fundo SÓLIDO (Ex: RGB puro)
+        # Aqui o fundo é 100% opaco, então o Alpha Blending simples funciona perfeitamente
+        out_rgb = (rgb_e * alpha_e) + (b_view[mask, :3] * (1.0 - alpha_e))
+        b_view[mask, :3] = np.clip(out_rgb, 0, 255).astype(np.uint8)
 
 
 def hard_masking_overlay_with_alpha(
     base: Image,
     overlay: Image,
-    color_channels: int
+    color_channels: int,
+    opacity: float,
 ) -> None:
+
+    if opacity == 0:
+        return
 
     mask = overlay[..., -1:] > 0
     np.copyto(base[..., :color_channels], overlay[..., :color_channels], where=mask)
 
     if base.has_alpha:
-        np.copyto(base[..., -1:], overlay[..., -1:], where=mask)
+        if opacity < 1.0:
+            alpha_modificado = (overlay[..., -1:] * opacity).astype(np.uint8)
+            np.copyto(base[..., -1:], alpha_modificado, where=mask)
+        else:
+            np.copyto(base[..., -1:], overlay[..., -1:], where=mask)
 
 
 def hard_masking_overlay_without_alpha(
     base: Image,
     overlay: Image,
-    color_channels: int
+    color_channels: int,
+    opacity: float,
 ) -> None:
+
+    if opacity == 0:
+        return
 
     base[..., :color_channels] = overlay[..., :color_channels]
     if base.has_alpha:
-        base[..., -1] = 255
+        alpha_value = int(255 * opacity) if opacity < 1 else 255
+        base[..., -1] = alpha_value
 
 
-def hard_masking(base: Image, overlay: Image) -> Image:
+def hard_masking(base: Image, overlay: Image, opacity: float = 1.0) -> Image:
 
     if base.size != overlay.size:
         raise ValueError(f"Size mismatch: base {base.size} != overlay {overlay.size}.")
@@ -80,9 +113,9 @@ def hard_masking(base: Image, overlay: Image) -> Image:
     color_channels = overlay.channels
 
     if overlay.has_alpha:
-        hard_masking_overlay_with_alpha(base, overlay, color_channels - 1)
+        hard_masking_overlay_with_alpha(base, overlay, color_channels - 1, opacity)
     else:
-        hard_masking_overlay_without_alpha(base, overlay, color_channels)
+        hard_masking_overlay_without_alpha(base, overlay, color_channels, opacity)
 
     return base
 
