@@ -13,12 +13,14 @@ def make_region(w=3, h=3, offset=0):
     return Region.from_size(w, h) + offset
 
 
-def make_canvas(w=W, h=H, channel=4):
+def make_canvas(w=W, h=H, channel=4, color=None):
     channels = {
         1: ImageFormat.GRAY, 2: ImageFormat.GRAY_ALPHA, 3: ImageFormat.RGB,
         4: ImageFormat.RGBA, -4: ImageFormat.CMYK, 5: ImageFormat.CMYK_ALPHA
     }
-    return Image(np.zeros((h, w, abs(channel)), dtype=np.uint8), channels.get(channel))
+    if color:
+        return Image.new((h, w), channels.get(channel), color=color)
+    return Image.new((h, w), channels.get(channel))
 
 
 @pytest.fixture
