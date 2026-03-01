@@ -76,13 +76,16 @@ def test_calculate_new_bbox_rotacao_90_graus():
     size = (100, 50)
     bbox = calculate_new_bbox(rot_90, size)
 
-    # (0,0) -> (0,0)
-    # (99, 0) -> (0, 99)
-    # (99, 49) -> (-49, 99)
-    # (0, 49) -> (-49, 0)
-    # Min: (-49, 0), Max: (0, 99)
-    # W: 0 - (-49) + 1 = 50, H: 99 - 0 + 1 = 100
-    np.testing.assert_allclose(bbox, (-49.0, 0.0, 50.0, 100.0), atol=1e-5)
+    # Nova lógica (espaço contínuo):
+    # (0, 0)    -> (0, 0)
+    # (100, 0)  -> (0, 100)
+    # (100, 50) -> (-50, 100)
+    # (0, 50)   -> (-50, 0)
+
+    # Min: (-50, 0), Max: (0, 100)
+    # Largura (W): Max X - Min X = 0 - (-50) = 50
+    # Altura (H):  Max Y - Min Y = 100 - 0 = 100
+    np.testing.assert_allclose(bbox, (-50.0, 0.0, 50.0, 100.0), atol=1e-5)
 
 
 def test_calculate_new_bbox_com_escala():
@@ -95,9 +98,7 @@ def test_calculate_new_bbox_com_escala():
 
     size = (100, 50)
     bbox = calculate_new_bbox(scale, size)
-    # (0,0)->(0,0), (99,49)->(198,98)
-    # W: 198-0+1 = 199, H: 98-0+1 = 99
-    np.testing.assert_allclose(bbox, (0.0, 0.0, 199.0, 99.0), atol=1e-5)
+    np.testing.assert_allclose(bbox, (0.0, 0.0, 200.0, 100.0), atol=1e-5)
 
 
 def test_calculate_new_bbox_com_flip_horizontal():
@@ -109,10 +110,10 @@ def test_calculate_new_bbox_com_flip_horizontal():
     ], dtype=np.float32)
 
     size = (100, 50)
-    # Com pivô na origem (0,0), o (99, 0) vai para (-99, 0)
+    # Com pivô na origem (0,0), o (99, 0) vai para (-100, 0)
     bbox = calculate_new_bbox(flip_h, size)
-    # MinX: -99, MaxX: 0. W: 100.
-    np.testing.assert_allclose(bbox, (-99.0, 0.0, 100.0, 50.0), atol=1e-5)
+    # MinX: -100, MaxX: 0. W: 100.
+    np.testing.assert_allclose(bbox, (-100.0, 0.0, 100.0, 50.0), atol=1e-5)
 
 
 def test_calculate_new_bbox_escala_zero():
@@ -135,13 +136,21 @@ def test_calculate_new_bbox_escala_negativa_extrema():
         [0, 0, 1]
     ], dtype=np.float32)
     size = (100, 50)
-    # (0,0) -> (0,0)
-    # (99, 49) -> (-247.5, -122.5) -> Round -> (-248, -122)
-    # Min: (-248, -122), Max: (0, 0)
-    # W: 0 - (-248) + 1 = 249
-    # H: 0 - (-122) + 1 = 123
+
+    # Canto (0, 0)     -> (0, 0)
+    # Canto (100, 0)   -> (-250, 0)
+    # Canto (100, 50)  -> (-250, -125)
+    # Canto (0, 50)    -> (0, -125)
+
+    # Min X: floor(-250) = -250
+    # Min Y: floor(-125) = -125
+    # Max X: ceil(0)     = 0
+    # Max Y: ceil(0)     = 0
+
+    # Largura (W): 0 - (-250) = 250
+    # Altura (H):  0 - (-125) = 125
     bbox = calculate_new_bbox(scale_neg, size)
-    np.testing.assert_allclose(bbox, (-248.0, -122.0, 249.0, 123.0), atol=1e-5)
+    np.testing.assert_allclose(bbox, (-250.0, -125.0, 250.0, 125.0), atol=1e-5)
 
 
 def test_create_pivot_transform_pivo_excentrico():
