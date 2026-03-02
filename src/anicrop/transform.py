@@ -127,11 +127,21 @@ def mat_pivot(transform: TransformState, size: tuple[int, int]) -> np.ndarray:
     return create_pivot_transform(transform.matrix, *size, *transform.pivot)
 
 
-def mat_global(layer: Layer) -> np.ndarray:
+def mat_global_state(layer: Layer) -> np.ndarray:
     m_translation = mat_position(layer.region)
     m_rotation = mat_pivot(layer.rotation, layer.region.size)
     m_scale = mat_pivot(layer.scale, layer.region.size)
     return m_translation @ m_rotation @ m_scale
+
+
+def mat_global_transform(layer: Layer) -> np.ndarray:
+    return mat_position(layer.region) @ layer.transform.matrix
+
+
+def mat_global(layer: Layer) -> np.ndarray:
+    if layer.transform_used:
+        return mat_global_transform(layer)
+    return mat_global_state(layer)
 
 
 def mat_final(layer: Layer, x: float, y: float) -> np.ndarray:
