@@ -201,7 +201,12 @@ class Transform:
     def region(self) -> Region:
         return self._region
 
-    def rotation(self, angle: float, pivot_x: float, pivot_y: float) -> Transform:
+    def rotation(
+        self,
+        angle: float = 0,
+        pivot_x: float = 0.5, pivot_y: float = 0.5
+    ) -> Transform:
+
         w, h = self.size
         M_rot = create_pivot_transform(
             mat_rotation(angle), w, h, pivot_x, pivot_y
@@ -209,7 +214,12 @@ class Transform:
         self._matrix = M_rot @ self.matrix
         return self
 
-    def scale(self, sx: float, sy: float, pivot_x: float, pivot_y: float) -> Transform:
+    def scale(
+        self,
+        sx: float = 1, sy: float = 1,
+        pivot_x: float = 0.5, pivot_y: float = 0.5
+    ) -> Transform:
+
         w, h = self.size
         M_scale = create_pivot_transform(
             mat_scale(sx, sy), w, h, pivot_x, pivot_y
@@ -217,7 +227,7 @@ class Transform:
         self._matrix = M_scale @ self.matrix
         return self
 
-    def translate(self, x: int, y: int) -> Transform:
+    def translate(self, x: int = 0, y: int = 0) -> Transform:
         M_trans = mat_translation(x, y)
         self._matrix = M_trans @ self.matrix
         return self
