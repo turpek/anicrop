@@ -8,9 +8,12 @@ from anicrop.transform import (
     calculate_new_bbox_from_layer,
     mat_global,
     mat_inverse,
-    mat_translation
+    mat_position,
+    Transform
 )
 from collections import deque
+from typing import Optional
+
 import numpy as np
 
 
@@ -53,7 +56,7 @@ class EditLayer:
 
     @property
     def local_matrix(self) -> np.ndarray:
-        return mat_translation(*self.region.top_left) @ self.matrix
+        return mat_position(self.region) @ self.matrix
 
     def offset(self, offset_x: int, offset_y: int) -> None:
         self._region += (offset_x, offset_y)
@@ -77,6 +80,7 @@ class Layer:
         self._blend_mode = blend_mode
         self._region = Region.from_size(*image.size)
         self._edits: deque[EditLayer] = deque()
+        self._transform: Optional[Transform] = None
 
         self.add_edit(image, self._region, blend_mode)
         self._image = self._edits[0]
@@ -167,6 +171,7 @@ class Layer:
     @property
     def canvas_region(self) -> Region:
         """Retorna o BBox (AABB) real do layer no espaço do Canvas."""
+
         x, y, w, h = calculate_new_bbox_from_layer(self)
         return Region(Span(x, w), Span(y, h))
 
@@ -180,3 +185,16 @@ class Layer:
         name = f'Edit-{len(self._edits) + 1}'
         matrix = mat_inverse(mat_global(self))
         self._edits.append(EditLayer(image, region, matrix, blend_mode, name))
+
+    @property
+    def transform_used(self) -> bool:
+        return isinstance(self._transform, Transform)
+
+    def transform_clear(self) -> None:
+        self._transform = None
+
+    @property
+    def transform(self) -> Transform:
+        if self._transform is None:
+            self._transform = Transform(self.region.size)
+        return self._transform
