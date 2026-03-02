@@ -103,6 +103,25 @@ def mat_position(region: Region) -> np.ndarray:
     return mat_translation(region.x.start, region.y.start)
 
 
+def mat_rotation(angle: float) -> np.ndarray:
+    theta = np.radians(angle)
+    c, s = np.cos(theta), np.sin(theta)
+
+    return np.array([
+        [c, -s, 0],
+        [s, c, 0],
+        [0, 0, 1]
+    ], dtype=np.float32)
+
+
+def mat_scale(sx: float, sy: float) -> np.ndarray:
+    return np.array([
+        [sx, 0, 0],
+        [0, sy, 0],
+        [0, 0, 1]
+    ], dtype=np.float32)
+
+
 def mat_pivot(transform: TransformState, size: tuple[int, int]) -> np.ndarray:
     return create_pivot_transform(transform.matrix, *size, *transform.pivot)
 
