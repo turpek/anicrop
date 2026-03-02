@@ -3,7 +3,8 @@ from anicrop.transform import (
     mat_translation,
     create_pivot_transform,
     calculate_new_bbox,
-    mat_position
+    mat_position,
+    Transform
 )
 from anicrop.spatial import Region, Span
 
@@ -205,3 +206,89 @@ def test_estabilidade_ciclo_rotacao():
 
     m = rot_90 @ rot_90 @ rot_90 @ rot_90
     np.testing.assert_array_almost_equal(m, np.eye(3))
+
+
+def test_transform_inicializacao():
+    t = Transform((100, 100))
+    # Identidade por padrão
+    np.testing.assert_array_equal(t.matrix, np.eye(3, dtype=np.float32))
+    assert t.size == (100, 100)
+
+
+def test_transform_translacao_simples():
+    t = Transform((100, 100))
+    t.translate(10, 20)
+
+    expected = np.array([
+        [1, 0, 10],
+        [0, 1, 20],
+        [0, 0, 1]
+    ], dtype=np.float32)
+
+    np.testing.assert_array_equal(t.matrix, expected)
+
+
+def test_transform_rotacao_no_centro():
+    t = Transform((100, 100))
+    # Rotaciona 90 graus no centro (50, 50)
+    t.rotation(90, 0.5, 0.5)
+
+    # Ponto (0,0) deve ir para (100, 0)
+    pt = np.array([0, 0, 1], dtype=np.float32)
+    res = t.matrix @ pt
+
+    np.testing.assert_array_almost_equal(res, [100, 0, 1])
+
+
+def test_transform_escala_no_centro():
+    t = Transform((100, 100))
+    # Escala 2x no centro (50, 50)
+    t.scale(2, 2, 0.5, 0.5)
+
+    # O centro (50, 50) deve permanecer imóvel
+    pt_centro = np.array([50, 50, 1], dtype=np.float32)
+    res_centro = t.matrix @ pt_centro
+    np.testing.assert_array_almost_equal(res_centro, [50, 50, 1])
+
+    # O ponto (0, 0) deve se afastar do centro
+    # Vetor Pivo->TL = (-50, -50)
+    # Escala 2x: (-100, -100)
+    # Pos-Pivo: (50-100, 50-100) = (-50, -50)
+    pt_tl = np.array([0, 0, 1], dtype=np.float32)
+    res_tl = t.matrix @ pt_tl
+    np.testing.assert_array_almost_equal(res_tl, [-50, -50, 1])
+
+
+def test_transform_acumulacao_e_fluidez():
+    # Testa a ordem de acumulação: M_new @ M_old
+    # 1. Translate (10, 0)
+    # 2. Scale 2x no Centro
+    t = Transform((100, 100))
+    t.translate(10, 0).scale(2, 2, 0.5, 0.5)
+
+    # Como a classe faz M_new @ M_old:
+    # O resultado deve ser Escala @ Translacao
+    # Ponto (0, 0) -> Translacao -> (10, 0)
+    # (10, 0) -> Escala 2x (pivo 50,50)
+    # Vetor Pivo->Pt = (10-50, 0-50) = (-40, -50)
+    # Escala 2x = (-80, -100)
+    # Volta Pivo = (50-80, 50-100) = (-30, -50)
+
+    pt = np.array([0, 0, 1], dtype=np.float32)
+    res = t.matrix @ pt
+    np.testing.assert_array_almost_equal(res, [-30, -50, 1])
+
+
+def test_transform_ordem_inversa():
+    # 1. Scale 2x no Centro
+    # 2. Translate (10, 0)
+    t = Transform((100, 100))
+    t.scale(2, 2, 0.5, 0.5).translate(10, 0)
+
+    # Resultado deve ser Translacao @ Escala
+    # Ponto (0, 0) -> Escala 2x (pivo 50,50) -> (-50, -50)
+    # (-50, -50) -> Translacao (10, 0) -> (-40, -50)
+
+    pt = np.array([0, 0, 1], dtype=np.float32)
+    res = t.matrix @ pt
+    np.testing.assert_array_almost_equal(res, [-40, -50, 1])
