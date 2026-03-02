@@ -1,4 +1,5 @@
 from __future__ import annotations
+from anicrop.spatial import Region, bbox_to_region
 from typing import TYPE_CHECKING
 
 import numpy as np
@@ -170,3 +171,43 @@ def mat_edit_final(edit_layer: EditLayer, matrix_final: np.ndarray):
 
 def mat_inverse(matrix: np.ndarray) -> np.ndarray:
     return np.linalg.inv(matrix)
+
+
+class Transform:
+
+    def __init__(self, size: tuple[int, int]):
+        self._matrix = np.identity(3, dtype=np.float32)
+        self._region = Region.from_size(*size)
+
+    @property
+    def matrix(self) -> np.ndarray:
+        return self._matrix
+
+    @property
+    def size(self) -> tuple[int, int]:
+        return self.region.size
+
+    @property
+    def region(self) -> Region:
+        return self._region
+
+    def rotation(self, angle: float, pivot_x: float, pivot_y: float) -> Transform:
+        w, h = self.size
+        M_rot = create_pivot_transform(
+            mat_rotation(angle), w, h, pivot_x, pivot_y
+        )
+        self._matrix = M_rot @ self.matrix
+        return self
+
+    def scale(self, sx: float, sy: float, pivot_x: float, pivot_y: float) -> Transform:
+        w, h = self.size
+        M_scale = create_pivot_transform(
+            mat_scale(sx, sy), w, h, pivot_x, pivot_y
+        )
+        self._matrix = M_scale @ self.matrix
+        return self
+
+    def translate(self, x: int, y: int) -> Transform:
+        M_trans = mat_translation(x, y)
+        self._matrix = M_trans @ self.matrix
+        return self
