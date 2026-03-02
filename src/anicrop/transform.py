@@ -220,6 +220,9 @@ class Transform:
         pivot_x: float = 0.5, pivot_y: float = 0.5
     ) -> Transform:
 
+        if sx == 0 or sy == 0:
+            raise ValueError("Scale factors cannot be zero.")
+
         w, h = self.size
         M_scale = create_pivot_transform(
             mat_scale(sx, sy), w, h, pivot_x, pivot_y
