@@ -238,6 +238,11 @@ class Region:
     def from_size(cls, width: int, height: int) -> Region:
         return cls(Span(width), Span(height))
 
+    def __repr__(self):
+        start = f'start=({self.x.start},{self.y.start})'
+        length = f'length=({self.x.length},{self.y.length})'
+        return f'{type(self).__name__}({start}, {length})'
+
     def __shift(self, operation: Callable, offset: int | tuple[int, int] | Region | Vector) -> Region:
         if isinstance(offset, (Vector, Region)):
             x, y = offset.x, offset.y
