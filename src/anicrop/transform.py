@@ -1,11 +1,11 @@
 from __future__ import annotations
 from typing import TYPE_CHECKING
+
 import numpy as np
 
 if TYPE_CHECKING:
-    from anicrop.spatial import Region
     from anicrop.layer import EditLayer, Layer
-    from anicrop.type import Transform
+    from anicrop.type import TransformState
 
 
 def calculate_new_bbox(matrix: np.ndarray, size: tuple[int, int]) -> tuple[int, int, int, int]:
@@ -103,7 +103,7 @@ def mat_position(region: Region) -> np.ndarray:
     return mat_translation(region.x.start, region.y.start)
 
 
-def mat_pivot(transform: Transform, size: tuple[int, int]) -> np.ndarray:
+def mat_pivot(transform: TransformState, size: tuple[int, int]) -> np.ndarray:
     return create_pivot_transform(transform.matrix, *size, *transform.pivot)
 
 

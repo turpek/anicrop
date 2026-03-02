@@ -1,5 +1,4 @@
 from __future__ import annotations
-
 from collections.abc import Callable, Iterator
 from dataclasses import dataclass
 from operator import add, sub
@@ -11,7 +10,7 @@ RotationInput = float | tuple[float, float, float]
 ScaleInput = float | tuple[float, float], tuple[float, float, float, float]
 
 
-class Transform(Protocol):
+class TransformState(Protocol):
     @property
     def matrix(self) -> np.ndarray:
         ...

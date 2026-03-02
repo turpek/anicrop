@@ -3,7 +3,7 @@ from abc import ABC, abstractmethod
 from anicrop.layer import Layer
 from anicrop.spatial import Span, Region
 from anicrop.transform import calculate_new_bbox_from_layer
-from anicrop.type import RotationInput, ScaleInput, Transform
+from anicrop.type import RotationInput, ScaleInput, TransformState
 from typing import Any
 
 
@@ -46,7 +46,7 @@ class SetAttributeCommand(Command):
             self,
             name: str,
             layer: Layer,
-            value: RotationInput | ScaleInput | Transform
+            value: RotationInput | ScaleInput | TransformState
     ):
         super().__init__(name, layer, value)
         self._old_state = getattr(layer, name)
