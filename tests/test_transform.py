@@ -1,4 +1,5 @@
 import numpy as np
+import pytest
 from anicrop.transform import (
     mat_translation,
     create_pivot_transform,
@@ -292,3 +293,22 @@ def test_transform_ordem_inversa():
     pt = np.array([0, 0, 1], dtype=np.float32)
     res = t.matrix @ pt
     np.testing.assert_array_almost_equal(res, [-40, -50, 1])
+
+
+def test_transform_default_values():
+    t = Transform((100, 100))
+    # Chamar métodos sem argumentos não deve alterar a matriz (identidade)
+    t.rotation().scale().translate()
+    np.testing.assert_array_equal(t.matrix, np.eye(3, dtype=np.float32))
+
+
+def test_transform_scale_zero_raises_error():
+    t = Transform((100, 100))
+    # Testando sx=0
+    with pytest.raises(ValueError, match="Scale factors cannot be zero"):
+        t.scale(sx=0)
+    
+    # Testando sy=0
+    with pytest.raises(ValueError, match="Scale factors cannot be zero"):
+        t.scale(sy=0)
+
