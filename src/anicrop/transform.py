@@ -1,6 +1,7 @@
 from __future__ import annotations
-from anicrop.spatial import Region, bbox_to_region
+from anicrop.spatial import Region
 from typing import TYPE_CHECKING
+from abc import ABC, abstractmethod
 
 import numpy as np
 
@@ -183,11 +184,69 @@ def mat_inverse(matrix: np.ndarray) -> np.ndarray:
     return np.linalg.inv(matrix)
 
 
-class Transform:
+class TransformBase(ABC):
 
+    @abstractmethod
+    def matrix(self, size: tuple[int, int]) -> np.ndarray:
+        ...
+
+
+class TRotate(TransformBase):
+    def __init__(
+            self,
+            angle: float,
+            pivot_x: float = 0.5,
+            pivot_y: float = 0.5,
+    ):
+        self._angle = angle
+        self._pivots = pivot_x, pivot_y
+
+    def matrix(self, size: tuple[int, int]) -> np.ndarray:
+        return create_pivot_transform(
+            mat_rotation(self._angle), *size, *self._pivots
+        )
+
+
+class TScale(TransformBase):
+    def __init__(
+        self,
+        sx: float,
+        sy: float,
+        pivot_x: float = 0.5,
+        pivot_y: float = 0.5,
+    ):
+        if sx == 0 or sy == 0:
+            raise ValueError("Scale factors cannot be zero.")
+        self._sx = sx
+        self._sy = sy
+        self._pivots = pivot_x, pivot_y
+
+    def matrix(self, size: tuple[int, int]) -> np.ndarray:
+        return create_pivot_transform(
+            mat_scale(self._sx, self._sy), *size, *self._pivots
+        )
+
+
+class TTranslate(TransformBase):
+    def __init__(
+        self,
+        x: float,
+        y: float,
+    ):
+        self._x = x
+        self._y = y
+
+    def matrix(self, size: tuple[int, int]) -> np.ndarray:
+        return mat_translation(self._x, self._y)
+
+
+class TransformComposer:
     def __init__(self, size: tuple[int, int]):
         self._matrix = np.identity(3, dtype=np.float32)
         self._region = Region.from_size(*size)
+        self._has_rotation = False
+        self._has_scale = False
+        self._has_translation = False
 
     @property
     def matrix(self) -> np.ndarray:
@@ -201,16 +260,15 @@ class Transform:
     def region(self) -> Region:
         return self._region
 
-    def rotation(
+    def rotate(
         self,
         angle: float = 0,
-        pivot_x: float = 0.5, pivot_y: float = 0.5
-    ) -> Transform:
+        pivot_x: float = 0.5,
+        pivot_y: float = 0.5,
+    ) -> TransformComposer:
 
-        w, h = self.size
-        M_rot = create_pivot_transform(
-            mat_rotation(angle), w, h, pivot_x, pivot_y
-        )
+        self._has_rotation = True
+        M_rot = TRotate(angle, pivot_x, pivot_y).matrix(self.size)
         self._matrix = M_rot @ self.matrix
         return self
 
@@ -218,19 +276,30 @@ class Transform:
         self,
         sx: float = 1, sy: float = 1,
         pivot_x: float = 0.5, pivot_y: float = 0.5
-    ) -> Transform:
+    ) -> TransformComposer:
 
-        if sx == 0 or sy == 0:
-            raise ValueError("Scale factors cannot be zero.")
-
-        w, h = self.size
-        M_scale = create_pivot_transform(
-            mat_scale(sx, sy), w, h, pivot_x, pivot_y
-        )
+        self._has_scale = True
+        M_scale = TScale(sx, sy, pivot_x, pivot_y).matrix(self.size)
         self._matrix = M_scale @ self.matrix
         return self
 
-    def translate(self, x: int = 0, y: int = 0) -> Transform:
-        M_trans = mat_translation(x, y)
+    def translate(self, x: int = 0, y: int = 0) -> TransformComposer:
+
+        self._has_translation = True
+        M_trans = TTranslate(x, y).matrix(self.size)
         self._matrix = M_trans @ self.matrix
         return self
+
+    @property
+    def has_translation(self) -> bool:
+        return self._has_translation
+
+    @property
+    def has_rotation(self) -> bool:
+        return self._has_rotation
+
+    @property
+    def has_scale(self) -> bool:
+        return self._has_scale
+
+
