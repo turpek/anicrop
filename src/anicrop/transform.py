@@ -244,9 +244,6 @@ class TransformComposer:
     def __init__(self, size: tuple[int, int]):
         self._matrix = np.identity(3, dtype=np.float32)
         self._region = Region.from_size(*size)
-        self._has_rotation = False
-        self._has_scale = False
-        self._has_translation = False
 
     @property
     def matrix(self) -> np.ndarray:
@@ -267,7 +264,6 @@ class TransformComposer:
         pivot_y: float = 0.5,
     ) -> TransformComposer:
 
-        self._has_rotation = True
         M_rot = TRotate(angle, pivot_x, pivot_y).matrix(self.size)
         self._matrix = M_rot @ self.matrix
         return self
@@ -278,28 +274,12 @@ class TransformComposer:
         pivot_x: float = 0.5, pivot_y: float = 0.5
     ) -> TransformComposer:
 
-        self._has_scale = True
         M_scale = TScale(sx, sy, pivot_x, pivot_y).matrix(self.size)
         self._matrix = M_scale @ self.matrix
         return self
 
     def translate(self, x: int = 0, y: int = 0) -> TransformComposer:
 
-        self._has_translation = True
         M_trans = TTranslate(x, y).matrix(self.size)
         self._matrix = M_trans @ self.matrix
         return self
-
-    @property
-    def has_translation(self) -> bool:
-        return self._has_translation
-
-    @property
-    def has_rotation(self) -> bool:
-        return self._has_rotation
-
-    @property
-    def has_scale(self) -> bool:
-        return self._has_scale
-
-
