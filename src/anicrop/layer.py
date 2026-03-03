@@ -9,7 +9,7 @@ from anicrop.transform import (
     mat_global,
     mat_inverse,
     mat_position,
-    Transform
+    TransformComposer
 )
 from collections import deque
 from typing import Optional
@@ -80,7 +80,7 @@ class Layer:
         self._blend_mode = blend_mode
         self._region = Region.from_size(*image.size)
         self._edits: deque[EditLayer] = deque()
-        self._transform: Optional[Transform] = None
+        self._transform: Optional[TransformComposer] = None
 
         self.add_edit(image, self._region, blend_mode)
         self._image = self._edits[0]
@@ -188,13 +188,13 @@ class Layer:
 
     @property
     def transform_used(self) -> bool:
-        return isinstance(self._transform, Transform)
+        return isinstance(self._transform, TransformComposer)
 
     def transform_clear(self) -> None:
         self._transform = None
 
     @property
-    def transform(self) -> Transform:
+    def transform(self) -> TransformComposer:
         if self._transform is None:
-            self._transform = Transform(self.region.size)
+            self._transform = TransformComposer(self.region.size)
         return self._transform
