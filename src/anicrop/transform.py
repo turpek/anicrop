@@ -285,6 +285,9 @@ class TransformComposer:
         self._matrix = M_trans @ self.matrix
         return self
 
+    def _add_matrix(self, matrix: np.ndarray) -> None:
+        self._matrix = matrix @ self.matrix
+
 
 class Transform:
 
