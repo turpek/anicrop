@@ -251,12 +251,13 @@ class TTranslate(TransformBase):
 
 class TransformComposer:
     def __init__(self, size: tuple[int, int]):
-        self._matrix = np.identity(3, dtype=np.float32)
+        self._distortion = np.identity(3, dtype=np.float32)
         self._region = Region.from_size(*size)
+        self._translation = np.identity(3, dtype=np.float32)
 
     @property
     def matrix(self) -> np.ndarray:
-        return self._matrix
+        return self._translation @ self._distortion
 
     @property
     def size(self) -> tuple[int, int]:
@@ -274,7 +275,7 @@ class TransformComposer:
     ) -> TransformComposer:
 
         M_rot = TRotate(angle, pivot_x, pivot_y).matrix(self.size)
-        self._matrix = M_rot @ self.matrix
+        self._distortion = M_rot @ self._distortion
         return self
 
     def scale(
@@ -284,17 +285,18 @@ class TransformComposer:
     ) -> TransformComposer:
 
         M_scale = TScale(sx, sy, pivot_x, pivot_y).matrix(self.size)
-        self._matrix = M_scale @ self.matrix
+        self._distortion = M_scale @ self._distortion
         return self
 
     def translate(self, x: int = 0, y: int = 0) -> TransformComposer:
 
         M_trans = TTranslate(x, y).matrix(self.size)
-        self._matrix = M_trans @ self.matrix
+        self._translation = M_trans @ self._translation
         return self
 
-    def _add_matrix(self, matrix: np.ndarray) -> None:
-        self._matrix = matrix @ self.matrix
+    def _add_transform(self, transf: Transform, size: tuple[int, int]) -> None:
+        self._distortion = transf._get_distortion(size) @ self._distortion
+        self._translation = transf._get_translate() @ self._translation
 
 
 class Transform:
