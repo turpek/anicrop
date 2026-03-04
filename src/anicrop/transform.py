@@ -218,9 +218,9 @@ class TRotate(TransformBase):
         self._angle = angle
         self._pivots = pivot_x, pivot_y
 
-    def matrix(self, size: tuple[int, int]) -> np.ndarray:
+    def matrix(self, size: tuple[int, int], top_left: tuple[int, int] = (0, 0)) -> np.ndarray:
         return create_pivot_transform(
-            mat_rotation(self._angle), *size, *self._pivots
+            mat_rotation(self._angle), *size, *self._pivots, *top_left
         )
 
 
@@ -238,9 +238,9 @@ class TScale(TransformBase):
         self._sy = sy
         self._pivots = pivot_x, pivot_y
 
-    def matrix(self, size: tuple[int, int]) -> np.ndarray:
+    def matrix(self, size: tuple[int, int], top_left: tuple[int, int] = (0, 0)) -> np.ndarray:
         return create_pivot_transform(
-            mat_scale(self._sx, self._sy), *size, *self._pivots
+            mat_scale(self._sx, self._sy), *size, *self._pivots, *top_left
         )
 
 
@@ -253,7 +253,7 @@ class TTranslate(TransformBase):
         self._x = x
         self._y = y
 
-    def matrix(self, size: tuple[int, int]) -> np.ndarray:
+    def matrix(self, size: tuple[int, int], top_left: tuple[int, int] = (0, 0)) -> np.ndarray:
         return mat_translation(self._x, self._y)
 
 
@@ -282,7 +282,8 @@ class TransformComposer:
         pivot_y: float = 0.5,
     ) -> TransformComposer:
 
-        M_rot = TRotate(angle, pivot_x, pivot_y).matrix(self.size)
+        x, y, w, h = calculate_new_bbox(self._distortion, self.size)
+        M_rot = TRotate(angle, pivot_x, pivot_y).matrix((w, h), (x, y))
         self._distortion = M_rot @ self._distortion
         return self
 
@@ -291,8 +292,8 @@ class TransformComposer:
         sx: float = 1, sy: float = 1,
         pivot_x: float = 0.5, pivot_y: float = 0.5
     ) -> TransformComposer:
-
-        M_scale = TScale(sx, sy, pivot_x, pivot_y).matrix(self.size)
+        x, y, w, h = calculate_new_bbox(self._distortion, self.size)
+        M_scale = TScale(sx, sy, pivot_x, pivot_y).matrix((w, h), (x, y))
         self._distortion = M_scale @ self._distortion
         return self
 
@@ -325,8 +326,13 @@ class Transform:
         matrix_list: TransformBase
     ) -> np.ndarray:
 
-        matrices = [op.matrix(size) for op in reversed(matrix_list)]
-        return np.linalg.multi_dot(matrices)
+        top_left = (0, 0)
+        m_total = np.identity(3, dtype=np.float32)
+        for op in matrix_list:
+            m_total = op.matrix(size, top_left) @ m_total
+            x, y, w, h = calculate_new_bbox(m_total, size)
+            top_left, size = (x, y), (w, h)
+        return m_total
 
     def _check_transform_list(self, transf: TransformBase) -> bool:
         return len(transf) == 0 or len(transf) == 1
