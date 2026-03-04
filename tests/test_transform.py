@@ -6,11 +6,11 @@ from anicrop.transform import (
     calculate_new_bbox,
     mat_position,
     TransformComposer,
-    # Transform  # Comentado até ser implementado
+    Transform
 )
 from anicrop.spatial import Region, Span
 
-# Importando as intenções para teste direto se necessário
+# Importando as intenções para teste direto
 from anicrop.transform import TRotate, TScale, TTranslate
 
 
@@ -101,53 +101,80 @@ def test_transform_composer_scale_zero_raises_error():
 
 
 # --- Testes Transform (Imutável / Intenções) ---
-# Nota: Estes testes falharão até que a classe Transform seja implementada
 
 def test_transform_inicializacao():
-    from anicrop.transform import Transform
     t = Transform()
-    assert not t.has_rotation()
-    assert not t.has_scale()
-    assert not t.has_translation()
-    assert len(t.intentions) == 0
+    assert not t.has_distortion
+    # Identidade por padrão
+    np.testing.assert_array_equal(t.get_matrix(
+        (100, 100)), np.eye(3, dtype=np.float32))
 
 
 def test_transform_imutabilidade():
-    from anicrop.transform import Transform
     t1 = Transform()
     t2 = t1.translate(10, 10)
     t3 = t2.rotate(90)
 
     assert t1 is not t2
     assert t2 is not t3
-    assert len(t1.intentions) == 0
-    assert len(t2.intentions) == 1
-    assert len(t3.intentions) == 2
+
+    # t1 deve continuar sendo identidade
+    np.testing.assert_array_equal(t1.get_matrix(
+        (100, 100)), np.eye(3, dtype=np.float32))
 
 
-def test_transform_has_flags():
-    from anicrop.transform import Transform
+def test_transform_has_distortion_cenarios():
     t = Transform()
-    
-    t_rot = t.rotate(45)
-    assert t_rot.has_rotation()
-    assert not t_rot.has_scale()
-    
-    t_scale = t.scale(2, 2)
-    assert t_scale.has_scale()
-    assert not t_scale.has_rotation()
-    
+
+    # Apenas translação NÃO é distorção
     t_trans = t.translate(10, 10)
-    assert t_trans.has_translation()
-    assert not t_trans.has_scale()
+    assert not t_trans.has_distortion
+
+    # Rotação É distorção
+    t_rot = t.rotate(45)
+    assert t_rot.has_distortion
+
+    # Escala É distorção
+    t_scale = t.scale(2, 2)
+    assert t_scale.has_distortion
+
+    # Translação + Rotação É distorção
+    t_complex = t.translate(5, 5).rotate(10)
+    assert t_complex.has_distortion
+
+
+def test_transform_get_matrix_composicao():
+    # 1. Translate (10, 0) -> 2. Scale 2x no Centro
+    t = Transform().translate(10, 0).scale(2, 2, 0.5, 0.5)
+
+    matrix = t.get_matrix((100, 100))
+
+    # Ponto (0,0) -> translate(10,0) -> (10,0) -> scale2x(pivo 50,50) -> (-30, -50)
+    pt = np.array([0, 0, 1], dtype=np.float32)
+    res = matrix @ pt
+    np.testing.assert_array_almost_equal(res, [-30, -50, 1])
+
+
+def test_transform_get_matrix_independencia_de_tamanho():
+    t = Transform().rotate(90, 0.5, 0.5)
+
+    m100 = t.get_matrix((100, 100))
+    res100 = m100 @ [0, 0, 1]
+    np.testing.assert_array_almost_equal(res100, [100, 0, 1])
+
+    m200 = t.get_matrix((200, 200))
+    res200 = m200 @ [0, 0, 1]
+    np.testing.assert_array_almost_equal(res200, [200, 0, 1])
 
 
 def test_transform_with_initial_list():
-    from anicrop.transform import Transform
-    intentions = [TTranslate(10, 10), TRotate(90)]
-    t = Transform(intentions)
-    
-    assert len(t.intentions) == 2
-    assert t.has_translation()
-    assert t.has_rotation()
-    assert not t.has_scale()
+    # Simulando passagem de lista de intenções (se a classe suportar)
+    # TTranslate não causa distorção, TRotate sim.
+    initial_list = [TTranslate(10, 10), TRotate(90)]
+    t = Transform(initial_list)
+
+    assert t.has_distortion
+
+    matrix = t.get_matrix((100, 100))
+    res = matrix @ [0, 0, 1]
+    np.testing.assert_array_almost_equal(res, [90, 10, 1])
