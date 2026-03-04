@@ -299,11 +299,51 @@ class TransformComposer:
 
 class Transform:
 
-    def __init__(self, intentions: list[TRotate | TScale | TTranslate] = []):
+    def __init__(self, intentions: list[TRotate | TScale] = [], translate: list[TTranslate] = []):
+
+        if self._validate_list(intentions, TTranslate):
+            raise TypeError("intentions list can only contain TRotate or TScale")
+        elif self._validate_list(translate, (TRotate, TScale)):
+            raise TypeError("translate list can only contain TTranslate")
+
         self._intentions = intentions
+        self._translate = translate
+
+    def _list_to_matrix(
+        self,
+        size: tuple[int, int],
+        matrix_list: TransformBase
+    ) -> np.ndarray:
+
+        matrices = [op.matrix(size) for op in reversed(matrix_list)]
+        return np.linalg.multi_dot(matrices)
+
+    def _check_transform_list(self, transf: TransformBase) -> bool:
+        return len(transf) == 0 or len(transf) == 1
+
+    def _get_firts_transform(
+        self,
+        size: tuple[int, int],
+        transf: TransformBase,
+    ) -> np.ndarray:
+
+        if len(transf) == 0:
+            return np.identity(3, dtype=np.float32)
+        return transf[0].matrix(size)
+
+    def _get_translate(self, size: tuple[int, int] = (0, 0)) -> np.ndarray:
+        if self._check_transform_list(self._translate):
+            return self._get_firts_transform(size, self._translate)
+        return self._list_to_matrix(size, self._translate)
+
+    def _get_distortion(self, size: tuple[int, int]) -> np.ndarray:
+        if self._check_transform_list(self._intentions):
+            return self._get_firts_transform(size, self._intentions)
+        return self._list_to_matrix(size, self._intentions)
 
     def translate(self, x: int = 0, y: int = 0) -> Transform:
-        return Transform(self._intentions + [TTranslate(x, y)])
+        new_tranlate = self._translate + [TTranslate(x, y)]
+        return Transform(self._intentions, new_tranlate)
 
     def rotate(
         self,
@@ -311,22 +351,30 @@ class Transform:
         pivot_x: float = 0.5,
         pivot_y: float = 0.5,
     ) -> Transform:
-        return Transform(self._intentions + [TRotate(angle, pivot_x, pivot_y)])
+
+        new_intentions = self._intentions + [TRotate(angle, pivot_x, pivot_y)]
+        return Transform(new_intentions, self._translate)
 
     def scale(
         self,
         sx: float = 1, sy: float = 1,
         pivot_x: float = 0.5, pivot_y: float = 0.5
     ) -> Transform:
-        return Transform(self._intentions + [TScale(sx, sy, pivot_x, pivot_y)])
+
+        new_intentions = self._intentions + [TScale(sx, sy, pivot_x, pivot_y)]
+        return Transform(new_intentions, self._translate)
 
     def get_matrix(self, size: tuple[int, int]) -> np.ndarray:
-        if len(self._intentions) == 1:
-            return self._intentions[0].matrix(size)
-        elif len(self._intentions) > 1:
-            return reduce(lambda M_1, M_2: M_2.matrix(size) @ M_1.matrix(size), self._intentions)
-        return np.identity(3, dtype=np.float32)
+        M_trans = self._get_translate()
+        M_intent = self._get_distortion(size)
+        return M_trans @  M_intent
 
     @property
     def has_distortion(self) -> bool:
-        return any(not isinstance(op, TTranslate) for op in self._intentions)
+        return self._validate_list(self._intentions, (TRotate, TScale))
+
+    def _validate_list(self, transf: list, cls_types: type | tuple[type]) -> bool:
+        for op in transf:
+            if isinstance(op, cls_types):
+                return True
+        return False
