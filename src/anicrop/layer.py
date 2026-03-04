@@ -201,4 +201,5 @@ class Layer:
         return self._transform
 
     def set_transform(self, transform: Transform) -> None:
+        self._transform = TransformComposer(self.region.size)
         self.transform._add_transform(transform, self.region.size)
