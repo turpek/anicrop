@@ -2,8 +2,6 @@
 
 **anicrop** é um motor (core) de composição e edição de imagens 2D de alta performance para Python. Projetado para ser não-destrutivo e matematicamente preciso, o motor utiliza uma arquitetura baseada em camadas, transformações imutáveis e um pipeline de renderização otimizado por caches de múltiplos estágios.
 
-
-
 ## 🚀 Principais Funcionalidades
 
 - **Composição Não-Destrutiva**: As imagens originais nunca são alteradas; todas as edições e filtros são aplicados dinamicamente em uma pilha de renderização.
@@ -42,7 +40,7 @@ O pipeline de renderização segue uma ordem estrita para garantir a consistênc
 
 ## 📋 Roadmap de Desenvolvimento
 
-- [ ] Implementação da classe `ImmutableTransform` para avaliação preguiçosa.
+- [x] Implementação da classe `Transform` para avaliação preguiçosa.
 
 - [ ] Finalização do pipeline de cache no `LayerRender`.
 
