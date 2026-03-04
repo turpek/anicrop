@@ -1,7 +1,6 @@
 from __future__ import annotations
 from abc import ABC, abstractmethod
 from anicrop.spatial import Region
-from functools import reduce
 from typing import TYPE_CHECKING
 
 import numpy as np
@@ -9,6 +8,10 @@ import numpy as np
 if TYPE_CHECKING:
     from anicrop.layer import EditLayer, Layer
     from anicrop.type import TransformState
+
+
+TransformBase: list[TRotate | TScale | TTranslate]
+EPS = 1e-5
 
 
 def calculate_new_bbox(matrix: np.ndarray, size: tuple[int, int]) -> tuple[int, int, int, int]:
@@ -28,12 +31,14 @@ def calculate_new_bbox(matrix: np.ndarray, size: tuple[int, int]) -> tuple[int, 
     transformed_corners[0, :] /= transformed_corners[2, :]
     transformed_corners[1, :] /= transformed_corners[2, :]
 
-    # breakpoint()
     # Acha os novos limites (usando o round para o vizinho mais próximo)
-    min_x = int(np.floor(np.min(transformed_corners[0, :])))
-    min_y = int(np.floor(np.min(transformed_corners[1, :])))
-    max_x = int(np.ceil(np.max(transformed_corners[0, :])))
-    max_y = int(np.ceil(np.max(transformed_corners[1, :])))
+    # + EPS empurra o -0.00001 de volta para 0, para o floor não jogar no -1
+    min_x = int(np.floor(np.min(transformed_corners[0, :]) + EPS))
+    min_y = int(np.floor(np.min(transformed_corners[1, :]) + EPS))
+
+    # - EPS puxa o 100.00001 de volta para 100, para o ceil não jogar no 101
+    max_x = int(np.ceil(np.max(transformed_corners[0, :]) - EPS))
+    max_y = int(np.ceil(np.max(transformed_corners[1, :]) - EPS))
 
     # A nova largura/altura soma +1 porque (max - min) de índices conta os intervalos.
     # Ex: (99 - 0) = 99 intervalos, o que significa 100 pixels de largura real!
@@ -63,10 +68,13 @@ def calculate_region_bbox(matrix: np.ndarray, region: Region) -> tuple[int, int,
     transformed_corners[1, :] /= transformed_corners[2, :]
 
     # Acha os novos limites (usando o floor/ceil para garantir cobertura completa)
-    min_x = int(np.floor(np.min(transformed_corners[0, :])))
-    min_y = int(np.floor(np.min(transformed_corners[1, :])))
-    max_x = int(np.ceil(np.max(transformed_corners[0, :])))
-    max_y = int(np.ceil(np.max(transformed_corners[1, :])))
+    # + EPS empurra o -0.00001 de volta para 0, para o floor não jogar no -1
+    min_x = int(np.floor(np.min(transformed_corners[0, :]) + EPS))
+    min_y = int(np.floor(np.min(transformed_corners[1, :]) + EPS))
+
+    # - EPS puxa o 100.00001 de volta para 100, para o ceil não jogar no 101
+    max_x = int(np.ceil(np.max(transformed_corners[0, :]) - EPS))
+    max_y = int(np.ceil(np.max(transformed_corners[1, :]) - EPS))
 
     # A nova largura/altura soma +1 porque (max - min) de índices conta os intervalos.
     # Ex: (99 - 0) = 99 intervalos, o que significa 100 pixels de largura real!
