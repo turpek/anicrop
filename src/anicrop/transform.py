@@ -1,7 +1,8 @@
 from __future__ import annotations
-from anicrop.spatial import Region
-from typing import TYPE_CHECKING
 from abc import ABC, abstractmethod
+from anicrop.spatial import Region
+from functools import reduce
+from typing import TYPE_CHECKING
 
 import numpy as np
 
@@ -283,3 +284,38 @@ class TransformComposer:
         M_trans = TTranslate(x, y).matrix(self.size)
         self._matrix = M_trans @ self.matrix
         return self
+
+
+class Transform:
+
+    def __init__(self, intentions: list[TRotate | TScale | TTranslate] = []):
+        self._intentions = intentions
+
+    def translate(self, x: int = 0, y: int = 0) -> Transform:
+        return Transform(self._intentions + [TTranslate(x, y)])
+
+    def rotate(
+        self,
+        angle: float = 0,
+        pivot_x: float = 0.5,
+        pivot_y: float = 0.5,
+    ) -> Transform:
+        return Transform(self._intentions + [TRotate(angle, pivot_x, pivot_y)])
+
+    def scale(
+        self,
+        sx: float = 1, sy: float = 1,
+        pivot_x: float = 0.5, pivot_y: float = 0.5
+    ) -> Transform:
+        return Transform(self._intentions + [TScale(sx, sy, pivot_x, pivot_y)])
+
+    def get_matrix(self, size: tuple[int, int]) -> np.ndarray:
+        if len(self._intentions) == 1:
+            return self._intentions[0].matrix(size)
+        elif len(self._intentions) > 1:
+            return reduce(lambda M_1, M_2: M_2.matrix(size) @ M_1.matrix(size), self._intentions)
+        return np.identity(3, dtype=np.float32)
+
+    @property
+    def has_distortion(self) -> bool:
+        return any(not isinstance(op, TTranslate) for op in self._intentions)
