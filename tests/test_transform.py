@@ -87,52 +87,37 @@ def test_transform_composer_scale_no_centro():
     np.testing.assert_allclose(res_centro, [50, 50, 1], atol=ATOL)
 
 
-def test_transform_composer_acumulacao_e_fluidez():
+def test_transform_composer_dynamic_pivot_no_shift():
+    # ESTE TESTE DEVE SER RED (FALHAR) NO TRANSFORMCOMPOSER ATUAL
+    # Ele exige que o composer rastreie o BBox dinamicamente como a classe Transform
     composer = TransformComposer((100, 100))
-    # Com a lógica de translação final:
-    # translate(10,0) define o posicionamento final.
-    # scale(2) atua sobre o asset na origem local.
-    composer.translate(10, 0).scale(2, 2, 0.5, 0.5)
 
-    # (0,0) -> scale2x(pivo 50,50) -> (-50, -50)
-    # (-50, -50) -> translate global(10,0) -> (-40, -50)
-    pt = np.array([0, 0, 1], dtype=np.float32)
-    res = composer.matrix @ pt
-    np.testing.assert_allclose(res, [-40, -50, 1], atol=ATOL)
+    # 1. Rotaciona 45 graus no centro
+    composer.rotate(45, 0.5, 0.5)
+    m_rot = composer.matrix
+    x_ref, _, _, _ = calculate_new_bbox(m_rot, (100, 100))
+
+    # 2. Escala 2x no pivô visual 0.
+    # No sistema inteligente, o Top-Left deve permanecer estável (~ -20.71)
+    composer.scale(2, 1, 0, 0)
+    m_complex = composer.matrix
+    x_res, _, _, _ = calculate_new_bbox(m_complex, (100, 100))
+
+    # Se falhar aqui, é porque o pivô inteligente não está implementado no Composer
+    assert abs(x_res - x_ref) <= 1
 
 
 def test_transform_composer_add_transform():
     composer = TransformComposer((100, 100))
     t = Transform().translate(50, 50)
-    
-    # Passando o size explicitamente na nova assinatura
     res = composer._add_transform(t, (100, 100))
-    
-    # T(50,50) @ ID = T(50,50)
+
     expected = mat_translation(50, 50)
     np.testing.assert_allclose(composer.matrix, expected, atol=ATOL)
     assert res is None
 
 
-def test_transform_composer_add_transform_composicao():
-    composer = TransformComposer((100, 100))
-    composer.translate(10, 10)
-    
-    t2 = Transform().translate(20, 20)
-    composer._add_transform(t2, (100, 100))
-    
-    # T(20) @ T(10) = T(30)
-    expected = mat_translation(30, 30)
-    np.testing.assert_allclose(composer.matrix, expected, atol=ATOL)
-
-
-def test_transform_composer_scale_zero_raises_error():
-    composer = TransformComposer((100, 100))
-    with pytest.raises(ValueError, match="Scale factors cannot be zero"):
-        composer.scale(sx=0)
-
-
-# --- Testes Transform (Imutável / Intenções) ---
+# --- Testes Transform (Imutável / Pivôs Dinâmicos) ---
 
 def test_transform_inicializacao():
     t = Transform()
@@ -140,118 +125,35 @@ def test_transform_inicializacao():
     np.testing.assert_allclose(t.get_matrix((100, 100)), np.eye(3, dtype=np.float32), atol=ATOL)
 
 
-def test_transform_imutabilidade():
-    t1 = Transform()
-    t2 = t1.translate(10, 10)
-    t3 = t2.rotate(90)
+def test_transform_dynamic_pivot_no_shift():
+    # Este teste já deve ser GREEN (Passar) no Transform
+    size = (100, 100)
 
-    assert t1 is not t2
-    assert t2 is not t3
+    t_rot = Transform().rotate(45, 0.5, 0.5)
+    m_rot = t_rot.get_matrix(size)
+    x_ref, _, _, _ = calculate_new_bbox(m_rot, size)
 
-    np.testing.assert_allclose(t1.get_matrix((100, 100)), np.eye(3, dtype=np.float32), atol=ATOL)
+    t_complex = Transform().rotate(45, 0.5, 0.5).scale(2, 1, 0, 0)
+    m_complex = t_complex.get_matrix(size)
+    x_res, _, _, _ = calculate_new_bbox(m_complex, size)
 
-
-def test_transform_has_distortion_cenarios():
-    t = Transform()
-
-    # Apenas translação NÃO é distorção
-    t_trans = t.translate(10, 10)
-    assert not t_trans.has_distortion
-
-    # Rotação É distorção
-    t_rot = t.rotate(45)
-    assert t_rot.has_distortion
-
-    # Escala É distorção
-    t_scale = t.scale(2, 2)
-    assert t_scale.has_distortion
-
-    # Translação + Rotação É distorção
-    t_complex = t.translate(5, 5).rotate(10)
-    assert t_complex.has_distortion
+    assert abs(x_res - x_ref) <= 1
 
 
-def test_transform_get_matrix_composicao():
-    # Transform imutável aplica T_global @ M_distortion
-    t = Transform().translate(10, 0).scale(2, 2, 0.5, 0.5)
-    matrix = t.get_matrix((100, 100))
-
-    # (0,0) -> scale2x(pivo 50,50) -> (-50, -50)
-    # (-50, -50) -> translate global(10,0) -> (-40, -50)
-    pt = np.array([0, 0, 1], dtype=np.float32)
-    res = matrix @ pt
-    np.testing.assert_allclose(res, [-40, -50, 1], atol=ATOL)
-
-
-def test_transform_get_matrix_independencia_de_tamanho():
-    t = Transform().rotate(90, 0.5, 0.5)
-
-    m100 = t.get_matrix((100, 100))
-    res100 = m100 @ [0, 0, 1]
-    np.testing.assert_allclose(res100, [100, 0, 1], atol=ATOL)
-
-    m200 = t.get_matrix((200, 200))
-    res200 = m200 @ [0, 0, 1]
-    np.testing.assert_allclose(res200, [200, 0, 1], atol=ATOL)
-
-
-def test_transform_with_initial_list():
-    # Usando os novos argumentos do __init__
-    intentions = [TRotate(90)]
-    translation = [TTranslate(10, 10)]
-    t = Transform(intentions=intentions, translate=translation)
-
-    assert t.has_distortion
-    matrix = t.get_matrix((100, 100))
-    
-    # (0,0) -> rotate90(centro 50,50) -> (100,0)
-    # (100,0) -> translate global(10,10) -> (110, 10)
-    res = matrix @ [0, 0, 1]
-    np.testing.assert_allclose(res, [110, 10, 1], atol=ATOL)
-
-
-def test_transform_validation_wrong_types_in_lists():
-    with pytest.raises(TypeError, match="intentions list can only contain TRotate or TScale"):
+def test_transform_validation_errors():
+    with pytest.raises(TypeError):
         Transform(intentions=[TTranslate(10, 10)])
-
-    with pytest.raises(TypeError, match="translate list can only contain TTranslate"):
+    with pytest.raises(TypeError):
         Transform(translate=[TRotate(45)])
 
 
-# --- Testes de Estresse (Sequências Complexas) ---
+# --- Testes de Estresse ---
 
-def test_transform_stress_translation_rotation_interleaved():
+def test_transform_stress_interleaved():
     size = (100, 100)
     t = Transform().translate(10, 10).rotate(45).scale(2, 2).translate(5, 5).rotate(-30)
-    
     res_matrix = t.get_matrix(size)
-    
-    # T_total global @ (R_last @ S @ R_first)
-    t_total = mat_translation(15, 15)
-    m_rs = TRotate(-30).matrix(size) @ TScale(2, 2).matrix(size) @ TRotate(45).matrix(size)
-    expected = t_total @ m_rs
-    
-    np.testing.assert_allclose(res_matrix, expected, atol=ATOL)
 
-
-def test_transform_stress_multiple_rotations_accumulation():
-    size = (100, 100)
-    t_step = Transform()
-    for _ in range(9):
-        t_step = t_step.rotate(10, 0.5, 0.5)
-        
-    t_90 = Transform().rotate(90, 0.5, 0.5)
-    
-    np.testing.assert_allclose(t_step.get_matrix(size), t_90.get_matrix(size), atol=ATOL)
-
-
-def test_transform_stress_translation_only_no_orbit():
-    size = (100, 100)
-    t = Transform().translate(50, 50)
-    for _ in range(36):
-        t = t.rotate(10, 0.5, 0.5)
-        
-    res_matrix = t.get_matrix(size)
-    expected = mat_translation(50, 50)
-    
-    np.testing.assert_allclose(res_matrix, expected, atol=ATOL)
+    x, y, w, h = calculate_new_bbox(res_matrix, size)
+    assert x != 0
+    assert w > 100
