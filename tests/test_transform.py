@@ -94,6 +94,29 @@ def test_transform_composer_acumulacao_e_fluidez():
     np.testing.assert_array_almost_equal(res, [-30, -50, 1])
 
 
+def test_transform_composer_add_matrix():
+    composer = TransformComposer((100, 100))
+    m = mat_translation(50, 50)
+    
+    res = composer._add_matrix(m)
+    
+    # Identidade @ m = m
+    np.testing.assert_array_equal(composer.matrix, m)
+    assert res is None # Retorno None para desencorajar chaining externo
+
+
+def test_transform_composer_add_matrix_composicao():
+    composer = TransformComposer((100, 100))
+    composer.translate(10, 10) # M1
+    
+    m2 = mat_translation(20, 20) # M2
+    composer._add_matrix(m2)
+    
+    # Ordem esperada: M2 @ M1
+    expected = mat_translation(30, 30)
+    np.testing.assert_array_equal(composer.matrix, expected)
+
+
 def test_transform_composer_scale_zero_raises_error():
     composer = TransformComposer((100, 100))
     with pytest.raises(ValueError, match="Scale factors cannot be zero"):
