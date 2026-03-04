@@ -88,11 +88,19 @@ def calculate_new_bbox_from_layer(layer) -> tuple[float, float, float, float]:
     return calculate_new_bbox(mat_global(layer), layer.region.size)
 
 
-def create_pivot_transform(matrix_pure: np.ndarray, w: float, h: float, px_rel: float, py_rel: float) -> np.ndarray:
+def create_pivot_transform(
+    matrix_pure: np.ndarray,
+    w: float,
+    h: float,
+    px_rel: float,
+    py_rel: float,
+    x: float = 0,
+    y: float = 0
+) -> np.ndarray:
     """Gera o Sanduíche: Ida ao Pivô -> Transformação -> Volta do Pivô"""
 
     # 1. Calcula pivô em pixels
-    px, py = w * px_rel, h * py_rel
+    px, py = x + w * px_rel, y + h * py_rel
 
     # 2. Matrizes de Ida e Volta
     T_neg = np.array([[1, 0, -px], [0, 1, -py], [0, 0, 1]], dtype=np.float32)
