@@ -9,7 +9,8 @@ from anicrop.transform import (
     mat_global,
     mat_inverse,
     mat_position,
-    TransformComposer
+    Transform,
+    TransformComposer,
 )
 from collections import deque
 from typing import Optional
@@ -198,3 +199,6 @@ class Layer:
         if self._transform is None:
             self._transform = TransformComposer(self.region.size)
         return self._transform
+
+    def set_transform(self, transform: Transform) -> None:
+        self.transform._add_transform(transform, self.region.size)
