@@ -114,11 +114,12 @@ def create_pivot_transform(
     px, py = x + w * px_rel, y + h * py_rel
 
     # 2. Matrizes de Ida e Volta
-    T_neg = np.array([[1, 0, -px], [0, 1, -py], [0, 0, 1]], dtype=np.float32)
-    T_pos = np.array([[1, 0, px], [0, 1, py], [0, 0, 1]], dtype=np.float32)
+    T_neg = mat_translation(-px, -py)
+    T_pos = mat_translation(px, py)
 
     # 3. O Sanduíche
     return T_pos @ matrix_pure @ T_neg
+    # return P_pos @ matrix_pure @ P_neg
 
 
 def mat_translation(x: float, y: float) -> np.ndarray:
@@ -274,6 +275,12 @@ class TransformComposer:
         self._region = Region.from_size(*size)
         self._translation = np.identity(3, dtype=np.float32)
 
+    def __get_bbox(self) -> tuple[tuple[float, float], tuple[float, float]]:
+        x, y, w, h = corners_to_bbox(
+            *calculate_new_corners(self._distortion, self.size)
+        )
+        return (x, y), (w, h)
+
     @property
     def matrix(self) -> np.ndarray:
         return self._translation @ self._distortion
@@ -293,8 +300,8 @@ class TransformComposer:
         pivot_y: float = 0.5,
     ) -> TransformComposer:
 
-        x, y, w, h = calculate_new_bbox(self._distortion, self.size)
-        M_rot = TRotate(angle, pivot_x, pivot_y).matrix((w, h), (x, y))
+        top_left, size = self.__get_bbox()
+        M_rot = TRotate(angle, pivot_x, pivot_y).matrix(size, top_left)
         self._distortion = M_rot @ self._distortion
         return self
 
@@ -303,8 +310,9 @@ class TransformComposer:
         sx: float = 1, sy: float = 1,
         pivot_x: float = 0.5, pivot_y: float = 0.5
     ) -> TransformComposer:
-        x, y, w, h = calculate_new_bbox(self._distortion, self.size)
-        M_scale = TScale(sx, sy, pivot_x, pivot_y).matrix((w, h), (x, y))
+
+        top_left, size = self.__get_bbox()
+        M_scale = TScale(sx, sy, pivot_x, pivot_y).matrix(size, top_left)
         self._distortion = M_scale @ self._distortion
         return self
 
@@ -331,6 +339,10 @@ class Transform:
         self._intentions = intentions
         self._translate = translate
 
+    def __get_bbox(self, matrix: np.ndarray, size: tuple[float, float]):
+        x, y, w, h = corners_to_bbox(*calculate_new_corners(matrix, size))
+        return (x, y), (w, h)
+
     def _list_to_matrix(
         self,
         size: tuple[int, int],
@@ -339,10 +351,10 @@ class Transform:
 
         top_left = (0, 0)
         m_total = np.identity(3, dtype=np.float32)
+        current_size = size
         for op in matrix_list:
-            m_total = op.matrix(size, top_left) @ m_total
-            x, y, w, h = calculate_new_bbox(m_total, size)
-            top_left, size = (x, y), (w, h)
+            m_total = op.matrix(current_size, top_left) @ m_total
+            top_left, current_size = self.__get_bbox(m_total, size)
         return m_total
 
     def _check_transform_list(self, transf: TransformBase) -> bool:
