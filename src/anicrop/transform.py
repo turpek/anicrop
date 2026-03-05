@@ -11,46 +11,23 @@ if TYPE_CHECKING:
 
 
 TransformBase: list[TRotate | TScale | TTranslate]
-EPS = 1e-5
 
 
-def calculate_new_bbox(matrix: np.ndarray, size: tuple[int, int]) -> tuple[int, int, int, int]:
-    w, h = size
-
-    corners = np.array([
-        [0, 0, 1.0],
-        [w, 0, 1.0],
-        [w, h, 1.0],
-        [0, h, 1.0]
-    ], dtype=np.float32).T
-
-    # Multiplica os cantos pela matriz de transformação
-    transformed_corners = matrix @ corners
-
-    # Normaliza (divide por Z, se houver projeção 3D/perspectiva)
-    transformed_corners[0, :] /= transformed_corners[2, :]
-    transformed_corners[1, :] /= transformed_corners[2, :]
-
-    # Acha os novos limites (usando o round para o vizinho mais próximo)
-    # + EPS empurra o -0.00001 de volta para 0, para o floor não jogar no -1
-    min_x = int(np.floor(np.min(transformed_corners[0, :]) + EPS))
-    min_y = int(np.floor(np.min(transformed_corners[1, :]) + EPS))
-
-    # - EPS puxa o 100.00001 de volta para 100, para o ceil não jogar no 101
-    max_x = int(np.ceil(np.max(transformed_corners[0, :]) - EPS))
-    max_y = int(np.ceil(np.max(transformed_corners[1, :]) - EPS))
-
-    # A nova largura/altura soma +1 porque (max - min) de índices conta os intervalos.
-    # Ex: (99 - 0) = 99 intervalos, o que significa 100 pixels de largura real!
+def corners_to_bbox(min_x, min_y, max_x, max_y):
     new_w = max(1, max_x - min_x)
     new_h = max(1, max_y - min_y)
-
     return min_x, min_y, new_w, new_h
 
 
-def calculate_region_bbox(matrix: np.ndarray, region: Region) -> tuple[int, int, int, int]:
-    x, y = region.top_left
-    w, h = region.size
+def calculate_new_corners(
+    matrix: np.ndarray,
+    size: tuple[int, int],
+    top_left: tuple[int, int] = (0, 0)
+) -> tuple[int, int, int, int]:
+
+    """retorna min_x, min_y, max_x, max_y"""
+    x, y = top_left
+    w, h = size
 
     # Agora os cantos consideram a posição inicial (x, y) exata da Região,
     # e não apenas a largura e altura partindo do zero.
@@ -62,19 +39,35 @@ def calculate_region_bbox(matrix: np.ndarray, region: Region) -> tuple[int, int,
     ], dtype=np.float32).T
 
     transformed_corners = matrix @ corners
-
-    # Normaliza (divide por Z, se houver projeção 3D/perspectiva)
     transformed_corners[0, :] /= transformed_corners[2, :]
     transformed_corners[1, :] /= transformed_corners[2, :]
 
-    # Acha os novos limites (usando o floor/ceil para garantir cobertura completa)
-    # + EPS empurra o -0.00001 de volta para 0, para o floor não jogar no -1
-    min_x = int(np.floor(np.min(transformed_corners[0, :]) + EPS))
-    min_y = int(np.floor(np.min(transformed_corners[1, :]) + EPS))
+    min_x = np.min(transformed_corners[0, :])
+    min_y = np.min(transformed_corners[1, :])
 
-    # - EPS puxa o 100.00001 de volta para 100, para o ceil não jogar no 101
-    max_x = int(np.ceil(np.max(transformed_corners[0, :]) - EPS))
-    max_y = int(np.ceil(np.max(transformed_corners[1, :]) - EPS))
+    max_x = np.max(transformed_corners[0, :])
+    max_y = np.max(transformed_corners[1, :])
+
+    return min_x, min_y, max_x, max_y
+
+
+def calculate_new_bbox_smart(
+    matrix: np.ndarray,
+    size: tuple[int, int],
+    top_left: tuple[int, int],
+    eps: float = 1e-5
+) -> tuple[int, int, int, int]:
+
+    min_x, min_y, max_x, max_y = calculate_new_corners(matrix, size, top_left)
+
+    # Acha os novos limites (usando o round para o vizinho mais próximo)
+    # + eps empurra o -0.00001 de volta para 0, para o floor não jogar no -1
+    min_x = int(np.floor(min_x + eps))
+    min_y = int(np.floor(min_y + eps))
+
+    # - eps puxa o 00.0000 de volta para 00, para o ceil não jogar no 0
+    max_x = int(np.ceil(max_x - eps))
+    max_y = int(np.ceil(max_y - eps))
 
     # A nova largura/altura soma +1 porque (max - min) de índices conta os intervalos.
     # Ex: (99 - 0) = 99 intervalos, o que significa 100 pixels de largura real!
@@ -82,6 +75,24 @@ def calculate_region_bbox(matrix: np.ndarray, region: Region) -> tuple[int, int,
     new_h = max(1, max_y - min_y)
 
     return min_x, min_y, new_w, new_h
+
+
+def calculate_new_bbox(
+    matrix: np.ndarray,
+    size: tuple[int, int],
+    eps: float = 1e-5
+) -> tuple[int, int, int, int]:
+
+    return calculate_new_bbox_smart(matrix, size, (0, 0), eps)
+
+
+def calculate_region_bbox(
+    matrix: np.ndarray,
+    region: Region,
+    eps: float = 1e-5
+) -> tuple[int, int, int, int]:
+
+    return calculate_new_bbox_smart(matrix, region.size, region.top_left, eps)
 
 
 def calculate_new_bbox_from_layer(layer) -> tuple[float, float, float, float]:
