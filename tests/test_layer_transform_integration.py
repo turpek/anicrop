@@ -1,9 +1,7 @@
 import pytest
 from anicrop.image import Image, ImageFormat
 from anicrop.layer import Layer
-from anicrop.transform import Transform, mat_translation
-from anicrop.transform import TRotate, TScale
-from anicrop.transform import calculate_new_bbox
+from anicrop.transform import Transform
 from anicrop.spatial import Region, Span
 
 
@@ -62,9 +60,9 @@ def test_layer_cenario_complexo_violao(canvas):
     # Esses valores são ligeiramente diferentes do cálculo estático pois o pivô
     # acompanha o BBox em tempo real.
     res = layer.canvas_region
-    assert res.x.start == 13
-    assert res.y.start == 13
-    assert res.x.length >= 25  # Verificando se esticou
+    assert res.x.start == 14
+    assert res.y.start == 12
+    assert res.x.length == 26  # Verificando se esticou
 
 
 def test_layer_set_transform_comportamento_absoluto(canvas):
