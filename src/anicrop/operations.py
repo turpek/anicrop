@@ -1,4 +1,5 @@
-from anicrop.blend import BlendMode, BLEND_MODE
+from anicrop.blend import BLEND_MODE
+from anicrop.enums import BlendMode, InterpolationOption as IO
 from anicrop.layer import Layer
 from anicrop.image import Image
 from anicrop.render import LayerRender

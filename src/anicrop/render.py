@@ -1,4 +1,5 @@
 from anicrop.blend import BLEND_MODE
+from anicrop.enums import InterpolationOption
 from anicrop.image import Image
 from anicrop.layer import Layer
 from anicrop.spatial import Region, bbox_to_region
@@ -9,37 +10,10 @@ from anicrop.transform import (
     mat_inverse,
     mat_translation
 )
-from enum import Enum
 from typing import Optional
 
 import cv2
 import numpy as np
-
-
-class InterpolationOption(Enum):
-    """Opções de interpolação do OpenCV para o motor de renderização."""
-
-    NEAREST = cv2.INTER_NEAREST
-    LINEAR = cv2.INTER_LINEAR
-    CUBIC = cv2.INTER_CUBIC
-    AREA = cv2.INTER_AREA
-    LANCZOS = cv2.INTER_LANCZOS4
-
-    @property
-    def padding(self) -> int:
-        """
-        Retorna a quantidade de pixels extras (margem) necessária
-        para evitar artefatos de borda durante a transformação.
-        """
-
-        # Mapeamento baseado no tamanho do Kernel de cada algoritmo
-        return {
-            InterpolationOption.NEAREST: 0,
-            InterpolationOption.LINEAR: 1,   # Kernel 2x2 (precisa de 1 de margem)
-            InterpolationOption.CUBIC: 2,    # Kernel 4x4 (precisa de 2 de margem)
-            InterpolationOption.AREA: 1,
-            InterpolationOption.LANCZOS: 4   # Kernel 8x8 (precisa de 4 de margem)
-        }.get(self, 2)                       # Padrão seguro de 2 pixels
 
 
 def render_patch(edit_layer, matrix_global, dest_region, interp: InterpolationOption = InterpolationOption.LANCZOS):

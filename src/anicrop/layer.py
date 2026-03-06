@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from anicrop.blend import BlendMode
+from anicrop.enums import BlendMode, RenderDirty
 from anicrop.image import Image
 from anicrop.spatial import Region, Span
 from anicrop.type import Rotation, RotationInput, Scale, ScaleInput

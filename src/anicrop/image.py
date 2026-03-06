@@ -1,49 +1,10 @@
 """Provides the Image class, a wrapper for image data processing."""
 from __future__ import annotations
-from numpy import ndarray
+from anicrop.enums import ImageFormat
 from anicrop.spatial import Region, Span
+from numpy import ndarray
 from typing import Any
-from enum import StrEnum
 import numpy as np
-
-
-class ImageFormat(StrEnum):
-    GRAY = "gray"
-    GRAY_ALPHA = "gray_alpha"
-    RGB = "rgb"
-    RGBA = "rgba"
-    CMYK = "cmyk"
-    CMYK_ALPHA = "cmyk_alpha"
-
-    @property
-    def has_alpha(self) -> bool:
-        return self in {
-            ImageFormat.GRAY_ALPHA,
-            ImageFormat.RGBA,
-            ImageFormat.CMYK_ALPHA,
-        }
-
-    @property
-    def channels(self) -> int:
-        return {
-            ImageFormat.GRAY: 1,
-            ImageFormat.GRAY_ALPHA: 2,
-            ImageFormat.RGB: 3,
-            ImageFormat.RGBA: 4,
-            ImageFormat.CMYK: 4,
-            ImageFormat.CMYK_ALPHA: 5,
-        }[self]
-
-    def same_spaces(self, other: ImageFormat) -> bool:
-        color_spaces = {
-            "gray": "gray",
-            "gray_alpha": "gray",
-            "rgb": "rgb",
-            "rgba": "rgb",
-            "cmyk": "cmyk",
-            "cmyk_alpha": "cmyk",
-        }
-        return color_spaces[other] == color_spaces[self]
 
 
 class Image:

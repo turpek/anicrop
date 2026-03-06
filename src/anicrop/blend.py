@@ -1,5 +1,5 @@
+from anicrop.enums import BlendMode
 from anicrop.image import Image
-from enum import Enum
 import numpy as np
 
 
@@ -195,14 +195,6 @@ def hard_masking(base: Image, overlay: Image, opacity: float = 1.0) -> Image:
         hard_masking_overlay_without_alpha(base, overlay, color_channels, opacity)
 
     return base
-
-
-class BlendMode(Enum):
-    """Defines how an edit layer blends with the underlying content."""
-    NORMAL = 'normal'
-    NORMAL_LINEAR = 'normal_linear'
-    MULTIPLY = 'multiply'
-    HARD_MASKING = 'hard_masking'
 
 
 BLEND_MODE = {
