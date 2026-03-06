@@ -2,6 +2,8 @@ from anicrop.image import Image, ImageFormat
 from anicrop.layer import BlendMode, EditLayer, Layer
 from anicrop.layer import Rotation, Scale
 from anicrop.spatial import Region
+from anicrop.enums import RenderDirty
+from anicrop.transform import mat_global, Transform
 from pytest import raises
 import numpy as np
 import pytest
@@ -59,7 +61,8 @@ def test_Layer_inicializando_com_valores_padroes(canvas):
 
 
 def test_Layer_inicializando_com_parametros(canvas):
-    layer = Layer(canvas, opacity=0.8, rotation=45, scale=0.5, blend_mode=BlendMode.MULTIPLY, name='Picture')
+    layer = Layer(canvas, opacity=0.8, rotation=45, scale=0.5,
+                  blend_mode=BlendMode.MULTIPLY, name='Picture')
     assert layer.name == 'Picture'
     assert layer.opacity == 0.8
     assert layer.rotation == Rotation(45)
@@ -176,3 +179,97 @@ def test_Layer_add_edit_incrementa_nomes(canvas):
 
     assert layer._edits[0].name == "Edit-1"
     assert layer._edits[1].name == "Edit-2"
+
+
+# ############################# Testes de Invalidação de Cache (TDD) #####################################
+
+def test_layer_cache_initial_state(canvas):
+    """Cenário 1: Layer recém-instanciado deve retornar ALL."""
+    layer = Layer(canvas)
+    assert layer._resolve_dirty() & RenderDirty.ALL
+
+
+@pytest.mark.parametrize("update_fn", [
+    lambda layer: setattr(layer, 'x', layer.x.start + 10),
+    lambda layer: setattr(layer, 'y', layer.y.start + 10),
+    lambda layer: setattr(layer, 'region', layer.region + (5, 5)),
+    lambda layer: layer.transform.translate(10, 10),
+    lambda layer: layer.set_transform(Transform().translate(10, 10))
+], ids=["set_x", "set_y", "set_reg", "tr_trans", "st_trans"])
+def test_layer_cache_translation(canvas, update_fn):
+    """Cenário 2: Translação pura deve retornar POSITION."""
+    layer = Layer(canvas)
+    layer._commit_render_state()
+
+    update_fn(layer)
+    assert layer._resolve_dirty() & RenderDirty.POSITION
+
+
+@pytest.mark.parametrize("update_fn", [
+    lambda layer: setattr(layer, 'rotation', 45),
+    lambda layer: layer.transform.rotate(45),
+    lambda layer: layer.set_transform(Transform().rotate(45))
+], ids=["set_rot", "tr_rot", "st_rot"])
+def test_layer_cache_rotation(canvas, update_fn):
+    """Cenário 3: Rotação deve retornar PIXELS."""
+    layer = Layer(canvas)
+    layer._commit_render_state()
+
+    update_fn(layer)
+    assert layer._resolve_dirty() & RenderDirty.PIXELS
+
+
+@pytest.mark.parametrize("update_fn", [
+    lambda layer: setattr(layer, 'scale', 2.0),
+    lambda layer: layer.transform.scale(2.0, 2.0),
+    lambda layer: layer.set_transform(Transform().scale(2.0, 2.0))
+], ids=["set_scal", "tr_scal", "st_scal"])
+def test_layer_cache_scale(canvas, update_fn):
+    """Cenário 4: Escala deve retornar PIXELS."""
+    layer = Layer(canvas)
+    layer._commit_render_state()
+
+    update_fn(layer)
+    assert layer._resolve_dirty() & RenderDirty.PIXELS
+
+
+def test_layer_commit_render_state(canvas):
+    """Cenário 5: Commit deve limpar o estado dirty e salvar a matriz."""
+    layer = Layer(canvas)
+    assert layer._resolve_dirty() & RenderDirty.ALL
+
+    matrix = mat_global(layer)
+    layer._commit_render_state()
+
+    assert layer._resolve_dirty() == RenderDirty.NONE
+    assert np.array_equal(layer._old_matrix, matrix)
+
+    # Gera uma nova deformação (rotação)
+    layer.rotation = 90
+    assert layer._resolve_dirty() & RenderDirty.PIXELS
+
+    new_matrix = mat_global(layer)
+    layer._commit_render_state()
+
+    assert layer._resolve_dirty() == RenderDirty.NONE
+    assert np.array_equal(layer._old_matrix, new_matrix)
+
+
+def test_layer_resolve_dirty_nao_deve_ser_acumulativo(canvas):
+    """
+    Verifica se o _resolve_dirty reflete apenas as mudanças desde o último commit,
+    ou se ele 'esquece' de limpar flags antigas se chamado múltiplas vezes.
+    """
+    layer = Layer(canvas)
+    layer._commit_render_state()
+
+    # 1. Suja apenas a posição
+    layer.x += 10
+    assert layer._resolve_dirty() == RenderDirty.POSITION
+
+    # 2. Se chamarmos de novo SEM commit, ele ainda deve ser POSITION
+    assert layer._resolve_dirty() == RenderDirty.POSITION
+
+    # 3. Faz o commit. Agora deve ser NONE.
+    layer._commit_render_state()
+    assert layer._resolve_dirty() == RenderDirty.NONE
