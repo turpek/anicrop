@@ -3,7 +3,7 @@ from __future__ import annotations
 from anicrop.enums import BlendMode, RenderDirty
 from anicrop.image import Image
 from anicrop.spatial import Region, Span
-from anicrop.type import Rotation, RotationInput, Scale, ScaleInput
+from anicrop.type import Id, Rotation, RotationInput, Scale, ScaleInput
 from anicrop.transform import (
     calculate_new_bbox_from_layer,
     mat_global,
@@ -16,6 +16,7 @@ from collections import deque
 from typing import Optional
 
 import numpy as np
+import uuid
 
 
 class EditLayer:
@@ -74,6 +75,7 @@ class Layer:
         blend_mode: BlendMode = BlendMode.NORMAL,
         name: str = 'Layer'
     ):
+        self._id = Id()
         self._name = name
         self._opacity = opacity
         self._rotation = Rotation(rotation)
@@ -85,9 +87,34 @@ class Layer:
 
         self.add_edit(image, self._region, blend_mode)
         self._image = self._edits[0]
+        self._old_matrix = np.zeros((3, 3))
+        self._dirty_flags = RenderDirty.ALL  # Começa tudo sujo
 
     def __repr__(self) -> str:
         return f"Layer(x={self.x.start}, y={self.y.start}, size={self.image.size})"
+
+    def __eq__(self, other):
+        return isinstance(other, Layer) and self._id == other._id
+
+    def __hash__(self):
+        return hash(self._id)
+
+    def _resolve_dirty(self) -> RenderDirty:
+        current_matrix = mat_global(self)
+
+        # 2. Compara a parte 2x2 (rotação/escala)
+        if not np.allclose(current_matrix[:2, :2], self._old_matrix[:2, :2]):
+            self._dirty_flags |= RenderDirty.PIXELS
+
+        # 3. Compara a translação [tx, ty]
+        if not np.allclose(current_matrix[:2, 2], self._old_matrix[:2, 2]):
+            self._dirty_flags |= RenderDirty.POSITION
+
+        return self._dirty_flags
+
+    def _commit_render_state(self):
+        self._old_matrix = mat_global(self)
+        self._dirty_flags = RenderDirty.NONE
 
     @property
     def format(self):

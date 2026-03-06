@@ -2,6 +2,7 @@ from anicrop.blend import BLEND_MODE
 from anicrop.enums import InterpolationOption
 from anicrop.image import Image
 from anicrop.layer import Layer
+from anicrop.enums import RenderDirty
 from anicrop.spatial import Region, bbox_to_region
 from anicrop.transform import (
     calculate_new_bbox,
@@ -14,6 +15,9 @@ from typing import Optional
 
 import cv2
 import numpy as np
+import weakref
+
+
 
 
 def render_patch(edit_layer, matrix_global, dest_region, interp: InterpolationOption = InterpolationOption.LANCZOS):
@@ -43,6 +47,9 @@ def render_patch(edit_layer, matrix_global, dest_region, interp: InterpolationOp
 
 
 class LayerRender:
+
+    def __init__(self):
+        self._cache = weakref.WeakKeyDictionary()
 
     def __flatten_edits(
         self,
@@ -93,17 +100,30 @@ class LayerRender:
         interp: InterpolationOption = InterpolationOption.LANCZOS
     ) -> Image | None:
 
+        flags = layer._resolve_dirty()
         # BBox global do layer
         final_region = layer.canvas_region
         render_region = self.__render_region(final_region, view_region)
+
         if render_region:
-            size = render_region.size
-            layer_image = Image.new(size, layer.format)
-            return self.__flatten_edits(layer, layer_image, render_region, interp)
+
+            if flags & RenderDirty.PIXELS or layer._id not in self._cache:
+                size = render_region.size
+                layer_image = Image.new(size, layer.format)
+                return self.__flatten_edits(layer, layer_image, render_region, interp)
+
+            elif layer._id in self._cache:
+                view = final_region.overlap_with(render_region)
+                return self._cache[layer._id].crop(view)
 
     def render(
         self,
         layer: Layer,
         interp: InterpolationOption = InterpolationOption.LANCZOS
     ) -> Image:
-        return self.render_area(layer)
+
+        flags = layer._resolve_dirty()
+        if flags & RenderDirty.PIXELS:
+            self._cache[layer._id] = self.render_area(layer)
+        layer._commit_render_state()
+        return self._cache[layer._id].crop(...)

@@ -1,6 +1,7 @@
 from __future__ import annotations
 from collections.abc import Callable, Iterator
 from dataclasses import dataclass
+from itertools import count
 from operator import add, sub
 from typing import Protocol
 
@@ -8,6 +9,19 @@ import numpy as np
 
 RotationInput = float | tuple[float, float, float]
 ScaleInput = float | tuple[float, float], tuple[float, float, float, float]
+
+_count = count()
+
+
+class Id:
+    def __init__(self):
+        self.__id = next(_count)
+
+    def __hash__(self):
+        return hash(self.__id)
+
+    def __eq__(self, other):
+        return isinstance(other, Id) and self.__id == other.__id
 
 
 class TransformState(Protocol):
