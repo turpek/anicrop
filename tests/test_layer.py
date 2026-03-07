@@ -2,7 +2,7 @@ from anicrop.image import Image, ImageFormat
 from anicrop.layer import BlendMode, EditLayer, Layer
 from anicrop.layer import Rotation, Scale
 from anicrop.spatial import Region
-from anicrop.enums import RenderDirty
+from anicrop.enums import RenderFlags, WarpMode
 from anicrop.transform import mat_global, Transform
 from pytest import raises
 import numpy as np
@@ -186,7 +186,7 @@ def test_Layer_add_edit_incrementa_nomes(canvas):
 def test_layer_cache_initial_state(canvas):
     """Cenário 1: Layer recém-instanciado deve retornar ALL."""
     layer = Layer(canvas)
-    assert layer._resolve_dirty() & RenderDirty.ALL
+    assert layer._resolve_render() & RenderFlags.ALL_DIRTY
 
 
 @pytest.mark.parametrize("update_fn", [
@@ -202,7 +202,7 @@ def test_layer_cache_translation(canvas, update_fn):
     layer._commit_render_state()
 
     update_fn(layer)
-    assert layer._resolve_dirty() & RenderDirty.POSITION
+    assert layer._resolve_render() & RenderFlags.POSITION
 
 
 @pytest.mark.parametrize("update_fn", [
@@ -216,7 +216,7 @@ def test_layer_cache_rotation(canvas, update_fn):
     layer._commit_render_state()
 
     update_fn(layer)
-    assert layer._resolve_dirty() & RenderDirty.PIXELS
+    assert layer._resolve_render() & RenderFlags.PIXELS
 
 
 @pytest.mark.parametrize("update_fn", [
@@ -230,28 +230,28 @@ def test_layer_cache_scale(canvas, update_fn):
     layer._commit_render_state()
 
     update_fn(layer)
-    assert layer._resolve_dirty() & RenderDirty.PIXELS
+    assert layer._resolve_render() & RenderFlags.PIXELS
 
 
 def test_layer_commit_render_state(canvas):
     """Cenário 5: Commit deve limpar o estado dirty e salvar a matriz."""
     layer = Layer(canvas)
-    assert layer._resolve_dirty() & RenderDirty.ALL
+    assert layer._resolve_render() & RenderFlags.ALL_DIRTY
 
     matrix = mat_global(layer)
     layer._commit_render_state()
 
-    assert layer._resolve_dirty() == RenderDirty.NONE
+    assert layer._resolve_render() == RenderFlags.NONE
     assert np.array_equal(layer._old_matrix, matrix)
 
     # Gera uma nova deformação (rotação)
     layer.rotation = 90
-    assert layer._resolve_dirty() & RenderDirty.PIXELS
+    assert layer._resolve_render() & RenderFlags.PIXELS
 
     new_matrix = mat_global(layer)
     layer._commit_render_state()
 
-    assert layer._resolve_dirty() == RenderDirty.NONE
+    assert layer._resolve_render() == RenderFlags.NONE
     assert np.array_equal(layer._old_matrix, new_matrix)
 
 
@@ -265,11 +265,42 @@ def test_layer_resolve_dirty_nao_deve_ser_acumulativo(canvas):
 
     # 1. Suja apenas a posição
     layer.x += 10
-    assert layer._resolve_dirty() == RenderDirty.POSITION
+    assert layer._resolve_render() == RenderFlags.POSITION
 
     # 2. Se chamarmos de novo SEM commit, ele ainda deve ser POSITION
-    assert layer._resolve_dirty() == RenderDirty.POSITION
+    assert layer._resolve_render() == RenderFlags.POSITION
 
     # 3. Faz o commit. Agora deve ser NONE.
     layer._commit_render_state()
-    assert layer._resolve_dirty() == RenderDirty.NONE
+    assert layer._resolve_render() == RenderFlags.NONE
+
+
+# ############################# Testes de Modo de Projeção (WarpMode) #####################################
+
+def test_layer_warp_mode_is_affine_even_with_translation(mocker, canvas):
+    """Garante que translação pura ainda utiliza o motor AFFINE (Afim)."""
+    # Matriz com Translação forte, mas última linha intacta [0, 0, 1]
+    matrix = np.eye(3)
+    matrix[0, 2] = 500.0
+    matrix[1, 2] = 300.0
+    mocker.patch("anicrop.layer.mat_global", return_value=matrix)
+
+    layer = Layer(canvas)
+    layer._resolve_render()
+
+    # Deve ser AFFINE pois a última linha é [0, 0, 1]
+    assert layer._warp_mode == WarpMode.AFFINE
+
+
+def test_layer_warp_mode_perspective_triggered_by_z_line(mocker, canvas):
+    """Garante que PERSPECTIVE é disparado apenas pela deformação da última linha (Z)."""
+    # Matriz sem translação, mas com deformação de perspectiva na última linha
+    matrix = np.eye(3)
+    matrix[2, 0] = 0.0005  # Componente de perspectiva
+    mocker.patch("anicrop.layer.mat_global", return_value=matrix)
+
+    layer = Layer(canvas)
+    layer._resolve_render()
+
+    # Agora sim o esperado é PERSPECTIVE
+    assert layer._warp_mode == WarpMode.PERSPECTIVE

@@ -1,7 +1,7 @@
-from anicrop.enums import InterpolationOption, RenderDirty
+from anicrop.enums import InterpolationOption, RenderFlags, WarpMode
 from anicrop.image import Image, ImageFormat
 from anicrop.layer import Layer
-from anicrop.render import LayerRender
+from anicrop.render import LayerRender, render_patch
 from anicrop.spatial import Region, Span
 from anicrop.transform import mat_final
 import numpy as np
@@ -277,7 +277,8 @@ def test_render_cache_limpeza_automatica(lr):
 def test_render_cache_falha_inicial(mocker, lr):
     """Garante que o __flatten_edits é chamado no primeiro render COMPLETO."""
     layer = make_layer(color=(255, 0, 0, 255))
-    mock_img = Image.new(layer.region.size, layer.format, color=(255, 0, 0, 255))
+    mock_img = Image.new(layer.region.size, layer.format,
+                         color=(255, 0, 0, 255))
 
     mock_flatten = mocker.patch.object(
         LayerRender, '_LayerRender__flatten_edits', return_value=mock_img)
@@ -330,7 +331,7 @@ def test_render_cache_recorte_de_area(mocker, lr):
     """Valida se o render_area usa o cache mestre para recortes."""
     layer = make_layer(w=100, h=100)
     full_img = Image.new((100, 100), layer.format, color=(255, 0, 0, 255))
-    
+
     # Simula cache populado via render
     lr._cache[layer._id] = full_img
     layer._commit_render_state()
@@ -338,7 +339,8 @@ def test_render_cache_recorte_de_area(mocker, lr):
     view_region = Region(Span(10, 20), Span(10, 20))
     mocker.patch.object(LayerRender, '_LayerRender__render_region',
                         return_value=view_region)
-    mock_flatten = mocker.patch.object(LayerRender, '_LayerRender__flatten_edits')
+    mock_flatten = mocker.patch.object(
+        LayerRender, '_LayerRender__flatten_edits')
 
     # Ação
     result = lr.render_area(layer, view_region=view_region)
@@ -355,10 +357,11 @@ def test_render_area_sem_sujar_cache_global(mocker, lr):
     layer._commit_render_state()
 
     view_region = Region(Span(0, 10), Span(0, 10))
-    mocker.patch.object(LayerRender, '_LayerRender__render_region', return_value=view_region)
-    
+    mocker.patch.object(
+        LayerRender, '_LayerRender__render_region', return_value=view_region)
+
     lr.render_area(layer, view_region=view_region)
-    
+
     assert layer._id not in lr._cache
 
 
@@ -394,22 +397,87 @@ def test_render_area_sem_cache_e_flags_limpas_reprocessa_pixels(mocker, lr):
     mock_img = Image.new(layer.region.size, layer.format)
     mock_flatten = mocker.patch.object(
         LayerRender, '_LayerRender__flatten_edits', return_value=mock_img)
-    
+
     # 1. Primeira chamada ao render_area (ele renderiza, mas NÃO popula o self._cache)
     result_first_call = lr.render_area(layer)
-    assert result_first_call is not None # Esperamos uma imagem aqui
+    assert result_first_call is not None  # Esperamos uma imagem aqui
     assert mock_flatten.call_count == 1
     assert layer._id not in lr._cache    # O cache não deve ter sido populado
-    
+
     # 2. O layer é 'commitado'. As flags ficam NONE.
     layer._commit_render_state()
-    assert layer._resolve_dirty() == RenderDirty.NONE
-    
+    assert layer._resolve_render() == RenderFlags.NONE
+
     # 3. Segunda chamada ao render_area.
-    # flags & RenderDirty.PIXELS é FALSO.
+    # flags & RenderFlags.PIXELS é FALSO.
     # layer._id not in lr._cache é VERDADEIRO (ainda).
     # Então __flatten_edits será chamado NOVAMENTE.
     result_second_call = lr.render_area(layer)
-    
+
     assert result_second_call is not None
     assert mock_flatten.call_count == 2, "BUG: __flatten_edits foi chamado novamente mesmo com flags limpas e sem alteração!"
+
+
+# ############################# Testes de Motor de Projeção (Warp Dispatch) #####################################
+
+def test_render_patch_delegates_to_warp_affine_by_default(mocker):
+    """Garante que render_patch chama warp_affine quando solicitado."""
+    # Setup mínimo para render_patch
+    img = make_img(10, 10)
+    layer = Layer(img)
+    edit = layer._edits[0]
+
+    # Mocks das funções internas
+    mock_affine = mocker.patch("anicrop.render.warp_affine")
+    mock_perspective = mocker.patch("anicrop.render.warp_perspective")
+
+    # Injetamos os mocks no dicionário de dispatch do módulo
+    mocker.patch.dict("anicrop.render.WARP_MODE", {
+        WarpMode.AFFINE: mock_affine,
+        WarpMode.PERSPECTIVE: mock_perspective
+    })
+
+    # Ação: Renderiza o patch passando o modo explicitamente
+    render_patch(edit, np.eye(3), edit.region, warp_mode=WarpMode.AFFINE)
+
+    assert mock_affine.called
+    assert not mock_perspective.called
+
+
+def test_render_patch_delegates_to_warp_perspective(mocker):
+    """Garante que render_patch chama warp_perspective quando solicitado."""
+    img = make_img(10, 10)
+    layer = Layer(img)
+    edit = layer._edits[0]
+
+    mock_affine = mocker.patch("anicrop.render.warp_affine")
+    mock_perspective = mocker.patch("anicrop.render.warp_perspective")
+
+    # Injetamos os mocks no dicionário de dispatch do módulo
+    mocker.patch.dict("anicrop.render.WARP_MODE", {
+        WarpMode.AFFINE: mock_affine,
+        WarpMode.PERSPECTIVE: mock_perspective
+    })
+
+    # Ação: Renderiza o patch forçando PERSPECTIVE via argumento
+    render_patch(edit, np.eye(3), edit.region, warp_mode=WarpMode.PERSPECTIVE)
+
+    assert mock_perspective.called
+    assert not mock_affine.called
+
+
+def test_render_patch_fallback_to_warp_affine(mocker):
+    """Garante que render_patch usa warp_affine como fallback se o modo não existir no dict."""
+    img = make_img(10, 10)
+    layer = Layer(img)
+    edit = layer._edits[0]
+
+    mock_affine = mocker.patch("anicrop.render.warp_affine")
+
+    # Simulamos um dicionário VAZIO para forçar o fallback
+    mocker.patch.dict("anicrop.render.WARP_MODE", {}, clear=True)
+
+    # Chamamos com um modo que "não existe" no dicionário limpo
+    render_patch(edit, np.eye(3), edit.region, warp_mode=WarpMode.PERSPECTIVE)
+
+    assert mock_affine.called, "Deveria ter caído no fallback do warp_affine!"
