@@ -1,8 +1,7 @@
 from anicrop.blend import BLEND_MODE
-from anicrop.enums import InterpolationOption
+from anicrop.enums import InterpolationOption, RenderFlags, WarpMode
 from anicrop.image import Image
 from anicrop.layer import Layer
-from anicrop.enums import RenderDirty
 from anicrop.spatial import Region, bbox_to_region
 from anicrop.transform import (
     calculate_new_bbox,
@@ -18,9 +17,51 @@ import numpy as np
 import weakref
 
 
+def warp_affine(
+    src_data: np.ndarray,
+    m_cv2: np.ndarray,
+    dest_size: tuple[int, int],
+    interp: InterpolationOption = InterpolationOption.LINEAR
+):
+    M_affine = m_cv2[:2, :].astype(np.float64)
+
+    return cv2.warpAffine(
+        src_data,
+        M_affine,
+        dest_size,
+        flags=interp.value,
+        borderMode=cv2.BORDER_CONSTANT,
+        borderValue=(0, 0, 0, 0)
+    )
 
 
-def render_patch(edit_layer, matrix_global, dest_region, interp: InterpolationOption = InterpolationOption.LANCZOS):
+def warp_perspective(
+    src_data: np.ndarray,
+    m_cv2: np.ndarray,
+    dest_size: tuple[int, int],
+    interp: InterpolationOption = InterpolationOption.LINEAR
+):
+    return cv2.warpPerspective(
+        src_data,
+        m_cv2,
+        dest_size,
+        flags=interp.value,
+    )
+
+
+WARP_MODE = {
+    WarpMode.AFFINE: warp_affine,
+    WarpMode.PERSPECTIVE: warp_perspective,
+}
+
+
+def render_patch(
+    edit_layer,
+    matrix_global,
+    dest_region,
+    warp_mode: WarpMode = WarpMode.AFFINE,
+    interp: InterpolationOption = InterpolationOption.LANCZOS,
+):
 
     # 1. Projeta a BBox global de volta para a imagem original do Edit
     src_region = bbox_to_region(calculate_region_bbox(mat_inverse(matrix_global), dest_region))
@@ -30,7 +71,7 @@ def render_patch(edit_layer, matrix_global, dest_region, interp: InterpolationOp
     if limit_region.overlaps(src_region):
         region_mask = limit_region & src_region
 
-        src_data = np.ascontiguousarray(edit_layer.image[region_mask][...])
+        src_data = edit_layer.image[region_mask]
 
         # Matriz que determina a posição local da região de recorte do edit
         M_src_offset = mat_translation(*region_mask.top_left)
@@ -43,7 +84,8 @@ def render_patch(edit_layer, matrix_global, dest_region, interp: InterpolationOp
         # transforma em global e leva para a origem
         M_cv2 = (M_dst_offset_inv @ matrix_global @ M_src_offset).astype(np.float64)
 
-        return cv2.warpPerspective(src_data, M_cv2, dest_region.size, flags=interp.value)
+        warp = WARP_MODE.get(warp_mode, warp_affine)
+        return warp(src_data, M_cv2, dest_region.size, interp)
 
 
 class LayerRender:
@@ -74,7 +116,9 @@ class LayerRender:
 
             dest_region = edit_global_bbox & render_region
 
-            edit_data = render_patch(edit_layer, m_edit_global, dest_region, interp)
+            edit_data = render_patch(
+                edit_layer, m_edit_global, dest_region, layer._warp_mode, interp,
+            )
             if edit_data is None:
                 continue
 
@@ -100,14 +144,14 @@ class LayerRender:
         interp: InterpolationOption = InterpolationOption.LANCZOS
     ) -> Image | None:
 
-        flags = layer._resolve_dirty()
+        flags = layer._resolve_render()
         # BBox global do layer
         final_region = layer.canvas_region
         render_region = self.__render_region(final_region, view_region)
 
         if render_region:
 
-            if flags & RenderDirty.PIXELS or layer._id not in self._cache:
+            if flags & RenderFlags.PIXELS or layer._id not in self._cache:
                 size = render_region.size
                 layer_image = Image.new(size, layer.format)
                 return self.__flatten_edits(layer, layer_image, render_region, interp)
@@ -122,8 +166,8 @@ class LayerRender:
         interp: InterpolationOption = InterpolationOption.LANCZOS
     ) -> Image:
 
-        flags = layer._resolve_dirty()
-        if flags & RenderDirty.PIXELS:
+        flags = layer._resolve_render()
+        if flags & RenderFlags.PIXELS:
             self._cache[layer._id] = self.render_area(layer)
         layer._commit_render_state()
         return self._cache[layer._id].crop(...)

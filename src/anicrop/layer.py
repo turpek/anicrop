@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from anicrop.enums import BlendMode, RenderDirty
+from anicrop.enums import BlendMode, RenderFlags, WarpMode
 from anicrop.image import Image
 from anicrop.spatial import Region, Span
 from anicrop.type import Id, Rotation, RotationInput, Scale, ScaleInput
@@ -88,7 +88,8 @@ class Layer:
         self.add_edit(image, self._region, blend_mode)
         self._image = self._edits[0]
         self._old_matrix = np.zeros((3, 3))
-        self._dirty_flags = RenderDirty.ALL  # Começa tudo sujo
+        self._render_flags = RenderFlags.ALL_DIRTY
+        self._warp_mode = WarpMode.AFFINE
 
     def __repr__(self) -> str:
         return f"Layer(x={self.x.start}, y={self.y.start}, size={self.image.size})"
@@ -99,22 +100,27 @@ class Layer:
     def __hash__(self):
         return hash(self._id)
 
-    def _resolve_dirty(self) -> RenderDirty:
+    def _resolve_render(self) -> RenderFlags:
         current_matrix = mat_global(self)
 
         # 2. Compara a parte 2x2 (rotação/escala)
         if not np.allclose(current_matrix[:2, :2], self._old_matrix[:2, :2]):
-            self._dirty_flags |= RenderDirty.PIXELS
+            self._render_flags |= RenderFlags.PIXELS
 
         # 3. Compara a translação [tx, ty]
         if not np.allclose(current_matrix[:2, 2], self._old_matrix[:2, 2]):
-            self._dirty_flags |= RenderDirty.POSITION
+            self._render_flags |= RenderFlags.POSITION
 
-        return self._dirty_flags
+        if not np.allclose(current_matrix[2, :2], [0, 0]):
+            self._warp_mode = WarpMode.PERSPECTIVE
+        else:
+            self._warp_mode = WarpMode.AFFINE
+
+        return self._render_flags
 
     def _commit_render_state(self):
         self._old_matrix = mat_global(self)
-        self._dirty_flags = RenderDirty.NONE
+        self._render_flags = RenderFlags.NONE
 
     @property
     def format(self):

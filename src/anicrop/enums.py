@@ -76,11 +76,11 @@ class ImageFormat(StrEnum):
         return color_spaces[other] == color_spaces[self]
 
 
-class RenderDirty(IntFlag):
+class RenderFlags(IntFlag):
     NONE = 0
     POSITION = auto()  # Invalida a localização global no canvas
     PIXELS = auto()    # Invalida o buffer de pixels (exige re-renderizar o layer)
-    ALL = POSITION | PIXELS
+    ALL_DIRTY = POSITION | PIXELS
 
 
 class WarpMode(Enum):
