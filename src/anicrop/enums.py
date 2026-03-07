@@ -81,3 +81,8 @@ class RenderDirty(IntFlag):
     POSITION = auto()  # Invalida a localização global no canvas
     PIXELS = auto()    # Invalida o buffer de pixels (exige re-renderizar o layer)
     ALL = POSITION | PIXELS
+
+
+class WarpMode(Enum):
+    AFFINE = 'affine'
+    PERSPECTIVE = 'perspective'
