@@ -46,9 +46,20 @@ class Viewport:
         x, y = self._region.top_left
         return mat_pivot(self.scale, self.size) @ mat_translation(-x, -y)
 
-    @property
-    def fit_matrix(self) -> ndarray:
-        return self._fit.matrix
+    def fit_matrix(self, layer_size: tuple[int, int]) -> ndarray:
+        # 2. Qual o tamanho do papel DEPOIS de encolher?
+        s = self._fit.sx
+        scaled_w = layer_size[0] * s
+        scaled_h = layer_size[1] * s
+
+        # 3. A CENTRALIZAÇÃO: Calcula o espaço que sobrou e divide por 2
+        view_w, view_h = self.size
+        offset_x = (view_w - scaled_w) / 2
+        offset_y = (view_h - scaled_h) / 2
+
+        # 4. A Matriz: Encolhe primeiro, depois empurra pro centro
+        return mat_translation(offset_x, offset_y) @ self._fit.matrix
+        # return self._fit.matrix
 
     def roi(self, region: Region) -> Region:
         mat_tr = mat_inverse(mat_translation(*region.top_left))

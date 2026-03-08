@@ -184,7 +184,7 @@ class LayerRender:
 
         return layer_image
 
-    def __render_region(self, final_region, view_region) -> None:
+    def __render_region(self, final_region, view_region) -> None | Region:
         if not view_region:
             return final_region
         elif view_region.overlaps(final_region):
@@ -224,3 +224,101 @@ class LayerRender:
             self._cache[layer._id] = self.render_area(layer)
         layer._commit_render_state()
         return self._cache[layer._id].crop(...)
+
+
+class ViewportRender:
+    def __init__(self, lod_manager: Optional[LODManager] = None):
+        self._cache = weakref.WeakKeyDictionary()
+        self.lod_manager = lod_manager or LODManager()
+
+    def __render_region(self, final_region: Region, view_region: Region) -> None | Region:
+        if view_region.overlaps(final_region):
+            return view_region & final_region
+
+    def __flatten_edits(
+        self,
+        layer: Layer,
+        viewport: Viewport,
+        layer_image: Image,
+        render_region: Region,
+        interp: InterpolationOption,
+    ) -> Image:
+
+        # Matriz base da Viewport (Zoom + Pan + Fit)
+        m_view = viewport.roi_matrix @ viewport.fit_matrix(layer.region.size)
+        m_layer_global = mat_global(layer)
+
+        for edit_layer in layer._edits:
+            # 1. Resolve a fonte de pixels ideal (LOD) para o zoom atual
+            # Passamos a escala combinada para a heurística
+            pixels, m_adjust = self.lod_manager.get_source(
+                viewport, edit_layer, layer.region.size
+            )
+
+            # 2. Calcula a matriz que projeta este edit direto na tela
+            m_edit_viewport = m_view @ m_layer_global @ edit_layer.local_matrix
+
+            # 3. BBox do edit no espaço da Viewport para Culling
+            edit_screen_bbox = bbox_to_region(
+                calculate_new_bbox(m_edit_viewport, edit_layer.image.size)
+            )
+
+            if not edit_screen_bbox.overlaps(render_region):
+                continue
+
+            # 4. Onde este edit será pintado nos 800x600 da tela
+            dest_region = edit_screen_bbox & render_region
+
+            # 5. Aplica o ajuste de escala do LOD na matriz de renderização
+            m_render = m_edit_viewport @ m_adjust
+
+            # 6. Renderização cirúrgica
+            edit_data = render_patch(
+                edit_layer, m_render, dest_region, layer._warp_mode, interp,
+            )
+
+            if edit_data is None:
+                continue
+
+            edit_image = Image(edit_data, edit_layer.image.format)
+
+            # 7. Blend no buffer da Viewport
+            # O render_region representa o pedaço da tela que estamos pintando
+            blend_region = dest_region - render_region.top_left
+            blend = BLEND_MODE.get(edit_layer.blend_mode)
+
+            blend(layer_image.view(blend_region), edit_image)
+
+        return layer_image
+
+    def _final_region(self, layer: Layer, viewport: Viewport):
+        m_view = viewport.roi_matrix @ viewport.fit_matrix(layer.region.size)
+        m_global = m_view @ mat_translation(*layer.region.top_left)
+        return bbox_to_region(calculate_new_bbox(m_global, layer.region.size))
+
+    def render_area(
+        self,
+        layer: Layer,
+        viewport: Viewport,
+        interp: InterpolationOption = InterpolationOption.LANCZOS
+    ) -> Image | None:
+
+        flags = layer._resolve_render()
+        final_region = self._final_region(layer, viewport)
+
+        view_region = viewport.region
+        render_region = self.__render_region(final_region, view_region)
+
+        if render_region:
+
+            if flags & RenderFlags.PIXELS or layer._id not in self._cache:
+                size = render_region.size
+                layer_image = Image.new(size, layer.format)
+                image = self.__flatten_edits(layer, viewport, layer_image, render_region, interp)
+                if viewport.scale.sx == 1.0:
+                    self._cache[layer._id] = image
+                return image
+
+            elif layer._id in self._cache:
+                view = final_region.overlap_with(render_region)
+                return self._cache[layer._id].crop(view)
