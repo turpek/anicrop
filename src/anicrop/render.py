@@ -1,15 +1,18 @@
 from anicrop.blend import BLEND_MODE
 from anicrop.enums import InterpolationOption, RenderFlags, WarpMode
 from anicrop.image import Image
-from anicrop.layer import Layer
+from anicrop.layer import Layer, EditLayer
 from anicrop.spatial import Region, bbox_to_region
 from anicrop.transform import (
     calculate_new_bbox,
     calculate_region_bbox,
     mat_global,
     mat_inverse,
+    mat_scale,
     mat_translation
 )
+from anicrop.viewport import Viewport
+from operator import mul
 from typing import Optional
 
 import cv2
@@ -86,6 +89,56 @@ def render_patch(
 
         warp = WARP_MODE.get(warp_mode, warp_affine)
         return warp(src_data, M_cv2, dest_region.size, interp)
+
+
+class LODManager:
+    def __init__(self):
+
+        self._l1_cache = weakref.WeakKeyDictionary()
+        self._l2_cache = weakref.WeakKeyDictionary()
+
+    def get_source(
+            self,
+            viewport: Viewport,
+            edit_layer: EditLayer,
+            layer_size: tuple[int, int]
+    ) -> tuple[np.ndarray, np.ndarray]:
+        """
+        Retorna (pixels, m_adjust) baseada na escala.
+        Decide se gera o cache ou usa o original.
+        """
+        viewport_scale = viewport.scale_factor
+
+        # Só fazemos cache se o layer for MAIOR que a viewport
+        if mul(*layer_size) > mul(*viewport.size):
+            # Heurística: Zoom muito baixo? Tenta L2
+            if viewport_scale <= 0.25:
+                return self._resolve_level(edit_layer, self._l2_cache, factor=10.0)
+
+            # Heurística: Zoom baixo? Tenta L1
+            if viewport_scale <= 0.5:
+                return self._resolve_level(edit_layer, self._l1_cache, factor=5.0)
+
+        # Fallback: Original
+        return edit_layer.image[...], np.identity(3, dtype=np.float32)
+
+    def _resolve_level(
+        self,
+        edit_layer: EditLayer,
+        cache_dict: weakref.WeakKeyDictionary,
+        factor: float
+    ) -> tuple[np.ndarray, np.ndarray]:
+
+        # Se não estiver no cache, regenera. A imutabilidade do EditLayer
+        # garante que a identidade do objeto é suficiente para o cache.
+        if edit_layer not in cache_dict:
+            img = edit_layer.image[...]
+            new_size = (int(img.shape[1] // factor), int(img.shape[0] // factor))
+            cache_dict[edit_layer] = cv2.resize(img, new_size, interpolation=cv2.INTER_AREA)
+
+        cached_data = cache_dict[edit_layer]
+        m_adjust = mat_scale(factor, factor)
+        return cached_data, m_adjust
 
 
 class LayerRender:
