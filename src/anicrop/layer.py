@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from anicrop.canvas import Canvas
 from anicrop.enums import BlendMode, RenderFlags, WarpMode
 from anicrop.image import Image
 from anicrop.spatial import Region, Span
@@ -72,7 +73,8 @@ class Layer:
         rotation: float = 0.0,
         scale: float = 1.0,
         blend_mode: BlendMode = BlendMode.NORMAL,
-        name: str = 'Layer'
+        name: str = 'Layer',
+        canvas: Optional[Canvas] = None,
     ):
         self._id = Id()
         self._name = name
@@ -83,12 +85,15 @@ class Layer:
         self._region = Region.from_size(*image.size)
         self._edits: deque[EditLayer] = deque()
         self._transform: Optional[TransformComposer] = None
+        self._opacity_mask: Optional[np.ndarray] = None
+        self.visible = True
 
         self.add_edit(image, self._region, blend_mode)
         self._image = self._edits[0]
         self._old_matrix = np.zeros((3, 3))
         self._render_flags = RenderFlags.ALL_DIRTY
         self._warp_mode = WarpMode.AFFINE
+        self._canvas = canvas
 
     def __repr__(self) -> str:
         return f"Layer(x={self.x.start}, y={self.y.start}, size={self.image.size})"
@@ -202,11 +207,16 @@ class Layer:
         self._blend_mode = blend_mode
 
     @property
-    def canvas_region(self) -> Region:
+    def global_region(self) -> Region:
         """Retorna o BBox (AABB) real do layer no espaço do Canvas."""
 
         x, y, w, h = calculate_new_bbox_from_layer(self)
         return Region(Span(x, w), Span(y, h))
+
+    @property
+    def canvas_size(self) -> tuple[int, int]:
+        cv_size = self._canvas.size if self._canvas else self.region.size
+        return cv_size
 
     def add_edit(
         self,

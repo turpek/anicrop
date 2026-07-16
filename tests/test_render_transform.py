@@ -17,7 +17,7 @@ def red_layer():
 
 def test_render_transform_translation_simples(red_layer):
     red_layer.transform.translate(10, 20)
-    region = red_layer.canvas_region
+    region = red_layer.global_region
     assert region.top_left == (10, 20)
     assert region.size == (100, 100)
 
@@ -25,7 +25,7 @@ def test_render_transform_translation_simples(red_layer):
 def test_render_transform_rotation_90_centro(red_layer):
     # Rotacionar 90 graus no centro mantém o BBox se a imagem for quadrada
     red_layer.transform.rotate(90, 0.5, 0.5)
-    region = red_layer.canvas_region
+    region = red_layer.global_region
     assert region.top_left == (0, 0)
     assert region.size == (100, 100)
 
@@ -35,7 +35,7 @@ def test_render_transform_scale_2x_centro(red_layer):
     # O ponto (0,0) vai para -50, o ponto (100,100) vai para 150
     # Novo BBox: (-50, -50, 200, 200)
     red_layer.transform.scale(2, 2, 0.5, 0.5)
-    region = red_layer.canvas_region
+    region = red_layer.global_region
     assert region.top_left == (-50, -50)
     assert region.size == (200, 200)
 
@@ -51,7 +51,7 @@ def test_render_transform_chaining_complexo(red_layer):
     red_layer.transform.translate(50, 50).scale(
         2, 2, 0.5, 0.5).rotate(90, 0.5, 0.5)
 
-    region = red_layer.canvas_region
+    region = red_layer.global_region
     assert region.top_left == (0, 0)
     assert region.size == (200, 200)
 
@@ -64,6 +64,6 @@ def test_render_transform_pivo_canto(red_layer):
     # (0,100) -> (-100, 0)
     # BBox: (-100, 0, 100, 100)
     red_layer.transform.rotate(90, 0, 0)
-    region = red_layer.canvas_region
+    region = red_layer.global_region
     assert region.top_left == (-100, 0)
     assert region.size == (100, 100)

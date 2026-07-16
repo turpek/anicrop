@@ -1,3 +1,7 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
 [project]
 name = "anicrop"
 version = "0.1.0"
@@ -28,3 +32,6 @@ line-length = 88
 
 [tool.ruff.lint]
 select = ["E", "W", "F", "I", "B", "UP"]
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]

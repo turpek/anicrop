@@ -23,6 +23,7 @@ def mock_layer():
     layer._resolve_render.return_value = RenderFlags.NONE
     # Usamos uma Região real para que os cálculos de top_left e size funcionem no numpy
     layer.region = Region.from_size(800, 600)
+    layer.canvas_size = (800, 600)
     return layer
 
 
@@ -51,7 +52,8 @@ def test_render_area_dirty_pixels_calls_flatten(viewport_render, mock_layer, rea
     with patch.object(ViewportRender, "_final_region", return_value=mock_region), \
             patch.object(ViewportRender, "_ViewportRender__render_region", return_value=mock_region), \
             patch.object(ViewportRender, "_ViewportRender__flatten_edits") as mock_flatten, \
-            patch("anicrop.render.Image.new") as mock_image_new:
+            patch("anicrop.render.Image.new") as mock_image_new, \
+            patch("anicrop.render.generate_opacity_mask"):
 
         viewport_render.render_area(mock_layer, real_viewport)
 
@@ -73,7 +75,8 @@ def test_render_area_cache_miss_calls_flatten(viewport_render, mock_layer, real_
     with patch.object(ViewportRender, "_final_region", return_value=mock_region), \
             patch.object(ViewportRender, "_ViewportRender__render_region", return_value=mock_region), \
             patch.object(ViewportRender, "_ViewportRender__flatten_edits") as mock_flatten, \
-            patch("anicrop.render.Image.new") as mock_image_new:
+            patch("anicrop.render.Image.new") as mock_image_new, \
+            patch("anicrop.render.generate_opacity_mask"):
 
         viewport_render.render_area(mock_layer, real_viewport)
 
@@ -97,7 +100,8 @@ def test_render_area_cache_hit_calls_crop(viewport_render, mock_layer, real_view
 
     with patch.object(ViewportRender, "_final_region", return_value=final_region_mock), \
             patch.object(ViewportRender, "_ViewportRender__render_region", return_value=mock_region), \
-            patch.object(ViewportRender, "_ViewportRender__flatten_edits") as mock_flatten:
+            patch.object(ViewportRender, "_ViewportRender__flatten_edits") as mock_flatten, \
+            patch("anicrop.render.generate_opacity_mask"):
 
         viewport_render.render_area(mock_layer, real_viewport)
 
@@ -119,7 +123,8 @@ def test_render_area_populates_cache_at_scale_1(viewport_render, mock_layer, rea
     with patch.object(ViewportRender, "_final_region", return_value=mock_region), \
             patch.object(ViewportRender, "_ViewportRender__render_region", return_value=mock_region), \
             patch.object(ViewportRender, "_ViewportRender__flatten_edits", return_value=mock_rendered_image), \
-            patch("anicrop.render.Image.new"):
+            patch("anicrop.render.Image.new"), \
+            patch("anicrop.render.generate_opacity_mask"):
 
         viewport_render.render_area(mock_layer, real_viewport)
 
@@ -134,7 +139,7 @@ def test_final_region_1to1(viewport_render, mock_layer, real_viewport):
     mock_layer.region = Region.from_size(800, 600)
 
     # Matriz global do layer é a identidade
-    with patch("anicrop.render.mat_global", return_value=np.eye(3)):
+    with patch("anicrop.render.mat_global", return_value=np.eye(3, dtype=np.float32)):
         region = viewport_render._final_region(mock_layer, real_viewport)
 
         assert region.top_left == (0, 0)
@@ -144,10 +149,11 @@ def test_final_region_1to1(viewport_render, mock_layer, real_viewport):
 def test_final_region_with_fit_scale(viewport_render, mock_layer):
     """Cenário 7: Layer gigante (4k) ajustado para Viewport pequena via fit_scale."""
     mock_layer.region = Region.from_size(4000, 3000)
+    mock_layer.canvas_size = (4000, 3000)
     # Viewport 800x600 com fit_scale 0.2 (4000 * 0.2 = 800)
     viewport = Viewport((800, 600), 0.2)
 
-    with patch("anicrop.render.mat_global", return_value=np.eye(3)):
+    with patch("anicrop.render.mat_global", return_value=np.eye(3, dtype=np.float32)):
         region = viewport_render._final_region(mock_layer, viewport)
 
         assert region.top_left == (0, 0)
@@ -161,7 +167,7 @@ def test_final_region_with_viewport_zoom(viewport_render, mock_layer, real_viewp
 
     real_viewport.scale = Scale(2.0, 2.0)
 
-    with patch("anicrop.render.mat_global", return_value=np.eye(3)):
+    with patch("anicrop.render.mat_global", return_value=np.eye(3, dtype=np.float32)):
         region = viewport_render._final_region(mock_layer, real_viewport)
 
         # No zoom de 2x centralizado, o ponto (0,0) vai para (-400, -300)

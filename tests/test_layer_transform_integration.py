@@ -24,7 +24,7 @@ def test_layer_set_transform_cenario_sem_transformacoes(canvas, transform_intent
     t = transform_intent(Transform())
     layer.set_transform(t)
 
-    res_region = layer.canvas_region
+    res_region = layer.global_region
     expected_region = Region(
         Span(expected_bbox[0], expected_bbox[2]),
         Span(expected_bbox[1], expected_bbox[3])
@@ -41,7 +41,7 @@ def test_layer_set_transform_com_duas_transformacoes(canvas):
     t = Transform().translate(10, 10).rotate(90, 0.5, 0.5)
     layer.set_transform(t)
 
-    assert layer.canvas_region == Region(Span(10, 10), Span(10, 10))
+    assert layer.global_region == Region(Span(10, 10), Span(10, 10))
 
 
 def test_layer_cenario_complexo_violao(canvas):
@@ -59,7 +59,7 @@ def test_layer_cenario_complexo_violao(canvas):
     # Baseado no debug, o motor dinâmico produz start=(13, 13) e length=(26, 15)
     # Esses valores são ligeiramente diferentes do cálculo estático pois o pivô
     # acompanha o BBox em tempo real.
-    res = layer.canvas_region
+    res = layer.global_region
     assert res.x.start == 14
     assert res.y.start == 12
     assert res.x.length == 26  # Verificando se esticou
@@ -71,7 +71,7 @@ def test_layer_set_transform_comportamento_absoluto(canvas):
 
     # Aplica t1 (Offset 10,10)
     layer.set_transform(t1)
-    assert layer.canvas_region.x.start == 10
+    assert layer.global_region.x.start == 10
 
     # Cria t2 independente (Offset 40,40)
     t2 = Transform().translate(40, 40)
@@ -79,8 +79,8 @@ def test_layer_set_transform_comportamento_absoluto(canvas):
     # Aplica t2 (O layer deve SUBSTITUIR t1 por t2)
     layer.set_transform(t2)
 
-    assert layer.canvas_region.x.start == 40
-    assert layer.canvas_region.y.start == 40
+    assert layer.global_region.x.start == 40
+    assert layer.global_region.y.start == 40
 
 
 def test_layer_set_transform_imutabilidade_aditiva_interna(canvas):
@@ -97,5 +97,5 @@ def test_layer_set_transform_imutabilidade_aditiva_interna(canvas):
     layer.set_transform(t2)
 
     # Resultado final deve ser 50 (o contido em t2), não 60 (10 antigo + 50 novo)
-    assert layer.canvas_region.x.start == 50
-    assert layer.canvas_region.y.start == 50
+    assert layer.global_region.x.start == 50
+    assert layer.global_region.y.start == 50

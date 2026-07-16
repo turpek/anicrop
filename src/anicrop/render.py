@@ -1,6 +1,6 @@
 from anicrop.blend import BLEND_MODE
 from anicrop.enums import InterpolationOption, RenderFlags, WarpMode
-from anicrop.image import Image
+from anicrop.image import Image, ImageFormat
 from anicrop.layer import Layer, EditLayer
 from anicrop.spatial import Region, bbox_to_region
 from anicrop.transform import (
@@ -13,7 +13,7 @@ from anicrop.transform import (
 )
 from anicrop.viewport import Viewport
 from operator import mul
-from typing import Optional
+from typing import Optional, Iterable
 
 import cv2
 import numpy as np
@@ -59,9 +59,9 @@ WARP_MODE = {
 
 
 def render_patch(
-    edit_layer,
-    matrix_global,
-    dest_region,
+    src_image: Image,
+    matrix_global: np.ndarray,
+    dest_region: Region,
     warp_mode: WarpMode = WarpMode.AFFINE,
     interp: InterpolationOption = InterpolationOption.LANCZOS,
 ):
@@ -69,12 +69,12 @@ def render_patch(
     # 1. Projeta a BBox global de volta para a imagem original do Edit
     src_region = bbox_to_region(calculate_region_bbox(mat_inverse(matrix_global), dest_region))
     src_region = src_region.expand(all=interp.padding)
-    limit_region = Region.from_size(*edit_layer.image.size)
+    limit_region = Region.from_size(*src_image.size)
 
     if limit_region.overlaps(src_region):
         region_mask = limit_region & src_region
 
-        src_data = edit_layer.image[region_mask]
+        src_data = src_image[region_mask]
 
         # Matriz que determina a posição local da região de recorte do edit
         M_src_offset = mat_translation(*region_mask.top_left)
@@ -89,6 +89,58 @@ def render_patch(
 
         warp = WARP_MODE.get(warp_mode, warp_affine)
         return warp(src_data, M_cv2, dest_region.size, interp)
+
+
+def generate_opacity_mask(
+    image: Image,
+    render_region: Region,
+    viewport_size: tuple[int, int],
+    target_size=(32, 32)
+) -> np.ndarray:
+    """Função usada para gerar miniaturas do layer mapeadas proporcionalmente na tela"""
+
+    eroded_alpha = np.zeros(target_size, dtype=np.uint8)
+
+    scale_x = target_size[0] / viewport_size[0]
+    scale_y = target_size[1] / viewport_size[1]
+
+    tw_img = max(1, int(image.width * scale_x))
+    th_img = max(1, int(image.height * scale_y))
+
+    if image.has_alpha:
+        w, h = image.size
+        alpha_origin = image[..., -1:]
+
+        kernel_h = max(1, h // th_img)
+        kernel_w = max(1, w // tw_img)
+        kernel = np.ones((kernel_h, kernel_w), dtype=np.uint8)
+
+        # A erosão propaga os pixels de menor opacidade (mais escuros)
+        eroded = cv2.erode(alpha_origin, kernel)
+        mini_mask = cv2.resize(eroded, (tw_img, th_img), interpolation=cv2.INTER_NEAREST)
+    else:
+        mini_mask = np.full((th_img, tw_img), 255, dtype=np.uint8)
+
+    # Descobre as coordenadas proporcionais na grade target_size
+    start_x = int(render_region.top_left[0] * scale_x)
+    start_y = int(render_region.top_left[1] * scale_y)
+
+    # Limites seguros na matriz target_size (caso o layer saia da tela)
+    sy = max(0, start_y)
+    ey = min(target_size[1], start_y + th_img)
+    sx = max(0, start_x)
+    ex = min(target_size[0], start_x + tw_img)
+
+    # Pedaço da mini_mask que será efetivamente copiado
+    my1 = sy - start_y
+    my2 = my1 + (ey - sy)
+    mx1 = sx - start_x
+    mx2 = mx1 + (ex - sx)
+
+    if ey > sy and ex > sx:
+        eroded_alpha[sy:ey, sx:ex] = mini_mask[my1:my2, mx1:mx2]
+
+    return eroded_alpha
 
 
 class LODManager:
@@ -170,7 +222,7 @@ class LayerRender:
             dest_region = edit_global_bbox & render_region
 
             edit_data = render_patch(
-                edit_layer, m_edit_global, dest_region, layer._warp_mode, interp,
+                edit_layer.image, m_edit_global, dest_region, layer._warp_mode, interp,
             )
             if edit_data is None:
                 continue
@@ -199,7 +251,7 @@ class LayerRender:
 
         flags = layer._resolve_render()
         # BBox global do layer
-        final_region = layer.canvas_region
+        final_region = layer.global_region
         render_region = self.__render_region(final_region, view_region)
 
         if render_region:
@@ -230,6 +282,7 @@ class ViewportRender:
     def __init__(self, lod_manager: Optional[LODManager] = None):
         self._cache = weakref.WeakKeyDictionary()
         self.lod_manager = lod_manager or LODManager()
+        self._target_size = (32, 32)
 
     def __render_region(self, final_region: Region, view_region: Region) -> None | Region:
         if view_region.overlaps(final_region):
@@ -245,14 +298,15 @@ class ViewportRender:
     ) -> Image:
 
         # Matriz base da Viewport (Zoom + Pan + Fit)
-        m_view = viewport.roi_matrix @ viewport.fit_matrix(layer.region.size)
+        # m_view = viewport.roi_matrix @ viewport.fit_matrix(layer.region.size)
+        m_view = viewport.roi_matrix @ viewport.fit_matrix(layer.canvas_size)
         m_layer_global = mat_global(layer)
 
         for edit_layer in layer._edits:
             # 1. Resolve a fonte de pixels ideal (LOD) para o zoom atual
             # Passamos a escala combinada para a heurística
             pixels, m_adjust = self.lod_manager.get_source(
-                viewport, edit_layer, layer.region.size
+                    viewport, edit_layer, layer.region.size
             )
 
             # 2. Calcula a matriz que projeta este edit direto na tela
@@ -273,8 +327,9 @@ class ViewportRender:
             m_render = m_edit_viewport @ m_adjust
 
             # 6. Renderização cirúrgica
+            src_image = Image(pixels, edit_layer.image.format)
             edit_data = render_patch(
-                edit_layer, m_render, dest_region, layer._warp_mode, interp,
+                src_image, m_render, dest_region, layer._warp_mode, interp,
             )
 
             if edit_data is None:
@@ -292,8 +347,9 @@ class ViewportRender:
         return layer_image
 
     def _final_region(self, layer: Layer, viewport: Viewport):
-        m_view = viewport.roi_matrix @ viewport.fit_matrix(layer.region.size)
-        m_global = m_view @ mat_translation(*layer.region.top_left)
+        # m_view = viewport.roi_matrix @ viewport.fit_matrix(layer.region.size)
+        m_view = viewport.roi_matrix @ viewport.fit_matrix(layer.canvas_size)
+        m_global = m_view @ mat_global(layer)
         return bbox_to_region(calculate_new_bbox(m_global, layer.region.size))
 
     def render_area(
@@ -317,8 +373,51 @@ class ViewportRender:
                 image = self.__flatten_edits(layer, viewport, layer_image, render_region, interp)
                 if viewport.scale.sx == 1.0:
                     self._cache[layer._id] = image
+
+                # Cria a miniatura do layer
+                layer._opacity_mask = generate_opacity_mask(image, render_region, viewport.size, self._target_size)
+
                 return image
 
             elif layer._id in self._cache:
                 view = final_region.overlap_with(render_region)
-                return self._cache[layer._id].crop(view)
+                image = self._cache[layer._id].crop(view)
+
+                # Cria a miniatura do layer
+                layer._opacity_mask = generate_opacity_mask(image, render_region, viewport.size, self._target_size)
+
+                return image
+
+    def render_scene(
+        self,
+        layers: Iterable[Layer],
+        viewport: Viewport,
+        interp: InterpolationOption = InterpolationOption.LANCZOS
+    ) -> Image:
+
+        target = (32, 32)
+        images = []
+        miniview = np.zeros(target)
+
+        for layer in layers:
+            if layer.visible is False:
+                continue
+
+            image = self.render_area(layer, viewport, interp)
+
+            if image:
+                images.append((layer, image))
+                np.maximum(miniview, layer._opacity_mask, out=miniview)
+
+                if np.all(miniview == 255):
+                    break
+
+        composition = Image.new(viewport.size, ImageFormat.RGBA)
+        for layer, image in reversed(images):
+            final_region = self._final_region(layer, viewport)
+            render_region = self.__render_region(final_region, viewport.region)
+            blend = BLEND_MODE.get(layer.blend_mode)
+            print('final_region', final_region)
+            print('render_region', render_region)
+            blend(composition.view(render_region), image, layer.opacity)
+        return composition
