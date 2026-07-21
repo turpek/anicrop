@@ -9,9 +9,11 @@ description = "Programa para fazer stitch de animes"
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
+    "numcodecs>=0.16.5",
     "numpy>=2.4.2",
     "opencv-python>=4.13.0.92",
     "ovld>=0.5.14",
+    "zarr>=3.2.1",
 ]
 
 [dependency-groups]
@@ -24,14 +26,7 @@ dev = [
     "pytest>=9.0.2",
     "pytest-cov>=7.0.0",
     "pytest-mock>=3.15.1",
-    "ruff>=0.15.2",
 ]
-
-[tool.ruff]
-line-length = 88
-
-[tool.ruff.lint]
-select = ["E", "W", "F", "I", "B", "UP"]
 
 [tool.pytest.ini_options]
 pythonpath = ["src"]

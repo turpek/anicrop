@@ -1,3 +1,4 @@
+from abc import ABC, abstractmethod
 from anicrop.blend import BLEND_MODE
 from anicrop.enums import InterpolationOption, RenderFlags, WarpMode
 from anicrop.image import Image, ImageFormat
@@ -67,7 +68,8 @@ def render_patch(
 ):
 
     # 1. Projeta a BBox global de volta para a imagem original do Edit
-    src_region = bbox_to_region(calculate_region_bbox(mat_inverse(matrix_global), dest_region))
+    src_region = bbox_to_region(calculate_region_bbox(
+        mat_inverse(matrix_global), dest_region))
     src_region = src_region.expand(all=interp.padding)
     limit_region = Region.from_size(*src_image.size)
 
@@ -85,7 +87,8 @@ def render_patch(
 
         # Da direita para esquerda, pega a posição local do recorte,
         # transforma em global e leva para a origem
-        M_cv2 = (M_dst_offset_inv @ matrix_global @ M_src_offset).astype(np.float64)
+        M_cv2 = (M_dst_offset_inv @ matrix_global @
+                 M_src_offset).astype(np.float64)
 
         warp = WARP_MODE.get(warp_mode, warp_affine)
         return warp(src_data, M_cv2, dest_region.size, interp)
@@ -117,7 +120,8 @@ def generate_opacity_mask(
 
         # A erosão propaga os pixels de menor opacidade (mais escuros)
         eroded = cv2.erode(alpha_origin, kernel)
-        mini_mask = cv2.resize(eroded, (tw_img, th_img), interpolation=cv2.INTER_NEAREST)
+        mini_mask = cv2.resize(eroded, (tw_img, th_img),
+                               interpolation=cv2.INTER_NEAREST)
     else:
         mini_mask = np.full((th_img, tw_img), 255, dtype=np.uint8)
 
@@ -141,6 +145,116 @@ def generate_opacity_mask(
         eroded_alpha[sy:ey, sx:ex] = mini_mask[my1:my2, mx1:mx2]
 
     return eroded_alpha
+
+
+class BaseRenderPlan(ABC):
+
+    def __init__(self, bounds: Region, view_region: None | Region, matrix: None | np.ndarray = None):
+        self._bounds = bounds
+        self._matrix = matrix if matrix is not None else np.identity(
+            3, dtype=np.float32)
+        self._dst_region = self._render_region(
+            self.bounds, view_region)
+        self._src_region = self._view_region(
+            self.bounds, self.dst_region)
+
+    @abstractmethod
+    def _render_region(self, final_region: Region, view_region: Region) -> None | Region:
+        ...
+
+    def _view_region(self, bounds: Region, dst_region: None | Region) -> None | Region:
+        if dst_region and bounds.overlaps(dst_region):
+            return bounds.overlap_with(dst_region)
+
+    @property
+    def bounds(self) -> Region:
+        return self._bounds
+
+    @property
+    def dst_region(self) -> None | Region:
+        return self._dst_region
+
+    @property
+    def src_region(self) -> None | Region:
+        return self._src_region
+
+    @property
+    def matrix(self) -> np.ndarray:
+        return self._matrix
+
+
+class ViewportPlan(BaseRenderPlan):
+    def __init__(
+        self,
+        layer: Layer,
+        viewport: Viewport,
+        local: bool = False,
+    ):
+        self.layer = layer
+        self.viewport = viewport
+        self.local = local
+
+        m_view = viewport.roi_matrix @ viewport.fit_matrix(layer.canvas_size)
+
+        if local:
+            # 1. ESTADO LOCAL NA VIEWPORT (Mexicano Deitado na Tela com Zoom/Pan da Câmera):
+            matrix = m_view
+        else:
+            # 2. ESTADO GLOBAL NA VIEWPORT (Mexicano Em Pé na Tela com Zoom/Pan da Câmera):
+            matrix = m_view @ mat_global(layer)
+
+        bounds = bbox_to_region(
+            calculate_new_bbox(matrix, layer.region.size))
+
+        super().__init__(bounds, viewport.region, matrix=matrix)
+
+    def _render_region(self, final_region: Region, view_region: Optional[Region]) -> Optional[Region]:
+        if view_region is not None and view_region.overlaps(final_region):
+            return view_region & final_region
+        return None
+        return None
+
+
+class CanvasPlan(BaseRenderPlan):
+    def __init__(
+        self,
+        layer: Layer,
+        view_region: Optional[Region] = None,
+        local: bool = False,
+    ):
+        self.layer = layer
+        self.local = local
+
+        if local:
+            # 1. ESTADO LOCAL (Mexicano Deitado):
+            bounds = Region.from_size(*layer.region.size)
+            matrix = np.identity(3, dtype=np.float32)
+
+            # Se veio uma view_region do Canvas, levamos ela para o espaço local usando a inversa
+            if view_region is not None:
+                m_layer_inv = mat_inverse(mat_global(layer))
+                view_target = bbox_to_region(
+                    calculate_region_bbox(m_layer_inv, view_region))
+            else:
+                view_target = None
+        else:
+            # 2. ESTADO GLOBAL (Mexicano Em Pé):
+            bounds = layer.global_region
+            matrix = mat_global(layer)
+            view_target = view_region
+
+        super().__init__(bounds, view_target, matrix=matrix)
+
+    def _render_region(self, final_region: Region, view_region: Optional[Region]) -> Optional[Region]:
+        if not view_region:
+            return final_region
+        elif view_region.overlaps(final_region):
+            return view_region & final_region
+        return None
+
+    @property
+    def matrix(self):
+        return self._matrix
 
 
 class LODManager:
@@ -185,97 +299,14 @@ class LODManager:
         # garante que a identidade do objeto é suficiente para o cache.
         if edit_layer not in cache_dict:
             img = edit_layer.image[...]
-            new_size = (int(img.shape[1] // factor), int(img.shape[0] // factor))
-            cache_dict[edit_layer] = cv2.resize(img, new_size, interpolation=cv2.INTER_AREA)
+            new_size = (int(img.shape[1] // factor),
+                        int(img.shape[0] // factor))
+            cache_dict[edit_layer] = cv2.resize(
+                img, new_size, interpolation=cv2.INTER_AREA)
 
         cached_data = cache_dict[edit_layer]
         m_adjust = mat_scale(factor, factor)
         return cached_data, m_adjust
-
-
-class LayerRender:
-
-    def __init__(self):
-        self._cache = weakref.WeakKeyDictionary()
-
-    def __flatten_edits(
-        self,
-        layer: Layer,
-        layer_image: Image,
-        render_region: Region,
-        interp: InterpolationOption,
-    ) -> Image:
-
-        m_layer_global = mat_global(layer)
-
-        for edit_layer in layer._edits:
-
-            # Calcula o bbox global do edit
-            m_edit_global = m_layer_global @ edit_layer.local_matrix
-            edit_global_bbox = bbox_to_region(
-                calculate_new_bbox(m_edit_global, edit_layer.image.size)
-            )
-
-            if not edit_global_bbox.overlaps(render_region):
-                continue
-
-            dest_region = edit_global_bbox & render_region
-
-            edit_data = render_patch(
-                edit_layer.image, m_edit_global, dest_region, layer._warp_mode, interp,
-            )
-            if edit_data is None:
-                continue
-
-            edit_image = Image(edit_data, edit_layer.image.format)
-
-            blend_region = dest_region - render_region.top_left
-            blend = BLEND_MODE.get(edit_layer.blend_mode)
-
-            blend(layer_image.view(blend_region), edit_image)
-
-        return layer_image
-
-    def __render_region(self, final_region, view_region) -> None | Region:
-        if not view_region:
-            return final_region
-        elif view_region.overlaps(final_region):
-            return view_region & final_region
-
-    def render_area(
-        self,
-        layer: Layer,
-        view_region: Optional[Region] = None,
-        interp: InterpolationOption = InterpolationOption.LANCZOS
-    ) -> Image | None:
-
-        flags = layer._resolve_render()
-        # BBox global do layer
-        final_region = layer.global_region
-        render_region = self.__render_region(final_region, view_region)
-
-        if render_region:
-
-            if flags & RenderFlags.PIXELS or layer._id not in self._cache:
-                size = render_region.size
-                layer_image = Image.new(size, layer.format)
-                return self.__flatten_edits(layer, layer_image, render_region, interp)
-
-            elif layer._id in self._cache:
-                view = final_region.overlap_with(render_region)
-                return self._cache[layer._id].crop(view)
-
-    def render(
-        self,
-        layer: Layer,
-        interp: InterpolationOption = InterpolationOption.LANCZOS
-    ) -> Image:
-
-        flags = layer._resolve_render()
-        if flags & RenderFlags.PIXELS:
-            self._cache[layer._id] = self.render_area(layer)
-        layer._commit_render_state()
-        return self._cache[layer._id].crop(...)
 
 
 class ViewportRender:
@@ -306,7 +337,7 @@ class ViewportRender:
             # 1. Resolve a fonte de pixels ideal (LOD) para o zoom atual
             # Passamos a escala combinada para a heurística
             pixels, m_adjust = self.lod_manager.get_source(
-                    viewport, edit_layer, layer.region.size
+                viewport, edit_layer, layer.region.size
             )
 
             # 2. Calcula a matriz que projeta este edit direto na tela
@@ -370,12 +401,14 @@ class ViewportRender:
             if flags & RenderFlags.PIXELS or layer._id not in self._cache:
                 size = render_region.size
                 layer_image = Image.new(size, layer.format)
-                image = self.__flatten_edits(layer, viewport, layer_image, render_region, interp)
+                image = self.__flatten_edits(
+                    layer, viewport, layer_image, render_region, interp)
                 if viewport.scale.sx == 1.0:
                     self._cache[layer._id] = image
 
                 # Cria a miniatura do layer
-                layer._opacity_mask = generate_opacity_mask(image, render_region, viewport.size, self._target_size)
+                layer._opacity_mask = generate_opacity_mask(
+                    image, render_region, viewport.size, self._target_size)
 
                 return image
 
@@ -384,7 +417,8 @@ class ViewportRender:
                 image = self._cache[layer._id].crop(view)
 
                 # Cria a miniatura do layer
-                layer._opacity_mask = generate_opacity_mask(image, render_region, viewport.size, self._target_size)
+                layer._opacity_mask = generate_opacity_mask(
+                    image, render_region, viewport.size, self._target_size)
 
                 return image
 
@@ -417,7 +451,88 @@ class ViewportRender:
             final_region = self._final_region(layer, viewport)
             render_region = self.__render_region(final_region, viewport.region)
             blend = BLEND_MODE.get(layer.blend_mode)
-            print('final_region', final_region)
-            print('render_region', render_region)
             blend(composition.view(render_region), image, layer.opacity)
         return composition
+
+
+def render_edit(
+    edit_layer: EditLayer,
+    plan: BaseRenderPlan,
+    warp_mode: WarpMode = WarpMode.AFFINE,
+    interp: InterpolationOption = InterpolationOption.LANCZOS
+) -> tuple[Image, Region] | None:
+    """Renderiza cirurgicamente um EditLayer para o espaço de destino definido pelo BaseRenderPlan."""
+    m_render = plan.matrix @ edit_layer.local_matrix
+
+    # Bounding box projetado no espaço de destino do plano
+    edit_bbox = bbox_to_region(
+        calculate_new_bbox(m_render, edit_layer.image.size)
+    )
+
+    # Culling: Descarta se a edição não colide com a região visível no destino
+    if plan.dst_region is None or not edit_bbox.overlaps(plan.dst_region):
+        return None
+
+    dest_region = edit_bbox & plan.dst_region
+
+    # Executa o warp da imagem da edição para a dest_region no espaço de destino
+    pixel_data = render_patch(
+        edit_layer.image,
+        m_render,
+        dest_region,
+        warp_mode,
+        interp
+    )
+
+    if pixel_data is None:
+        return None
+
+    warped_image = Image(pixel_data, edit_layer.image.format)
+    return warped_image, dest_region - plan.dst_region
+
+
+class CanvasRender:
+
+    def _flatten_edits(
+        self,
+        layer: Layer,
+        layer_image: Image,
+        plan: BaseRenderPlan,
+        interp: InterpolationOption,
+    ) -> Image:
+
+        for edit_layer in layer._edits:
+            result = render_edit(edit_layer, plan, interp=interp)
+            if result is None:
+                continue
+            edit_image, dst_region = result
+            blend = BLEND_MODE.get(edit_layer.blend_mode)
+            blend(layer_image.view(dst_region), edit_image)
+
+        return layer_image
+
+    def render_area(
+        self,
+        layer: Layer,
+        view_region: Optional[Region] = None,
+        interp: InterpolationOption = InterpolationOption.LANCZOS,
+        local: bool = False,
+    ) -> Image | None:
+
+        plan = CanvasPlan(layer, view_region, local)
+
+        dst_region = plan.dst_region
+        if dst_region is not None:
+            layer_image = Image.new(dst_region.size, layer.format)
+            return self._flatten_edits(layer, layer_image, plan, interp)
+
+        return None
+
+    def render(
+        self,
+        layer: Layer,
+        interp: InterpolationOption = InterpolationOption.LANCZOS,
+        local: bool = False,
+    ) -> Image | None:
+
+        return self.render_area(layer, interp=interp, local=local)

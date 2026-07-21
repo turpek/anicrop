@@ -1,10 +1,17 @@
 """Provides the Image class, a wrapper for image data processing."""
+
 from __future__ import annotations
 from anicrop.enums import ImageFormat
 from anicrop.spatial import Region, Span
 from numpy import ndarray
 from typing import Any
 import numpy as np
+import zarr
+import cv2
+import uuid
+from PIL import Image as PILImage
+from pathlib import Path
+from anicrop.persistence.manager import manager_global
 
 
 class Image:
@@ -14,11 +21,12 @@ class Image:
     convenient properties for accessing image dimensions (width, height, channels).
     It ensures that the underlying image data is a valid 2D or 3D array.
     """
-    def __init__(self, image: ndarray, image_format: ImageFormat):
+
+    def __init__(self, image: ndarray | zarr.core.Array, image_format: ImageFormat):
         """Initializes the Image object.
 
         Args:
-            image: A 2D (grayscale) or 3D (color) NumPy ndarray.
+            image: A 2D (grayscale) or 3D (color) NumPy ndarray or Zarr Array.
 
         Raises:
             ValueError: If the image array is not 2D/3D, has zero dimensions,
@@ -53,7 +61,8 @@ class Image:
 
         elif isinstance(key, tuple):
             if any(isinstance(arg, Region) for arg in key[1:]):
-                raise TypeError("Region argument is only valid at the first position")
+                raise TypeError(
+                    "Region argument is only valid at the first position")
 
             elif isinstance(key[0], Region):
                 return self.__region_to_slice(key[0]) + key[1:]
@@ -133,7 +142,9 @@ class Image:
         return self._format.has_alpha
 
     @classmethod
-    def new(cls, size: tuple[int, int], fmt: ImageFormat, color: int | tuple[int, ...] = 0) -> Image:
+    def new(
+        cls, size: tuple[int, int], fmt: ImageFormat, color: int | tuple[int, ...] = 0
+    ) -> Image:
         """Creates a new Image with the specified dimensions and format.
 
         Args:
@@ -163,6 +174,109 @@ class Image:
     def crop(self, region: Ellipsis | Region) -> Image:
         return Image(self[region].copy(), self.format)
 
+    @classmethod
+    def open(cls, file_path: str | Path, image_format: ImageFormat) -> Image:
+        file_path = str(file_path)
+        with PILImage.open(file_path) as pil_img:
+            width, height = pil_img.size
+
+        if width >= 8192 or height >= 8192:
+            return cls._open_with_pillow_zarr(file_path, image_format)
+        return cls._open_with_opencv(file_path, image_format)
+
+    @classmethod
+    def _open_with_opencv(cls, file_path: str, image_format: ImageFormat) -> Image:
+        data = cv2.imread(file_path, cv2.IMREAD_UNCHANGED)
+        if data is None:
+            raise FileNotFoundError(f"Could not load image at {file_path}")
+
+        if data.ndim == 2:
+            loaded_channels = 1
+        else:
+            loaded_channels = data.shape[2]
+
+        if loaded_channels == 1:
+            if image_format == ImageFormat.GRAY:
+                pass
+            elif image_format == ImageFormat.GRAY_ALPHA:
+                alpha = np.full(data.shape, 255, dtype=np.uint8)
+                data = np.dstack([data, alpha])
+            elif image_format == ImageFormat.RGB:
+                data = cv2.cvtColor(data, cv2.COLOR_GRAY2RGB)
+            elif image_format in (ImageFormat.RGBA, ImageFormat.CMYK):
+                data = cv2.cvtColor(data, cv2.COLOR_GRAY2RGBA)
+        elif loaded_channels == 3:
+            if image_format == ImageFormat.GRAY:
+                data = cv2.cvtColor(data, cv2.COLOR_BGR2GRAY)
+            elif image_format == ImageFormat.GRAY_ALPHA:
+                gray = cv2.cvtColor(data, cv2.COLOR_BGR2GRAY)
+                alpha = np.full(gray.shape, 255, dtype=np.uint8)
+                data = np.dstack([gray, alpha])
+            elif image_format == ImageFormat.RGB:
+                data = cv2.cvtColor(data, cv2.COLOR_BGR2RGB)
+            elif image_format == ImageFormat.RGBA:
+                data = cv2.cvtColor(data, cv2.COLOR_BGR2RGBA)
+        elif loaded_channels == 4:
+            if image_format == ImageFormat.GRAY:
+                data = cv2.cvtColor(data, cv2.COLOR_BGRA2GRAY)
+            elif image_format == ImageFormat.GRAY_ALPHA:
+                gray = cv2.cvtColor(data, cv2.COLOR_BGRA2GRAY)
+                alpha = data[..., 3]
+                data = np.dstack([gray, alpha])
+            elif image_format == ImageFormat.RGB:
+                data = cv2.cvtColor(data, cv2.COLOR_BGRA2RGB)
+            elif image_format == ImageFormat.RGBA:
+                data = cv2.cvtColor(data, cv2.COLOR_BGRA2RGBA)
+
+        return cls(data, image_format)
+
+    @classmethod
+    def _open_with_pillow_zarr(cls, file_path: str, image_format: ImageFormat) -> Image:
+        mode_map = {
+            ImageFormat.GRAY: 'L',
+            ImageFormat.GRAY_ALPHA: 'LA',
+            ImageFormat.RGB: 'RGB',
+            ImageFormat.RGBA: 'RGBA',
+            ImageFormat.CMYK: 'CMYK',
+        }
+        mode = mode_map.get(image_format)
+
+        zarr_dir = manager_global.workspace_path / f"{uuid.uuid4().hex}.zarr"
+
+        with PILImage.open(file_path) as pil_img:
+            if mode:
+                pil_img = pil_img.convert(mode)
+
+            width, height = pil_img.size
+            channels = image_format.channels
+
+            zarr_shape = (height, width, channels)
+            zarr_chunks = (512, 512, channels)
+
+            z_arr = zarr.open(
+                str(zarr_dir),
+                mode="w",
+                shape=zarr_shape,
+                chunks=zarr_chunks,
+                dtype=np.uint8,
+            )
+
+            chunk_size = 512
+            for y in range(0, height, chunk_size):
+                for x in range(0, width, chunk_size):
+                    y_end = min(y + chunk_size, height)
+                    x_end = min(x + chunk_size, width)
+                    box = (x, y, x_end, y_end)
+                    tile = pil_img.crop(box)
+                    tile_np = np.array(tile)
+
+                    if tile_np.ndim == 2:
+                        tile_np = tile_np[..., np.newaxis]
+
+                    z_arr[y:y_end, x:x_end] = tile_np
+
+        return cls(zarr.open(str(zarr_dir), mode="r"), image_format)
+
 
 def calculate_content_bbox(image: Image) -> Region:
     """Calculates the bounding box of the non-transparent content.
@@ -186,7 +300,8 @@ def calculate_content_bbox(image: Image) -> Region:
 
     alpha = image[..., -1]
     if not np.any(alpha):
-        raise ValueError("EditLayer cannot be created from a fully transparent image.")
+        raise ValueError(
+            "EditLayer cannot be created from a fully transparent image.")
     axis_y, axis_x = np.where(alpha > 0)
 
     start_x, end_x = int(axis_x.min()), int(axis_x.max())

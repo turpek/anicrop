@@ -2,7 +2,7 @@ from anicrop.blend import BLEND_MODE
 from anicrop.enums import BlendMode, InterpolationOption as IO
 from anicrop.layer import Layer
 from anicrop.image import Image
-from anicrop.render import LayerRender
+from anicrop.render import CanvasRender
 
 
 def merge_down(layer_up: Layer, layer_down: Layer) -> Layer:
@@ -13,7 +13,7 @@ def merge_down(layer_up: Layer, layer_down: Layer) -> Layer:
 
     canvas = Image.new(canvas_region.size, layer_up.format)
 
-    render = LayerRender()
+    render = CanvasRender()
     image_up = render.render(layer_up)
     image_down = render.render(layer_down)
 
