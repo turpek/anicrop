@@ -5,12 +5,18 @@ from numpy import ndarray
 
 
 class Viewport:
-    def __init__(self, size, fit_scale):
+    def __init__(
+        self,
+        size: tuple[int, int],
+        fit_scale: float = 1.0,
+        bg_color: tuple[int, int, int, int] = (204, 204, 204, 255),
+    ):
         self._region = Region.from_size(*size)
         self._scale = Scale(1, 1)
         self._fit = Scale(fit_scale, fit_scale)
+        self.bg_color = bg_color
 
-    def __repr__(self) -> None:
+    def __repr__(self) -> str:
         return f'Viewport(region={self.region}, scale={self.scale})'
 
     @property

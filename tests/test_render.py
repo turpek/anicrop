@@ -9,6 +9,7 @@ from anicrop.render import (
     ViewportPlan,
     CanvasPlan,
     render_edit,
+    render_image,
 )
 from anicrop.viewport import Viewport
 from anicrop.spatial import Region, Span
@@ -392,7 +393,7 @@ def test_render_scene_culling_no_occlusion(mocker):
 
     rendered = []
 
-    def mock_render(layer, vp, interp=InterpolationOption.LANCZOS):
+    def mock_render(layer, plan, interp=InterpolationOption.LANCZOS):
         rendered.append(layer)
         layer._opacity_mask = np.zeros((32, 32), dtype=np.uint8)
         return make_img(w=800, h=600)
@@ -417,7 +418,7 @@ def test_render_scene_culling_total_occlusion_top_layer(mocker):
 
     rendered = []
 
-    def mock_render(layer, vp, interp=InterpolationOption.LANCZOS):
+    def mock_render(layer, plan, interp=InterpolationOption.LANCZOS):
         rendered.append(layer)
         if layer == layers[0]:
             mask_val = int(255 * layer.opacity)
@@ -449,7 +450,7 @@ def test_render_scene_culling_occlusion_middle_layer(mocker):
 
     rendered = []
 
-    def mock_render(layer, vp, interp=InterpolationOption.LANCZOS):
+    def mock_render(layer, plan, interp=InterpolationOption.LANCZOS):
         rendered.append(layer)
         if layer == layers[1]:  # O meio é opaco
             mask_val = int(255 * layer.opacity)
@@ -478,7 +479,7 @@ def test_render_scene_culling_top_layer_opacity_lt_1(mocker):
 
     rendered = []
 
-    def mock_render(layer, vp, interp=InterpolationOption.LANCZOS):
+    def mock_render(layer, plan, interp=InterpolationOption.LANCZOS):
         rendered.append(layer)
         mask_val = int(255 * layer.opacity)
         layer._opacity_mask = np.full((32, 32), mask_val, dtype=np.uint8)
@@ -522,7 +523,7 @@ def test_render_scene_integration_positioning():
     assert comp.width == 800
     assert comp.height == 600
 
-    final_region = vr._final_region(logo, viewport)
+    final_region = ViewportPlan(logo, viewport).dst_region
     logo_tela_x, logo_tela_y = final_region.top_left
 
     # Validação 1: O canto superior esquerdo (0,0) da tela DEVE ser Azul!
@@ -874,3 +875,18 @@ def test_viewport_plan_local_state():
 
     # render_edit retorna a dest_region relativa ao plan.dst_region local na tela: (430-350, 290-250) = (80, 40, 20, 20)
     assert dest_region == Region(Span(80, 20), Span(40, 20))
+
+
+def test_render_image_direto():
+    """Testa a função atômica render_image diretamente com uma Image e um CanvasPlan."""
+    img = make_img(w=50, h=50, color=(0, 255, 0, 255))
+    layer = make_layer(w=50, h=50, color=(0, 255, 0, 255))
+    plan = CanvasPlan(layer)
+    m_local = np.identity(3, dtype=np.float32)
+
+    result = render_image(img, plan, m_local, interp=InterpolationOption.NEAREST)
+    assert result is not None
+    warped_image, dest_region = result
+    assert warped_image.width == 50
+    assert warped_image.height == 50
+    assert dest_region == Region(Span(0, 50), Span(0, 50))

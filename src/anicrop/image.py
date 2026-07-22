@@ -141,32 +141,61 @@ class Image:
     def has_alpha(self) -> bool:
         return self._format.has_alpha
 
+    @property
+    def is_zarr(self) -> bool:
+        """Indica se os dados da imagem estão armazenados em um array Zarr."""
+        return not isinstance(self._data, np.ndarray)
+
     @classmethod
     def new(
-        cls, size: tuple[int, int], fmt: ImageFormat, color: int | tuple[int, ...] = 0
+        cls,
+        size: tuple[int, int],
+        fmt: ImageFormat,
+        color: int | tuple[int, ...] = 0,
+        threshold_pixels: int = 4096 * 4096,
     ) -> Image:
         """Creates a new Image with the specified dimensions and format.
 
-        Args:
-            size: A tuple (width, height) specifying the image dimensions.
-            fmt: The ImageFormat (e.g., RGBA, RGB, GRAY).
-            color: The initial fill color. Can be a single integer (applied to all channels)
-                   or a tuple matching the number of channels. Defaults to 0 (black/transparent).
-
-        Returns:
-            A new Image instance.
+        Uses Zarr if width * height > threshold_pixels, or NumPy ndarray otherwise.
         """
         width, height = size
         channels = fmt.channels
-
-        # Cria o array vazio com o shape correto
-        # Nota: Imagens com 1 canal são tratadas como 3D (H, W, 1) na classe Image.__init__
-        # Mas np.full pode criar 2D se quisermos. Para consistência com __init__, vamos criar 3D logo.
         shape = (height, width, channels)
 
-        buffer = np.full(shape, color, dtype=np.uint8)
+        if width * height > threshold_pixels:
+            import uuid
+            import zarr
+            from anicrop.persistence.manager import manager_global
 
+            zarr_dir = manager_global.workspace_path / f"{uuid.uuid4().hex}.zarr"
+            zarr_chunks = (min(512, height), min(512, width), channels)
+            z_arr = zarr.open(
+                str(zarr_dir),
+                mode="w",
+                shape=shape,
+                chunks=zarr_chunks,
+                dtype=np.uint8,
+            )
+            if color != 0:
+                z_arr[...] = color
+            return cls(z_arr, fmt)
+
+        buffer = np.full(shape, color, dtype=np.uint8)
         return cls(buffer, fmt)
+
+    def resize(self, target_size: tuple[int, int]) -> Image:
+        """Redimensiona a imagem usando a fábrica inteligente Image.new."""
+        new_w, new_h = target_size
+        img_data = self[...]
+        resized_data = cv2.resize(
+            img_data, (new_w, new_h), interpolation=cv2.INTER_AREA)
+
+        if resized_data.ndim == 2:
+            resized_data = resized_data[..., np.newaxis]
+
+        new_img = Image.new((new_w, new_h), self._format)
+        new_img[...] = resized_data
+        return new_img
 
     def view(self, region: Ellipsis | Region) -> Image:
         return Image(self[region], self.format)

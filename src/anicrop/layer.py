@@ -9,6 +9,7 @@ from anicrop.transform import (
     calculate_new_bbox_from_layer,
     mat_global,
     mat_inverse,
+    mat_scale,
     mat_position,
     Transform,
     TransformComposer,
@@ -16,6 +17,8 @@ from anicrop.transform import (
 from collections import deque
 from typing import Optional
 
+import math
+import cv2
 import numpy as np
 
 
@@ -29,6 +32,7 @@ class EditLayer:
         opacity: The opacity of this specific edit (0.0 to 1.0).
         blend_mode: How this edit blends with the base layer.
     """
+
     def __init__(
         self,
         image: Image,
@@ -43,6 +47,30 @@ class EditLayer:
         self.blend_mode = blend_mode
         self.name = name
         self._matrix = matrix
+        self._lod_cache: dict[int, Image] = {}
+
+        if self._image.is_zarr:
+            self._prebuild_lod_cache()
+
+    def _resize(self, lod_factor: float) -> Image:
+        new_w = max(1, int(self._image.width * lod_factor))
+        new_h = max(1, int(self._image.height * lod_factor))
+        return self._image.resize((new_w, new_h))
+
+    def _prebuild_lod_cache(self) -> None:
+        """Pré-constrói a pirâmide de LODs para imagens Zarr usando a fábrica inteligente Image.resize."""
+        w, h = self._image.size
+        n = 1
+        while True:
+            lod_factor = 2.0 ** (-n)
+            new_w = max(1, int(w * lod_factor))
+            new_h = max(1, int(h * lod_factor))
+
+            if new_w < 64 or new_h < 64:
+                break
+
+            self._lod_cache[n] = self._image.resize((new_w, new_h))
+            n += 1
 
     @property
     def region(self) -> Region:
@@ -62,6 +90,35 @@ class EditLayer:
 
     def offset(self, offset_x: int, offset_y: int) -> None:
         self._region += (offset_x, offset_y)
+
+    def clear_lod_cache(self) -> None:
+        """Limpa o cache de LOD de imagens grandes."""
+        self._lod_cache.clear()
+
+    def get_lod(self, scale_factor: float) -> tuple[Image, np.ndarray]:
+        """Returns (lod_image, m_local) based on the target scale factor.
+
+        Rules:
+        - If scale_factor >= 1.0 or n <= 0, returns the original image and original local_matrix.
+        - If scale_factor < 1.0, calculates discrete level n = floor(-log2(scale_factor)) and lod_factor = 2^-n.
+        - Computes the adjusted local matrix (local_matrix @ m_adjust) compensating for LOD dimensions.
+        - Caches and reuses generated LOD images in _lod_cache.
+        """
+
+        n = math.floor(-math.log2(scale_factor))
+
+        if scale_factor >= 1.0 or n <= 0:
+            return self._image, self.local_matrix
+
+        lod_factor = 2.0 ** (-n)
+        m_adjust = mat_scale(1.0 / lod_factor, 1.0 / lod_factor)
+        m_local = self.local_matrix @ m_adjust
+
+        if n in self._lod_cache:
+            return self._lod_cache[n], m_local
+
+        lod_image = self._resize(lod_factor)
+        return lod_image, m_local
 
 
 class Layer:

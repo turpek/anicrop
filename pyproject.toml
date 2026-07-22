@@ -30,3 +30,6 @@ dev = [
 
 [tool.pytest.ini_options]
 pythonpath = ["src"]
+
+[tool.autopep8]
+max_line_length = 89

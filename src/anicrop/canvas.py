@@ -8,3 +8,7 @@ class Canvas:
     @property
     def size(self) -> tuple[int, int]:
         return self._region.size
+
+    @property
+    def region(self) -> Region:
+        return self._region
