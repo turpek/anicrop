@@ -365,3 +365,19 @@ def test_Region_overlap_with_regionB_nao_sobreposto_regionA():
         regionA = Region(Span(0, 1920), Span(437, 1080))
         regionB = Region(Span(2206, 1639), Span(1880, 1220))
         regionB.overlap_with(regionA)
+
+
+def test_Span_offset_to_anchor_end():
+    span1 = Span(-4, 58)  # end = 54
+    span2 = Span(0, 54)    # end = 54
+    assert span1.offset_to(span2, anchor_end=True) == 0
+
+    span3 = Span(0, 50)    # end = 50
+    assert span1.offset_to(span3, anchor_end=True) == -4
+
+
+def test_Region_offset_to_anchor_end():
+    region1 = Region(Span(-4, 58), Span(-4, 58))  # end = (54, 54)
+    region2 = Region(Span(0, 50), Span(0, 50))    # end = (50, 50)
+    result = region1.offset_to(region2, anchor_end=True)
+    assert result == Vector(-4, -4)

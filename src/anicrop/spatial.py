@@ -212,20 +212,24 @@ class Span:
 
         return Span(start, end - start)
 
-    def offset_to(self, span: Span) -> int:
-        """Calculates the offset between the start point of this span and another's.
+    def offset_to(self, span: Span, anchor_end: bool = False) -> int:
+        """Calculates the offset distance between this span and another.
 
-        As per the `context.md` specification, this behavior corresponds to the
-        `Span - Span` operation. The result can be negative, indicating the
-        relative position.
+        When `anchor_end` is False (default), calculates the offset between
+        start points (`span.start - self.start`).
+        When `anchor_end` is True, calculates the offset between end points
+        (`span.end - self.end`).
 
         Args:
-            span: The other Span object.
+            span: The target Span object.
+            anchor_end: If True, calculates the offset between end points instead of start points.
 
         Returns:
-            An integer representing the offset from this span's start to the other's.
+            An integer representing the signed offset from this span to the target span.
         """
 
+        if anchor_end:
+            return span.end - self.end
         return span.start - self.start
 
 
@@ -355,8 +359,23 @@ class Region:
             top=top, bottom=bottom
         )
 
-    def offset_to(self, other: Region) -> Vector:
-        return Vector(self.x.offset_to(other.x), self.y.offset_to(other.y))
+    def offset_to(self, other: Region, anchor_end: bool = False) -> Vector:
+        """Calculates the 2D offset vector between this region and another.
+
+        When `anchor_end` is False (default), calculates offsets between top-left start points.
+        When `anchor_end` is True, calculates offsets between bottom-right end points.
+
+        Args:
+            other: The target Region object.
+            anchor_end: If True, calculates offsets between end points instead of start points.
+
+        Returns:
+            A Vector containing the (x, y) offset values.
+        """
+        return Vector(
+            self.x.offset_to(other.x, anchor_end=anchor_end),
+            self.y.offset_to(other.y, anchor_end=anchor_end)
+        )
 
     def overlaps(self, other: Region) -> bool:
         return self.x.overlaps(other.x) and self.y.overlaps(other.y)
