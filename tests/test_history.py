@@ -72,9 +72,6 @@ def test_GlobalHistory_undo_nao_vazia(mocker, history):
     history.push(FakeCommand, 'fake', mock_layer, 45)
     assert not history.undo_empty()
 
-    cmd = history._undo_stack[-1]
-    assert cmd.execute_count == 1
-
 
 def test_GlobalHistory_redo_nao_vazia(mocker, history):
     mock_layer = make_layer()
@@ -96,7 +93,7 @@ def test_GlobalHistory_push_mesmo_comando_mesmo_layer(mocker, history):
 
     assert len(history._undo_stack) == 1
     spy_update.assert_called_once_with(20)
-    assert cmd.execute_count == 2
+
 
 
 def test_GlobalHistory_push_mesmo_comando_mas_layer_diferente(mocker, history):

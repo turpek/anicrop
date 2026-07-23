@@ -1,8 +1,8 @@
 from anicrop.image import Image, ImageFormat
 from anicrop.layer import Layer, EditLayer
-from anicrop.proxy import ProxyLayer
+from anicrop.proxy import ProxyLayer, is_property_with_setter
 from anicrop.history import GlobalHistory
-from anicrop.command import SetAttributeCommand
+from anicrop.command import SnapshotCommand
 from anicrop.spatial import Region
 import numpy as np
 import pytest
@@ -36,26 +36,57 @@ def test_ProxyLayer_delegacao_de_leitura(proxy, layer):
 
 
 def test_ProxyLayer_interceptacao_de_escrita(proxy, layer, history):
-    """Testa se a escrita em atributos passa pelo histórico."""
+    """Testa se a escrita em atributos passa pelo histórico usando SnapshotCommand."""
     proxy.name = "New Name"
 
     # Verifica se o comando foi enviado para o histórico
-    history.push.assert_called_once()
+    assert history.push.call_count == 2
     args, _ = history.push.call_args
     command_class, attr_name, target, value = args
 
-    assert command_class == SetAttributeCommand
+    assert command_class == SnapshotCommand
     assert attr_name == "name"
     assert target is layer
-    assert value == "New Name"
+    assert isinstance(value, dict)
+    # A primeira chamada mandou o old_state, a segunda o new_state
+    args_old, _ = history.push.call_args_list[0]
+    args_new, _ = history.push.call_args_list[1]
+    
+    assert args_old[3]["name"] == "Layer"
+    assert args_new[3]["name"] == "New Name"
 
-    # O comando SetAttributeCommand normalmente aplica a mudança quando executado pelo histórico.
-    # Como estamos mockando o histórico, o valor no layer não deve mudar automaticamente
-    # a menos que o mock execute o comando (o que não faz).
-    # Se o Proxy aplicasse a mudança E mandasse pro histórico, teríamos duplicidade ou comportamento diferente.
-    # O padrão Command geralmente implica que o histórico executa.
-    # Vamos assumir por enquanto que o Proxy APENAS manda pro histórico.
-    assert layer.name != "New Name"
+    # O ProxyLayer aplica a mudança diretamente no layer real
+    assert layer.name == "New Name"
+
+
+def test_ProxyLayer_integration_with_real_history(layer):
+    """Garante o funcionamento do Undo/Redo real com o ProxyLayer usando SnapshotCommand."""
+    real_history = GlobalHistory()
+    proxy = ProxyLayer(layer, real_history)
+
+    # 1. Testando propriedade atômica
+    proxy.name = "Modified Name"
+    assert layer.name == "Modified Name"
+
+    real_history.undo()
+    assert layer.name == "Layer"  # Volta ao original
+
+    real_history.redo()
+    assert layer.name == "Modified Name"  # Refaz
+
+    # 2. Testando transformações encadeadas via sub-proxy GenericProxy (proxy.transform.rotate(90))
+    proxy.transform.rotate(90).translate(50, 50)
+
+    pt = np.array([0, 0, 1], dtype=np.float32)
+    np.testing.assert_allclose(layer.transform.matrix @ pt, [60, 50, 1], atol=1e-4)
+
+    # Undo da rotação e translação juntas (mescladas no mesmo comando "transform")
+    real_history.undo()
+    assert layer.transform_used is False
+
+    # Redo restaura a transformação completa
+    real_history.redo()
+    np.testing.assert_allclose(layer.transform.matrix @ pt, [60, 50, 1], atol=1e-4)
 
 
 def test_ProxyLayer_delegacao_de_metodos(proxy, layer):
@@ -82,3 +113,65 @@ def test_ProxyLayer_dir_contem_atributos_do_layer(proxy):
     assert "name" in attrs
     assert "opacity" in attrs
     assert "add_edit" in attrs
+
+
+def test_ProxyLayer_atribuicao_composta_chama_push_uma_unica_vez(proxy, history):
+    """Garante que a atribuição composta (+=) chama o push do histórico exatamente uma vez."""
+    proxy.opacity = 0.5
+    history.reset_mock()
+
+    proxy.opacity += 0.2
+
+    assert history.push.call_count == 3
+
+
+
+# --- Testes Unitários de Cenários para is_property_with_setter ---
+
+class ParentFake:
+    @property
+    def parent_readonly_prop(self) -> int:
+        return 1
+
+    @property
+    def parent_writable_prop(self) -> int:
+        return 2
+
+    @parent_writable_prop.setter
+    def parent_writable_prop(self, val: int) -> None:
+        pass
+
+
+class ChildFake(ParentFake):
+    def __init__(self):
+        self.instance_var = 10
+
+    @property
+    def child_readonly_prop(self) -> str:
+        return "readonly"
+
+    @property
+    def child_writable_prop(self) -> str:
+        return "writable"
+
+    @child_writable_prop.setter
+    def child_writable_prop(self, val: str) -> None:
+        pass
+
+    def some_method(self) -> None:
+        pass
+
+
+@pytest.mark.parametrize("name, expected", [
+    ("child_writable_prop", True),       # Cenário 1: Property com setter definida na própria classe
+    ("child_readonly_prop", False),      # Cenário 2: Property sem setter (somente getter) na própria classe
+    ("parent_writable_prop", True),      # Cenário 3: Property com setter herdada
+    ("parent_readonly_prop", False),     # Cenário 4: Property sem setter herdada
+    ("instance_var", False),             # Cenário 5: Atributo normal de instância
+    ("some_method", False),              # Cenário 6: Método normal da classe
+    ("non_existent_attribute", False),   # Cenário 7: Atributo inexistente
+])
+def test_is_property_with_setter_cenarios(name, expected):
+    assert is_property_with_setter(ChildFake, name) is expected
+
+

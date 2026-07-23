@@ -33,15 +33,14 @@ class GlobalHistory:
             return True
         return False
 
-    def push(self, command_cls: type[Command], name: str, layer: Layer, value: Any) -> None:
+    def push(self, command_cls: type[Command], name: str, layer: Layer, value: Any = None) -> None:
         self._clear_redo()
 
         if self._can_instantiate_command(name, layer):
             self.commit()
-            cmd = self._instantiate_command(command_cls, name, layer, value)
+            self._instantiate_command(command_cls, name, layer, value)
         else:
-            cmd = self._update_command(value)
-        cmd.execute()
+            self._update_command(value)
 
     def undo(self) -> None:
         if self.undo_empty():

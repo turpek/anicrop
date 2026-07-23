@@ -299,6 +299,22 @@ class Composer(ABC):
     def matrix(self) -> np.ndarray:
         return self._translation @ self._distortion
 
+    def copy(self) -> Self:
+        """Cria uma cópia independente e profunda deste Composer."""
+        new_composer = self.__class__(self.size)
+        new_composer._distortion = np.copy(self._distortion)
+        new_composer._translation = np.copy(self._translation)
+        new_composer._region = self._region
+        return new_composer
+
+    def copy_from(self, other: Self) -> None:
+        """Copia o estado de outro Composer para este objeto in-place."""
+        self._distortion = np.copy(other._distortion)
+        self._translation = np.copy(other._translation)
+        self._region = other._region
+
+
+
     @property
     def size(self) -> tuple[int, int]:
         return self.region.size
