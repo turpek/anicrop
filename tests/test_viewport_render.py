@@ -5,7 +5,7 @@ from anicrop.layer import Layer
 from anicrop.spatial import Region, Span
 from anicrop.image import Image, ImageFormat
 from anicrop.viewport import Viewport
-from anicrop.transform import Transform
+from anicrop.transform import TransformRel
 
 
 def test_viewport_render_area_returns_image():

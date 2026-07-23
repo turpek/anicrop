@@ -1,7 +1,8 @@
 from __future__ import annotations
 from abc import ABC, abstractmethod
+from collections.abc import Callable
 from anicrop.spatial import Region
-from typing import TYPE_CHECKING
+from typing import Self, TYPE_CHECKING
 
 import numpy as np
 
@@ -99,7 +100,25 @@ def calculate_new_bbox_from_layer(layer) -> tuple[float, float, float, float]:
     return calculate_new_bbox(mat_global(layer), layer.region.size)
 
 
-def create_pivot_transform(
+def create_pivot_transform_abs(
+    matrix_pure: np.ndarray,
+    w: float,
+    h: float,
+    px: float = 0,
+    py: float = 0,
+    *args,
+) -> np.ndarray:
+    """Gera o Sanduíche: Ida ao Pivô -> Transformação -> Volta do Pivô"""
+
+    # 2. Matrizes de Ida e Volta
+    T_neg = mat_translation(-px, -py)
+    T_pos = mat_translation(px, py)
+
+    # 3. O Sanduíche
+    return T_pos @ matrix_pure @ T_neg
+
+
+def create_pivot_transform_rel(
     matrix_pure: np.ndarray,
     w: float,
     h: float,
@@ -110,16 +129,8 @@ def create_pivot_transform(
 ) -> np.ndarray:
     """Gera o Sanduíche: Ida ao Pivô -> Transformação -> Volta do Pivô"""
 
-    # 1. Calcula pivô em pixels
     px, py = x + w * px_rel, y + h * py_rel
-
-    # 2. Matrizes de Ida e Volta
-    T_neg = mat_translation(-px, -py)
-    T_pos = mat_translation(px, py)
-
-    # 3. O Sanduíche
-    return T_pos @ matrix_pure @ T_neg
-    # return P_pos @ matrix_pure @ P_neg
+    return create_pivot_transform_abs(matrix_pure, w, h, px, py)
 
 
 def mat_translation(x: float, y: float) -> np.ndarray:
@@ -154,7 +165,7 @@ def mat_scale(sx: float, sy: float) -> np.ndarray:
 
 
 def mat_pivot(transform: TransformState, size: tuple[int, int]) -> np.ndarray:
-    return create_pivot_transform(transform.matrix, *size, *transform.pivot)
+    return create_pivot_transform_rel(transform.matrix, *size, *transform.pivot)
 
 
 def mat_global_state(layer: Layer) -> np.ndarray:
@@ -216,7 +227,7 @@ def mat_inverse(matrix: np.ndarray) -> np.ndarray:
 class TransformBase(ABC):
 
     @abstractmethod
-    def matrix(self, size: tuple[int, int]) -> np.ndarray:
+    def matrix(self, size: tuple[int, int] = (0, 0), top_left: tuple[int, int] = (0, 0)) -> np.ndarray:
         ...
 
 
@@ -226,13 +237,17 @@ class TRotate(TransformBase):
             angle: float,
             pivot_x: float = 0.5,
             pivot_y: float = 0.5,
+            pivot_fn: Callable = create_pivot_transform_rel
     ):
         self._angle = angle
         self._pivots = pivot_x, pivot_y
+        self._pivot_fn = pivot_fn
 
-    def matrix(self, size: tuple[int, int], top_left: tuple[int, int] = (0, 0)) -> np.ndarray:
-        return create_pivot_transform(
-            mat_rotation(self._angle), *size, *self._pivots, *top_left
+    def matrix(self, size: tuple[int, int] = (0, 0), top_left: tuple[int, int] = (0, 0)) -> np.ndarray:
+        w, h = size
+        x, y = top_left
+        return self._pivot_fn(
+            mat_rotation(self._angle), w, h, *self._pivots, x, y
         )
 
 
@@ -243,16 +258,20 @@ class TScale(TransformBase):
         sy: float,
         pivot_x: float = 0.5,
         pivot_y: float = 0.5,
+        pivot_fn: Callable = create_pivot_transform_rel
     ):
         if sx == 0 or sy == 0:
             raise ValueError("Scale factors cannot be zero.")
         self._sx = sx
         self._sy = sy
         self._pivots = pivot_x, pivot_y
+        self._pivot_fn = pivot_fn
 
-    def matrix(self, size: tuple[int, int], top_left: tuple[int, int] = (0, 0)) -> np.ndarray:
-        return create_pivot_transform(
-            mat_scale(self._sx, self._sy), *size, *self._pivots, *top_left
+    def matrix(self, size: tuple[int, int] = (0, 0), top_left: tuple[int, int] = (0, 0)) -> np.ndarray:
+        w, h = size
+        x, y = top_left
+        return self._pivot_fn(
+            mat_scale(self._sx, self._sy), w, h, *self._pivots, x, y
         )
 
 
@@ -265,21 +284,16 @@ class TTranslate(TransformBase):
         self._x = x
         self._y = y
 
-    def matrix(self, size: tuple[int, int], top_left: tuple[int, int] = (0, 0)) -> np.ndarray:
+    def matrix(self, size: tuple[int, int] = (0, 0), top_left: tuple[int, int] = (0, 0)) -> np.ndarray:
         return mat_translation(self._x, self._y)
 
 
-class TransformComposer:
+class Composer(ABC):
+
     def __init__(self, size: tuple[int, int]):
         self._distortion = np.identity(3, dtype=np.float32)
         self._region = Region.from_size(*size)
         self._translation = np.identity(3, dtype=np.float32)
-
-    def __get_bbox(self) -> tuple[tuple[float, float], tuple[float, float]]:
-        x, y, w, h = corners_to_bbox(
-            *calculate_new_corners(self._distortion, self.size)
-        )
-        return (x, y), (w, h)
 
     @property
     def matrix(self) -> np.ndarray:
@@ -293,12 +307,43 @@ class TransformComposer:
     def region(self) -> Region:
         return self._region
 
-    def rotate(
+    @abstractmethod
+    def rotate(self, angle: float, px: float, py: float) -> Self:
+        ...
+
+    @abstractmethod
+    def scale(self, sx: float, sy: float, px: float, py: float) -> Self:
+        ...
+
+    def translate(self, x: int = 0, y: int = 0) -> Self:
+        M_trans = TTranslate(x, y).matrix(self.size)
+        self._translation = M_trans @ self._translation
+        return self
+
+    def add_transform(
         self,
-        angle: float = 0,
-        pivot_x: float = 0.5,
-        pivot_y: float = 0.5,
-    ) -> TransformComposer:
+        transf: Transform,
+        reference_size: tuple[int, int] = None
+    ) -> Self:
+        ref_size = reference_size or self.size
+        self._distortion = transf._get_distortion(ref_size) @ self._distortion
+        self._translation = transf._get_translate(ref_size) @ self._translation
+        return self
+
+
+class ComposerRel(Composer):
+    def __init__(self, size: tuple[int, int]):
+        super().__init__(size)
+
+    def __get_bbox(self) -> tuple[tuple[float, float], tuple[float, float]]:
+        x, y, w, h = corners_to_bbox(
+            *calculate_new_corners(self._distortion, self.size)
+        )
+        return (x, y), (w, h)
+
+    def rotate(
+        self, angle: float = 0, pivot_x: float = 0.5, pivot_y: float = 0.5
+    ) -> ComposerRel:
 
         top_left, size = self.__get_bbox()
         M_rot = TRotate(angle, pivot_x, pivot_y).matrix(size, top_left)
@@ -306,31 +351,58 @@ class TransformComposer:
         return self
 
     def scale(
-        self,
-        sx: float = 1, sy: float = 1,
-        pivot_x: float = 0.5, pivot_y: float = 0.5
-    ) -> TransformComposer:
+        self, sx: float = 1, sy: float = 1, pivot_x: float = 0.5, pivot_y: float = 0.5,
+    ) -> ComposerRel:
 
         top_left, size = self.__get_bbox()
         M_scale = TScale(sx, sy, pivot_x, pivot_y).matrix(size, top_left)
         self._distortion = M_scale @ self._distortion
         return self
 
-    def translate(self, x: int = 0, y: int = 0) -> TransformComposer:
 
-        M_trans = TTranslate(x, y).matrix(self.size)
-        self._translation = M_trans @ self._translation
+class ComposerAbs(Composer):
+
+    def __init__(self, size: tuple[int, int]):
+        super().__init__(size)
+
+    def rotate(
+        self, angle: float = 0, px: float = 0.0, py: float = 0.0,
+    ) -> ComposerAbs:
+
+        M_rot = TRotate(angle, px, py, pivot_fn=create_pivot_transform_abs).matrix()
+        self._distortion = M_rot @ self._distortion
         return self
 
-    def _add_transform(self, transf: Transform, size: tuple[int, int]) -> None:
-        self._distortion = transf._get_distortion(size) @ self._distortion
-        self._translation = transf._get_translate() @ self._translation
+    def scale(
+        self, sx: float = 1, sy: float = 1, px: float = 0.0, py: float = 0.0,
+    ) -> ComposerAbs:
+
+        M_scale = TScale(sx, sy, px, py, pivot_fn=create_pivot_transform_abs).matrix()
+        self._distortion = M_scale @ self._distortion
+        return self
 
 
-class Transform:
+class Transform(ABC):
+    COMPOSER_CLS: type[Composer]
 
-    def __init__(self, intentions: list[TRotate | TScale] = [], translate: list[TTranslate] = []):
+    @classmethod
+    def relative(cls) -> TransformRel:
+        """Fábrica para criar uma cadeia de transformações de pivô relativo."""
+        return TransformRel()
 
+    @classmethod
+    def absolute(cls) -> TransformAbs:
+        """Fábrica para criar uma cadeia de transformações de pivô absoluto."""
+        return TransformAbs()
+
+    def create_composer(self, size: tuple[int, int]) -> Composer:
+        return self.COMPOSER_CLS(size)
+
+    def __init__(
+            self,
+            intentions: list[TRotate | TScale] = [],
+            translate: list[TTranslate] = []
+    ):
         if self._validate_list(intentions, TTranslate):
             raise TypeError("intentions list can only contain TRotate or TScale")
         elif self._validate_list(translate, (TRotate, TScale)):
@@ -339,14 +411,76 @@ class Transform:
         self._intentions = intentions
         self._translate = translate
 
+    def _validate_list(self, transf: list, cls_types: type | tuple[type]) -> bool:
+        for op in transf:
+            if isinstance(op, cls_types):
+                return True
+        return False
+
+    def _check_transform_list(self, transf: list[TransformBase]) -> bool:
+        return len(transf) == 0 or len(transf) == 1
+
+    def translate(self, x: int = 0, y: int = 0) -> Self:
+        new_translate = self._translate + [TTranslate(x, y)]
+        return self.__class__(self._intentions, new_translate)
+
+    @property
+    def has_distortion(self) -> bool:
+        return self._validate_list(self._intentions, (TRotate, TScale))
+
+    @abstractmethod
+    def _list_to_matrix(
+        self, size: tuple[int, int], matrix_list: list[TransformBase],
+    ) -> np.ndarray:
+        ...
+
+    def _get_first_transform(
+        self, size: tuple[int, int], transf: list[TransformBase],
+    ) -> np.ndarray:
+        if len(transf) == 0:
+            return np.identity(3, dtype=np.float32)
+        return transf[0].matrix(size)
+
+    def _get_translate(self, size: tuple[int, int] = (0, 0)) -> np.ndarray:
+        if self._check_transform_list(self._translate):
+            return self._get_first_transform(size, self._translate)
+        return self._list_to_matrix(size, self._translate)
+
+    def _get_distortion(self, size: tuple[int, int] = (0, 0)) -> np.ndarray:
+        if self._check_transform_list(self._intentions):
+            return self._get_first_transform(size, self._intentions)
+        return self._list_to_matrix(size, self._intentions)
+
+    def get_matrix(self, size: tuple[int, int] = (0, 0)) -> np.ndarray:
+        M_trans = self._get_translate(size)
+        M_intent = self._get_distortion(size)
+        return M_trans @ M_intent
+
+    @abstractmethod
+    def rotate(self, *args, **kwargs) -> Self:
+        ...
+
+    @abstractmethod
+    def scale(self, *args, **kwargs) -> Self:
+        ...
+
+
+class TransformRel(Transform):
+    COMPOSER_CLS = ComposerRel
+
+    def __init__(
+        self,
+        intentions: list[TRotate | TScale] = [],
+        translate: list[TTranslate] = [],
+    ):
+        super().__init__(intentions, translate)
+
     def __get_bbox(self, matrix: np.ndarray, size: tuple[float, float]):
         x, y, w, h = corners_to_bbox(*calculate_new_corners(matrix, size))
         return (x, y), (w, h)
 
     def _list_to_matrix(
-        self,
-        size: tuple[int, int],
-        matrix_list: TransformBase
+        self, size: tuple[int, int], matrix_list: list[TransformBase],
     ) -> np.ndarray:
 
         top_left = (0, 0)
@@ -357,63 +491,53 @@ class Transform:
             top_left, current_size = self.__get_bbox(m_total, size)
         return m_total
 
-    def _check_transform_list(self, transf: TransformBase) -> bool:
-        return len(transf) == 0 or len(transf) == 1
-
-    def _get_firts_transform(
-        self,
-        size: tuple[int, int],
-        transf: TransformBase,
-    ) -> np.ndarray:
-
-        if len(transf) == 0:
-            return np.identity(3, dtype=np.float32)
-        return transf[0].matrix(size)
-
-    def _get_translate(self, size: tuple[int, int] = (0, 0)) -> np.ndarray:
-        if self._check_transform_list(self._translate):
-            return self._get_firts_transform(size, self._translate)
-        return self._list_to_matrix(size, self._translate)
-
-    def _get_distortion(self, size: tuple[int, int]) -> np.ndarray:
-        if self._check_transform_list(self._intentions):
-            return self._get_firts_transform(size, self._intentions)
-        return self._list_to_matrix(size, self._intentions)
-
-    def translate(self, x: int = 0, y: int = 0) -> Transform:
-        new_tranlate = self._translate + [TTranslate(x, y)]
-        return Transform(self._intentions, new_tranlate)
-
     def rotate(
-        self,
-        angle: float = 0,
-        pivot_x: float = 0.5,
-        pivot_y: float = 0.5,
-    ) -> Transform:
+        self, angle: float = 0, pivot_x: float = 0.5, pivot_y: float = 0.5,
+    ) -> TransformRel:
 
         new_intentions = self._intentions + [TRotate(angle, pivot_x, pivot_y)]
-        return Transform(new_intentions, self._translate)
+        return TransformRel(new_intentions, self._translate)
 
     def scale(
-        self,
-        sx: float = 1, sy: float = 1,
-        pivot_x: float = 0.5, pivot_y: float = 0.5
-    ) -> Transform:
+        self, sx: float = 1, sy: float = 1, pivot_x: float = 0.5, pivot_y: float = 0.5
+    ) -> TransformRel:
 
         new_intentions = self._intentions + [TScale(sx, sy, pivot_x, pivot_y)]
-        return Transform(new_intentions, self._translate)
+        return TransformRel(new_intentions, self._translate)
 
-    def get_matrix(self, size: tuple[int, int]) -> np.ndarray:
-        M_trans = self._get_translate()
-        M_intent = self._get_distortion(size)
-        return M_trans @  M_intent
 
-    @property
-    def has_distortion(self) -> bool:
-        return self._validate_list(self._intentions, (TRotate, TScale))
+class TransformAbs(Transform):
+    COMPOSER_CLS = ComposerAbs
 
-    def _validate_list(self, transf: list, cls_types: type | tuple[type]) -> bool:
-        for op in transf:
-            if isinstance(op, cls_types):
-                return True
-        return False
+    def __init__(
+            self,
+            intentions: list[TRotate | TScale] = [],
+            translate: list[TTranslate] = []
+    ):
+        super().__init__(intentions, translate)
+
+    def _list_to_matrix(
+        self, size: tuple[int, int], matrix_list: list[TransformBase],
+    ) -> np.ndarray:
+        m_total = np.identity(3, dtype=np.float32)
+        for op in matrix_list:
+            m_total = op.matrix(size) @ m_total
+        return m_total
+
+    def rotate(
+        self, angle: float = 0, px: float = 0.0, py: float = 0.0,
+    ) -> TransformAbs:
+
+        new_intentions = self._intentions + [
+            TRotate(angle, px, py, pivot_fn=create_pivot_transform_abs)
+        ]
+        return TransformAbs(new_intentions, self._translate)
+
+    def scale(
+        self, sx: float = 1, sy: float = 1, px: float = 0.0, py: float = 0.0,
+    ) -> TransformAbs:
+
+        new_intentions = self._intentions + [
+            TScale(sx, sy, px, py, pivot_fn=create_pivot_transform_abs)
+        ]
+        return TransformAbs(new_intentions, self._translate)

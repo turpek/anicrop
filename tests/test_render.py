@@ -13,7 +13,7 @@ from anicrop.render import (
 )
 from anicrop.viewport import Viewport
 from anicrop.spatial import Region, Span
-from anicrop.transform import mat_final, Transform
+from anicrop.transform import mat_final, TransformRel
 from unittest.mock import patch
 import numpy as np
 import pytest
@@ -557,7 +557,7 @@ def test_edit_renderer_mexican_hat():
     from anicrop.spatial import Region, Span
     from anicrop.image import Image
     from anicrop.render import render_edit, CanvasRender
-    from anicrop.transform import Transform
+    from anicrop.transform import TransformRel
     import numpy as np
     import cv2
     from anicrop.enums import InterpolationOption, ImageFormat
@@ -571,7 +571,7 @@ def test_edit_renderer_mexican_hat():
     layer = Layer(img_mexican)
 
     # 2. Gira o layer em -90 graus (como você usou)
-    layer.set_transform(Transform().rotate(-90))
+    layer.set_transform(TransformRel().rotate(-90))
 
     # 3. Cria o Chapéu (quadrado xadrez 20x20, 4 cores)
     red = [255, 0, 0, 255]
@@ -614,7 +614,7 @@ def test_edit_renderer_with_global_render_region_clipping():
     from anicrop.spatial import Region, Span
     from anicrop.image import Image
     from anicrop.render import render_edit
-    from anicrop.transform import Transform
+    from anicrop.transform import TransformRel
     import numpy as np
     from anicrop.enums import InterpolationOption, ImageFormat
 
@@ -622,7 +622,7 @@ def test_edit_renderer_with_global_render_region_clipping():
     img_mexican = Image(
         np.zeros((100, 100, 4), dtype=np.uint8), ImageFormat.RGBA)
     layer = Layer(img_mexican)
-    layer.set_transform(Transform().rotate(-90))
+    layer.set_transform(TransformRel().rotate(-90))
 
     # 2. Chapéu 20x20 com 4 cores no Global Y=0..20, X=40..60
     red = [255, 0, 0, 255]
@@ -717,7 +717,7 @@ def test_canvas_plan_local_state():
     img_mexican = Image(
         np.zeros((100, 100, 4), dtype=np.uint8), ImageFormat.RGBA)
     layer = Layer(img_mexican)
-    layer.set_transform(Transform().rotate(-90))
+    layer.set_transform(TransformRel().rotate(-90))
 
     # Região Global Y=0..10 no topo da tela
     global_view_region = Region(Span(40, 20), Span(0, 10))
@@ -738,7 +738,7 @@ def test_edit_renderer_render_final_mexican_hat_full():
     img_mexican = Image(
         np.zeros((100, 100, 4), dtype=np.uint8), ImageFormat.RGBA)
     layer = Layer(img_mexican)
-    layer.set_transform(Transform().rotate(-90))
+    layer.set_transform(TransformRel().rotate(-90))
 
     # 2. Chapéu 20x20 xadrez com 4 cores no Global Y=0..20, X=40..60
     red = [255, 0, 0, 255]
@@ -786,7 +786,7 @@ def test_edit_renderer_render_final_mexican_hat_with_clipping():
     img_mexican = Image(
         np.zeros((100, 100, 4), dtype=np.uint8), ImageFormat.RGBA)
     layer = Layer(img_mexican)
-    layer.set_transform(Transform().rotate(-90))
+    layer.set_transform(TransformRel().rotate(-90))
 
     # 2. Chapéu 20x20 xadrez com 4 cores no Global Y=0..20, X=40..60
     red = [255, 0, 0, 255]
@@ -837,7 +837,7 @@ def test_edit_renderer_with_viewport_plan():
     img_mexican = Image(
         np.zeros((100, 100, 4), dtype=np.uint8), ImageFormat.RGBA)
     layer = Layer(img_mexican)
-    layer.set_transform(Transform().rotate(-90))
+    layer.set_transform(TransformRel().rotate(-90))
 
     img_hat = Image(np.zeros((20, 20, 4), dtype=np.uint8), ImageFormat.RGBA)
     layer.add_edit(img_hat, Region(Span(40, 20), Span(0, 20)))
@@ -859,7 +859,7 @@ def test_viewport_plan_local_state():
     img_mexican = Image(
         np.zeros((100, 100, 4), dtype=np.uint8), ImageFormat.RGBA)
     layer = Layer(img_mexican)
-    layer.set_transform(Transform().rotate(-90))
+    layer.set_transform(TransformRel().rotate(-90))
 
     img_hat = Image(np.zeros((20, 20, 4), dtype=np.uint8), ImageFormat.RGBA)
     layer.add_edit(img_hat, Region(Span(40, 20), Span(0, 20)))

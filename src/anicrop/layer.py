@@ -12,13 +12,13 @@ from anicrop.transform import (
     mat_scale,
     mat_position,
     Transform,
-    TransformComposer,
+    Composer,
+    ComposerRel,
 )
 from collections import deque
 from typing import Optional
 
 import math
-import cv2
 import numpy as np
 
 
@@ -141,7 +141,7 @@ class Layer:
         self._blend_mode = blend_mode
         self._region = Region.from_size(*image.size)
         self._edits: deque[EditLayer] = deque()
-        self._transform: Optional[TransformComposer] = None
+        self._transform: Optional[Composer] = None
         self._opacity_mask: Optional[np.ndarray] = None
         self.visible = True
 
@@ -288,17 +288,22 @@ class Layer:
 
     @property
     def transform_used(self) -> bool:
-        return isinstance(self._transform, TransformComposer)
+        return self._transform is not None
 
     def transform_clear(self) -> None:
         self._transform = None
 
     @property
-    def transform(self) -> TransformComposer:
+    def transform(self) -> Composer:
         if self._transform is None:
-            self._transform = TransformComposer(self.region.size)
+            self._transform = ComposerRel(self.region.size)
         return self._transform
 
-    def set_transform(self, transform: Transform) -> None:
-        self._transform = TransformComposer(self.region.size)
-        self.transform._add_transform(transform, self.region.size)
+    def set_transform(
+        self,
+        transform: Transform,
+        reference: Optional[Canvas | Layer] = None,
+    ) -> None:
+        self._transform = transform.create_composer(self.region.size)
+        ref_size = reference.region.size if reference is not None else self.region.size
+        self._transform.add_transform(transform, reference_size=ref_size)

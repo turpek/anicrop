@@ -3,7 +3,7 @@ from anicrop.layer import BlendMode, EditLayer, Layer
 from anicrop.layer import Rotation, Scale
 from anicrop.spatial import Region
 from anicrop.enums import RenderFlags, WarpMode
-from anicrop.transform import mat_global, Transform
+from anicrop.transform import mat_global, TransformRel
 from pytest import raises
 import numpy as np
 import pytest
@@ -194,7 +194,7 @@ def test_layer_cache_initial_state(image):
     lambda layer: setattr(layer, 'y', layer.y.start + 10),
     lambda layer: setattr(layer, 'region', layer.region + (5, 5)),
     lambda layer: layer.transform.translate(10, 10),
-    lambda layer: layer.set_transform(Transform().translate(10, 10))
+    lambda layer: layer.set_transform(TransformRel().translate(10, 10))
 ], ids=["set_x", "set_y", "set_reg", "tr_trans", "st_trans"])
 def test_layer_cache_translation(image, update_fn):
     """Cenário 2: Translação pura deve retornar POSITION."""
@@ -208,7 +208,7 @@ def test_layer_cache_translation(image, update_fn):
 @pytest.mark.parametrize("update_fn", [
     lambda layer: setattr(layer, 'rotation', 45),
     lambda layer: layer.transform.rotate(45),
-    lambda layer: layer.set_transform(Transform().rotate(45))
+    lambda layer: layer.set_transform(TransformRel().rotate(45))
 ], ids=["set_rot", "tr_rot", "st_rot"])
 def test_layer_cache_rotation(image, update_fn):
     """Cenário 3: Rotação deve retornar PIXELS."""
@@ -222,7 +222,7 @@ def test_layer_cache_rotation(image, update_fn):
 @pytest.mark.parametrize("update_fn", [
     lambda layer: setattr(layer, 'scale', 2.0),
     lambda layer: layer.transform.scale(2.0, 2.0),
-    lambda layer: layer.set_transform(Transform().scale(2.0, 2.0))
+    lambda layer: layer.set_transform(TransformRel().scale(2.0, 2.0))
 ], ids=["set_scal", "tr_scal", "st_scal"])
 def test_layer_cache_scale(image, update_fn):
     """Cenário 4: Escala deve retornar PIXELS."""
