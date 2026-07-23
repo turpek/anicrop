@@ -53,41 +53,18 @@ def test_Layer_inicializando_com_valores_padroes(image):
     layer = Layer(image)
     assert layer.name == 'Layer'
     assert layer.opacity == 1.0
-    assert layer.rotation == Rotation()
-    assert layer.scale == Scale(1.0, 1.0)
     assert layer.blend_mode == BlendMode.NORMAL
     assert layer.region == Region.from_size(10, 10)
     assert np.array_equal(layer.image[...], image[...])
 
 
 def test_Layer_inicializando_com_parametros(image):
-    layer = Layer(image, opacity=0.8, rotation=45, scale=0.5,
-                  blend_mode=BlendMode.MULTIPLY, name='Picture')
+    layer = Layer(image, opacity=0.8, blend_mode=BlendMode.MULTIPLY, name='Picture')
     assert layer.name == 'Picture'
     assert layer.opacity == 0.8
-    assert layer.rotation == Rotation(45)
-    assert layer.scale == Scale(0.5, 0.5)
     assert layer.blend_mode == BlendMode.MULTIPLY
     assert layer.region == Region.from_size(10, 10)
     assert np.array_equal(layer.image[...], image[...])
-
-
-def test_Layer_rotate_mudanca_valor(image):
-    layer = Layer(image)
-    layer.rotation = 45
-    assert layer.rotation == Rotation(45)
-
-    layer.rotation -= 20
-    assert layer.rotation == Rotation(25)
-
-
-def test_Layer_scale_mudanca_valor(image):
-    layer = Layer(image)
-    layer.scale = 0.5
-    assert layer.scale == Scale(0.5, 0.5)
-
-    layer.scale += 0.3
-    assert layer.scale == Scale(0.8, 0.8)
 
 
 def test_Layer_opacity_mudanca_valor(image):
@@ -206,10 +183,9 @@ def test_layer_cache_translation(image, update_fn):
 
 
 @pytest.mark.parametrize("update_fn", [
-    lambda layer: setattr(layer, 'rotation', 45),
     lambda layer: layer.transform.rotate(45),
     lambda layer: layer.set_transform(TransformRel().rotate(45))
-], ids=["set_rot", "tr_rot", "st_rot"])
+], ids=["tr_rot", "st_rot"])
 def test_layer_cache_rotation(image, update_fn):
     """Cenário 3: Rotação deve retornar PIXELS."""
     layer = Layer(image)
@@ -220,10 +196,9 @@ def test_layer_cache_rotation(image, update_fn):
 
 
 @pytest.mark.parametrize("update_fn", [
-    lambda layer: setattr(layer, 'scale', 2.0),
     lambda layer: layer.transform.scale(2.0, 2.0),
     lambda layer: layer.set_transform(TransformRel().scale(2.0, 2.0))
-], ids=["set_scal", "tr_scal", "st_scal"])
+], ids=["tr_scal", "st_scal"])
 def test_layer_cache_scale(image, update_fn):
     """Cenário 4: Escala deve retornar PIXELS."""
     layer = Layer(image)
@@ -245,7 +220,7 @@ def test_layer_commit_render_state(image):
     assert np.array_equal(layer._old_matrix, matrix)
 
     # Gera uma nova deformação (rotação)
-    layer.rotation = 90
+    layer.transform.rotate(90)
     assert layer._resolve_render() & RenderFlags.PIXELS
 
     new_matrix = mat_global(layer)
@@ -319,3 +294,41 @@ def test_layer_canvas_size_with_canvas(mocker, image):
 
     layer = Layer(image, canvas=mock_canvas)
     assert layer.canvas_size == (1920, 1080)
+
+
+def test_layer_snapshot_completeness(image):
+    """
+    Garante que o Memento (SnapshotLayerCommand) está rastreando todos os estados do Layer.
+    Se um novo atributo for adicionado ao Layer, ele aparecerá no 'missing_attributes'
+    forçando o desenvolvedor a tomar uma decisão arquitetural (salvar ou ignorar).
+    """
+    from anicrop.command import SnapshotLayerCommand
+    layer = Layer(image)
+    
+    layer_attributes = set(vars(layer).keys())
+    
+    # Atributos estáticos, de infraestrutura ou de cache que não representam estado de edição
+    IGNORED_ATTRIBUTES = {
+        '_id',
+        '_image',
+        '_old_matrix',
+        '_render_flags',
+        '_warp_mode',
+        '_canvas',
+    }
+    
+    snapshot = SnapshotLayerCommand.capture_state(layer)
+    
+    # Mapeia as chaves do snapshot (sem underscore) de volta para os atributos reais
+    snapshot_attributes = set()
+    for key in snapshot.keys():
+        if hasattr(layer, f"_{key}") and key != 'visible':
+            snapshot_attributes.add(f"_{key}")
+        else:
+            snapshot_attributes.add(key)
+            
+    missing_attributes = layer_attributes - snapshot_attributes - IGNORED_ATTRIBUTES
+    assert not missing_attributes, f"NOVO ESTADO DETECTADO: Atributos {missing_attributes} foram adicionados ao Layer mas não estão sendo salvos no SnapshotLayerCommand!"
+    
+    stale_attributes = snapshot_attributes - layer_attributes
+    assert not stale_attributes, f"LIXO DETECTADO: O Snapshot está salvando propriedades {stale_attributes} que não existem mais no Layer!"

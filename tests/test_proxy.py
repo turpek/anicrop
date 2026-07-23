@@ -2,7 +2,7 @@ from anicrop.image import Image, ImageFormat
 from anicrop.layer import Layer, EditLayer
 from anicrop.proxy import ProxyLayer, is_property_with_setter
 from anicrop.history import GlobalHistory
-from anicrop.command import SnapshotCommand
+from anicrop.command import SnapshotLayerCommand
 from anicrop.spatial import Region
 import numpy as np
 import pytest
@@ -36,31 +36,24 @@ def test_ProxyLayer_delegacao_de_leitura(proxy, layer):
 
 
 def test_ProxyLayer_interceptacao_de_escrita(proxy, layer, history):
-    """Testa se a escrita em atributos passa pelo histórico usando SnapshotCommand."""
+    """Testa se a escrita em atributos passa pelo histórico usando SnapshotLayerCommand."""
     proxy.name = "New Name"
 
     # Verifica se o comando foi enviado para o histórico
-    assert history.push.call_count == 2
-    args, _ = history.push.call_args
-    command_class, attr_name, target, value = args
+    assert history.start_action.call_count == 1
+    args, _ = history.start_action.call_args
+    command_class, attr_name, target = args
 
-    assert command_class == SnapshotCommand
+    assert command_class == SnapshotLayerCommand
     assert attr_name == "name"
     assert target is layer
-    assert isinstance(value, dict)
-    # A primeira chamada mandou o old_state, a segunda o new_state
-    args_old, _ = history.push.call_args_list[0]
-    args_new, _ = history.push.call_args_list[1]
-    
-    assert args_old[3]["name"] == "Layer"
-    assert args_new[3]["name"] == "New Name"
 
     # O ProxyLayer aplica a mudança diretamente no layer real
     assert layer.name == "New Name"
 
 
 def test_ProxyLayer_integration_with_real_history(layer):
-    """Garante o funcionamento do Undo/Redo real com o ProxyLayer usando SnapshotCommand."""
+    """Garante o funcionamento do Undo/Redo real com o ProxyLayer usando SnapshotLayerCommand."""
     real_history = GlobalHistory()
     proxy = ProxyLayer(layer, real_history)
 
@@ -82,7 +75,7 @@ def test_ProxyLayer_integration_with_real_history(layer):
 
     # Undo da rotação e translação juntas (mescladas no mesmo comando "transform")
     real_history.undo()
-    assert layer.transform_used is False
+    np.testing.assert_allclose(layer.transform.matrix @ pt, [0, 0, 1], atol=1e-4)
 
     # Redo restaura a transformação completa
     real_history.redo()
@@ -121,8 +114,7 @@ def test_ProxyLayer_atribuicao_composta_chama_push_uma_unica_vez(proxy, history)
     history.reset_mock()
 
     proxy.opacity += 0.2
-
-    assert history.push.call_count == 3
+    assert history.start_action.call_count == 1
 
 
 

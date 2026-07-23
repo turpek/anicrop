@@ -75,7 +75,7 @@ def test_CanvasRender_rotacao_expansao_segura(cr, method):
     cor_original = (255, 0, 0, 255)
     layer = make_layer(w=width, h=height, color=cor_original)
 
-    layer.rotation.angle = 45
+    layer.transform.rotate(45)
 
     render_fn = getattr(cr, method)
     rendered_image = render_fn(layer)
@@ -117,7 +117,7 @@ def test_CanvasRender_achatar_edicoes_e_transformar(cr, method):
     np.testing.assert_array_equal(array_final[0, 0], cor_azul)
     np.testing.assert_array_equal(array_final[20, 20], cor_vermelha)
 
-    layer.rotation.angle = 90
+    layer.transform.rotate(90)
     img_rotacionada = render_fn(layer)
     array_rotacionado = img_rotacionada[...]
 
@@ -132,7 +132,7 @@ def test_render_fluxo_real_com_quina(cr, method):
     bg_image = Image(bg_data, ImageFormat.RGBA)
     layer = Layer(bg_image, Region(Span(0, 100), Span(0, 100)))
 
-    layer.rotation.angle = 90
+    layer.transform.rotate(90)
 
     edit_data = np.zeros((20, 20, 4), dtype=np.uint8)
     C_TL = (255, 0, 0, 255)
@@ -142,8 +142,8 @@ def test_render_fluxo_real_com_quina(cr, method):
     clique_region = Region(Span(80, 20), Span(0, 20))
     layer.add_edit(edit_img, clique_region)
 
-    layer.rotation.angle += -45
-    layer.scale = (2.0, 2.0)
+    layer.transform.rotate(-45)
+    layer.transform.scale(2.0, 2.0)
 
     render_fn = getattr(cr, method)
     result_image = render_fn(layer)

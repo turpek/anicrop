@@ -5,12 +5,11 @@ import pytest
 
 class FakeCommand:
 
-    def __init__(self, name, layer, value):
-        self.update_value_count = 0
+    def __init__(self, name, layer):
         self.execute_count = 0
         self._sealed = False
-        self.value = value
         self.state = layer.state
+        self.value = None
         self.layer = layer
         self.name = name
 
@@ -19,37 +18,41 @@ class FakeCommand:
 
     def execute(self):
         self.execute_count += 1
-        self.layer.state = self.value
+        if self.value is not None:
+            self.layer.state = self.value
 
     def seal(self):
-        self._sealed = True
+        if not self._sealed:
+            self.value = self.layer.state
+            self._sealed = True
 
     def is_sealed(self):
         return self._sealed
 
     def undo(self):
+        if not self._sealed:
+            self.seal()
         self.layer.state = self.state
 
-    def update_value(self, value):
-        self.update_value_count += 1
-        self.value = value
+    def has_changes(self) -> bool:
+        return True
 
-    def can_merge(self, name, layer):
+    def can_merge(self, name: str, layer: object) -> bool:
         if self.is_sealed():
             return False
         return self.name == name and self.layer == layer
 
 
 class FakeRotationCommand(FakeCommand):
-    ...
+    pass
 
 
 class FakeScaleCommand(FakeCommand):
-    ...
+    pass
 
 
 class FakeTranslateCommand(FakeCommand):
-    ...
+    pass
 
 
 @fixture
@@ -69,50 +72,15 @@ def test_GlobalHistory_vazia(history):
 
 def test_GlobalHistory_undo_nao_vazia(mocker, history):
     mock_layer = make_layer()
-    history.push(FakeCommand, 'fake', mock_layer, 45)
+    history.start_action(FakeCommand, 'fake', mock_layer)
     assert not history.undo_empty()
 
 
 def test_GlobalHistory_redo_nao_vazia(mocker, history):
     mock_layer = make_layer()
-    history.push(FakeCommand, 'fake', mock_layer, 45)
+    history.start_action(FakeCommand, 'fake', mock_layer)
     history.undo()
     assert not history.redo_empty()
-
-
-def test_GlobalHistory_push_mesmo_comando_mesmo_layer(mocker, history):
-
-    layer = make_layer()
-    history.push(FakeCommand, 'fake', layer, 10)
-
-    cmd = history._undo_stack[-1]
-    spy_update = mocker.spy(cmd, "update_value")
-    mocker.patch.object(cmd, "can_merge", return_value=True)
-
-    history.push(FakeCommand, 'fake', layer, 20)
-
-    assert len(history._undo_stack) == 1
-    spy_update.assert_called_once_with(20)
-
-
-
-def test_GlobalHistory_push_mesmo_comando_mas_layer_diferente(mocker, history):
-    layer1 = make_layer()
-    layer2 = make_layer()
-    history.push(FakeCommand, 'fake', layer1, 10)
-    history.push(FakeCommand, 'fake', layer2, 20)
-    assert len(history._undo_stack) == 2
-
-
-def test_GlobalHistory_push_mesmo_layer_sem_merge(mocker, history):
-    layer = object()
-
-    layer = make_layer()
-    history.push(FakeCommand, 'fake', layer, 10)
-    cmd = history._undo_stack[-1]
-    mocker.patch.object(cmd, "can_merge", return_value=False)
-    history.push(FakeCommand, 'fake', layer, 20)
-    assert len(history._undo_stack) == 2
 
 
 def test_GlobalHistory_undo_com_undo_stack_vazia(mocker, history):
@@ -123,7 +91,7 @@ def test_GlobalHistory_undo_com_undo_stack_vazia(mocker, history):
 def test_GlobalHistory_undo(mocker, history):
     spy_undo = mocker.spy(FakeCommand, "undo")
     layer = make_layer()
-    history.push(FakeCommand, 'fake', layer, 10)
+    history.start_action(FakeCommand, 'fake', layer)
     history.undo()
     assert history.undo_empty()
     assert spy_undo.call_count == 1
@@ -137,7 +105,7 @@ def test_GlobalHistory_redo_com_undo_stack_vazia(mocker, history):
 
 def test_GlobalHistory_redo_apos_undo(mocker, history):
     layer = make_layer()
-    history.push(FakeCommand, 'fake', layer, 10)
+    history.start_action(FakeCommand, 'fake', layer)
     cmd = history._undo_stack[-1]
     spy_execute = mocker.spy(cmd, "execute")
     history.undo()
@@ -148,41 +116,25 @@ def test_GlobalHistory_redo_apos_undo(mocker, history):
 def test_GlobalHistory_redo_empty_apos_um_undo_seguido_de_push(mocker, history):
     layer1 = make_layer()
     layer2 = make_layer()
-    history.push(FakeCommand, 'fake', layer1, 10)
+    history.start_action(FakeCommand, 'fake', layer1)
     history.undo()
-    history.push(FakeCommand, 'fake', layer2, 20)
+    history.start_action(FakeCommand, 'fake', layer2)
     assert history.redo_empty()
-
-
-def test_GlobalHistory_merge_nao_cria_novo_command(mocker, history):
-    layer = make_layer()
-
-    spy_init = mocker.spy(FakeCommand, "__init__")
-
-    history.push(FakeCommand, 'fake', layer, 10)
-    cmd = history._undo_stack[-1]
-
-    mocker.patch.object(cmd, "can_merge", return_value=True)
-
-    history.push(FakeCommand, 'fake', layer, 20)
-
-    # __init__ deve ter sido chamado apenas uma vez
-    assert spy_init.call_count == 1
 
 
 def test_GlobalHistory_commit_apos_mudar_comando(mocker, history):
     layer = make_layer()
-    history.push(FakeScaleCommand, 'scale', layer, 1.5)
-    history.push(FakeRotationCommand, 'rotation', layer, 10)
-    history.push(FakeRotationCommand, 'rotation', layer, 30)
-    history.push(FakeScaleCommand, 'scale', layer, 2)
+    history.start_action(FakeScaleCommand, 'scale', layer)
+    history.start_action(FakeRotationCommand, 'rotation', layer)
+    history.start_action(FakeRotationCommand, 'rotation', layer)
+    history.start_action(FakeScaleCommand, 'scale', layer)
     cmd = history._undo_stack[-2]
     assert cmd.is_sealed()
 
 
 def test_GlobalHistory_commit_manualmente(mocker, history):
     layer = make_layer()
-    history.push(FakeScaleCommand, 'scale', layer, 1.5)
+    history.start_action(FakeScaleCommand, 'scale', layer)
     assert history.commit()
 
     cmd = history._undo_stack[-1]
@@ -193,13 +145,50 @@ def test_GlobalHistory_commit_manualmente_com_undo_vazio(mocker, history):
     assert not history.commit()
 
 
-def test_GlobalHistory_comandos_iguais_apos_undo(mocker, history):
-    layer = make_layer()
-    history.push(FakeRotationCommand, 'rotation', layer, 10)
-    history.push(FakeRotationCommand, 'rotation', layer, 20)
-    history.push(FakeScaleCommand, 'scale', layer, 2)
-    history.undo()
-    history.push(FakeRotationCommand, 'rotation', layer, 30)
-    cmds = history._undo_stack
-    assert cmds[1].value == 30
-    assert cmds[0].value == 20
+@pytest.mark.parametrize(
+    'context_manager_name, expected_size', [
+        ('transaction', 5),
+        ('merge_continuous', 4),
+        ('group_action', 3),
+    ],
+)
+def test_GlobalHistory_context_modes(history, context_manager_name, expected_size):
+    class FakeClass:
+        def __init__(self):
+            self.state = 0
+
+    layer1 = FakeClass()
+    layer2 = FakeClass()
+
+    context_manager = getattr(history, context_manager_name)
+
+    with context_manager():
+        # Comando Fake 1, Classe 1
+        history.commit()
+        history.start_action(FakeRotationCommand, 'prop1', layer1)
+        layer1.state = 1
+        history.commit()
+
+        # Comando Fake 1, Classe 1
+        history.start_action(FakeRotationCommand, 'prop1', layer1)
+        layer1.state = 2
+        history.commit()
+
+        # Comando Fake 1, Classe 1
+        history.start_action(FakeRotationCommand, 'prop1-b', layer1)
+        layer1.state = 3
+        history.commit()
+
+        # Comando Fake 2, Classe 2
+        history.start_action(FakeScaleCommand, 'prop2', layer2)
+        layer2.state = 1
+        history.commit()
+
+        # Comando Fake 1, Classe 1
+        history.start_action(FakeRotationCommand, 'prop1', layer1)
+        layer1.state = 4
+        history.commit()
+
+    assert len(history._undo_stack) == expected_size
+    assert history._current_start_action == history._start_action_normal
+    assert history._current_commit == history._commit

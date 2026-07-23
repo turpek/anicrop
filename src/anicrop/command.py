@@ -1,21 +1,16 @@
 from __future__ import annotations
 from abc import ABC, abstractmethod
 from anicrop.layer import Layer
-from anicrop.spatial import Span, Region
-from anicrop.transform import calculate_new_bbox_from_layer
-from anicrop.type import RotationInput, ScaleInput, TransformState
 from typing import Any
-import copy
 import numpy as np
 from collections import deque
 
 
 class Command(ABC):
 
-    def __init__(self, name: str, layer: Layer, value: Any):
+    def __init__(self, name: str, layer: Layer):
         self._sealed = False
         self._layer = layer
-        self._new_state = value
         self._name = name
 
     @abstractmethod
@@ -27,7 +22,8 @@ class Command(ABC):
         ...
 
     @abstractmethod
-    def update_value(self, value: Any) -> None:
+    def has_changes(self) -> bool:
+        """Determina se o comando gerou alguma mutação de estado."""
         ...
 
     @property
@@ -43,51 +39,31 @@ class Command(ABC):
         return self._name == name and self._layer == layer
 
 
-class SetAttributeCommand(Command):
+class SnapshotLayerCommand(Command):
 
-    def __init__(
-            self,
-            name: str,
-            layer: Layer,
-            value: RotationInput | ScaleInput | TransformState
-    ):
-        print('NOME: ', name)
-        super().__init__(name, layer, value)
-        self._old_state = getattr(layer, name)
-
-    def execute(self) -> None:
-        setattr(self._layer, self._name, self._new_state)
-
-    def undo(self) -> None:
-        setattr(self._layer, self._name, self._old_state)
-
-    def update_value(self, value: Any) -> None:
-        self._new_state = value
-
-    def __repr__(self):
-        return f'{type(self).__name__}(name="{self._name}")'
-
-
-class SnapshotCommand(Command):
-
-    def __init__(
-        self,
-        name: str,
-        layer: Layer,
-        value: tuple[dict[str, Any], dict[str, Any]] | dict[str, Any] | None = None
-    ):
-        super().__init__(name, layer, value)
-        self._snapshot_before = value
+    def __init__(self, name: str, layer: Layer):
+        super().__init__(name, layer)
+        self._snapshot_before = self.capture_state(layer)
+        self._new_state = None
 
     def execute(self) -> None:
         if self._new_state is not None:
             self.restore_state(self._layer, self._new_state)
 
     def undo(self) -> None:
+        if not self._sealed:
+            self.seal()
         self.restore_state(self._layer, self._snapshot_before)
 
-    def update_value(self, value: Any) -> None:
-        self._new_state = value
+    def seal(self) -> None:
+        if not self._sealed:
+            self._new_state = self.capture_state(self._layer)
+            self._sealed = True
+
+    def has_changes(self) -> bool:
+        if not self._sealed:
+            return True
+        return self._snapshot_before != self._new_state
 
     @staticmethod
     def capture_state(layer: Layer) -> dict[str, Any]:
@@ -109,8 +85,6 @@ class SnapshotCommand(Command):
         return {
             "name": layer._name,
             "opacity": layer._opacity,
-            "rotation": copy.copy(layer._rotation),
-            "scale": copy.copy(layer._scale),
             "blend_mode": layer._blend_mode,
             "region": layer._region,
             "transform": transform_state,
@@ -124,8 +98,6 @@ class SnapshotCommand(Command):
         """Aplica o estado diretamente nos atributos do Layer."""
         layer._name = state["name"]
         layer._opacity = state["opacity"]
-        layer._rotation = state["rotation"]
-        layer._scale = state["scale"]
         layer._blend_mode = state["blend_mode"]
         layer._region = state["region"]
         layer.visible = state["visible"]

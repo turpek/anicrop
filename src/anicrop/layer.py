@@ -1,4 +1,5 @@
 from __future__ import annotations
+from abc import ABC
 
 from anicrop.canvas import Canvas
 from anicrop.enums import BlendMode, RenderFlags, WarpMode
@@ -121,14 +122,12 @@ class EditLayer:
         return lod_image, m_local
 
 
-class Layer:
+class Layer(ABC):
 
     def __init__(
         self,
         image: Image,
         opacity: float = 1.0,
-        rotation: float = 0.0,
-        scale: float = 1.0,
         blend_mode: BlendMode = BlendMode.NORMAL,
         name: str = 'Layer',
         canvas: Optional[Canvas] = None,
@@ -136,12 +135,10 @@ class Layer:
         self._id = Id()
         self._name = name
         self._opacity = opacity
-        self._rotation = Rotation(rotation)
-        self._scale = Scale(scale, scale)
         self._blend_mode = blend_mode
         self._region = Region.from_size(*image.size)
         self._edits: deque[EditLayer] = deque()
-        self._transform: Optional[Composer] = None
+        self._transform: Composer = ComposerRel(self.region.size)
         self._opacity_mask: Optional[np.ndarray] = None
         self.visible = True
 
@@ -226,22 +223,6 @@ class Layer:
         self._opacity = opacity
 
     @property
-    def rotation(self) -> Rotation:
-        return self._rotation
-
-    @rotation.setter
-    def rotation(self, value: Rotation | RotationInput) -> None:
-        self._rotation = self._rotation.from_input(value)
-
-    @property
-    def scale(self) -> Scale:
-        return self._scale
-
-    @scale.setter
-    def scale(self, value: Scale | ScaleInput) -> None:
-        self._scale = self._scale.from_input(value)
-
-    @property
     def region(self) -> Region:
         return self._region
 
@@ -287,17 +268,11 @@ class Layer:
         self._edits.append(EditLayer(image, region, matrix, blend_mode, name))
 
     @property
-    def transform_used(self) -> bool:
-        return self._transform is not None
+    def transform(self) -> Composer:
+        return self._transform
 
     def transform_clear(self) -> None:
-        self._transform = None
-
-    @property
-    def transform(self) -> Composer:
-        if self._transform is None:
-            self._transform = ComposerRel(self.region.size)
-        return self._transform
+        self._transform = ComposerRel(self.region.size)
 
     def set_transform(
         self,
