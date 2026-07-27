@@ -1,18 +1,17 @@
 from __future__ import annotations
-from abc import ABC
 
 from anicrop.canvas import Canvas
+from anicrop.container import _NULL_CONTAINER, BaseLayer
 from anicrop.enums import BlendMode, RenderFlags, WarpMode
 from anicrop.image import Image
 from anicrop.spatial import Region, Span
-from anicrop.type import Id, Rotation, RotationInput, Scale, ScaleInput
+from anicrop.type import Id
 from anicrop.transform import (
     calculate_new_bbox_from_layer,
     mat_global,
     mat_inverse,
     mat_scale,
     mat_position,
-    Transform,
     Composer,
     ComposerRel,
 )
@@ -122,7 +121,7 @@ class EditLayer:
         return lod_image, m_local
 
 
-class Layer(ABC):
+class Layer(BaseLayer):
 
     def __init__(
         self,
@@ -132,22 +131,23 @@ class Layer(ABC):
         name: str = 'Layer',
         canvas: Optional[Canvas] = None,
     ):
+
+        self.parent = _NULL_CONTAINER
+        super().__init__(self.parent, opacity, blend_mode, name)
+
         self._id = Id()
-        self._name = name
-        self._opacity = opacity
-        self._blend_mode = blend_mode
         self._region = Region.from_size(*image.size)
         self._edits: deque[EditLayer] = deque()
         self._transform: Composer = ComposerRel(self.region.size)
         self._opacity_mask: Optional[np.ndarray] = None
-        self.visible = True
+        self._canvas = canvas
+        self._parent_inverse = np.identity(3, dtype=np.float32)
 
         self.add_edit(image, self._region, blend_mode)
         self._image = self._edits[0]
         self._old_matrix = np.zeros((3, 3))
         self._render_flags = RenderFlags.ALL_DIRTY
         self._warp_mode = WarpMode.AFFINE
-        self._canvas = canvas
 
     def __repr__(self) -> str:
         return f"Layer(x={self.x.start}, y={self.y.start}, size={self.image.size})"
@@ -185,14 +185,6 @@ class Layer(ABC):
         return self.image.format
 
     @property
-    def name(self) -> str:
-        return self._name
-
-    @name.setter
-    def name(self, name: str) -> None:
-        self._name = name
-
-    @property
     def x(self) -> Span:
         return self.region.x
 
@@ -215,14 +207,6 @@ class Layer(ABC):
             self._region = Region(self.x, Span(value, self.y.length))
 
     @property
-    def opacity(self) -> float:
-        return self._opacity
-
-    @opacity.setter
-    def opacity(self, opacity: float) -> None:
-        self._opacity = opacity
-
-    @property
     def region(self) -> Region:
         return self._region
 
@@ -235,14 +219,6 @@ class Layer(ABC):
     @property
     def image(self) -> Image:
         return self._image.image
-
-    @property
-    def blend_mode(self) -> BlendMode:
-        return self._blend_mode
-
-    @blend_mode.setter
-    def blend_mode(self, blend_mode: BlendMode) -> None:
-        self._blend_mode = blend_mode
 
     @property
     def global_region(self) -> Region:
@@ -266,19 +242,3 @@ class Layer(ABC):
         name = f'Edit-{len(self._edits) + 1}'
         matrix = mat_inverse(mat_global(self))
         self._edits.append(EditLayer(image, region, matrix, blend_mode, name))
-
-    @property
-    def transform(self) -> Composer:
-        return self._transform
-
-    def transform_clear(self) -> None:
-        self._transform = ComposerRel(self.region.size)
-
-    def set_transform(
-        self,
-        transform: Transform,
-        reference: Optional[Canvas | Layer] = None,
-    ) -> None:
-        self._transform = transform.create_composer(self.region.size)
-        ref_size = reference.region.size if reference is not None else self.region.size
-        self._transform.add_transform(transform, reference_size=ref_size)

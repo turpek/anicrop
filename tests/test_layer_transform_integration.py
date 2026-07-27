@@ -3,7 +3,7 @@ import pytest
 from anicrop.canvas import Canvas
 from anicrop.image import Image, ImageFormat
 from anicrop.layer import Layer
-from anicrop.transform import TransformRel, TransformAbs, ComposerRel, ComposerAbs
+from anicrop.transform import TransformRel, TransformAbs, ComposerRel, ComposerAbs, mat_global
 from anicrop.spatial import Region, Span
 
 
@@ -162,7 +162,8 @@ def test_layer_set_transform_com_transform_abs():
 
     assert isinstance(layer.transform, ComposerAbs)
     pt_origem = np.array([0, 0, 1], dtype=np.float32)
-    np.testing.assert_allclose(layer.transform.matrix @ pt_origem, [100, 0, 1], atol=1e-4)
+    np.testing.assert_allclose(layer.transform.matrix @
+                               pt_origem, [100, 0, 1], atol=1e-4)
 
 
 def test_layer_set_transform_com_referencia_layer_e_canvas():
@@ -178,11 +179,11 @@ def test_layer_set_transform_com_referencia_layer_e_canvas():
     # 1. Passando Layer como referência (1000x1000 -> pivô 500, 500)
     layer_filho.set_transform(t_rel, reference=layer_pai)
     pt_origem = np.array([0, 0, 1], dtype=np.float32)
-    np.testing.assert_allclose(layer_filho.transform.matrix @ pt_origem, [1000, 0, 1], atol=1e-4)
+    np.testing.assert_allclose(layer_filho.transform.matrix @
+                               pt_origem, [1000, 0, 1], atol=1e-4)
 
     # 2. Passando Canvas como referência (500x500 -> pivô 250, 250)
     canvas_obj = Canvas(500, 500)
     layer_filho.set_transform(t_rel, reference=canvas_obj)
-    np.testing.assert_allclose(layer_filho.transform.matrix @ pt_origem, [500, 0, 1], atol=1e-4)
-
-
+    np.testing.assert_allclose(layer_filho.transform.matrix @
+                               pt_origem, [500, 0, 1], atol=1e-4)

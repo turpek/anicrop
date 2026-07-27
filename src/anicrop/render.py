@@ -1,5 +1,5 @@
 from abc import ABC, abstractmethod
-from anicrop.blend import BLEND_MODE
+from anicrop.blend import blend_rendered_images, BLEND_MODE
 from anicrop.canvas import Canvas
 from anicrop.enums import InterpolationOption, WarpMode
 from anicrop.image import Image, ImageFormat
@@ -13,8 +13,8 @@ from anicrop.transform import (
     mat_scale,
     mat_translation
 )
+from typing import Optional, Iterable, Any
 from anicrop.viewport import Viewport
-from typing import Optional, Iterable
 
 import cv2
 import numpy as np
@@ -443,7 +443,8 @@ class CanvasRender:
             dst_region = plan.dst_region
             blend = BLEND_MODE.get(layer.blend_mode)
             blend(composition.view(dst_region), image, layer.opacity)
-        return composition
+        composition = Image.new(canvas.size, ImageFormat.RGBA)
+        return blend_rendered_images(reversed(images), composition)
 
 
 class ViewportRender:
@@ -476,7 +477,7 @@ class ViewportRender:
     ) -> Image | None:
 
         dst_region = plan.dst_region
-        if dst_region:
+        if dst_region is not None:
             image = self.__flatten_edits(layer, plan, interp=interp)
 
             # Cria a miniatura do layer
@@ -489,32 +490,38 @@ class ViewportRender:
 
     def render_scene(
         self,
-        layers: Iterable[Layer],
+        layers: Any,
         viewport: Viewport,
         interp: InterpolationOption = InterpolationOption.LANCZOS
     ) -> Image:
 
-        target = (32, 32)
+        target = self._target_size
         images = []
-        miniview = np.zeros(target)
+        miniview = np.zeros(target, dtype=np.uint8)
 
-        for layer in layers:
-            if layer.visible is False:
-                continue
+        if hasattr(layers, 'render'):
+            occluded, imgs = layers.render(
+                renderer=self.render_area,
+                plan_cls=ViewportPlan,
+                surface=viewport,
+                miniview=miniview,
+                interp=interp
+            )
+            images.extend(imgs)
+        else:
+            for layer in layers:
+                if layer.visible is False:
+                    continue
 
-            plan = ViewportPlan(layer, viewport)
-            image = self.render_area(layer, plan, interp=interp)
+                plan = ViewportPlan(layer, viewport)
+                image = self.render_area(layer, plan, interp=interp)
 
-            if image:
-                images.append((layer, image, plan))
-                np.maximum(miniview, layer._opacity_mask, out=miniview)
+                if image:
+                    images.append((layer, image, plan))
+                    np.maximum(miniview, layer._opacity_mask, out=miniview)
 
-                if np.all(miniview == 255):
-                    break
+                    if np.all(miniview == 255):
+                        break
 
         composition = Image.new(viewport.size, ImageFormat.RGBA, color=viewport.bg_color)
-        for layer, image, plan in reversed(images):
-            dst_region = plan.dst_region
-            blend = BLEND_MODE.get(layer.blend_mode)
-            blend(composition.view(dst_region), image, layer.opacity)
-        return composition
+        return blend_rendered_images(reversed(images), composition)

@@ -76,6 +76,7 @@ def test_edit_layer_lod_on_demand_no_cache_for_normal_images():
 
 # --- 3. Geração de Cache para Imagens Grandes (> 4Kx4K) ---
 
+@pytest.mark.slow
 def test_edit_layer_lod_caching_for_large_images():
     """Verifica se imagens grandes (> 4Kx4K, ex: 5000x5000) alocam Zarr via Image.new e reutilizam o cache do LOD."""
     # Imagem grande 5000x5000 criada via Image.new (automaticamente vira Zarr)

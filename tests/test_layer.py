@@ -1,6 +1,5 @@
 from anicrop.image import Image, ImageFormat
 from anicrop.layer import BlendMode, EditLayer, Layer
-from anicrop.layer import Rotation, Scale
 from anicrop.spatial import Region
 from anicrop.enums import RenderFlags, WarpMode
 from anicrop.transform import mat_global, TransformRel
@@ -47,6 +46,27 @@ def test_EditLayer_inicializacao(image, identity_matrix):
     assert edit.image is image
 
 # ############################# Teste da classe Layer (Originais) #############################################
+
+
+from anicrop.container import GroupLayer
+
+
+def test_layer_inserido_em_grupo_herda_transformacoes_do_pai(image):
+    grupo = GroupLayer()
+    grupo._region = Region.from_size(100, 100)
+
+    layer = Layer(image)
+    layer.set_transform(TransformRel().translate(10, 20))
+
+    grupo.append(layer)
+
+    pt_origem = np.array([0, 0, 1], dtype=np.float32)
+
+    np.testing.assert_allclose(mat_global(layer) @ pt_origem, [10, 20, 1], atol=1e-4)
+
+    grupo.transform.rotate(90, 0.5, 0.5).translate(100, 100)
+
+    np.testing.assert_allclose(mat_global(layer) @ pt_origem, [90, 110, 1], atol=1e-4)
 
 
 def test_Layer_inicializando_com_valores_padroes(image):
@@ -304,9 +324,9 @@ def test_layer_snapshot_completeness(image):
     """
     from anicrop.command import SnapshotLayerCommand
     layer = Layer(image)
-    
+
     layer_attributes = set(vars(layer).keys())
-    
+
     # Atributos estáticos, de infraestrutura ou de cache que não representam estado de edição
     IGNORED_ATTRIBUTES = {
         '_id',
@@ -315,10 +335,14 @@ def test_layer_snapshot_completeness(image):
         '_render_flags',
         '_warp_mode',
         '_canvas',
+        'parent',
+        '_parent_inverse',
+        '_reference',
     }
-    
+
+
     snapshot = SnapshotLayerCommand.capture_state(layer)
-    
+
     # Mapeia as chaves do snapshot (sem underscore) de volta para os atributos reais
     snapshot_attributes = set()
     for key in snapshot.keys():
@@ -326,9 +350,9 @@ def test_layer_snapshot_completeness(image):
             snapshot_attributes.add(f"_{key}")
         else:
             snapshot_attributes.add(key)
-            
+
     missing_attributes = layer_attributes - snapshot_attributes - IGNORED_ATTRIBUTES
     assert not missing_attributes, f"NOVO ESTADO DETECTADO: Atributos {missing_attributes} foram adicionados ao Layer mas não estão sendo salvos no SnapshotLayerCommand!"
-    
+
     stale_attributes = snapshot_attributes - layer_attributes
     assert not stale_attributes, f"LIXO DETECTADO: O Snapshot está salvando propriedades {stale_attributes} que não existem mais no Layer!"
