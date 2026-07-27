@@ -169,7 +169,7 @@ def mat_pivot(transform: TransformState, size: tuple[int, int]) -> np.ndarray:
 
 
 def mat_global(layer: Layer) -> np.ndarray:
-    return mat_position(layer.region) @ layer.transform.matrix
+    return layer.parent.matrix @ mat_position(layer.region) @ layer.transform.matrix
 
 
 def mat_final(layer: Layer, x: float, y: float) -> np.ndarray:
@@ -308,8 +308,6 @@ class Composer(ABC):
         self._distortion = np.copy(other._distortion)
         self._translation = np.copy(other._translation)
         self._region = other._region
-
-
 
     @property
     def size(self) -> tuple[int, int]:

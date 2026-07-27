@@ -24,6 +24,7 @@ def test_image_new_creates_ndarray_when_below_threshold():
     assert img.height == 1000
 
 
+@pytest.mark.slow
 def test_image_resize_smart_factory():
     """Verifica se Image.resize usa a fábrica inteligente para decidir entre Zarr ou ndarray."""
     # Cria imagem grande em Zarr
@@ -41,6 +42,7 @@ def test_image_resize_smart_factory():
     assert img_down_ram.width == 1000
 
 
+@pytest.mark.slow
 def test_edit_layer_init_prebuilds_lod_cache_for_zarr_images():
     """Garante que o construtor do EditLayer pré-gera a pirâmide de LODs quando a imagem for Zarr."""
     img_zarr = Image.new((6000, 6000), ImageFormat.RGBA)

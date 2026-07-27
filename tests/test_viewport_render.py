@@ -37,6 +37,7 @@ def test_viewport_render_scene_composes_visible_layers():
     assert composition.height == 600
 
 
+@pytest.mark.slow
 def test_viewport_render_passes_scale_factor_to_lod():
     """Valida se ViewportRender repassa o scale_factor da Viewport para a seleção de LOD dos edits."""
     img_large = Image.new((5000, 5000), ImageFormat.RGBA)

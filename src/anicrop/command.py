@@ -83,9 +83,9 @@ class SnapshotLayerCommand(Command):
             })
 
         return {
-            "name": layer._name,
-            "opacity": layer._opacity,
-            "blend_mode": layer._blend_mode,
+            "name": layer.name,
+            "opacity": layer.opacity,
+            "blend_mode": layer.blend_mode,
             "region": layer._region,
             "transform": transform_state,
             "edits": edits_state,
@@ -96,9 +96,9 @@ class SnapshotLayerCommand(Command):
     @staticmethod
     def restore_state(layer: Layer, state: dict[str, Any]) -> None:
         """Aplica o estado diretamente nos atributos do Layer."""
-        layer._name = state["name"]
-        layer._opacity = state["opacity"]
-        layer._blend_mode = state["blend_mode"]
+        layer.name = state["name"]
+        layer.opacity = state["opacity"]
+        layer.blend_mode = state["blend_mode"]
         layer._region = state["region"]
         layer.visible = state["visible"]
         layer._opacity_mask = state["opacity_mask"]
