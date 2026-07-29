@@ -1,14 +1,52 @@
 from __future__ import annotations
+from abc import ABC, abstractmethod
+from typing import Any
+import cv2
 import numpy as np
 
 from anicrop.canvas import Canvas
+from anicrop.container import Container, LayerStack
+from anicrop.enums import ImageFormat
 from anicrop.history import GlobalHistory
-from anicrop.container import LayerStack
 from anicrop.image import Image
 from anicrop.layer import Layer
-from anicrop.proxy import ProxyLayer
+from anicrop.proxy import BaseHistoryProxy, LayerStackProxy, ProxyLayer
 from anicrop.render import CanvasRender, ViewportRender
 from anicrop.viewport import Viewport
+
+
+class DocumentPolicy(ABC):
+    @abstractmethod
+    def setup(self) -> tuple[GlobalHistory | None, Container]:
+        ...
+
+    @abstractmethod
+    def process_layer(self, layer: Layer, history: GlobalHistory | None) -> Any:
+        ...
+
+
+class ReactiveDocumentPolicy(DocumentPolicy):
+    """Política com Histórico e Proxies ativados."""
+
+    def setup(self) -> tuple[GlobalHistory, LayerStackProxy]:
+        history = GlobalHistory()
+        stack = LayerStackProxy(LayerStack(), history)
+        return history, stack
+
+    def process_layer(self, layer: Layer, history: GlobalHistory | None) -> Any:
+        if isinstance(layer, BaseHistoryProxy):
+            return layer
+        return ProxyLayer(layer, history)
+
+
+class DirectDocumentPolicy(DocumentPolicy):
+    """Política de alta performance sem Histórico e sem Proxies (modo direto)."""
+
+    def setup(self) -> tuple[None, LayerStack]:
+        return None, LayerStack()
+
+    def process_layer(self, layer: Layer, history: GlobalHistory | None) -> Layer:
+        return getattr(layer, '_target', layer)
 
 
 class Document:
@@ -17,63 +55,60 @@ class Document:
     Gerencia o Canvas, o Histórico Global e a Pilha de Camadas (LayerStack).
     """
 
-    def __init__(self, name: str, width: int, height: int):
+    _POLICIES: dict[bool, DocumentPolicy] = {
+        True: ReactiveDocumentPolicy(),
+        False: DirectDocumentPolicy(),
+    }
+
+    def __init__(self, name: str, width: int, height: int, wrap_proxy: bool = True):
         self.name = name
         self.canvas = Canvas(width, height)
-        self.history = GlobalHistory()
-        self.stack = LayerStack()
+        self.wrap_proxy = wrap_proxy
+        self._policy = self._POLICIES[wrap_proxy]
+        self.history, self.stack = self._policy.setup()
 
     @staticmethod
     def create_layer_instance(name: str, path: str, opacity: float = 1.0, canvas: Canvas | None = None) -> Layer:
         """Helper estático que faz o serviço pesado de carregar o arquivo e instanciar um Layer bruto."""
-        from anicrop.enums import ImageFormat
         img = Image.open(path, ImageFormat.RGBA)
         return Layer(image=img, opacity=opacity, name=name, canvas=canvas)
 
     @classmethod
-    def from_image(cls, name: str, path: str) -> "Document":
+    def from_image(cls, name: str, path: str, wrap_proxy: bool = True) -> Document:
         """
         Construtor alternativo que cria o Documento baseado no tamanho de uma imagem inicial.
         O Layer criado já é injetado como a base do documento.
         """
-        # Cria o layer de forma independente (ainda sem canvas)
         layer = cls.create_layer_instance(name, path)
         w, h = layer.canvas_size
 
-        # Instancia o documento usando a dimensão da imagem
-        doc = cls(name=name, width=w, height=h)
-
-        # Conecta o canvas no layer (para que matrizes globais funcionem)
+        doc = cls(name=name, width=w, height=h, wrap_proxy=wrap_proxy)
         layer._canvas = doc.canvas
 
-        # Adiciona o layer no documento pedindo envelopamento
-        doc.add_layer(layer, wrap_proxy=True)
+        doc.add_layer(layer)
         return doc
 
-    def add_layer(self, layer: Layer, wrap_proxy: bool = True) -> Layer:
+    def add_layer(self, layer: Layer) -> Any:
         """
-        Adiciona um Layer existente na pilha do documento.
-        Se wrap_proxy for True, o Layer é devolvido envelopado para rastrear o histórico.
+        Adiciona um Layer na pilha do documento de acordo com a política ativa.
         """
-        self.stack.append(layer)
-        if wrap_proxy:
-            return ProxyLayer(layer, self.history)
-        return layer
+        processed_layer = self._policy.process_layer(layer, self.history)
+        self.stack.append(processed_layer)
+        return processed_layer
 
-    def create_layer(self, name: str, path: str, opacity: float = 1.0, wrap_proxy: bool = True) -> Layer:
+    def create_layer(self, name: str, path: str, opacity: float = 1.0) -> Any:
         """
         Fábrica oficial para carregar imagens diretamente na pilha do Documento.
         """
         layer = self.create_layer_instance(
             name, path, opacity=opacity, canvas=self.canvas)
-        return self.add_layer(layer, wrap_proxy=wrap_proxy)
+        return self.add_layer(layer)
 
     def preview(self, viewport: Viewport) -> np.ndarray:
         """
         Gera o Preview para renderizar na interface de usuário.
         """
         renderer = ViewportRender()
-        # ViewportRender devolve um objeto Image. Extraímos o ndarray chamando o slicing [...]
         result_img = renderer.render_scene(self.stack, viewport)
         return result_img[...]
 
@@ -85,7 +120,6 @@ class Document:
         final_img = renderer.render_scene(self.stack, self.canvas)
 
         frame = final_img[...]
-        import cv2
 
         if frame.shape[2] == 4:
             frame_save = cv2.cvtColor(frame, cv2.COLOR_RGBA2BGRA)
@@ -96,12 +130,8 @@ class Document:
 
         cv2.imwrite(path, frame_save)
 
-    def get_bottom_layer(self, wrap_proxy: bool = True) -> Layer:
+    def get_bottom_layer(self) -> Any:
         """
         Retorna o layer raiz (fundo) da pilha.
-        Se wrap_proxy for True, devolve protegido pelo histórico.
         """
-        layer = self.stack[-1]
-        if wrap_proxy:
-            return ProxyLayer(layer, self.history)
-        return layer
+        return self.stack[-1]
