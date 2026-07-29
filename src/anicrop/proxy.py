@@ -123,6 +123,8 @@ class BaseHistoryProxy:
         action_router = object.__getattribute__(self, "_ACTION_ROUTER")
 
         if name in chainable:
+            if not history.is_active:
+                return attr
             cmd_cls = self._resolve_command(name)
             history.start_action(cmd_cls, name, self)
             return attr
