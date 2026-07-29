@@ -223,3 +223,26 @@ def test_prevenir_ciclo_ao_adicionar_pai_como_filho_no_proxy():
 
     with pytest.raises(ValueError, match="Cannot add an ancestor container to a child container"):
         g2.append(g1)
+
+
+def test_proxy_registry_single_instance_and_clean_target():
+    """Garante que a mesma camada devolve a mesma instância de Proxy e o target não é poluído."""
+    import numpy as np
+    from anicrop.container import GroupLayer
+    from anicrop.proxy import GroupProxy, ProxyLayer
+    from anicrop.layer import Layer
+    from anicrop.image import Image, ImageFormat
+    from anicrop.history import GlobalHistory
+
+    hist = GlobalHistory()
+    img = Image(np.zeros((10, 10, 4), dtype=np.uint8), ImageFormat.RGBA)
+    raw_layer = Layer(img, name="RawL")
+
+    p1 = ProxyLayer(raw_layer, hist)
+    p2 = ProxyLayer(raw_layer, hist)
+
+    # Garante instância única de Proxy por target (Flyweight Identity Map)
+    assert p1 is p2
+
+    # Garante que o objeto real NÃO tem atributo _proxy pendurado nele (domínio limpo)
+    assert not hasattr(raw_layer, "_proxy")
