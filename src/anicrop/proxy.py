@@ -101,9 +101,7 @@ class BaseHistoryProxy:
 
     def __dir__(self):
         target = object.__getattribute__(self, '_target')
-        proxy_attrs = set(super().__dir__())
-        target_attrs = set(dir(target))
-        return sorted(list(proxy_attrs | target_attrs))
+        return dir(target)
 
     def __getattribute__(self, name: str) -> Any:
         if name in ("_target", "_history", "_registry", "_ACTION_ROUTER", "_CHAINABLE_PROPERTIES", "_resolve_command", "_extract_command_value", "__dict__", "__class__"):
