@@ -1,16 +1,17 @@
-from anicrop.history import GlobalHistory
+from anicrop.history import GlobalHistory, NormalPolicy
 from pytest import fixture
 import pytest
+from typing import Any
 
 
 class FakeCommand:
 
-    def __init__(self, name, layer):
+    def __init__(self, name: str, item: Any, value: Any = None):
         self.execute_count = 0
         self._sealed = False
-        self.state = layer.state
-        self.value = None
-        self.layer = layer
+        self.state = item.state
+        self.value = value
+        self.layer = item
         self.name = name
 
     def __repr__(self) -> str:
@@ -150,6 +151,7 @@ def test_GlobalHistory_commit_manualmente_com_undo_vazio(mocker, history):
         ('transaction', 5),
         ('merge_continuous', 4),
         ('group_action', 3),
+        ('disabled', 0)
     ],
 )
 def test_GlobalHistory_context_modes(history, context_manager_name, expected_size):
@@ -190,5 +192,4 @@ def test_GlobalHistory_context_modes(history, context_manager_name, expected_siz
         history.commit()
 
     assert len(history._undo_stack) == expected_size
-    assert history._current_start_action == history._start_action_normal
-    assert history._current_commit == history._commit
+    assert isinstance(history._policy, NormalPolicy)

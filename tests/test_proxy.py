@@ -2,7 +2,7 @@ from anicrop.image import Image, ImageFormat
 from anicrop.layer import Layer, EditLayer
 from anicrop.proxy import ProxyLayer, is_property_with_setter
 from anicrop.history import GlobalHistory
-from anicrop.command import SnapshotLayerCommand
+from anicrop.command import LayerImageCommand, BaseLayerCommand
 from anicrop.spatial import Region
 import numpy as np
 import pytest
@@ -14,8 +14,8 @@ def make_img(w=10, h=10):
 
 
 @pytest.fixture
-def history():
-    return Mock(spec=GlobalHistory)
+def history(mocker):
+    return mocker.MagicMock(spec=GlobalHistory)
 
 
 @pytest.fixture
@@ -36,24 +36,24 @@ def test_ProxyLayer_delegacao_de_leitura(proxy, layer):
 
 
 def test_ProxyLayer_interceptacao_de_escrita(proxy, layer, history):
-    """Testa se a escrita em atributos passa pelo histórico usando SnapshotLayerCommand."""
+    """Testa se a escrita em atributos passa pelo histórico usando LayerImageCommand."""
     proxy.name = "New Name"
 
     # Verifica se o comando foi enviado para o histórico
     assert history.start_action.call_count == 1
     args, _ = history.start_action.call_args
-    command_class, attr_name, target = args
+    command_class, attr_name, target, value = args
 
-    assert command_class == SnapshotLayerCommand
+    assert command_class == BaseLayerCommand
     assert attr_name == "name"
-    assert target is layer
+    assert target is proxy
 
     # O ProxyLayer aplica a mudança diretamente no layer real
     assert layer.name == "New Name"
 
 
 def test_ProxyLayer_integration_with_real_history(layer):
-    """Garante o funcionamento do Undo/Redo real com o ProxyLayer usando SnapshotLayerCommand."""
+    """Garante o funcionamento do Undo/Redo real com o ProxyLayer usando LayerImageCommand."""
     real_history = GlobalHistory()
     proxy = ProxyLayer(layer, real_history)
 
@@ -117,7 +117,6 @@ def test_ProxyLayer_atribuicao_composta_chama_push_uma_unica_vez(proxy, history)
     assert history.start_action.call_count == 1
 
 
-
 # --- Testes Unitários de Cenários para is_property_with_setter ---
 
 class ParentFake:
@@ -155,8 +154,10 @@ class ChildFake(ParentFake):
 
 
 @pytest.mark.parametrize("name, expected", [
-    ("child_writable_prop", True),       # Cenário 1: Property com setter definida na própria classe
-    ("child_readonly_prop", False),      # Cenário 2: Property sem setter (somente getter) na própria classe
+    # Cenário 1: Property com setter definida na própria classe
+    ("child_writable_prop", True),
+    # Cenário 2: Property sem setter (somente getter) na própria classe
+    ("child_readonly_prop", False),
     ("parent_writable_prop", True),      # Cenário 3: Property com setter herdada
     ("parent_readonly_prop", False),     # Cenário 4: Property sem setter herdada
     ("instance_var", False),             # Cenário 5: Atributo normal de instância
@@ -167,3 +168,58 @@ def test_is_property_with_setter_cenarios(name, expected):
     assert is_property_with_setter(ChildFake, name) is expected
 
 
+def test_ProxyLayer_passagem_direta_atributos_nao_registrados(proxy, layer, history):
+    """Garante que atributos dinâmicos não listados no ACTION_ROUTER passam direto para o objeto real."""
+    proxy.unregistered_attr = 42
+
+    # O histórico NÃO deve ser ativado
+    history.start_action.assert_not_called()
+
+    # Mas a variável DEVE existir na instância real
+    assert layer.unregistered_attr == 42
+
+
+def test_ProxyLayer_short_circuit_quando_history_desativado(proxy, layer, history):
+    """Garante que se o histórico estiver desativado, o proxy não realiza lookup e repassa direto."""
+    # Simulamos o histórico desativado
+    history.is_active = False
+
+    # Essa ação está no _ACTION_ROUTER
+    proxy.name = "Teste Bypass"
+
+    # O histórico não deve tentar gravar
+    history.start_action.assert_not_called()
+
+    # A variável altera normalmente
+    assert layer.name == "Teste Bypass"
+
+
+def test_proxy_parent_property_returns_parent_proxy():
+    """Garante que o acesso à propriedade .parent de um filho retorna a instância do Proxy do pai."""
+    from anicrop.container import GroupLayer
+    from anicrop.proxy import GroupProxy
+
+    hist = GlobalHistory()
+    parent_group = GroupProxy(GroupLayer(name="Parent"), hist)
+    child_group = GroupProxy(GroupLayer(name="Child"), hist)
+
+    parent_group.append(child_group)
+
+    # .parent do filho DEVE retornar a instância do Proxy do pai (parent_group)
+    assert child_group.parent is parent_group
+
+
+def test_prevenir_ciclo_ao_adicionar_pai_como_filho_no_proxy():
+    """Garante que adicionar um container pai como filho através do Proxy lança ValueError."""
+    from anicrop.container import GroupLayer
+    from anicrop.proxy import GroupProxy
+
+    hist = GlobalHistory()
+    g1 = GroupProxy(GroupLayer(name="g1"), hist)
+    g2 = GroupProxy(GroupLayer(name="g2"), hist)
+
+    g1.append(g2)
+    assert g2.parent is g1
+
+    with pytest.raises(ValueError, match="Cannot add an ancestor container to a child container"):
+        g2.append(g1)

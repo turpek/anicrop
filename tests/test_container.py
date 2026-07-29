@@ -392,14 +392,14 @@ def test_inserir_item_em_index_especifico_respeita_ordem(mocker, container_cls, 
     old_parent.remove.assert_called_once_with(item_novo)
 
 
-def test_group_layer_stack_retorna_children():
+def test_group_layer_iter_retorna_children():
     group = GroupLayer()
     item1 = GroupLayer()
     item2 = GroupLayer()
     group.append(item1)
     group.append(item2)
 
-    assert group.stack == [item1, item2]
+    assert list(group) == [item1, item2]
 
 
 @pytest.mark.parametrize("container_cls", [LayerStack, GroupLayer])

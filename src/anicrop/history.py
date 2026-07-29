@@ -1,8 +1,90 @@
 from __future__ import annotations
-from anicrop.command import Command
-from anicrop.layer import Layer
+from abc import ABC, abstractmethod
+from typing import Any, TYPE_CHECKING
 from collections import deque
 from contextlib import contextmanager
+
+if TYPE_CHECKING:
+    from anicrop.command import Command
+    from anicrop.layer import Layer
+
+
+class ActionPolicy(ABC):
+    """Interface abstrata (Strategy/Policy) para os modos de ação do histórico."""
+
+    @abstractmethod
+    def start_action(self, history: GlobalHistory, command_cls: type[Command], name: str, target: Any, value: Any = None) -> None:
+        ...
+
+    @abstractmethod
+    def commit(self, history: GlobalHistory) -> bool:
+        ...
+
+
+class NormalPolicy(ActionPolicy):
+    """Política padrão: cria um novo comando e sela o anterior."""
+
+    def start_action(self, history: GlobalHistory, command_cls: type[Command], name: str, target: Any, value: Any = None) -> None:
+        history._clear_redo()
+        history.commit()
+        cmd = command_cls(name, target, value)
+        history._undo_stack.append(cmd)
+
+    def commit(self, history: GlobalHistory) -> bool:
+        if not history.undo_empty():
+            last_cmd = history._undo_stack[-1]
+            if not last_cmd._sealed:
+                last_cmd.seal()
+                if not last_cmd.has_changes():
+                    history._undo_stack.pop()
+                return True
+        return False
+
+
+class MergeContinuousPolicy(ActionPolicy):
+    """Política de mesclagem contínua: mescla ações de mesmo nome e objeto."""
+
+    def start_action(self, history: GlobalHistory, command_cls: type[Command], name: str, target: Any, value: Any = None) -> None:
+        if not history.undo_empty():
+            last_cmd = history._undo_stack[-1]
+            if type(last_cmd) is command_cls and last_cmd.can_merge(name, target):
+                return
+
+        history._clear_redo()
+        history.commit()
+        cmd = command_cls(name, target, value)
+        history._undo_stack.append(cmd)
+
+    def commit(self, history: GlobalHistory) -> bool:
+        return False
+
+
+class GroupActionPolicy(ActionPolicy):
+    """Política de agrupamento: ignora ações consecutivas da mesma classe de comando."""
+
+    def start_action(self, history: GlobalHistory, command_cls: type[Command], name: str, target: Any, value: Any = None) -> None:
+        if not history.undo_empty():
+            last_cmd = history._undo_stack[-1]
+            if type(last_cmd) is command_cls:
+                return
+
+        history._clear_redo()
+        history.commit()
+        cmd = command_cls(name, target, value)
+        history._undo_stack.append(cmd)
+
+    def commit(self, history: GlobalHistory) -> bool:
+        return False
+
+
+class DisabledPolicy(ActionPolicy):
+    """Política silenciosa/desativada: ignora qualquer início de ação e commit."""
+
+    def start_action(self, history: GlobalHistory, command_cls: type[Command], name: str, target: Any, value: Any = None) -> None:
+        pass
+
+    def commit(self, history: GlobalHistory) -> bool:
+        return False
 
 
 class GlobalHistory:
@@ -10,60 +92,21 @@ class GlobalHistory:
     def __init__(self):
         self._undo_stack = deque()
         self._redo_stack = deque()
-        self._current_start_action = self._start_action_normal
-        self._current_commit = self._commit
+        self._policy: ActionPolicy = NormalPolicy()
+
+    @property
+    def is_active(self) -> bool:
+        return not isinstance(self._policy, DisabledPolicy)
 
     def _clear_redo(self) -> None:
         self._redo_stack.clear()
 
-    def _commit(self) -> bool:
-        """Sela a transação pendente capturando o snapshot final."""
-        if not self.undo_empty():
-            last_cmd = self._undo_stack[-1]
-            if not last_cmd._sealed:
-                last_cmd.seal()
-                if not last_cmd.has_changes():
-                    self._undo_stack.pop()
-                return True
-        return False
-
-    def _no_commit(self) -> bool:
-        ...
-
     def commit(self) -> bool:
-        return self._current_commit()
+        return self._policy.commit(self)
 
-    def start_action(self, command_cls: type[Command], name: str, layer: Layer) -> None:
-        """Abre uma nova transação. Sela a anterior se houver."""
-        self._current_start_action(command_cls, name, layer)
-
-    def _start_action_normal(self, command_cls: type[Command], name: str, layer: Layer) -> None:
-        self._clear_redo()
-        self.commit()
-        cmd = command_cls(name, layer)
-        self._undo_stack.append(cmd)
-
-    def _start_action_merge(self, command_cls: type[Command], name: str, layer: Layer) -> None:
-        if not self.undo_empty():
-            last_cmd = self._undo_stack[-1]
-            if type(last_cmd) is command_cls and last_cmd.can_merge(name, layer):
-                return
-
-        self._clear_redo()
-        self.commit()
-        cmd = command_cls(name, layer)
-        self._undo_stack.append(cmd)
-
-    def _start_action_group(self, command_cls: type[Command], name: str, layer: Layer) -> None:
-        if not self.undo_empty():
-            last_cmd = self._undo_stack[-1]
-            if type(last_cmd) is command_cls:
-                return
-
-        self._clear_redo()
-        self.commit()
-        cmd = command_cls(name, layer)
-        self._undo_stack.append(cmd)
+    def start_action(self, command_cls: type[Command], name: str, target: Any, value: Any = None) -> None:
+        """Abre uma nova transação usando a política ativa."""
+        self._policy.start_action(self, command_cls, name, target, value)
 
     def undo(self) -> None:
         if self.undo_empty():
@@ -88,33 +131,35 @@ class GlobalHistory:
         return len(self._redo_stack) == 0
 
     @contextmanager
-    def _with_strategy(self, strategy_method, commit_method):
-        old_strategy = self._current_start_action
-        old_commit = self._current_commit
-
-        self._current_start_action = strategy_method
-        self._current_commit = commit_method
+    def use_policy(self, policy: ActionPolicy):
+        old_policy = self._policy
+        self._policy = policy
         try:
             yield
         finally:
-            self._current_start_action = old_strategy
-            self._current_commit = old_commit
+            self._policy = old_policy
             self.commit()
 
     @contextmanager
     def transaction(self):
-        """Opção 1: Fluxo atual, garantindo commit no final."""
-        with self._with_strategy(self._start_action_normal, self._commit):
+        """Contexto de transação padrão."""
+        with self.use_policy(NormalPolicy()):
             yield
 
     @contextmanager
     def merge_continuous(self):
-        """Opção 2: Merge por nome."""
-        with self._with_strategy(self._start_action_merge, self._no_commit):
+        """Contexto de mesclagem por nome."""
+        with self.use_policy(MergeContinuousPolicy()):
             yield
 
     @contextmanager
     def group_action(self):
-        """Opção 3: Merge por tipo de comando."""
-        with self._with_strategy(self._start_action_group, self._no_commit):
+        """Contexto de agrupamento por classe de comando."""
+        with self.use_policy(GroupActionPolicy()):
+            yield
+
+    @contextmanager
+    def disabled(self):
+        """Contexto que desativa temporariamente a gravação de ações no histórico."""
+        with self.use_policy(DisabledPolicy()):
             yield

@@ -1,3 +1,4 @@
+from __future__ import annotations
 from abc import ABC, abstractmethod
 from anicrop.blend import blend_rendered_images, BLEND_MODE
 from anicrop.canvas import Canvas
@@ -410,33 +411,68 @@ class CanvasRender:
 
         return self.render_area(layer, interp=interp, local=local)
 
+    def _traverse_layers(
+        self,
+        layers: Iterable[Layer | 'GroupLayer'],
+        canvas: Canvas,
+        miniview: np.ndarray,
+        images: list,
+        interp: InterpolationOption
+    ) -> bool:
+        from anicrop.container import GroupLayer
+
+        for layer in layers:
+            if not layer.visible:
+                continue
+
+            if isinstance(layer, GroupLayer):
+                occluded, imgs = layer.render(
+                    renderer=self.render_area,
+                    plan_cls=CanvasPlan,
+                    surface=canvas,
+                    miniview=miniview,
+                    interp=interp
+                )
+                images.extend(imgs)
+                if occluded:
+                    return True
+            else:
+                plan = CanvasPlan(layer, canvas.region)
+                image = self.render_area(layer, plan, interp=interp)
+
+                if image is not None:
+                    layer._opacity_mask = generate_opacity_mask(
+                        image, plan.dst_region, canvas.size, (32, 32)
+                    )
+                    images.append((layer, image, plan))
+                    np.maximum(miniview, layer._opacity_mask, out=miniview)
+                    if np.all(miniview == 255):
+                        return True
+        return False
+
     def render_scene(
         self,
-        layers: Iterable[Layer],
+        layers: Iterable[Layer | 'GroupLayer'],
         canvas: Canvas,
         interp: InterpolationOption = InterpolationOption.LANCZOS
     ) -> Image:
+        from anicrop.container import GroupLayer
 
         target = (32, 32)
         images = []
-        miniview = np.zeros(target)
+        miniview = np.zeros(target, dtype=np.uint8)
 
-        for layer in layers:
-            if layer.visible is False:
-                continue
-
-            plan = CanvasPlan(layer, canvas.region)
-            image = self.render_area(layer, plan, interp=interp)
-
-            if image:
-                layer._opacity_mask = generate_opacity_mask(
-                    image, plan.dst_region, canvas.size, self._target_size
-                )
-                images.append((layer, image, plan))
-                np.maximum(miniview, layer._opacity_mask, out=miniview)
-
-                if np.all(miniview == 255):
-                    break
+        if isinstance(layers, GroupLayer):
+            _, imgs = layers.render(
+                renderer=self.render_area,
+                plan_cls=CanvasPlan,
+                surface=canvas,
+                miniview=miniview,
+                interp=interp
+            )
+            images.extend(imgs)
+        else:
+            self._traverse_layers(layers, canvas, miniview, images, interp)
 
         composition = Image.new(canvas.size, ImageFormat.RGBA)
         for layer, image, plan in reversed(images):
@@ -488,18 +524,56 @@ class ViewportRender:
             return image
         return None
 
+    def _traverse_layers(
+        self,
+        layers: Iterable[Layer | 'GroupLayer'],
+        viewport: Viewport,
+        miniview: np.ndarray,
+        images: list,
+        interp: InterpolationOption
+    ) -> bool:
+        from anicrop.container import GroupLayer
+
+        for layer in layers:
+            if not layer.visible:
+                continue
+
+            if isinstance(layer, GroupLayer):
+                occluded, imgs = layer.render(
+                    renderer=self.render_area,
+                    plan_cls=ViewportPlan,
+                    surface=viewport,
+                    miniview=miniview,
+                    interp=interp
+                )
+                images.extend(imgs)
+                if occluded:
+                    return True
+            else:
+                plan = ViewportPlan(layer, viewport)
+                image = self.render_area(layer, plan, interp=interp)
+
+                if image is not None:
+                    images.append((layer, image, plan))
+                    if layer._opacity_mask is not None:
+                        np.maximum(miniview, layer._opacity_mask, out=miniview)
+                    if np.all(miniview == 255):
+                        return True
+        return False
+
     def render_scene(
         self,
-        layers: Any,
+        layers: Iterable[Layer | 'GroupLayer'],
         viewport: Viewport,
         interp: InterpolationOption = InterpolationOption.LANCZOS
     ) -> Image:
+        from anicrop.container import GroupLayer
 
         target = self._target_size
         images = []
         miniview = np.zeros(target, dtype=np.uint8)
 
-        if hasattr(layers, 'render'):
+        if isinstance(layers, GroupLayer):
             occluded, imgs = layers.render(
                 renderer=self.render_area,
                 plan_cls=ViewportPlan,
@@ -509,19 +583,7 @@ class ViewportRender:
             )
             images.extend(imgs)
         else:
-            for layer in layers:
-                if layer.visible is False:
-                    continue
-
-                plan = ViewportPlan(layer, viewport)
-                image = self.render_area(layer, plan, interp=interp)
-
-                if image:
-                    images.append((layer, image, plan))
-                    np.maximum(miniview, layer._opacity_mask, out=miniview)
-
-                    if np.all(miniview == 255):
-                        break
+            self._traverse_layers(layers, viewport, miniview, images, interp)
 
         composition = Image.new(viewport.size, ImageFormat.RGBA, color=viewport.bg_color)
         return blend_rendered_images(reversed(images), composition)

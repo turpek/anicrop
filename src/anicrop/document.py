@@ -3,7 +3,7 @@ import numpy as np
 
 from anicrop.canvas import Canvas
 from anicrop.history import GlobalHistory
-from anicrop.layer_stack import LayerStack
+from anicrop.container import LayerStack
 from anicrop.image import Image
 from anicrop.layer import Layer
 from anicrop.proxy import ProxyLayer
@@ -55,7 +55,7 @@ class Document:
         Adiciona um Layer existente na pilha do documento.
         Se wrap_proxy for True, o Layer é devolvido envelopado para rastrear o histórico.
         """
-        self.stack.add(layer)
+        self.stack.append(layer)
         if wrap_proxy:
             return ProxyLayer(layer, self.history)
         return layer
@@ -74,7 +74,7 @@ class Document:
         """
         renderer = ViewportRender()
         # ViewportRender devolve um objeto Image. Extraímos o ndarray chamando o slicing [...]
-        result_img = renderer.render_scene(reversed(self.stack._stack), viewport)
+        result_img = renderer.render_scene(self.stack, viewport)
         return result_img[...]
 
     def export(self, path: str) -> None:
@@ -82,7 +82,7 @@ class Document:
         Renderiza a composição final em alta resolução usando as dimensões do Canvas e salva no disco.
         """
         renderer = CanvasRender()
-        final_img = renderer.render_scene(reversed(self.stack._stack), self.canvas)
+        final_img = renderer.render_scene(self.stack, self.canvas)
 
         frame = final_img[...]
         import cv2
@@ -101,7 +101,7 @@ class Document:
         Retorna o layer raiz (fundo) da pilha.
         Se wrap_proxy for True, devolve protegido pelo histórico.
         """
-        layer = self.stack.get(0)
+        layer = self.stack[-1]
         if wrap_proxy:
             return ProxyLayer(layer, self.history)
         return layer

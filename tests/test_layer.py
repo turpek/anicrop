@@ -1,3 +1,4 @@
+from anicrop.container import GroupLayer
 from anicrop.image import Image, ImageFormat
 from anicrop.layer import BlendMode, EditLayer, Layer
 from anicrop.spatial import Region
@@ -46,9 +47,6 @@ def test_EditLayer_inicializacao(image, identity_matrix):
     assert edit.image is image
 
 # ############################# Teste da classe Layer (Originais) #############################################
-
-
-from anicrop.container import GroupLayer
 
 
 def test_layer_inserido_em_grupo_herda_transformacoes_do_pai(image):
@@ -318,11 +316,11 @@ def test_layer_canvas_size_with_canvas(mocker, image):
 
 def test_layer_snapshot_completeness(image):
     """
-    Garante que o Memento (SnapshotLayerCommand) está rastreando todos os estados do Layer.
+    Garante que o Memento (BaseLayerSnapshot e LayerImageSnapshot) estão rastreando todos os estados do Layer.
     Se um novo atributo for adicionado ao Layer, ele aparecerá no 'missing_attributes'
     forçando o desenvolvedor a tomar uma decisão arquitetural (salvar ou ignorar).
     """
-    from anicrop.command import SnapshotLayerCommand
+    from anicrop.command import BaseLayerSnapshot, LayerImageSnapshot
     layer = Layer(image)
 
     layer_attributes = set(vars(layer).keys())
@@ -340,19 +338,22 @@ def test_layer_snapshot_completeness(image):
         '_reference',
     }
 
+    base_snapshot = BaseLayerSnapshot(layer)
 
-    snapshot = SnapshotLayerCommand.capture_state(layer)
-
-    # Mapeia as chaves do snapshot (sem underscore) de volta para os atributos reais
+    # Mapeia as chaves do BaseLayerSnapshot
     snapshot_attributes = set()
-    for key in snapshot.keys():
+    for key in base_snapshot._state.keys():
         if hasattr(layer, f"_{key}") and key != 'visible':
             snapshot_attributes.add(f"_{key}")
         else:
             snapshot_attributes.add(key)
 
+    # Adiciona os atributos salvos pelo LayerImageSnapshot
+    snapshot_attributes.add("_edits")
+    snapshot_attributes.add("_opacity_mask")
+
     missing_attributes = layer_attributes - snapshot_attributes - IGNORED_ATTRIBUTES
-    assert not missing_attributes, f"NOVO ESTADO DETECTADO: Atributos {missing_attributes} foram adicionados ao Layer mas não estão sendo salvos no SnapshotLayerCommand!"
+    assert not missing_attributes, f"NOVO ESTADO DETECTADO: Atributos {missing_attributes} foram adicionados ao Layer mas não estão sendo salvos nos Snapshots!"
 
     stale_attributes = snapshot_attributes - layer_attributes
-    assert not stale_attributes, f"LIXO DETECTADO: O Snapshot está salvando propriedades {stale_attributes} que não existem mais no Layer!"
+    assert not stale_attributes, f"LIXO DETECTADO: Os Snapshots estão salvando propriedades {stale_attributes} que não existem mais no Layer!"

@@ -1,7 +1,7 @@
 from __future__ import annotations
 from abc import ABC
 from functools import reduce
-from typing import Optional, Callable, Any, TYPE_CHECKING
+from typing import Optional, Callable, Any, Protocol, runtime_checkable, TYPE_CHECKING
 from operator import or_
 
 from anicrop.canvas import Canvas
@@ -24,10 +24,26 @@ if TYPE_CHECKING:
     from anicrop.render import BaseRenderPlan
 
 
-class NullContainer():
+@runtime_checkable
+class NodeContainerProtocol(Protocol):
+    """Protocolo formal para qualquer elemento da árvore espacial/hierárquica."""
+    parent: Container
+    _parent_inverse: np.ndarray
+
+
+class NullContainer(ABC):
 
     def __init__(self):
         self.__matrix = np.identity(3, dtype=np.float32)
+        self._inner_children = []
+
+    @property
+    def _children(self) -> list:
+        return []
+
+    @_children.setter
+    def _children(self, value: list) -> None:
+        ...
 
     @property
     def matrix(self) -> np.ndarray:
@@ -42,11 +58,35 @@ _NULL_CONTAINER = NullContainer()
 
 class Container(NullContainer):
     def __init__(self):
-        self._children: list[Container | Layer] = []
-        self.parent: Container = _NULL_CONTAINER
+        super().__init__()
+        self.parent = _NULL_CONTAINER
+        self._parent_inverse = np.identity(3, dtype=np.float32)
+
+    @property
+    def _children(self) -> list:
+        return self._inner_children
+
+    @_children.setter
+    def _children(self, value: list) -> None:
+        self._inner_children = value
 
     def __len__(self) -> int:
         return len(self._children)
+
+    def __iter__(self):
+        return iter(self._children)
+
+    def __getitem__(self, index: int) -> Container | Layer:
+        return self._children[index]
+
+    def clear(self) -> None:
+        while self._children:
+            self.remove(self._children[-1])
+
+    def pop(self, index: int = -1) -> Container | Layer:
+        item = self._children[index]
+        self.remove(item)
+        return item
 
     def _check_and_remove_item(self, item: Container | Layer):
         if isinstance(item, LayerStack):
@@ -154,25 +194,24 @@ class GroupLayer(Container, BaseLayer):
         Container.__init__(self)
         BaseLayer.__init__(self, self.parent, opacity, blend_mode, name)
 
-    def _check_ancestor(self, item: GroupLayer | Layer):
+    def __repr__(self):
+        return f'GroupLayer(name="{self.name}")'
+
+    def _check_ancestor(self, item: "GroupLayer | Layer"):
         # Verifica ciclos (evita adicionar um pai/avô como filho)
         curr = self.parent
         while curr is not _NULL_CONTAINER:
-            if curr is item:
+            if curr == item:
                 raise ValueError("Cannot add an ancestor container to a child container")
             curr = curr.parent
 
-    def append(self, item: GroupLayer | Layer) -> None:
+    def append(self, item: "GroupLayer | Layer") -> None:
         self._check_ancestor(item)
         super().append(item)
 
     def insert(self, index: int, item: GroupLayer | Layer) -> None:
         self._check_ancestor(item)
         super().insert(index, item)
-
-    @property
-    def stack(self) -> list[Container | Layer]:
-        return self._children
 
     @property
     def matrix(self) -> np.ndarray:
@@ -193,12 +232,13 @@ class GroupLayer(Container, BaseLayer):
         result = False
         images_gp = []
 
-        for container in self.stack:
+        for container in self:
             if not container.visible:
                 continue
 
             elif isinstance(container, GroupLayer):
-                result, images = container.render(renderer, plan_cls, surface, miniview, interp)
+                result, images = container.render(
+                    renderer, plan_cls, surface, miniview, interp)
                 images_gp.extend(images)
 
                 if result:
