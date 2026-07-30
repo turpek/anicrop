@@ -924,3 +924,38 @@ def test_layout_fit_content_group_layer_recursivo():
 
     assert result is True
     assert layer.region == Region.from_rect(-40, -40, 30, 30)
+
+
+def test_layout_fit_content_group_bug_sobrescrita_resultado():
+    """Testa se o retorno True é preservado mesmo se uma camada subsequente não sofrer alteração."""
+    group = GroupLayer(name="Root")
+    
+    # Layer 1: PRECISA de alteração. Bordas transparentes sobrando (Retorna True).
+    layer1, side_effect1 = setup_layer_with_edits(
+        layer_rect=(0, 0, 100, 100),
+        edits_data=[((0, 0, 100, 100), (10, 10, 40, 40))]
+    )
+    
+    # Layer 2: NÃO precisa de alteração. Já está cravado (Retorna False).
+    layer2, side_effect2 = setup_layer_with_edits(
+        layer_rect=(0, 0, 50, 50),
+        edits_data=[((0, 0, 50, 50), (0, 0, 50, 50))]
+    )
+    
+    # Adicionamos na ordem: primeiro o que muda (True), depois o que NÃO muda (False).
+    group.append(layer1)
+    group.append(layer2)
+    
+    layout = Layout()
+    
+    def side_effect_combo(img):
+        try: 
+            return side_effect1(img)
+        except KeyError: 
+            return side_effect2(img)
+            
+    with patch('anicrop.layout.calculate_content_bbox', side_effect=side_effect_combo):
+        result = layout.fit_content(group)
+        
+    # Como a Layer 1 sofreu alteração (True), o Grupo todo como conjunto deve relatar True!
+    assert result is True
