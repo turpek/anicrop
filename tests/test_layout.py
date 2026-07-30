@@ -1052,3 +1052,32 @@ def test_layout_fit_content_canvas_com_grupo_vazio():
     result = layout.fit_content(canvas, container=container)
     
     assert result is False
+
+
+def test_layout_fit_content_canvas_sem_alteracao():
+    """
+    Testa se o fit_content do Canvas retorna False quando o conteúdo resultante
+    é exatamente igual à região que o Canvas já possui (evitando re-render desnecessário).
+    """
+    # Canvas já começa englobando perfeitamente a área (-10, -10, 180, 180)
+    canvas = Canvas(200, 200)
+    canvas._region = Region.from_rect(-10, -10, 180, 180)
+    
+    container = LayerStack()
+    # Adiciona layers que combinados resultam exatamente em (-10, -10, 180, 180)
+    layer1 = make_layer(10, 10, 50, 50)
+    layer2 = make_layer(100, 100, 50, 50)
+    container.append(layer1)
+    container.append(layer2)
+    
+    layout = Layout()
+    
+    # O mock dirá que as layers cresceram -20 (como no teste de no_overlap_expand)
+    mock_content = Region.from_rect(-20, -20, 90, 90)
+    
+    with patch('anicrop.layout.calculate_content_bbox', return_value=mock_content):
+        result = layout.fit_content(canvas, container=container)
+        
+    # Como a união do conteúdo (-10, -10, 180, 180) é igual à region que o Canvas já tinha,
+    # ele deve ignorar a alteração e retornar False!
+    assert result is False

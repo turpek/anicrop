@@ -5,7 +5,7 @@ from anicrop.layer import Layer
 from anicrop.spatial import Region
 from functools import reduce
 from operator import or_
-from typing import Callable, Iterable
+from typing import Callable, Sequence
 
 
 def _resolve_group(resolve_layer: Callable, group: GroupLayer, *args):
@@ -29,6 +29,18 @@ def _resolve_region(
     elif isinstance(ref, (BaseLayer, Canvas)):
         return ref.region
     return ref
+
+
+def content_region(target: Layer | GroupLayer) -> Region:
+    if not target._edits:
+        return None
+
+    def roi(edit):
+        return calculate_content_bbox(edit.image) + edit.region.top_left
+
+    content_roi = reduce(or_, [roi(e) for e in target._edits])
+    content_roi += target.region.top_left
+    return content_roi
 
 
 class LayerLayoutStrategy:
@@ -90,18 +102,10 @@ class LayerLayoutStrategy:
 
     @classmethod
     def fit_content(cls, target: Layer, *args, **kwargs) -> bool:
-        if not target._edits:
+        content_roi = content_region(target)
+        if target.region == content_roi:
             return False
-
-        def content_region(edit):
-            return calculate_content_bbox(edit.image) + edit.region.top_left
-
-        content_region = reduce(or_, [content_region(e) for e in target._edits])
-        content_region += target.region.top_left
-
-        if target.region == content_region:
-            return False
-        return cls._resolve_layer(target, content_region)
+        return cls._resolve_layer(target, content_roi)
 
 
 class CanvasLayoutStrategy:
@@ -147,57 +151,40 @@ class CanvasLayoutStrategy:
         return cls.fit(target, ref_region)
 
     @classmethod
-    def _resolve_content(
+    def _extract_items(
         cls,
-        item: Layer | GroupLayer,
-    ) -> Region:
-        ...
-        if not item._edits:
-            return None
-
-        def content_region(edit):
-            return calculate_content_bbox(edit.image) + edit.region.top_left
-
-        content_region = reduce(or_, [content_region(e) for e in item._edits])
-        content_region += item.region.top_left
-        return content_region
-
-    @classmethod
-    def _resolve_loop(
-        cls,
-        target_region: Region | None,
         item: Layer | Container,
     ) -> Region:
-
         if isinstance(item, Layer):
-            content_region = cls._resolve_content(item)
-            if target_region is None:
-                return content_region
-            if content_region:
-                return target_region | content_region
-            return target_region
-
-        for child in item:
-            reg = cls._resolve_loop(target_region, child)
-            if reg and target_region is None:
-                target_region = reg
-            elif reg:
-                target_region |= reg
-
-        return target_region
+            yield content_region(item)
+        else:
+            for child in item:
+                yield from cls._extract_items(child)
 
     @classmethod
     def fit_content(
         cls,
         target: Canvas,
-        container: Container | Iterable[Layer] = None,
+        container: Container | Sequence[Layer],
     ) -> bool:
 
-        new_region = cls._resolve_loop(None, container)
-        if new_region:
-            target._region = new_region
-            return True
-        return False
+        if len(container) == 0:
+            return False
+
+        regions = filter(None, cls._extract_items(container))
+
+        try:
+            new_region = next(regions)
+        except StopIteration:
+            return False
+
+        new_region = reduce(or_, regions, new_region)
+        if new_region == target._region:
+            return False
+
+        target._region = new_region
+
+        return True
 
 
 class GroupLayoutStrategy:
@@ -291,7 +278,7 @@ class Layout:
     def fit_content(
         self,
         target: Layer | GroupLayer | Canvas,
-        container: Container | Iterable[Layer] = None,
+        container: Container | Sequence[Layer] = None,
     ) -> bool:
         strategy_class = self.STRATEGIES[type(target)]
         return strategy_class.fit_content(target, container=container)
