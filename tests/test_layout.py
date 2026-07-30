@@ -4,7 +4,7 @@ import pytest
 import numpy as np
 from anicrop.enums import ImageFormat
 from anicrop.canvas import Canvas
-from anicrop.container import GroupLayer
+from anicrop.container import GroupLayer, LayerStack
 from anicrop.image import Image
 from anicrop.layer import EditLayer, Layer
 from anicrop.layout import Layout
@@ -13,19 +13,10 @@ from anicrop.spatial import Region
 
 
 def make_layer(x=25, y=25, w=50, h=50) -> Layer:
-    class MockLayer(Layer):
-        pass
-
     mock_img = MagicMock(spec=Image)
     mock_img.size = (w, h)
-    layer = MockLayer(mock_img)
+    layer = Layer(mock_img)
     layer._region = Region.from_rect(x, y, w, h)
-
-    # Vincula getter e setter para simular a property completa
-    type(layer).region = property(
-        lambda self: self._region,
-        lambda self, val: setattr(self, '_region', val)
-    )
     return layer
 
 
@@ -505,9 +496,9 @@ def test_layout_align_layer_com_variadas_referencias_e_fatores(align_ref, factor
     expect_start = 50 + expect_offset
     assert layer.region == Region.from_rect(expect_start, expect_start, 40, 40)
 
-    # O edit também precisa ter deslizado na direção oposta para compensar o movimento do Layer
-    # Matemática: Offset_Edit = - Delta_Origin. (Ou seja, -expect_offset)
-    assert edit_mock.region.top_left == (50 - expect_offset, 50 - expect_offset)
+    # Como o align move a Layer como um todo pelo canvas,
+    # as edições internas permanecem ancoradas na sua posição relativa intacta.
+    assert edit_mock.region.top_left == (50, 50)
 
 
 def test_layout_align_group_vazio_retorna_false():
@@ -929,33 +920,135 @@ def test_layout_fit_content_group_layer_recursivo():
 def test_layout_fit_content_group_bug_sobrescrita_resultado():
     """Testa se o retorno True é preservado mesmo se uma camada subsequente não sofrer alteração."""
     group = GroupLayer(name="Root")
-    
+
     # Layer 1: PRECISA de alteração. Bordas transparentes sobrando (Retorna True).
     layer1, side_effect1 = setup_layer_with_edits(
         layer_rect=(0, 0, 100, 100),
         edits_data=[((0, 0, 100, 100), (10, 10, 40, 40))]
     )
-    
+
     # Layer 2: NÃO precisa de alteração. Já está cravado (Retorna False).
     layer2, side_effect2 = setup_layer_with_edits(
         layer_rect=(0, 0, 50, 50),
         edits_data=[((0, 0, 50, 50), (0, 0, 50, 50))]
     )
-    
+
     # Adicionamos na ordem: primeiro o que muda (True), depois o que NÃO muda (False).
     group.append(layer1)
     group.append(layer2)
+
+    layout = Layout()
+
+    def side_effect_combo(img):
+        try:
+            return side_effect1(img)
+        except KeyError:
+            return side_effect2(img)
+
+    with patch('anicrop.layout.calculate_content_bbox', side_effect=side_effect_combo):
+        result = layout.fit_content(group)
+
+    # Como a Layer 1 sofreu alteração (True), o Grupo todo como conjunto deve relatar True!
+    assert result is True
+
+
+@pytest.mark.parametrize('container_class', [GroupLayer, LayerStack])
+@pytest.mark.parametrize(
+    "layer1_rect, layer2_rect, mock_content, expected_region",
+    [
+        # Sem Sobreposição + Expand
+        pytest.param(
+            (10, 10, 50, 50), (100, 100, 50, 50),
+            Region.from_rect(-20, -20, 90, 90),
+            Region.from_rect(-10, -10, 180, 180),
+            id="no_overlap_expand"
+        ),
+        # Sem Sobreposição + Shrink
+        pytest.param(
+            (10, 10, 50, 50), (100, 100, 50, 50),
+            Region.from_rect(10, 10, 10, 10),
+            Region.from_rect(20, 20, 100, 100),
+            id="no_overlap_shrink"
+        ),
+        # Com Sobreposição + Expand
+        pytest.param(
+            (10, 10, 50, 50), (30, 30, 50, 50),
+            Region.from_rect(-20, -20, 90, 90),
+            Region.from_rect(-10, -10, 110, 110),
+            id="overlap_expand"
+        ),
+        # Com Sobreposição + Shrink
+        pytest.param(
+            (10, 10, 50, 50), (30, 30, 50, 50),
+            Region.from_rect(10, 10, 10, 10),
+            Region.from_rect(20, 20, 30, 30),
+            id="overlap_shrink"
+        ),
+        # Totalmente contida + Expand
+        pytest.param(
+            (10, 10, 100, 100), (50, 50, 30, 30),
+            Region.from_rect(-20, -20, 90, 90),
+            Region.from_rect(-10, -10, 130, 130),
+            id="fully_contained_expand"
+        ),
+    ]
+)
+def test_layout_fit_content_canvas_integracao(
+    container_class, layer1_rect, layer2_rect, mock_content, expected_region
+):
+    """
+    Testa o fit_content no Canvas com GroupLayer e LayerStack.
+    Cria uma hierarquia com 1 root e 1 sub-root, testando a adaptação do Canvas
+    diretamente pelo conteúdo das layers (simulado pelo mock).
+    """
+    canvas = Canvas(500, 500)
+    container = container_class()
+    sub_container = GroupLayer()
+
+    layer1 = make_layer(*layer1_rect)
+    layer2 = make_layer(*layer2_rect)
+
+    sub_container.append(layer2)
+    container.append(layer1)
+    container.append(sub_container)
+
+    layout = Layout()
+
+    with patch('anicrop.layout.calculate_content_bbox', return_value=mock_content):
+        # Ajusta o Canvas ao conteúdo dos pixels das layers
+        result = layout.fit_content(canvas, container=container)
+
+    assert result is True
+    assert canvas.region == expected_region
+
+
+def test_layout_fit_content_canvas_vazio():
+    """Garante que se não houver layers, o canvas não altera seu tamanho e retorna False."""
+    canvas = Canvas(200, 200)
+    layout = Layout()
+
+    result = layout.fit_content(canvas, container=LayerStack())
+
+    assert result is False
+    assert canvas.region == Region.from_rect(0, 0, 200, 200)
+
+
+def test_layout_fit_content_canvas_com_grupo_vazio():
+    """
+    Testa se o fit_content suporta passar um container que contém um Sub-Grupo vazio.
+    Sem a proteção no `_resolve_loop`, este teste lançará TypeError: unsupported operand type(s) for |=: 'NoneType' and 'NoneType'.
+    """
+    canvas = Canvas(500, 500)
+    container = LayerStack()
+    
+    # Adicionamos um GroupLayer totalmente vazio
+    empty_group = GroupLayer()
+    
+    container.append(empty_group)
     
     layout = Layout()
     
-    def side_effect_combo(img):
-        try: 
-            return side_effect1(img)
-        except KeyError: 
-            return side_effect2(img)
-            
-    with patch('anicrop.layout.calculate_content_bbox', side_effect=side_effect_combo):
-        result = layout.fit_content(group)
-        
-    # Como a Layer 1 sofreu alteração (True), o Grupo todo como conjunto deve relatar True!
-    assert result is True
+    # Tenta ajustar o Canvas. Como o grupo não tem nada, não há conteúdo, então deve retornar False.
+    result = layout.fit_content(canvas, container=container)
+    
+    assert result is False
