@@ -381,3 +381,46 @@ def test_Region_offset_to_anchor_end():
     region2 = Region(Span(0, 50), Span(0, 50))    # end = (50, 50)
     result = region1.offset_to(region2, anchor_end=True)
     assert result == Vector(-4, -4)
+
+
+def test_Span_slack():
+    target = Span(10, 40)
+    reference = Span(100, 200)
+
+    # slack é o espaço extra que a referência tem em relação ao target
+    assert target.slack(reference) == 160
+
+    # se invertermos, o slack é negativo (a referência é menor)
+    assert reference.slack(target) == -160
+
+
+@pytest.mark.parametrize('factor, expect_start', [
+    (0.0, 100),   # align left: ref.start + 160 * 0.0
+    (0.5, 180),   # align center: ref.start + 160 * 0.5
+    (1.0, 260),   # align right: ref.start + 160 * 1.0
+])
+def test_Span_align(factor, expect_start):
+    target = Span(10, 40)
+    reference = Span(100, 200)
+
+    novo_span = target.align(reference, factor)
+    
+    # O método deve retornar um NOVO Span com o mesmo tamanho da origem,
+    # mas com o start deslocado para o alinhamento.
+    assert novo_span == Span(expect_start, target.length)
+
+
+def test_Region_align():
+    target = Region(Span(10, 40), Span(10, 30))
+    reference = Region(Span(100, 200), Span(200, 300))
+
+    # Alinhando no centro (0.5) em ambos os eixos
+    aligned_region = target.align(reference, 0.5, 0.5)
+
+    # Verifica se os tamanhos se mantiveram
+    assert aligned_region.x.length == 40
+    assert aligned_region.y.length == 30
+
+    # Verifica a nova posição (os mesmos 180 e 335 do nosso exemplo!)
+    assert aligned_region.x.start == 180
+    assert aligned_region.y.start == 335

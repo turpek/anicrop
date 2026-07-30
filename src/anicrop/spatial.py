@@ -232,6 +232,38 @@ class Span:
             return span.end - self.end
         return span.start - self.start
 
+    def slack(self, span: Span) -> int:
+        """Calculates the available free space between this span and a reference span.
+
+        The slack is the difference in length between the reference span and this span.
+        A positive value means the reference span is larger.
+
+        Args:
+            span: The reference Span to compare against.
+
+        Returns:
+            An integer representing the difference in length (`span.length - self.length`).
+        """
+        return span.length - self.length
+
+    def align(self, span: Span, factor: float = 0.5) -> Span:
+        """Aligns this span relative to a reference span based on a given factor.
+
+        Calculates a new starting position by distributing the slack (free space)
+        according to the alignment factor. Returns a new Span with the updated
+        start position and the original length.
+
+        Args:
+            span: The reference Span to align to.
+            factor: A float between 0.0 and 1.0 representing the alignment position.
+                0.0 aligns to the start (left/top), 0.5 to the center, and 1.0 to the end (right/bottom).
+
+        Returns:
+            A new Span instance with the translated position.
+        """
+        start = round(span.start + (self.slack(span)) * factor)
+        return Span(start, self.length)
+
 
 @dataclass(frozen=True)
 class Region:
@@ -241,6 +273,10 @@ class Region:
     @classmethod
     def from_size(cls, width: int, height: int) -> Region:
         return cls(Span(width), Span(height))
+
+    @classmethod
+    def from_rect(cls, x: int, y: int, width: int, height: int) -> Region:
+        return cls(Span(x, width), Span(y, height))
 
     def __repr__(self):
         start = f'start=({self.x.start},{self.y.start})'
@@ -390,6 +426,30 @@ class Region:
             raise ValueError("no overlap: 'other' out of bounds")
         intersection = self & other
         return intersection - self
+
+    def align(
+        self,
+        ref: Region,
+        x_factor: float = 0.5,
+        y_factor: float = 0.5,
+    ) -> Region:
+        """Aligns this region relative to a reference region.
+
+        Uses the alignment factors to distribute the slack on both the X and Y axes,
+        returning a newly translated Region that preserves its original dimensions.
+
+        Args:
+            ref: The reference Region to align to.
+            x_factor: Alignment factor for the horizontal (X) axis (0.0 to 1.0).
+            y_factor: Alignment factor for the vertical (Y) axis (0.0 to 1.0).
+
+        Returns:
+            A new Region instance aligned to the reference.
+        """
+        return Region(
+            self.x.align(ref.x, x_factor),
+            self.y.align(ref.y, y_factor),
+        )
 
 
 def bbox_to_region(bbox: tuple[int, int, int, int]):
