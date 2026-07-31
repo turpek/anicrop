@@ -144,7 +144,7 @@ def test_merge_down_em_varias_posicoes_com_layer_up_60_graus_e_layer_down_45_gra
 
     mock_image_down = mocker.MagicMock(spec=Image)
     mock_image_up = mocker.MagicMock(spec=Image)
-    
+
     mock_blend_dict = mocker.patch('anicrop.operations.BLEND_MODE')
     # O mock_funcao_blend é a função falsa que o dicionário retorna quando chamamos .get()
     mock_blend = mock_blend_dict.get.return_value

@@ -79,13 +79,13 @@ def test_CanvasRender_rotacao_expansao_segura(cr, method):
 
     render_fn = getattr(cr, method)
     rendered_image = render_fn(layer)
-    bbox = layer.global_region
+    rect = layer.global_region
 
-    assert rendered_image.width == bbox.width
-    assert rendered_image.height == bbox.height
+    assert rendered_image.width == rect.width
+    assert rendered_image.height == rect.height
 
     img_array = rendered_image[...]
-    centro_x, centro_y = bbox.width // 2, bbox.height // 2
+    centro_x, centro_y = rect.width // 2, rect.height // 2
     pixel_central = img_array[centro_y, centro_x]
 
     assert pixel_central[3] == 255

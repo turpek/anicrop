@@ -307,7 +307,7 @@ class Image:
         return cls(zarr.open(str(zarr_dir), mode="r"), image_format)
 
 
-def calculate_content_bbox(image: Image) -> Region:
+def calculate_content_rect(image: Image) -> Region:
     """Calculates the bounding box of the non-transparent content.
 
     Iterates through the alpha channel to find the minimum and maximum

@@ -14,7 +14,7 @@ if TYPE_CHECKING:
 TransformBase: list[TRotate | TScale | TTranslate]
 
 
-def corners_to_bbox(min_x, min_y, max_x, max_y):
+def corners_to_rect(min_x, min_y, max_x, max_y):
     new_w = max(1, max_x - min_x)
     new_h = max(1, max_y - min_y)
     return min_x, min_y, new_w, new_h
@@ -25,7 +25,6 @@ def calculate_new_corners(
     size: tuple[int, int],
     top_left: tuple[int, int] = (0, 0)
 ) -> tuple[int, int, int, int]:
-
     """retorna min_x, min_y, max_x, max_y"""
     x, y = top_left
     w, h = size
@@ -52,7 +51,7 @@ def calculate_new_corners(
     return min_x, min_y, max_x, max_y
 
 
-def calculate_new_bbox_smart(
+def calculate_new_rect_smart(
     matrix: np.ndarray,
     size: tuple[int, int],
     top_left: tuple[int, int],
@@ -78,26 +77,26 @@ def calculate_new_bbox_smart(
     return min_x, min_y, new_w, new_h
 
 
-def calculate_new_bbox(
+def calculate_new_rect(
     matrix: np.ndarray,
     size: tuple[int, int],
     eps: float = 1e-5
 ) -> tuple[int, int, int, int]:
 
-    return calculate_new_bbox_smart(matrix, size, (0, 0), eps)
+    return calculate_new_rect_smart(matrix, size, (0, 0), eps)
 
 
-def calculate_region_bbox(
+def calculate_region_rect(
     matrix: np.ndarray,
     region: Region,
     eps: float = 1e-5
 ) -> tuple[int, int, int, int]:
 
-    return calculate_new_bbox_smart(matrix, region.size, region.top_left, eps)
+    return calculate_new_rect_smart(matrix, region.size, region.top_left, eps)
 
 
-def calculate_new_bbox_from_layer(layer) -> tuple[float, float, float, float]:
-    return calculate_new_bbox(mat_global(layer), layer.region.size)
+def calculate_new_rect_from_layer(layer) -> tuple[float, float, float, float]:
+    return calculate_new_rect(mat_global(layer), layer.region.size)
 
 
 def create_pivot_transform_abs(
@@ -175,13 +174,13 @@ def mat_global(layer: Layer) -> np.ndarray:
 def mat_final(layer: Layer, x: float, y: float) -> np.ndarray:
     """
     Gera a matriz de renderização final e o tamanho do buffer de destino.
-    Utiliza calculate_new_bbox para obter a compensação necessária.
+    Utiliza calculate_new_rect para obter a compensação necessária.
     """
     # 2. Obtemos a matriz global
     m_glob = mat_global(layer)
 
     # 3. Criamos a matriz de compensação para evitar o clipping (corte)
-    # Movemos o mundo de volta para a origem (0,0) do novo BBox
+    # Movemos o mundo de volta para a origem (0,0) do novo Rect
     m_compensation = mat_translation(-x, -y)
 
     # 4. A matriz final é a global 'puxada' para o topo-esquerdo do buffer
@@ -202,7 +201,7 @@ def mat_edit_local(edit_layer: EditLayer, matrix_final: np.ndarray) -> np.ndarra
 def mat_edit_final(edit_layer: EditLayer, matrix_final: np.ndarray):
     """matrix_final é a matriz gerada pela função `mat_final."""
     local_matrix = mat_edit_local(edit_layer, matrix_final)
-    x, y, *_ = calculate_new_bbox(local_matrix, edit_layer.image.size)
+    x, y, *_ = calculate_new_rect(local_matrix, edit_layer.image.size)
     m_compensation = mat_translation(-x, -y)
     return m_compensation @ local_matrix
 
@@ -345,8 +344,8 @@ class ComposerRel(Composer):
     def __init__(self, size: tuple[int, int]):
         super().__init__(size)
 
-    def __get_bbox(self) -> tuple[tuple[float, float], tuple[float, float]]:
-        x, y, w, h = corners_to_bbox(
+    def __get_rect(self) -> tuple[tuple[float, float], tuple[float, float]]:
+        x, y, w, h = corners_to_rect(
             *calculate_new_corners(self._distortion, self.size)
         )
         return (x, y), (w, h)
@@ -355,7 +354,7 @@ class ComposerRel(Composer):
         self, angle: float = 0, pivot_x: float = 0.5, pivot_y: float = 0.5
     ) -> ComposerRel:
 
-        top_left, size = self.__get_bbox()
+        top_left, size = self.__get_rect()
         M_rot = TRotate(angle, pivot_x, pivot_y).matrix(size, top_left)
         self._distortion = M_rot @ self._distortion
         return self
@@ -364,7 +363,7 @@ class ComposerRel(Composer):
         self, sx: float = 1, sy: float = 1, pivot_x: float = 0.5, pivot_y: float = 0.5,
     ) -> ComposerRel:
 
-        top_left, size = self.__get_bbox()
+        top_left, size = self.__get_rect()
         M_scale = TScale(sx, sy, pivot_x, pivot_y).matrix(size, top_left)
         self._distortion = M_scale @ self._distortion
         return self
@@ -485,8 +484,8 @@ class TransformRel(Transform):
     ):
         super().__init__(intentions, translate)
 
-    def __get_bbox(self, matrix: np.ndarray, size: tuple[float, float]):
-        x, y, w, h = corners_to_bbox(*calculate_new_corners(matrix, size))
+    def __get_rect(self, matrix: np.ndarray, size: tuple[float, float]):
+        x, y, w, h = corners_to_rect(*calculate_new_corners(matrix, size))
         return (x, y), (w, h)
 
     def _list_to_matrix(
@@ -498,7 +497,7 @@ class TransformRel(Transform):
         current_size = size
         for op in matrix_list:
             m_total = op.matrix(current_size, top_left) @ m_total
-            top_left, current_size = self.__get_bbox(m_total, size)
+            top_left, current_size = self.__get_rect(m_total, size)
         return m_total
 
     def rotate(

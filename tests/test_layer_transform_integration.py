@@ -39,7 +39,7 @@ def test_layer_set_transform_com_duas_transformacoes(canvas):
 
     # translate(10, 10) -> rotate(90, 0.5, 0.5)
     # Como a translação vai para o final: M = T(10,10) @ R(90, pivo 5,5)
-    # BBox resultante deve ser (10, 10, 10, 10)
+    # Rect resultante deve ser (10, 10, 10, 10)
     t = TransformRel().translate(10, 10).rotate(90, 0.5, 0.5)
     layer.set_transform(t)
 
@@ -60,7 +60,7 @@ def test_layer_cenario_complexo_violao(canvas):
     # O resultado deve refletir o posicionamento no canvas.
     # Baseado no debug, o motor dinâmico produz start=(13, 13) e length=(26, 15)
     # Esses valores são ligeiramente diferentes do cálculo estático pois o pivô
-    # acompanha o BBox em tempo real.
+    # acompanha o Rect em tempo real.
     res = layer.global_region
     assert res.x.start == 14
     assert res.y.start == 12

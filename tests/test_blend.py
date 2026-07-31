@@ -1,3 +1,4 @@
+from anicrop.blend import blend_normal
 from anicrop.image import Image, ImageFormat
 from anicrop.blend import hard_masking
 import numpy as np
@@ -122,7 +123,6 @@ def test_hard_masking_grayscale():
 
 
 # --- Testes para blend_normal ---
-from anicrop.blend import blend_normal
 
 
 def test_blend_normal_size_mismatch_clipping():
@@ -212,4 +212,3 @@ def test_blend_normal_sets_base_alpha_to_opaque():
     # Base deve ser Vermelha e Opaca
     assert np.all(base._data[..., 0] == 255)
     assert np.all(base._data[..., 3] == 255)
-

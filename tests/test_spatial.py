@@ -404,7 +404,7 @@ def test_Span_align(factor, expect_start):
     reference = Span(100, 200)
 
     novo_span = target.align(reference, factor)
-    
+
     # O método deve retornar um NOVO Span com o mesmo tamanho da origem,
     # mas com o start deslocado para o alinhamento.
     assert novo_span == Span(expect_start, target.length)

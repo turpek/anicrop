@@ -1,6 +1,6 @@
-from anicrop.spatial import Region, bbox_to_region
+from anicrop.spatial import Region, rect_to_region
 from anicrop.type import Scale
-from anicrop.transform import calculate_new_bbox, mat_inverse, mat_pivot, mat_translation
+from anicrop.transform import calculate_new_rect, mat_inverse, mat_pivot, mat_translation
 from numpy import ndarray
 
 
@@ -70,4 +70,4 @@ class Viewport:
     def roi(self, region: Region) -> Region:
         mat_tr = mat_inverse(mat_translation(*region.top_left))
         m_roi = mat_tr @ mat_inverse(self.roi_matrix)
-        return bbox_to_region(calculate_new_bbox(m_roi, self.size))
+        return rect_to_region(calculate_new_rect(m_roi, self.size))

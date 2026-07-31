@@ -452,6 +452,6 @@ class Region:
         )
 
 
-def bbox_to_region(bbox: tuple[int, int, int, int]):
-    x, y, w, h = bbox
+def rect_to_region(rect: tuple[int, int, int, int]):
+    x, y, w, h = rect
     return Region(Span(x, w), Span(y, h))

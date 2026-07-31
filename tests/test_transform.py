@@ -2,7 +2,7 @@ import numpy as np
 import pytest
 from anicrop.transform import (
     mat_translation,
-    calculate_new_bbox,
+    calculate_new_rect,
     mat_position,
     ComposerRel,
     TransformRel,
@@ -36,7 +36,7 @@ def test_mat_position_da_region():
     np.testing.assert_allclose(m, expected, atol=ATOL)
 
 
-def test_calculate_new_bbox_rotacao_90_graus():
+def test_calculate_new_rect_rotacao_90_graus():
     rot_90 = np.array([
         [0, -1, 0],
         [1, 0, 0],
@@ -44,8 +44,8 @@ def test_calculate_new_bbox_rotacao_90_graus():
     ], dtype=np.float32)
 
     size = (100, 50)
-    bbox = calculate_new_bbox(rot_90, size)
-    np.testing.assert_allclose(bbox, (-50, 0, 50, 100), atol=ATOL)
+    rect = calculate_new_rect(rot_90, size)
+    np.testing.assert_allclose(rect, (-50, 0, 50, 100), atol=ATOL)
 
 
 # --- Testes ComposerRel ---
@@ -91,19 +91,19 @@ def test_composer_rel_scale_no_centro():
 
 def test_composer_rel_dynamic_pivot_no_shift():
     # ESTE TESTE DEVE SER RED (FALHAR) NO COMPOSERREL ATUAL
-    # Ele exige que o composer rastreie o BBox dinamicamente como a classe TransformRel
+    # Ele exige que o composer rastreie o Rect dinamicamente como a classe TransformRel
     composer = ComposerRel((100, 100))
 
     # 1. Rotaciona 45 graus no centro
     composer.rotate(45, 0.5, 0.5)
     m_rot = composer.matrix
-    x_ref, _, _, _ = calculate_new_bbox(m_rot, (100, 100))
+    x_ref, _, _, _ = calculate_new_rect(m_rot, (100, 100))
 
     # 2. Escala 2x no pivô visual 0.
     # No sistema inteligente, o Top-Left deve permanecer estável (~ -20.71)
     composer.scale(2, 1, 0, 0)
     m_complex = composer.matrix
-    x_res, _, _, _ = calculate_new_bbox(m_complex, (100, 100))
+    x_res, _, _, _ = calculate_new_rect(m_complex, (100, 100))
 
     # Se falhar aqui, é porque o pivô inteligente não está implementado no Composer
     assert abs(x_res - x_ref) <= 1
@@ -133,11 +133,11 @@ def test_transform_rel_dynamic_pivot_no_shift():
 
     t_rot = TransformRel().rotate(45, 0.5, 0.5)
     m_rot = t_rot.get_matrix(size)
-    x_ref, _, _, _ = calculate_new_bbox(m_rot, size)
+    x_ref, _, _, _ = calculate_new_rect(m_rot, size)
 
     t_complex = TransformRel().rotate(45, 0.5, 0.5).scale(2, 1, 0, 0)
     m_complex = t_complex.get_matrix(size)
-    x_res, _, _, _ = calculate_new_bbox(m_complex, size)
+    x_res, _, _, _ = calculate_new_rect(m_complex, size)
 
     assert abs(x_res - x_ref) <= 1
 
@@ -156,7 +156,7 @@ def test_transform_rel_stress_interleaved():
     t = TransformRel().translate(10, 10).rotate(45).scale(2, 2).translate(5, 5).rotate(-30)
     res_matrix = t.get_matrix(size)
 
-    x, y, w, h = calculate_new_bbox(res_matrix, size)
+    x, y, w, h = calculate_new_rect(res_matrix, size)
     assert x != 0
     assert w > 100
 
@@ -238,7 +238,7 @@ def test_transform_abs_stress_interleaved():
     t = TransformAbs().translate(10, 10).rotate(45, px=50, py=50).scale(2, 2, px=10, py=10).translate(5, 5).rotate(-30, px=0, py=0)
     res_matrix = t.get_matrix()
 
-    x, y, w, h = calculate_new_bbox(res_matrix, (100, 100))
+    x, y, w, h = calculate_new_rect(res_matrix, (100, 100))
     assert x != 0
     assert w > 100
 
@@ -249,4 +249,3 @@ def test_transform_factory_classmethods():
 
     t_abs = Transform.absolute()
     assert isinstance(t_abs, TransformAbs)
-

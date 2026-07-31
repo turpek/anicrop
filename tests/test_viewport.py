@@ -3,7 +3,7 @@ import numpy as np
 from anicrop.viewport import Viewport
 from anicrop.spatial import Region, Span
 from anicrop.type import Scale
-from anicrop.transform import mat_translation, mat_pivot, calculate_new_bbox, mat_inverse
+from anicrop.transform import mat_translation, mat_pivot, calculate_new_rect, mat_inverse
 
 
 def test_viewport_initialization():
@@ -51,9 +51,9 @@ def test_viewport_fit_matrix():
     # offset_y = (600 - 150) / 2 = 225
 
     expected_fit = np.array([
-        [0.25, 0.0,  300.0],
-        [0.0,  0.25, 225.0],
-        [0.0,  0.0,  1.0]
+        [0.25, 0.0, 300.0],
+        [0.0, 0.25, 225.0],
+        [0.0, 0.0, 1.0]
     ], dtype=np.float32)
 
     assert np.allclose(viewport.fit_matrix(layer_size), expected_fit)

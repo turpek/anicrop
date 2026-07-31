@@ -731,24 +731,24 @@ def setup_layer_with_edits(layer_rect, edits_data):
     layer._edits = []
 
     mock_returns = {}
-    for edit_rect, bbox_rect in edits_data:
+    for edit_rect, rect_data in edits_data:
         edit = make_edit(*edit_rect)
         edit.image = MagicMock()
         # Usa UUID para garantir que imagens diferentes de Layers diferentes não colidam no dict de mocks
         img_id = uuid.uuid4()
         edit.image._id = img_id
         layer._edits.append(edit)
-        mock_returns[img_id] = Region.from_rect(*bbox_rect)
+        mock_returns[img_id] = Region.from_rect(*rect_data)
 
-    def mock_bbox_side_effect(img):
+    def mock_rect_side_effect(img):
         return mock_returns[img._id]
 
-    return layer, mock_bbox_side_effect
+    return layer, mock_rect_side_effect
 
 
 def test_layout_fit_content_layer_totalmente_preenchido():
     """Testa fit_content num Layer sem bordas transparentes. Deve retornar False (No-Op)."""
-    # Layer em 0,0 100x100. Edit no 0,0 local. Bbox do Edit = 0,0 100x100
+    # Layer em 0,0 100x100. Edit no 0,0 local. Rect do Edit = 0,0 100x100
     layer, side_effect = setup_layer_with_edits(
         layer_rect=(0, 0, 100, 100),
         edits_data=[
@@ -759,7 +759,7 @@ def test_layout_fit_content_layer_totalmente_preenchido():
     old_region = layer.region
     layout = Layout()
 
-    with patch('anicrop.layout.calculate_content_bbox', side_effect=side_effect):
+    with patch('anicrop.layout.calculate_content_rect', side_effect=side_effect):
         result = layout.fit_content(layer)
 
     assert result is False
@@ -779,7 +779,7 @@ def test_layout_fit_content_layer_com_bordas_transparentes():
     old_region = layer.region
     layout = Layout()
 
-    with patch('anicrop.layout.calculate_content_bbox', side_effect=side_effect):
+    with patch('anicrop.layout.calculate_content_rect', side_effect=side_effect):
         result = layout.fit_content(layer)
 
     assert result is True
@@ -790,8 +790,8 @@ def test_layout_fit_content_layer_com_bordas_transparentes():
 
 def test_layout_fit_content_layer_multiplos_edits_sobrepostos():
     """Testa 2 edits com bordas transparentes que se sobrepõem em eixos diferentes."""
-    # Edit 1: Local (0,0). Bbox relativa (20, 40, 50, 50). Global = (20, 40) até (70, 90).
-    # Edit 2: Local (50,0). Bbox relativa (10, 10, 50, 50). Global = (60, 10) até (110, 60).
+    # Edit 1: Local (0,0). Rect relativa (20, 40, 50, 50). Global = (20, 40) até (70, 90).
+    # Edit 2: Local (50,0). Rect relativa (10, 10, 50, 50). Global = (60, 10) até (110, 60).
     # UNIÃO GLOBAL ESPERADA:
     # X Min = 20. X Max = 110. (Largura 90)
     # Y Min = 10. Y Max = 90. (Altura 80)
@@ -804,7 +804,7 @@ def test_layout_fit_content_layer_multiplos_edits_sobrepostos():
     )
 
     layout = Layout()
-    with patch('anicrop.layout.calculate_content_bbox', side_effect=side_effect):
+    with patch('anicrop.layout.calculate_content_rect', side_effect=side_effect):
         result = layout.fit_content(layer)
 
     assert result is True
@@ -813,8 +813,8 @@ def test_layout_fit_content_layer_multiplos_edits_sobrepostos():
 
 def test_layout_fit_content_layer_multiplos_edits_separados():
     """Testa 2 edits distantes que não se sobrepõem, o layer deve abraçar ambos."""
-    # Edit 1: Local (10,10). Bbox relativa (0, 0, 20, 20). Global = (10, 10) até (30, 30).
-    # Edit 2: Local (200,200). Bbox relativa (0, 0, 20, 20). Global = (200, 200) até (220, 220).
+    # Edit 1: Local (10,10). Rect relativa (0, 0, 20, 20). Global = (10, 10) até (30, 30).
+    # Edit 2: Local (200,200). Rect relativa (0, 0, 20, 20). Global = (200, 200) até (220, 220).
     # UNIÃO GLOBAL ESPERADA:
     # (10, 10) com tamanho 210x210
     layer, side_effect = setup_layer_with_edits(
@@ -826,7 +826,7 @@ def test_layout_fit_content_layer_multiplos_edits_separados():
     )
 
     layout = Layout()
-    with patch('anicrop.layout.calculate_content_bbox', side_effect=side_effect):
+    with patch('anicrop.layout.calculate_content_rect', side_effect=side_effect):
         result = layout.fit_content(layer)
 
     assert result is True
@@ -837,7 +837,7 @@ def test_layout_fit_content_revela_arte_escondida_fora_da_borda():
     """Testa se fit_content expande a camada para recuperar conteúdo desenhado fora das bordas (não-destrutivo)."""
     # Camada original: Global (100, 100) com tamanho 50x50 (Vai até o 150).
     # EditLayer (arte): Movido para o Local (-20, -20).
-    # Bbox real da arte: Nasce no 0,0 interno do Edit com tamanho 30x30.
+    # Rect real da arte: Nasce no 0,0 interno do Edit com tamanho 30x30.
     # Posição Global da Arte: Layer(100) + Edit(-20) = 80. Vai do 80 até 110.
     # Ou seja: A arte está vazando violentamente pela esquerda/topo da camada!
     layer, side_effect = setup_layer_with_edits(
@@ -848,7 +848,7 @@ def test_layout_fit_content_revela_arte_escondida_fora_da_borda():
     )
 
     layout = Layout()
-    with patch('anicrop.layout.calculate_content_bbox', side_effect=side_effect):
+    with patch('anicrop.layout.calculate_content_rect', side_effect=side_effect):
         result = layout.fit_content(layer)
 
     assert result is True
@@ -860,15 +860,15 @@ def test_layout_fit_content_group_layer():
     """Testa se o fit_content propaga para as camadas dentro de um GroupLayer, testando fora da origem."""
     group = GroupLayer(name="Root")
 
-    # Layer 1: Em (50, 50). Arte em Local (10, 10). BBox (0, 0, 40, 40).
-    # Posição global da arte 1: Layer(50) + Local(10) + Bbox(0) = 60.
+    # Layer 1: Em (50, 50). Arte em Local (10, 10). Rect (0, 0, 40, 40).
+    # Posição global da arte 1: Layer(50) + Local(10) + Rect(0) = 60.
     layer1, side_effect1 = setup_layer_with_edits(
         layer_rect=(50, 50, 100, 100),
         edits_data=[((10, 10, 100, 100), (0, 0, 40, 40))]
     )
 
-    # Layer 2: Em (200, 200). Arte em Local (-10, -10). BBox (0, 0, 50, 50).
-    # Posição global da arte 2: Layer(200) + Local(-10) + Bbox(0) = 190.
+    # Layer 2: Em (200, 200). Arte em Local (-10, -10). Rect (0, 0, 50, 50).
+    # Posição global da arte 2: Layer(200) + Local(-10) + Rect(0) = 190.
     layer2, side_effect2 = setup_layer_with_edits(
         layer_rect=(200, 200, 100, 100),
         edits_data=[((-10, -10, 100, 100), (0, 0, 50, 50))]
@@ -886,7 +886,7 @@ def test_layout_fit_content_group_layer():
         except KeyError:
             return side_effect2(img)
 
-    with patch('anicrop.layout.calculate_content_bbox', side_effect=side_effect_combo):
+    with patch('anicrop.layout.calculate_content_rect', side_effect=side_effect_combo):
         result = layout.fit_content(group)
 
     assert result is True
@@ -899,8 +899,8 @@ def test_layout_fit_content_group_layer_recursivo():
     root = GroupLayer(name="Root")
     sub_group = GroupLayer(name="SubGroup")
 
-    # Layer: Em (-100, -100). Arte em Local (50, 50). BBox real interna (10, 10, 30, 30).
-    # Posição global final da arte: Layer(-100) + Local(50) + Bbox(10) = -40.
+    # Layer: Em (-100, -100). Arte em Local (50, 50). Rect real interna (10, 10, 30, 30).
+    # Posição global final da arte: Layer(-100) + Local(50) + Rect(10) = -40.
     layer, side_effect = setup_layer_with_edits(
         layer_rect=(-100, -100, 200, 200),
         edits_data=[((50, 50, 100, 100), (10, 10, 30, 30))]
@@ -910,7 +910,7 @@ def test_layout_fit_content_group_layer_recursivo():
     root.append(sub_group)
 
     layout = Layout()
-    with patch('anicrop.layout.calculate_content_bbox', side_effect=side_effect):
+    with patch('anicrop.layout.calculate_content_rect', side_effect=side_effect):
         result = layout.fit_content(root)
 
     assert result is True
@@ -945,7 +945,7 @@ def test_layout_fit_content_group_bug_sobrescrita_resultado():
         except KeyError:
             return side_effect2(img)
 
-    with patch('anicrop.layout.calculate_content_bbox', side_effect=side_effect_combo):
+    with patch('anicrop.layout.calculate_content_rect', side_effect=side_effect_combo):
         result = layout.fit_content(group)
 
     # Como a Layer 1 sofreu alteração (True), o Grupo todo como conjunto deve relatar True!
@@ -1014,7 +1014,7 @@ def test_layout_fit_content_canvas_integracao(
 
     layout = Layout()
 
-    with patch('anicrop.layout.calculate_content_bbox', return_value=mock_content):
+    with patch('anicrop.layout.calculate_content_rect', return_value=mock_content):
         # Ajusta o Canvas ao conteúdo dos pixels das layers
         result = layout.fit_content(canvas, container=container)
 
@@ -1040,17 +1040,17 @@ def test_layout_fit_content_canvas_com_grupo_vazio():
     """
     canvas = Canvas(500, 500)
     container = LayerStack()
-    
+
     # Adicionamos um GroupLayer totalmente vazio
     empty_group = GroupLayer()
-    
+
     container.append(empty_group)
-    
+
     layout = Layout()
-    
+
     # Tenta ajustar o Canvas. Como o grupo não tem nada, não há conteúdo, então deve retornar False.
     result = layout.fit_content(canvas, container=container)
-    
+
     assert result is False
 
 
@@ -1062,22 +1062,22 @@ def test_layout_fit_content_canvas_sem_alteracao():
     # Canvas já começa englobando perfeitamente a área (-10, -10, 180, 180)
     canvas = Canvas(200, 200)
     canvas._region = Region.from_rect(-10, -10, 180, 180)
-    
+
     container = LayerStack()
     # Adiciona layers que combinados resultam exatamente em (-10, -10, 180, 180)
     layer1 = make_layer(10, 10, 50, 50)
     layer2 = make_layer(100, 100, 50, 50)
     container.append(layer1)
     container.append(layer2)
-    
+
     layout = Layout()
-    
+
     # O mock dirá que as layers cresceram -20 (como no teste de no_overlap_expand)
     mock_content = Region.from_rect(-20, -20, 90, 90)
-    
-    with patch('anicrop.layout.calculate_content_bbox', return_value=mock_content):
+
+    with patch('anicrop.layout.calculate_content_rect', return_value=mock_content):
         result = layout.fit_content(canvas, container=container)
-        
+
     # Como a união do conteúdo (-10, -10, 180, 180) é igual à region que o Canvas já tinha,
     # ele deve ignorar a alteração e retornar False!
     assert result is False

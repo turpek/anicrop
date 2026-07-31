@@ -7,7 +7,7 @@ from anicrop.image import Image
 from anicrop.spatial import Region, Span
 from anicrop.type import Id
 from anicrop.transform import (
-    calculate_new_bbox_from_layer,
+    calculate_new_rect_from_layer,
     mat_global,
     mat_inverse,
     mat_scale,
@@ -222,9 +222,9 @@ class Layer(BaseLayer):
 
     @property
     def global_region(self) -> Region:
-        """Retorna o BBox (AABB) real do layer no espaço do Canvas."""
+        """Retorna o Rect (AABB) real do layer no espaço do Canvas."""
 
-        x, y, w, h = calculate_new_bbox_from_layer(self)
+        x, y, w, h = calculate_new_rect_from_layer(self)
         return Region(Span(x, w), Span(y, h))
 
     @property

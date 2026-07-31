@@ -5,16 +5,17 @@ from anicrop.canvas import Canvas
 from anicrop.enums import InterpolationOption, WarpMode
 from anicrop.image import Image, ImageFormat
 from anicrop.layer import Layer, EditLayer
-from anicrop.spatial import Region, bbox_to_region
+from anicrop.container import GroupLayer
+from anicrop.spatial import Region, rect_to_region
 from anicrop.transform import (
-    calculate_new_bbox,
-    calculate_region_bbox,
+    calculate_new_rect,
+    calculate_region_rect,
     mat_global,
     mat_inverse,
     mat_scale,
     mat_translation
 )
-from typing import Optional, Iterable, Any
+from typing import Optional, Iterable
 from anicrop.viewport import Viewport
 
 import cv2
@@ -70,7 +71,7 @@ def render_patch(
 ):
 
     # 1. Região ideal com a margem do Lanczos (pode ter start negativo)
-    target_region = bbox_to_region(calculate_region_bbox(
+    target_region = rect_to_region(calculate_region_rect(
         mat_inverse(matrix_global), dest_region
     )).expand(all=interp.padding)
 
@@ -227,7 +228,7 @@ class ViewportPlan(BaseRenderPlan):
             # 2. ESTADO GLOBAL NA VIEWPORT (Mexicano Em Pé na Tela com Zoom/Pan da Câmera):
             matrix = m_view @ mat_global(layer)
 
-        bounds = bbox_to_region(calculate_new_bbox(matrix, layer.region.size))
+        bounds = rect_to_region(calculate_new_rect(matrix, layer.region.size))
 
         super().__init__(bounds, viewport.region, matrix=matrix)
 
@@ -258,8 +259,8 @@ class CanvasPlan(BaseRenderPlan):
             # Levar view_region (Global 1:1) -> Local 1:1 -> Local LOD
             if view_region is not None:
                 inv_matrix = m_lod @ mat_inverse(m_global)
-                view_target = bbox_to_region(
-                    calculate_region_bbox(inv_matrix, view_region)
+                view_target = rect_to_region(
+                    calculate_region_rect(inv_matrix, view_region)
                 )
             else:
                 view_target = None
@@ -269,14 +270,14 @@ class CanvasPlan(BaseRenderPlan):
 
             # Levar view_region (Global 1:1) -> Global LOD
             if view_region is not None:
-                view_target = bbox_to_region(
-                    calculate_region_bbox(m_lod, view_region)
+                view_target = rect_to_region(
+                    calculate_region_rect(m_lod, view_region)
                 )
             else:
                 view_target = None
 
-        bounds = bbox_to_region(
-            calculate_new_bbox(matrix, layer.region.size)
+        bounds = rect_to_region(
+            calculate_new_rect(matrix, layer.region.size)
         )
 
         super().__init__(bounds, view_target, matrix=matrix)
@@ -304,8 +305,8 @@ def render_image(
     m_render = plan.matrix @ m_local
 
     # Bounding box projetado no espaço de destino do plano
-    edit_bbox = bbox_to_region(
-        calculate_new_bbox(m_render, image.size)
+    edit_bbox = rect_to_region(
+        calculate_new_rect(m_render, image.size)
     )
 
     # Culling: Descarta se a edição não colide com a região visível no destino
@@ -419,7 +420,6 @@ class CanvasRender:
         images: list,
         interp: InterpolationOption
     ) -> bool:
-        from anicrop.container import GroupLayer
 
         for layer in layers:
             if not layer.visible:

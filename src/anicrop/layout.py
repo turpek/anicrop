@@ -1,6 +1,6 @@
 from anicrop.canvas import Canvas
 from anicrop.container import BaseLayer, Container, GroupLayer
-from anicrop.image import calculate_content_bbox
+from anicrop.image import calculate_content_rect
 from anicrop.layer import Layer
 from anicrop.spatial import Region
 from functools import reduce
@@ -36,7 +36,7 @@ def content_region(target: Layer | GroupLayer) -> Region:
         return None
 
     def roi(edit):
-        return calculate_content_bbox(edit.image) + edit.region.top_left
+        return calculate_content_rect(edit.image) + edit.region.top_left
 
     content_roi = reduce(or_, [roi(e) for e in target._edits])
     content_roi += target.region.top_left
