@@ -124,7 +124,8 @@ def test_composer_rel_add_transform():
 def test_transform_rel_inicializacao():
     t = TransformRel()
     assert not t.has_distortion
-    np.testing.assert_allclose(t.get_matrix((100, 100)), np.eye(3, dtype=np.float32), atol=ATOL)
+    np.testing.assert_allclose(t.get_matrix((100, 100)),
+                               np.eye(3, dtype=np.float32), atol=ATOL)
 
 
 def test_transform_rel_dynamic_pivot_no_shift():
@@ -235,7 +236,8 @@ def test_transform_abs_validation_errors():
 
 
 def test_transform_abs_stress_interleaved():
-    t = TransformAbs().translate(10, 10).rotate(45, px=50, py=50).scale(2, 2, px=10, py=10).translate(5, 5).rotate(-30, px=0, py=0)
+    t = TransformAbs().translate(10, 10).rotate(45, px=50, py=50).scale(
+        2, 2, px=10, py=10).translate(5, 5).rotate(-30, px=0, py=0)
     res_matrix = t.get_matrix()
 
     x, y, w, h = calculate_new_rect(res_matrix, (100, 100))
