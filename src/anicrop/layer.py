@@ -3,6 +3,7 @@ from __future__ import annotations
 from anicrop.canvas import Canvas
 from anicrop.container import _NULL_CONTAINER, BaseLayer
 from anicrop.enums import BlendMode, RenderFlags, WarpMode
+from anicrop.geometry import LayerGeometry
 from anicrop.image import Image
 from anicrop.spatial import Region, Span
 from anicrop.type import Id
@@ -133,17 +134,16 @@ class Layer(BaseLayer):
     ):
 
         self.parent = _NULL_CONTAINER
-        super().__init__(self.parent, opacity, blend_mode, name)
+        region = Region.from_size(*image.size)
+        super().__init__(self.parent, LayerGeometry, region, opacity, blend_mode, name)
 
         self._id = Id()
-        self._region = Region.from_size(*image.size)
         self._edits: deque[EditLayer] = deque()
-        self._transform: Composer = ComposerRel(self.region.size)
         self._opacity_mask: Optional[np.ndarray] = None
-        self._canvas = canvas
         self._parent_inverse = np.identity(3, dtype=np.float32)
+        self._canvas = canvas
 
-        self.add_edit(image, self._region, blend_mode)
+        self.add_edit(image, region, blend_mode)
         self._image = self._edits[0]
         self._old_matrix = np.zeros((3, 3))
         self._render_flags = RenderFlags.ALL_DIRTY
@@ -185,52 +185,34 @@ class Layer(BaseLayer):
         return self.image.format
 
     @property
+    def canvas_size(self) -> tuple[int, int]:
+        return self._canvas.size if self._canvas else self.base.region.size
+
+    @BaseLayer.region.setter
+    def region(self, other: Region) -> Region:
+        if not isinstance(other, Region):
+            raise TypeError(f"Expected Region, got {type(other).__name__}")
+        self.control.sync(other)
+
+    @property
     def x(self) -> Span:
-        return self.region.x
+        return self.base.region.x
 
     @x.setter
     def x(self, value: int | Span):
-        if isinstance(value, Span):
-            self._region = Region(value, self.y)
-        elif isinstance(value, int):
-            self._region = Region(Span(value, self.x.length), self.y)
+        self.control.set_x(value)
 
     @property
     def y(self) -> Span:
-        return self.region.y
+        return self.base.region.y
 
     @y.setter
     def y(self, value: int | Span):
-        if isinstance(value, Span):
-            self._region = Region(self.x, value)
-        elif isinstance(value, int):
-            self._region = Region(self.x, Span(value, self.y.length))
-
-    @property
-    def region(self) -> Region:
-        return self._region
-
-    @region.setter
-    def region(self, region: Region) -> None:
-        if not isinstance(region, Region):
-            raise TypeError(f"Expected Region, got {type(region).__name__}")
-        self._region = region
+        self.control.set_y(value)
 
     @property
     def image(self) -> Image:
         return self._image.image
-
-    @property
-    def global_region(self) -> Region:
-        """Retorna o Rect (AABB) real do layer no espaço do Canvas."""
-
-        x, y, w, h = calculate_new_rect_from_layer(self)
-        return Region(Span(x, w), Span(y, h))
-
-    @property
-    def canvas_size(self) -> tuple[int, int]:
-        cv_size = self._canvas.size if self._canvas else self.region.size
-        return cv_size
 
     def add_edit(
         self,

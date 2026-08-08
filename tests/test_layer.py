@@ -51,7 +51,7 @@ def test_EditLayer_inicializacao(image, identity_matrix):
 
 def test_layer_inserido_em_grupo_herda_transformacoes_do_pai(image):
     grupo = GroupLayer()
-    grupo._region = Region.from_size(100, 100)
+    # grupo.region = Region.from_size(100, 100)
 
     layer = Layer(image)
     layer.set_transform(TransformRel().translate(10, 20))

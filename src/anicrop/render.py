@@ -228,7 +228,7 @@ class ViewportPlan(BaseRenderPlan):
             # 2. ESTADO GLOBAL NA VIEWPORT (Mexicano Em Pé na Tela com Zoom/Pan da Câmera):
             matrix = m_view @ mat_global(layer)
 
-        bounds = rect_to_region(calculate_new_rect(matrix, layer.region.size))
+        bounds = rect_to_region(calculate_new_rect(matrix, layer.base.region.size))
 
         super().__init__(bounds, viewport.region, matrix=matrix)
 
@@ -255,6 +255,7 @@ class CanvasPlan(BaseRenderPlan):
         if local:
             # 1. ESTADO LOCAL (Mexicano Deitado) NO NÍVEL DE LOD:
             matrix = m_lod
+            m_geometry = m_lod
 
             # Levar view_region (Global 1:1) -> Local 1:1 -> Local LOD
             if view_region is not None:
@@ -267,6 +268,7 @@ class CanvasPlan(BaseRenderPlan):
         else:
             # 2. ESTADO GLOBAL (Mexicano Em Pé) NO NÍVEL DE LOD:
             matrix = m_lod @ m_global
+            m_geometry = m_lod @ layer.layout.matrix
 
             # Levar view_region (Global 1:1) -> Global LOD
             if view_region is not None:
@@ -277,7 +279,7 @@ class CanvasPlan(BaseRenderPlan):
                 view_target = None
 
         bounds = rect_to_region(
-            calculate_new_rect(matrix, layer.region.size)
+            calculate_new_rect(m_geometry, layer.layout.region.size)
         )
 
         super().__init__(bounds, view_target, matrix=matrix)

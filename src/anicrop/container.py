@@ -7,6 +7,7 @@ from operator import or_
 from anicrop.canvas import Canvas
 from anicrop.blend import blend_rendered_images
 from anicrop.enums import ImageFormat, BlendMode, InterpolationOption
+from anicrop.geometry import GeometryStrategy, GroupGeometry, GeometryController
 from anicrop.image import Image
 from anicrop.spatial import Region
 from anicrop.viewport import Viewport
@@ -138,12 +139,13 @@ class BaseLayer(ABC):
     def __init__(
         self,
         parent: NullContainer,
+        geometry_cls: type(GeometryStrategy),
+        region: Region,
         opacity: float = 1.0,
         blend_mode: BlendMode = BlendMode.NORMAL,
         name: str = 'BaseLayer',
     ):
-        self._region = Region.from_size(1, 1)
-        self._transform = ComposerRel(self.region.size)
+        self._transform = ComposerRel(region.size)
         self._parent_inverse = mat_inverse(parent.matrix)
 
         self.opacity = opacity
@@ -151,31 +153,45 @@ class BaseLayer(ABC):
         self.blend_mode = blend_mode
         self.name = name
 
-    @property
-    def region(self) -> Region:
-        if len(self):
-            return reduce(or_, [c.region for c in self._children])
-        return self._region
+        base = geometry_cls(self, region)
+        layout = geometry_cls(self, region)
+        self.control = GeometryController(base, layout)
 
     @property
     def canvas_size(self) -> tuple[int, int]:
         return self.region.size
 
     @property
+    def region(self) -> Region:
+        return self.control.layout.region
+
+    @property
+    def global_region(self) -> Region:
+        return self.control.layout.global_region
+
+    @property
+    def base(self) -> Region:
+        return self.control.base
+
+    @property
+    def layout(self) -> Region:
+        return self.control.layout
+
+    @property
     def transform(self) -> Composer:
-        self._transform._region = self.region
+        self._transform._region = self.base.region
         return self._transform
 
     def transform_clear(self) -> None:
-        self._transform = ComposerRel(self.region.size)
+        self._transform = ComposerRel(self.base.region.size)
 
     def set_transform(
         self,
         transform: Transform,
         reference: Optional[Canvas | Layer] = None,
     ) -> None:
-        self._transform = transform.create_composer(self.region.size)
-        ref_size = reference.region.size if reference is not None else self.region.size
+        self._transform = transform.create_composer(self.base.region.size)
+        ref_size = reference.region.size if reference is not None else self.base.region.size
         self._transform.add_transform(transform, reference_size=ref_size)
 
 
@@ -191,8 +207,11 @@ class GroupLayer(Container, BaseLayer):
         blend_mode: BlendMode = BlendMode.NORMAL,
         name: str = 'BaseLayer',
     ):
+        region = Region.from_size(1, 1)
         Container.__init__(self)
-        BaseLayer.__init__(self, self.parent, opacity, blend_mode, name)
+        BaseLayer.__init__(
+            self, self.parent, GroupGeometry, region, opacity, blend_mode, name,
+        )
 
     def __repr__(self):
         return f'GroupLayer(name="{self.name}")'

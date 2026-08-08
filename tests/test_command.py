@@ -1,12 +1,14 @@
 import numpy as np
 import pytest
-from anicrop.command import BaseLayerCommand, LayerImageCommand, ReparentCommand
+from anicrop.command import BaseLayerCommand, LayerImageCommand, ReparentCommand, GeometryControllerSnapshot
 from anicrop.container import GroupLayer, LayerStack, _NULL_CONTAINER
 from anicrop.enums import BlendMode
+from anicrop.geometry import GeometryController, LayerGeometry
 from anicrop.history import GlobalHistory
 from anicrop.image import Image, ImageFormat
 from anicrop.layer import Layer
 from anicrop.proxy import GroupProxy, LayerStackProxy, ProxyLayer
+from anicrop.spatial import Region
 from anicrop.transform import Transform
 
 
@@ -336,3 +338,52 @@ def test_layerimage_command_no_changes():
     cmd.seal()
 
     assert cmd.has_changes() is False
+
+
+def test_geometry_controller_snapshot_restore():
+    """Testa salvamento e restauração do estado do GeometryController."""
+    layer_mock = Layer(make_img(10, 10))
+    base_geom = LayerGeometry(layer_mock, Region.from_rect(0, 0, 10, 10))
+    layout_geom = LayerGeometry(layer_mock, Region.from_rect(2, 2, 10, 10))
+
+    controller = GeometryController(base_geom, layout_geom)
+    snapshot = GeometryControllerSnapshot(controller)
+
+    # Mutação de coordenadas e troca de estratégia
+    controller.sync(Region.from_rect(20, 20, 10, 10))
+    assert controller.base.region == Region.from_rect(20, 20, 10, 10)
+
+    # Restauração via snapshot
+    snapshot.restore()
+    assert controller.base.region == Region.from_rect(0, 0, 10, 10)
+    assert controller.layout.region == Region.from_rect(2, 2, 10, 10)
+
+
+def test_geometry_controller_snapshot_has_change():
+    """Testa os métodos internos _region_changed, _instance_changed e _type_changed no has_change."""
+    layer_mock = Layer(make_img(10, 10))
+    base_geom = LayerGeometry(layer_mock, Region.from_rect(0, 0, 10, 10))
+    layout_geom1 = LayerGeometry(layer_mock, Region.from_rect(0, 0, 10, 10))
+    layout_geom2 = LayerGeometry(layer_mock, Region.from_rect(5, 5, 10, 10))
+
+    controller = GeometryController(base_geom, layout_geom1)
+    snap1 = GeometryControllerSnapshot(controller)
+
+    # 1. Sem alterações
+    snap1_clone = GeometryControllerSnapshot(controller)
+    assert snap1.has_change(snap1_clone) is False
+    assert snap1._region_changed(snap1_clone) is False
+    assert snap1._instance_changed(snap1_clone) is False
+    assert snap1._type_changed(snap1_clone) is False
+
+    # 2. Com alteração de região
+    controller.sync(Region.from_rect(10, 10, 10, 10))
+    snap2 = GeometryControllerSnapshot(controller)
+    assert snap1.has_change(snap2) is True
+    assert snap1._region_changed(snap2) is True
+
+    # 3. Com alteração de instância de estratégia
+    controller._layout = layout_geom2
+    snap3 = GeometryControllerSnapshot(controller)
+    assert snap1.has_change(snap3) is True
+    assert snap1._instance_changed(snap3) is True

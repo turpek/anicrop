@@ -69,11 +69,10 @@ def test_remover_item_existente_reseta_parent_len_e_matriz(mocker, container_cls
 
 def test_remover_subgrupo_reseta_matriz_global_do_filho():
     parent_group = GroupLayer()
-    parent_group._region = Region.from_size(100, 100)
     parent_group.transform.rotate(90, 0.5, 0.5)
 
     child_group = GroupLayer()
-    child_group._region = Region.from_size(50, 50)
+    # child_group.region = Region.from_size(50, 50)
 
     # Anexa o filho no pai rotacionado
     parent_group.append(child_group)
@@ -189,7 +188,6 @@ def test_group_layer_region_com_subgrupo(mocker, direct_regions, subgroup_region
 
 def test_group_layer_set_transform_substitui_transformacao():
     group = GroupLayer()
-    group._region = Region.from_size(100, 100)
 
     t1 = TransformRel().translate(10, 20)
     group.set_transform(t1)
@@ -205,7 +203,6 @@ def test_group_layer_set_transform_substitui_transformacao():
 
 def test_group_layer_transform_clear():
     group = GroupLayer()
-    group._region = Region.from_size(100, 100)
 
     t = TransformRel().translate(10, 20)
     group.set_transform(t)
@@ -218,7 +215,6 @@ def test_group_layer_transform_clear():
 
 def test_group_layer_set_transform_com_transform_abs():
     group = GroupLayer()
-    group._region = Region.from_size(100, 100)
 
     t_abs = TransformAbs().rotate(90, px=50, py=50)
     group.set_transform(t_abs)
@@ -229,7 +225,6 @@ def test_group_layer_set_transform_com_transform_abs():
 
 def test_group_layer_set_transform_com_referencia_layer_e_canvas(mocker):
     group = GroupLayer()
-    group._region = Region.from_size(100, 100)
 
     t_rel = TransformRel().rotate(90, 0.5, 0.5)
 
@@ -268,7 +263,11 @@ def test_group_layer_hierarquia_acumula_matrizes_pai_e_filho(mocker):
     parent_group = GroupLayer()
 
     child_group = GroupLayer()
-    child_group._region = Region.from_size(50, 50)
+    mocker.patch.object(
+        type(child_group.base), 'region',
+        new_callable=mocker.PropertyMock,
+        return_value=Region.from_size(50, 50),
+    )
     parent_group.append(child_group)
 
     # 1. Aplica rotação no filho (pivô em 25, 25) e verifica a matriz do filho

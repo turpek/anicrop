@@ -7,6 +7,7 @@ from anicrop.container import (
     NullContainer,
     BaseLayer,
 )
+from anicrop.geometry import GeometryController
 from anicrop.layer import Layer
 from collections import deque
 from typing import Any, Iterable
@@ -85,6 +86,38 @@ class NullContainerSnapshot(StateSnapshot):
         return False
 
 
+class GeometryControllerSnapshot(StateSnapshot):
+
+    def __init__(self, controller: GeometryController):
+        self._state = {
+            "base_region": controller.base.region,
+            "layout_strategy": controller.layout,
+            "offset": controller._offset,
+        }
+        self._controller = controller
+
+    def restore(self) -> None:
+        self._controller._layout = self._state["layout_strategy"]
+        self._controller._offset = self._state["offset"]
+        self._controller.sync(self._state["base_region"])
+
+    def _region_changed(self, other: GeometryControllerSnapshot) -> bool:
+        return self._state["base_region"] != other._state["base_region"]
+
+    def _instance_changed(self, other: GeometryControllerSnapshot) -> bool:
+        return self._state["layout_strategy"] is not other._state["layout_strategy"]
+
+    def _type_changed(self, other: GeometryControllerSnapshot) -> bool:
+        return type(self._state["layout_strategy"]) is not type(other._state["layout_strategy"])
+
+    def has_change(self, other: GeometryControllerSnapshot) -> bool:
+        return (
+            self._region_changed(other) or
+            self._instance_changed(other) or
+            self._type_changed(other)
+        )
+
+
 class BaseLayerSnapshot(StateSnapshot):
 
     def __init__(self, item: BaseLayer):
@@ -92,9 +125,9 @@ class BaseLayerSnapshot(StateSnapshot):
             "name": item.name,
             "opacity": item.opacity,
             "blend_mode": item.blend_mode,
-            "region": item._region,
             "visible": item.visible,
-            "transform": item._transform.copy()
+            "transform": item._transform.copy(),
+            "control": GeometryControllerSnapshot(item.control),
         }
         self._item = item
 
@@ -102,12 +135,19 @@ class BaseLayerSnapshot(StateSnapshot):
         self._item.name = self._state["name"]
         self._item.opacity = self._state["opacity"]
         self._item.blend_mode = self._state["blend_mode"]
-        self._item._region = self._state["region"]
         self._item.visible = self._state["visible"]
         self._item._transform = self._state["transform"].copy()
+        self._state["control"].restore()
 
     def has_change(self, other: BaseLayerSnapshot) -> bool:
-        return self._state != other._state
+        return (
+            self._state["name"] != other._state["name"] or
+            self._state["opacity"] != other._state["opacity"] or
+            self._state["blend_mode"] != other._state["blend_mode"] or
+            self._state["visible"] != other._state["visible"] or
+            self._state["transform"] != other._state["transform"] or
+            self._state["control"].has_change(other._state["control"])
+        )
 
 
 class Command(ABC):

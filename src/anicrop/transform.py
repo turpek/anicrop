@@ -96,7 +96,7 @@ def calculate_region_rect(
 
 
 def calculate_new_rect_from_layer(layer) -> tuple[float, float, float, float]:
-    return calculate_new_rect(mat_global(layer), layer.region.size)
+    return calculate_new_rect(mat_global(layer), layer.base.region.size)
 
 
 def create_pivot_transform_abs(
@@ -168,7 +168,7 @@ def mat_pivot(transform: TransformState, size: tuple[int, int]) -> np.ndarray:
 
 
 def mat_global(layer: Layer) -> np.ndarray:
-    return layer.parent.matrix @ mat_position(layer.region) @ layer.transform.matrix
+    return layer.parent.matrix @ mat_position(layer.base.region) @ layer.transform.matrix
 
 
 def mat_final(layer: Layer, x: float, y: float) -> np.ndarray:
