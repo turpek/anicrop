@@ -173,6 +173,19 @@ def test_Span_offset_to_com_distancia_negativa():
     assert result == -4
 
 
+@pytest.mark.parametrize(
+    'value, expect', [
+        ([None], (0, 10)),
+        ([5], (5, 10)),
+        ([Span(5, 20)], (5, 20)),
+    ],
+    ids=['none', 'start', 'span']
+)
+def test_Span_replace(value, expect):
+    span = Span(0, 10)
+    assert span.replace(*value) == Span(*expect)
+
+
 def test_duas_Region_iguais():
     assert Region(Span(0, 10), Span(0, 5)) == Region(Span(0, 10), Span(0, 5))
 
@@ -424,3 +437,18 @@ def test_Region_align():
     # Verifica a nova posição (os mesmos 180 e 335 do nosso exemplo!)
     assert aligned_region.x.start == 180
     assert aligned_region.y.start == 335
+
+
+@pytest.mark.parametrize(
+    'value, expect', [
+        ({}, (0, 0, 10, 10)),
+        ({'x': 5}, (5, 0, 10, 10)),
+        ({'x': Span(5, 20)}, (5, 0, 20, 10)),
+        ({'y': 5}, (0, 5, 10, 10)),
+        ({'y': Span(5, 20)}, (0, 5, 10, 20)),
+    ],
+    ids=['none', 'start_x', 'span_x', 'start_y', 'span_y']
+)
+def test_Region_replace(value, expect):
+    region = Region.from_size(10, 10)
+    assert region.replace(**value) == Region.from_rect(*expect)

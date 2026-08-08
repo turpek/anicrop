@@ -264,6 +264,22 @@ class Span:
         start = round(span.start + (self.slack(span)) * factor)
         return Span(start, self.length)
 
+    def replace(self, value: int | Span | None) -> Span:
+        """Replaces the start coordinate or the entire span.
+
+        Args:
+            value: An integer representing a new start position (preserving length),
+                a replacement Span instance, or None to keep the current span.
+
+        Returns:
+            A new Span instance if replaced, or the current Span instance if value is None.
+        """
+        if isinstance(value, int):
+            return Span(value, self.length)
+        elif isinstance(value, Span):
+            return value
+        return self
+
 
 @dataclass(frozen=True)
 class Region:
@@ -450,6 +466,18 @@ class Region:
             self.x.align(ref.x, x_factor),
             self.y.align(ref.y, y_factor),
         )
+
+    def replace(self, *, x: int | Span | None = None, y: int | Span | None = None) -> Region:
+        """Creates a new Region with updated horizontal (X) and/or vertical (Y) spans.
+
+        Args:
+            x: An integer for a new X start position, a replacement X Span, or None.
+            y: An integer for a new Y start position, a replacement Y Span, or None.
+
+        Returns:
+            A new Region instance with the specified span updates.
+        """
+        return Region(self.x.replace(x), self.y.replace(y))
 
 
 def rect_to_region(rect: tuple[int, int, int, int]):
