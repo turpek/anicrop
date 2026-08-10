@@ -1,25 +1,35 @@
 from __future__ import annotations
-from abc import ABC, abstractmethod
+from anicrop.frame import (
+    BaseFrame,
+    CanvasFrame,
+    ViewportFrame,
+)
 from anicrop.blend import blend_rendered_images, BLEND_MODE
-from anicrop.canvas import Canvas
 from anicrop.enums import InterpolationOption, WarpMode
 from anicrop.image import Image, ImageFormat
 from anicrop.layer import Layer, EditLayer
-from anicrop.container import GroupLayer
+from anicrop.container import GroupLayer, Container
 from anicrop.spatial import Region, rect_to_region
 from anicrop.transform import (
     calculate_new_rect,
     calculate_region_rect,
-    mat_global,
     mat_inverse,
-    mat_scale,
     mat_translation
 )
-from typing import Optional, Iterable
 from anicrop.viewport import Viewport
+from abc import ABC
+from typing import Iterable, Protocol, runtime_checkable
+
 
 import cv2
 import numpy as np
+
+
+@runtime_checkable
+class SurfaceProtocol(Protocol):
+    size: tuple[int, int]
+    region: Region
+    bg_color: tuple[int, int, int, int] | None
 
 
 def warp_affine(
@@ -159,152 +169,17 @@ def generate_opacity_mask(
     return eroded_alpha
 
 
-class BaseRenderPlan(ABC):
-
-    def __init__(
-            self,
-            bounds: Region,
-            view_region: None | Region,
-            matrix: np.ndarray = np.identity(3, dtype=np.float32)
-    ):
-        self._bounds = bounds
-        self._matrix = matrix
-        self._dst_region = self._render_region(self.bounds, view_region)
-        self._src_region = self._view_region(self.bounds, self.dst_region)
-
-    @abstractmethod
-    def _render_region(self, final_region: Region, view_region: Region) -> None | Region:
-        ...
-
-    def _view_region(self, bounds: Region, dst_region: None | Region) -> None | Region:
-        if dst_region and bounds.overlaps(dst_region):
-            return bounds.overlap_with(dst_region)
-
-    def screen_scale(self, edit_layer: EditLayer) -> float:
-        m_edit_local = edit_layer.local_matrix
-        m_total = self.matrix @ m_edit_local
-
-        # SVD na submatriz 2x2 para extrair a escala real na tela
-        submatrix_2x2 = m_total[:2, :2]
-        _, s, _ = np.linalg.svd(submatrix_2x2)
-
-        # Retorna a escala final exata combinada de tudo!
-        return float(s[0])
-
-    @property
-    def bounds(self) -> Region:
-        return self._bounds
-
-    @property
-    def dst_region(self) -> None | Region:
-        return self._dst_region
-
-    @property
-    def src_region(self) -> None | Region:
-        return self._src_region
-
-    @property
-    def matrix(self) -> np.ndarray:
-        return self._matrix
-
-
-class ViewportPlan(BaseRenderPlan):
-    def __init__(
-        self,
-        layer: Layer,
-        viewport: Viewport,
-        local: bool = False,
-    ):
-        self.layer = layer
-        self.viewport = viewport
-        self.local = local
-
-        m_view = viewport.roi_matrix @ viewport.fit_matrix(layer.canvas_size)
-
-        if local:
-            # 1. ESTADO LOCAL NA VIEWPORT (Mexicano Deitado na Tela com Zoom/Pan da Câmera):
-            matrix = m_view
-        else:
-            # 2. ESTADO GLOBAL NA VIEWPORT (Mexicano Em Pé na Tela com Zoom/Pan da Câmera):
-            matrix = m_view @ mat_global(layer)
-
-        bounds = rect_to_region(calculate_new_rect(matrix, layer.region.size))
-
-        super().__init__(bounds, viewport.region, matrix=matrix)
-
-    def _render_region(self, final_region: Region, view_region: Optional[Region]) -> Optional[Region]:
-        if view_region is not None and view_region.overlaps(final_region):
-            return view_region & final_region
-        return None
-
-
-class CanvasPlan(BaseRenderPlan):
-    def __init__(
-        self,
-        layer: Layer,
-        view_region: Optional[Region] = None,
-        local: bool = False,
-        scale_factor: float = 1.0,
-    ):
-        self.layer = layer
-        self.local = local
-
-        m_global = mat_global(layer)
-        m_lod = mat_scale(scale_factor, scale_factor)
-
-        if local:
-            # 1. ESTADO LOCAL (Mexicano Deitado) NO NÍVEL DE LOD:
-            matrix = m_lod
-
-            # Levar view_region (Global 1:1) -> Local 1:1 -> Local LOD
-            if view_region is not None:
-                inv_matrix = m_lod @ mat_inverse(m_global)
-                view_target = rect_to_region(
-                    calculate_region_rect(inv_matrix, view_region)
-                )
-            else:
-                view_target = None
-        else:
-            # 2. ESTADO GLOBAL (Mexicano Em Pé) NO NÍVEL DE LOD:
-            matrix = m_lod @ m_global
-
-            # Levar view_region (Global 1:1) -> Global LOD
-            if view_region is not None:
-                view_target = rect_to_region(
-                    calculate_region_rect(m_lod, view_region)
-                )
-            else:
-                view_target = None
-
-        bounds = rect_to_region(
-            calculate_new_rect(matrix, layer.region.size)
-        )
-
-        super().__init__(bounds, view_target, matrix=matrix)
-
-    def _render_region(self, final_region: Region, view_region: Optional[Region]) -> Optional[Region]:
-        if not view_region:
-            return final_region
-        elif view_region.overlaps(final_region):
-            return view_region & final_region
-        return None
-
-    @property
-    def matrix(self):
-        return self._matrix
-
-
 def render_image(
     image: Image,
-    plan: BaseRenderPlan,
+    plan: BaseFrame,
     m_local: np.ndarray,
     warp_mode: WarpMode = WarpMode.AFFINE,
     interp: InterpolationOption = InterpolationOption.LANCZOS,
 ) -> tuple[Image, Region] | None:
-    """Núcleo atômico: renderiza cirurgicamente qualquer Image usando o plano e a matriz local m_local."""
+    """Núcleo atômico: renderiza cirurgicamente qualquer Image usando o plano/frame e a matriz local m_local."""
     m_render = plan.matrix @ m_local
 
-    # Bounding box projetado no espaço de destino do plano
+    # Bounding box projetado no espaço de destino do plano/frame
     edit_bbox = rect_to_region(
         calculate_new_rect(m_render, image.size)
     )
@@ -333,11 +208,11 @@ def render_image(
 
 def render_edit(
     edit_layer: EditLayer,
-    plan: BaseRenderPlan,
+    plan: BaseFrame,
     warp_mode: WarpMode = WarpMode.AFFINE,
     interp: InterpolationOption = InterpolationOption.LANCZOS,
 ) -> tuple[Image, Region] | None:
-    """Renderiza cirurgicamente um EditLayer ajustando o LOD automaticamente através do plano."""
+    """Renderiza cirurgicamente um EditLayer ajustando o LOD automaticamente através do frame."""
     scale = plan.screen_scale(edit_layer)
     lod_image, m_local = edit_layer.get_lod(scale)
 
@@ -352,28 +227,87 @@ def render_edit(
 
 def render_viewport_edit(
     edit_layer: EditLayer,
-    plan: BaseRenderPlan,
+    plan: BaseFrame,
     scale_factor: float = 1.0,
     warp_mode: WarpMode = WarpMode.AFFINE,
     interp: InterpolationOption = InterpolationOption.LANCZOS,
 ) -> tuple[Image, Region] | None:
-    """Auxiliar da Viewport: repassa para render_edit (o plano calcula a escala)."""
+    """Auxiliar da Viewport: repassa para render_edit (o frame calcula a escala)."""
     return render_edit(edit_layer, plan, warp_mode=warp_mode, interp=interp)
 
 
-class CanvasRender:
+class SceneTraverser:
+    """
+    Encapsulates state and recursive traversal logic for rendering a 2D scene,
+    executing opacity culling and composition of nested GroupLayers.
+    """
 
-    def __init__(self):
-        self._target_size = (32, 32)
+    def __init__(
+        self,
+        renderer: BaseRenderer,
+        surface: SurfaceProtocol,
+        frame_cls: type[BaseFrame],
+        interp: InterpolationOption = InterpolationOption.LANCZOS,
+        target_size: tuple[int, int] = (32, 32),
+    ):
+        self.renderer = renderer
+        self.surface = surface
+        self.frame_cls = frame_cls
+        self.interp = interp
+        self.target_size = target_size
+        self.miniview = np.zeros(target_size, dtype=np.uint8)
+
+    def traverse(
+        self,
+        container: Iterable[Layer | GroupLayer] | Container
+    ) -> list[tuple[Layer | GroupLayer, Image, BaseFrame]]:
+        rendered_items = []
+
+        for item in container:
+            if not item.visible:
+                continue
+
+            if isinstance(item, GroupLayer):
+                children_items = self.traverse(item)
+
+                if children_items:
+                    buffer = Image.new(self.surface.size, ImageFormat.RGBA)
+                    group_image = blend_rendered_images(children_items, buffer)
+                    group_frame = self.frame_cls(item, self.surface)
+
+                    rendered_items.append((item, group_image, group_frame))
+                    if np.all(self.miniview == 255):
+                        break
+            else:
+                image = self.renderer.render_area(item, self.surface, self.interp)
+
+                if image is not None:
+                    frame = self.frame_cls(item, self.surface)
+                    rendered_items.append((item, image, frame))
+                    if item._opacity_mask is not None:
+                        np.maximum(self.miniview, item._opacity_mask, out=self.miniview)
+                    if np.all(self.miniview == 255):
+                        break
+
+        return rendered_items
+
+
+class BaseRenderer(ABC):
+
+    def __init__(
+            self, frame_cls: type[BaseFrame], target_size: tuple[int, int] = (32, 32),
+    ):
+
+        self.frame_cls = frame_cls
+        self._target_size = target_size
 
     def _flatten_edits(
         self,
         layer: Layer,
         layer_image: Image,
-        plan: BaseRenderPlan,
+        plan: BaseFrame,
         interp: InterpolationOption,
     ) -> Image:
-
         for edit_layer in layer._edits:
             result = render_edit(edit_layer, plan, interp=interp)
             if result is None:
@@ -387,21 +321,54 @@ class CanvasRender:
     def render_area(
         self,
         layer: Layer,
-        plan: Optional[CanvasPlan] = None,
+        view: Viewport | Region | None = None,
         interp: InterpolationOption = InterpolationOption.LANCZOS,
         local: bool = False,
     ) -> Image | None:
-
-        plan = plan if plan else CanvasPlan(layer, None, local)
+        plan = self.frame_cls(layer, view, local=local)
 
         dst_region = plan.dst_region
         if dst_region is not None:
             layer_image = Image.new(dst_region.size, layer.format)
             image = self._flatten_edits(layer, layer_image, plan, interp)
 
+            layer._opacity_mask = generate_opacity_mask(
+                image, dst_region, plan.surface_size, self._target_size
+            )
+
             return image
 
         return None
+
+    def render_scene(
+        self,
+        container: Iterable[Layer | GroupLayer] | Container,
+        surface: SurfaceProtocol,
+        interp: InterpolationOption = InterpolationOption.LANCZOS
+    ) -> Image:
+
+        traverser = SceneTraverser(
+            self, surface, self.frame_cls, interp=interp, target_size=self._target_size
+        )
+        images = traverser.traverse(container)
+
+        composition = Image.new(surface.size, ImageFormat.RGBA, color=surface.bg_color)
+        return blend_rendered_images(reversed(images), composition)
+
+
+class CanvasRender(BaseRenderer):
+
+    def __init__(self):
+        super().__init__(frame_cls=CanvasFrame)
+
+    def render_area(
+        self,
+        layer: Layer,
+        view: Region | None = None,
+        interp: InterpolationOption = InterpolationOption.LANCZOS,
+        local: bool = False,
+    ) -> Image | None:
+        return super().render_area(layer, view=view, interp=interp, local=local)
 
     def render(
         self,
@@ -409,181 +376,19 @@ class CanvasRender:
         interp: InterpolationOption = InterpolationOption.LANCZOS,
         local: bool = False,
     ) -> Image | None:
-
         return self.render_area(layer, interp=interp, local=local)
 
-    def _traverse_layers(
-        self,
-        layers: Iterable[Layer | 'GroupLayer'],
-        canvas: Canvas,
-        miniview: np.ndarray,
-        images: list,
-        interp: InterpolationOption
-    ) -> bool:
 
-        for layer in layers:
-            if not layer.visible:
-                continue
-
-            if isinstance(layer, GroupLayer):
-                occluded, imgs = layer.render(
-                    renderer=self.render_area,
-                    plan_cls=CanvasPlan,
-                    surface=canvas,
-                    miniview=miniview,
-                    interp=interp
-                )
-                images.extend(imgs)
-                if occluded:
-                    return True
-            else:
-                plan = CanvasPlan(layer, canvas.region)
-                image = self.render_area(layer, plan, interp=interp)
-
-                if image is not None:
-                    layer._opacity_mask = generate_opacity_mask(
-                        image, plan.dst_region, canvas.size, (32, 32)
-                    )
-                    images.append((layer, image, plan))
-                    np.maximum(miniview, layer._opacity_mask, out=miniview)
-                    if np.all(miniview == 255):
-                        return True
-        return False
-
-    def render_scene(
-        self,
-        layers: Iterable[Layer | 'GroupLayer'],
-        canvas: Canvas,
-        interp: InterpolationOption = InterpolationOption.LANCZOS
-    ) -> Image:
-        from anicrop.container import GroupLayer
-
-        target = (32, 32)
-        images = []
-        miniview = np.zeros(target, dtype=np.uint8)
-
-        if isinstance(layers, GroupLayer):
-            _, imgs = layers.render(
-                renderer=self.render_area,
-                plan_cls=CanvasPlan,
-                surface=canvas,
-                miniview=miniview,
-                interp=interp
-            )
-            images.extend(imgs)
-        else:
-            self._traverse_layers(layers, canvas, miniview, images, interp)
-
-        composition = Image.new(canvas.size, ImageFormat.RGBA)
-        for layer, image, plan in reversed(images):
-            dst_region = plan.dst_region
-            blend = BLEND_MODE.get(layer.blend_mode)
-            blend(composition.view(dst_region), image, layer.opacity)
-        composition = Image.new(canvas.size, ImageFormat.RGBA)
-        return blend_rendered_images(reversed(images), composition)
-
-
-class ViewportRender:
+class ViewportRender(BaseRenderer):
 
     def __init__(self):
-        self._target_size = (32, 32)
-
-    def __flatten_edits(
-        self,
-        layer: Layer,
-        plan: ViewportPlan,
-        interp: InterpolationOption = InterpolationOption.LANCZOS,
-    ) -> Image:
-        layer_image = Image.new(plan.dst_region.size, layer.format)
-        for edit_layer in layer._edits:
-            result = render_edit(edit_layer, plan, interp=interp)
-            if result is None:
-                continue
-            edit_image, dst_region = result
-            blend = BLEND_MODE.get(edit_layer.blend_mode)
-            blend(layer_image.view(dst_region), edit_image)
-
-        return layer_image
+        super().__init__(frame_cls=ViewportFrame)
 
     def render_area(
         self,
         layer: Layer,
-        plan: ViewportPlan,
-        interp: InterpolationOption = InterpolationOption.LANCZOS
+        view: Viewport,
+        interp: InterpolationOption = InterpolationOption.LANCZOS,
+        local: bool = False,
     ) -> Image | None:
-
-        dst_region = plan.dst_region
-        if dst_region is not None:
-            image = self.__flatten_edits(layer, plan, interp=interp)
-
-            # Cria a miniatura do layer
-            layer._opacity_mask = generate_opacity_mask(
-                image, dst_region, plan.viewport.size, self._target_size
-            )
-
-            return image
-        return None
-
-    def _traverse_layers(
-        self,
-        layers: Iterable[Layer | 'GroupLayer'],
-        viewport: Viewport,
-        miniview: np.ndarray,
-        images: list,
-        interp: InterpolationOption
-    ) -> bool:
-        from anicrop.container import GroupLayer
-
-        for layer in layers:
-            if not layer.visible:
-                continue
-
-            if isinstance(layer, GroupLayer):
-                occluded, imgs = layer.render(
-                    renderer=self.render_area,
-                    plan_cls=ViewportPlan,
-                    surface=viewport,
-                    miniview=miniview,
-                    interp=interp
-                )
-                images.extend(imgs)
-                if occluded:
-                    return True
-            else:
-                plan = ViewportPlan(layer, viewport)
-                image = self.render_area(layer, plan, interp=interp)
-
-                if image is not None:
-                    images.append((layer, image, plan))
-                    if layer._opacity_mask is not None:
-                        np.maximum(miniview, layer._opacity_mask, out=miniview)
-                    if np.all(miniview == 255):
-                        return True
-        return False
-
-    def render_scene(
-        self,
-        layers: Iterable[Layer | 'GroupLayer'],
-        viewport: Viewport,
-        interp: InterpolationOption = InterpolationOption.LANCZOS
-    ) -> Image:
-        from anicrop.container import GroupLayer
-
-        target = self._target_size
-        images = []
-        miniview = np.zeros(target, dtype=np.uint8)
-
-        if isinstance(layers, GroupLayer):
-            occluded, imgs = layers.render(
-                renderer=self.render_area,
-                plan_cls=ViewportPlan,
-                surface=viewport,
-                miniview=miniview,
-                interp=interp
-            )
-            images.extend(imgs)
-        else:
-            self._traverse_layers(layers, viewport, miniview, images, interp)
-
-        composition = Image.new(viewport.size, ImageFormat.RGBA, color=viewport.bg_color)
-        return blend_rendered_images(reversed(images), composition)
+        return super().render_area(layer, view=view, interp=interp, local=local)

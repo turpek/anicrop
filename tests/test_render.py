@@ -1,19 +1,22 @@
 from anicrop.enums import RenderFlags, WarpMode, BlendMode, InterpolationOption
 from anicrop.image import Image, ImageFormat
 from anicrop.layer import Layer
+from anicrop.container import GroupLayer
+from anicrop.frame import CanvasFrame, ViewportFrame, BaseFrame
 from anicrop.render import (
     render_patch,
     generate_opacity_mask,
     CanvasRender,
     ViewportRender,
-    ViewportPlan,
-    CanvasPlan,
+    SceneTraverser,
     render_edit,
     render_image,
 )
 from anicrop.viewport import Viewport
 from anicrop.spatial import Region, Span
 from anicrop.transform import mat_final, TransformRel
+
+
 from unittest.mock import patch
 import numpy as np
 import pytest
@@ -393,7 +396,7 @@ def test_render_scene_culling_no_occlusion(mocker):
 
     rendered = []
 
-    def mock_render(layer, plan, interp=InterpolationOption.LANCZOS):
+    def mock_render(layer, *args, **kwargs):
         rendered.append(layer)
         layer._opacity_mask = np.zeros((32, 32), dtype=np.uint8)
         return make_img(w=800, h=600)
@@ -418,7 +421,7 @@ def test_render_scene_culling_total_occlusion_top_layer(mocker):
 
     rendered = []
 
-    def mock_render(layer, plan, interp=InterpolationOption.LANCZOS):
+    def mock_render(layer, *args, **kwargs):
         rendered.append(layer)
         if layer == layers[0]:
             mask_val = int(255 * layer.opacity)
@@ -450,7 +453,7 @@ def test_render_scene_culling_occlusion_middle_layer(mocker):
 
     rendered = []
 
-    def mock_render(layer, plan, interp=InterpolationOption.LANCZOS):
+    def mock_render(layer, *args, **kwargs):
         rendered.append(layer)
         if layer == layers[1]:  # O meio é opaco
             mask_val = int(255 * layer.opacity)
@@ -479,7 +482,7 @@ def test_render_scene_culling_top_layer_opacity_lt_1(mocker):
 
     rendered = []
 
-    def mock_render(layer, plan, interp=InterpolationOption.LANCZOS):
+    def mock_render(layer, *args, **kwargs):
         rendered.append(layer)
         mask_val = int(255 * layer.opacity)
         layer._opacity_mask = np.full((32, 32), mask_val, dtype=np.uint8)
@@ -493,8 +496,6 @@ def test_render_scene_culling_top_layer_opacity_lt_1(mocker):
 
 def test_render_scene_integration_positioning():
     """Valida se o render_scene respeita a posição global (translação) das camadas na composição final."""
-    from anicrop.viewport import Viewport
-
     vr = ViewportRender()
     viewport = Viewport((800, 600), 1.0)
 
@@ -523,7 +524,7 @@ def test_render_scene_integration_positioning():
     assert comp.width == 800
     assert comp.height == 600
 
-    final_region = ViewportPlan(logo, viewport).dst_region
+    final_region = ViewportFrame(logo, viewport).dst_region
     logo_tela_x, logo_tela_y = final_region.top_left
 
     # Validação 1: O canto superior esquerdo (0,0) da tela DEVE ser Azul!
@@ -537,31 +538,8 @@ def test_render_scene_integration_positioning():
     )
 
 
-def test_render_plan_viewport_full_overlap():
-    # Viewport de 800x600 sem escala
-    viewport = Viewport((800, 600), 1.0)
-    # Layer de 200x200 posicionado em (100, 100)
-    layer = make_layer(w=200, h=200, x=100, y=100)
-
-    plan = ViewportPlan(layer, viewport)
-
-    # bounds deve ser os limites projetados da camada (400, 300, 200, 200)
-    assert plan.bounds == Region(Span(400, 200), Span(300, 200))
-    # src_region é a própria imagem por inteiro
-    assert plan.src_region == Region(Span(0, 200), Span(0, 200))
-
-
 def test_edit_renderer_mexican_hat():
     """O Mexicano e seu Chapéu: Testa se um edit adicionado no espaço global após a rotação do Layer cai na posição local correta."""
-    from anicrop.layer import Layer
-    from anicrop.spatial import Region, Span
-    from anicrop.image import Image
-    from anicrop.render import render_edit, CanvasRender
-    from anicrop.transform import TransformRel
-    import numpy as np
-    import cv2
-    from anicrop.enums import InterpolationOption, ImageFormat
-
     # 1. Mexicano deitado (Barra horizontal 60x20, centralizada em um Canvas 100x100)
     img_mexican_data = np.zeros((100, 100, 4), dtype=np.uint8)
     img_mexican_data[40:60, 20:80] = [255, 0, 0, 255]  # Pinta o mexicano
@@ -590,9 +568,9 @@ def test_edit_renderer_mexican_hat():
     layer.add_edit(img_hat, Region(Span(40, 20), Span(0, 20)))
 
     # 4. Renderiza o Chapéu (Edit 1) individualmente para ver os números
-    plan = CanvasPlan(layer, local=True)
+    frame = CanvasFrame(layer, local=True)
     warped_image, dest_region = render_edit(
-        layer._edits[1], plan, interp=InterpolationOption.NEAREST)
+        layer._edits[1], frame, interp=InterpolationOption.NEAREST)
 
     # 5. Validações (render_edit retorna a região relativa ao plano)
     assert dest_region.x.start == 80
@@ -610,14 +588,6 @@ def test_edit_renderer_mexican_hat():
 
 def test_edit_renderer_with_global_render_region_clipping():
     """Valida se o EditRenderer recebe uma render_region global, aplica a matriz inversa do Layer e recorta o edit cirurgicamente."""
-    from anicrop.layer import Layer
-    from anicrop.spatial import Region, Span
-    from anicrop.image import Image
-    from anicrop.render import render_edit
-    from anicrop.transform import TransformRel
-    import numpy as np
-    from anicrop.enums import InterpolationOption, ImageFormat
-
     # 1. Base Layer 100x100
     img_mexican = Image(
         np.zeros((100, 100, 4), dtype=np.uint8), ImageFormat.RGBA)
@@ -639,13 +609,13 @@ def test_edit_renderer_with_global_render_region_clipping():
 
     layer.add_edit(img_hat, Region(Span(40, 20), Span(0, 20)))
 
-    # 3. Solicitamos a renderização passando o CanvasPlan(local=True) com a região global (Y=0..10)
+    # 3. Solicitamos a renderização passando o CanvasFrame(local=True) com a região global (Y=0..10)
     global_render_region = Region(Span(40, 20), Span(0, 10))
-    plan = CanvasPlan(layer, view_region=global_render_region, local=True)
+    frame = CanvasFrame(layer, view_region=global_render_region, local=True)
 
     result = render_edit(
         layer._edits[1],
-        plan=plan,
+        plan=frame,
         interp=InterpolationOption.NEAREST
     )
 
@@ -662,74 +632,6 @@ def test_edit_renderer_with_global_render_region_clipping():
     # A imagem recortada resultante deve ter tamanho 20x10 (altura 20, largura 10)
     assert warped_image.width == 10
     assert warped_image.height == 20
-
-
-def test_render_plan_viewport_partial_overlap():
-    # Viewport de 800x600 sem escala
-    viewport = Viewport((800, 600), 1.0)
-    # Layer de 200x200 posicionado em (-400, -300) para projetar na borda da tela (-100, -100)
-    layer = make_layer(w=200, h=200, x=-400, y=-300)
-
-    plan = ViewportPlan(layer, viewport)
-
-    # bounds projetado
-    assert plan.bounds == Region(Span(-100, 200), Span(-100, 200))
-    # dst_region visível na tela (0, 0, 100, 100)
-    assert plan.dst_region == Region(Span(0, 100), Span(0, 100))
-    # src_region de crop deve capturar o pedaço inferior direito da camada (100, 100, 100, 100)
-    assert plan.src_region == Region(Span(100, 100), Span(100, 100))
-
-
-def test_render_plan_canvas_space_partial_overlap():
-    # Layer de 200x200 posicionado no canvas em (50, 50)
-    layer = make_layer(w=200, h=200, x=50, y=50)
-    # Região de visualização arbitrária (0, 0, 100, 100)
-    view_region = Region(Span(0, 100), Span(0, 100))
-
-    # Sem viewport, calculando no espaço do canvas
-    plan = CanvasPlan(layer, view_region=view_region)
-
-    # bounds deve ser a região global da camada no canvas (50, 50, 200, 200)
-    assert plan.bounds == Region(Span(50, 200), Span(50, 200))
-    # dst_region visível na interseção (50, 50, 50, 50)
-    assert plan.dst_region == Region(Span(50, 50), Span(50, 50))
-    # src_region do crop na coordenada local da camada (0, 0, 50, 50)
-    assert plan.src_region == Region(Span(0, 50), Span(0, 50))
-
-
-def test_render_plan_full_render_no_clipping():
-    # Layer de 200x200 posicionado no canvas em (150, 250)
-    layer = make_layer(w=200, h=200, x=150, y=250)
-
-    # Sem viewport e sem view_region (renderização completa da camada)
-    plan = CanvasPlan(layer)
-
-    # bounds deve ser a região global no canvas (150, 250, 200, 200)
-    assert plan.bounds == Region(Span(150, 200), Span(250, 200))
-    # Sem cortes, dst_region é exatamente a região total (bounds)
-    assert plan.dst_region == plan.bounds
-    # O crop src deve cobrir todo o buffer da camada (0, 0, 200, 200)
-    assert plan.src_region == Region(Span(0, 200), Span(0, 200))
-
-
-def test_canvas_plan_local_state():
-    """Valida se CanvasPlan com local=True calcula os bounds no espaço local (0,0,W,H) e converte a view_region global via matriz inversa."""
-    img_mexican = Image(
-        np.zeros((100, 100, 4), dtype=np.uint8), ImageFormat.RGBA)
-    layer = Layer(img_mexican)
-    layer.set_transform(TransformRel().rotate(-90))
-
-    # Região Global Y=0..10 no topo da tela
-    global_view_region = Region(Span(40, 20), Span(0, 10))
-
-    plan = CanvasPlan(layer, view_region=global_view_region, local=True)
-
-    # 1. Bounds no espaço local deve ser o tamanho original unrotated (0, 0, 100, 100)
-    assert plan.bounds == Region(Span(0, 100), Span(0, 100))
-
-    # 2. A rotação -90° converte Global Y=0..10 para Local X=90..100
-    assert plan.dst_region == Region(Span(90, 10), Span(40, 20))
-    assert plan.src_region == Region(Span(90, 10), Span(40, 20))
 
 
 def test_edit_renderer_render_final_mexican_hat_full():
@@ -755,11 +657,11 @@ def test_edit_renderer_render_final_mexican_hat_full():
 
     layer.add_edit(img_hat, Region(Span(40, 20), Span(0, 20)))
 
-    # 3. Executa o render com CanvasPlan configurado para global (local=False)
-    plan = CanvasPlan(layer, local=False)
+    # 3. Executa o render com CanvasFrame configurado para global (local=False)
+    frame = CanvasFrame(layer, local=False)
     result = render_edit(
         layer._edits[1],
-        plan=plan,
+        plan=frame,
         interp=InterpolationOption.NEAREST
     )
 
@@ -781,7 +683,7 @@ def test_edit_renderer_render_final_mexican_hat_full():
 
 
 def test_edit_renderer_render_final_mexican_hat_with_clipping():
-    """Valida se render com CanvasPlan(local=False) e render_region global recorta o EditLayer diretamente no espaço global da tela."""
+    """Valida se render com CanvasFrame(local=False) e render_region global recorta o EditLayer diretamente no espaço global da tela."""
     # 1. Layer base 100x100 rotacionado em -90°
     img_mexican = Image(
         np.zeros((100, 100, 4), dtype=np.uint8), ImageFormat.RGBA)
@@ -803,13 +705,13 @@ def test_edit_renderer_render_final_mexican_hat_with_clipping():
 
     layer.add_edit(img_hat, Region(Span(40, 20), Span(0, 20)))
 
-    # 3. Solicita render com CanvasPlan(local=False) para a metade superior da tela (Global Y=0..10, X=40..60)
+    # 3. Solicita render com CanvasFrame(local=False) para a metade superior da tela (Global Y=0..10, X=40..60)
     global_render_region = Region(Span(40, 20), Span(0, 10))
-    plan = CanvasPlan(layer, view_region=global_render_region, local=False)
+    frame = CanvasFrame(layer, view_region=global_render_region, local=False)
 
     result = render_edit(
         layer._edits[1],
-        plan=plan,
+        plan=frame,
         interp=InterpolationOption.NEAREST
     )
 
@@ -832,8 +734,8 @@ def test_edit_renderer_render_final_mexican_hat_with_clipping():
     assert np.array_equal(arr[5, 15], blue)
 
 
-def test_edit_renderer_with_viewport_plan():
-    """Valida se o EditRenderer.render funciona polimorficamente com ViewportPlan (projeção direta na tela da Viewport)."""
+def test_edit_renderer_with_viewport_frame():
+    """Valida se o EditRenderer.render funciona polimorficamente com ViewportFrame (projeção direta na tela da Viewport)."""
     img_mexican = Image(
         np.zeros((100, 100, 4), dtype=np.uint8), ImageFormat.RGBA)
     layer = Layer(img_mexican)
@@ -843,10 +745,10 @@ def test_edit_renderer_with_viewport_plan():
     layer.add_edit(img_hat, Region(Span(40, 20), Span(0, 20)))
 
     viewport = Viewport((800, 600), 1.0)
-    plan = ViewportPlan(layer, viewport)
+    frame = ViewportFrame(layer, viewport)
 
     result = render_edit(
-        layer._edits[1], plan=plan, interp=InterpolationOption.NEAREST)
+        layer._edits[1], plan=frame, interp=InterpolationOption.NEAREST)
 
     assert result is not None
     warped_image, dest_region = result
@@ -854,39 +756,93 @@ def test_edit_renderer_with_viewport_plan():
     assert dest_region == Region(Span(40, 20), Span(0, 20))
 
 
-def test_viewport_plan_local_state():
-    """Valida se ViewportPlan com local=True projeta o Layer unrotated (Mexicano Deitado) na tela da Viewport com a Câmera."""
-    img_mexican = Image(
-        np.zeros((100, 100, 4), dtype=np.uint8), ImageFormat.RGBA)
-    layer = Layer(img_mexican)
-    layer.set_transform(TransformRel().rotate(-90))
-
-    img_hat = Image(np.zeros((20, 20, 4), dtype=np.uint8), ImageFormat.RGBA)
-    layer.add_edit(img_hat, Region(Span(40, 20), Span(0, 20)))
-
-    viewport = Viewport((800, 600), 1.0)
-    plan = ViewportPlan(layer, viewport, local=True)
-
-    result = render_edit(
-        layer._edits[1], plan=plan, interp=InterpolationOption.NEAREST)
-
-    assert result is not None
-    warped_image, dest_region = result
-
-    # render_edit retorna a dest_region relativa ao plan.dst_region local na tela: (430-350, 290-250) = (80, 40, 20, 20)
-    assert dest_region == Region(Span(80, 20), Span(40, 20))
-
-
 def test_render_image_direto():
-    """Testa a função atômica render_image diretamente com uma Image e um CanvasPlan."""
+    """Testa a função atômica render_image diretamente com uma Image e um CanvasFrame."""
     img = make_img(w=50, h=50, color=(0, 255, 0, 255))
     layer = make_layer(w=50, h=50, color=(0, 255, 0, 255))
-    plan = CanvasPlan(layer)
+    frame = CanvasFrame(layer)
     m_local = np.identity(3, dtype=np.float32)
 
-    result = render_image(img, plan, m_local, interp=InterpolationOption.NEAREST)
+    result = render_image(img, frame, m_local, interp=InterpolationOption.NEAREST)
     assert result is not None
     warped_image, dest_region = result
     assert warped_image.width == 50
     assert warped_image.height == 50
     assert dest_region == Region(Span(0, 50), Span(0, 50))
+
+
+def test_scene_traverser_recursivo_com_culling(mocker):
+    group_raiz = GroupLayer()
+    sub_grupo = GroupLayer()
+
+    img1 = Image.new((100, 100), ImageFormat.RGBA)
+    img2 = Image.new((100, 100), ImageFormat.RGBA)
+    layer1 = Layer(img1)
+    layer2 = Layer(img2)
+
+    layer1._opacity_mask = np.full((32, 32), 255, dtype=np.uint8)
+    layer2._opacity_mask = np.full((32, 32), 255, dtype=np.uint8)
+
+    sub_grupo.append(layer1)
+    group_raiz.append(sub_grupo)
+    group_raiz.append(layer2)
+
+    mock_img = Image.new((100, 100), ImageFormat.RGBA)
+    mock_frame = mocker.MagicMock()
+    mock_frame.dst_region = Region.from_size(100, 100)
+
+    mock_renderer = mocker.MagicMock()
+    mock_renderer.render_area.return_value = mock_img
+    mock_frame_cls = mocker.MagicMock(return_value=mock_frame)
+    mock_surface = mocker.MagicMock()
+    mock_surface.size = (100, 100)
+
+    traverser = SceneTraverser(mock_renderer, mock_surface, mock_frame_cls)
+    images_gp = traverser.traverse([group_raiz])
+
+    assert len(images_gp) == 1
+    assert images_gp[0][0] == group_raiz
+    assert mock_renderer.render_area.call_count == 1
+    assert np.all(traverser.miniview == 255)
+
+
+@pytest.mark.parametrize("item_cls", [Layer, GroupLayer])
+def test_scene_traverser_ignora_itens_invisiveis(mocker, item_cls):
+    item = mocker.MagicMock(spec=item_cls)
+    mock_visible = mocker.PropertyMock(return_value=False)
+    type(item).visible = mock_visible
+    item.parent = mocker.Mock()
+
+    group = GroupLayer()
+    group.append(item)
+
+    renderer = mocker.Mock()
+    surface = mocker.Mock()
+    surface.size = (10, 10)
+    frame_cls = mocker.Mock()
+
+    traverser = SceneTraverser(renderer, surface, frame_cls)
+    result = traverser.traverse([group])
+
+    mock_visible.assert_called()
+    assert result == []
+
+
+def test_scene_traverser_ignora_tudo_se_raiz_for_invisivel(mocker):
+    root = GroupLayer()
+    root.visible = False
+
+    child = mocker.MagicMock(spec=GroupLayer)
+    type(child).visible = mocker.PropertyMock(return_value=True)
+    child.parent = mocker.Mock()
+
+    root.append(child)
+
+    renderer = mocker.Mock()
+    surface = mocker.Mock()
+    frame_cls = mocker.Mock()
+
+    traverser = SceneTraverser(renderer, surface, frame_cls)
+    result = traverser.traverse([root])
+
+    assert result == []

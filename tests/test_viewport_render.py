@@ -1,6 +1,7 @@
 import pytest
 import numpy as np
-from anicrop.render import ViewportRender, ViewportPlan, render_edit
+from anicrop.render import ViewportRender, render_edit
+from anicrop.frame import ViewportFrame
 from anicrop.layer import Layer
 from anicrop.spatial import Region, Span
 from anicrop.image import Image, ImageFormat
@@ -9,14 +10,13 @@ from anicrop.transform import TransformRel
 
 
 def test_viewport_render_area_returns_image():
-    """Valida se ViewportRender.render_area utiliza ViewportPlan para renderizar a camada."""
+    """Valida se ViewportRender.render_area utiliza ViewportFrame para renderizar a camada."""
     img = Image.new((100, 100), ImageFormat.RGBA)
     layer = Layer(img)
     viewport = Viewport((800, 600), 1.0)
     vr = ViewportRender()
-    plan = ViewportPlan(layer, viewport)
 
-    rendered = vr.render_area(layer, plan)
+    rendered = vr.render_area(layer, viewport)
     assert rendered is not None
     assert rendered.width > 0
     assert rendered.height > 0
@@ -44,7 +44,6 @@ def test_viewport_render_passes_scale_factor_to_lod():
     layer = Layer(img_large)
     viewport = Viewport((800, 600), 0.1)  # Scale 0.1 -> n=3
     vr = ViewportRender()
-    plan = ViewportPlan(layer, viewport)
 
-    rendered = vr.render_area(layer, plan)
+    rendered = vr.render_area(layer, viewport)
     assert rendered is not None

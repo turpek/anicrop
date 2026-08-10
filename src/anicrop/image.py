@@ -163,11 +163,8 @@ class Image:
         shape = (height, width, channels)
 
         if width * height > threshold_pixels:
-            import uuid
-            import zarr
-            from anicrop.persistence.manager import manager_global
-
             zarr_dir = manager_global.workspace_path / f"{uuid.uuid4().hex}.zarr"
+
             zarr_chunks = (min(512, height), min(512, width), channels)
             z_arr = zarr.open(
                 str(zarr_dir),

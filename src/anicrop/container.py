@@ -1,15 +1,11 @@
 from __future__ import annotations
 from abc import ABC
 from functools import reduce
-from typing import Optional, Callable, Any, Protocol, runtime_checkable, TYPE_CHECKING
+from typing import Optional, Any, Protocol, runtime_checkable, TYPE_CHECKING
 from operator import or_
 
-from anicrop.canvas import Canvas
-from anicrop.blend import blend_rendered_images
-from anicrop.enums import ImageFormat, BlendMode, InterpolationOption
-from anicrop.image import Image
+from anicrop.enums import BlendMode
 from anicrop.spatial import Region
-from anicrop.viewport import Viewport
 from anicrop.transform import (
     mat_inverse,
     Composer,
@@ -21,7 +17,6 @@ import numpy as np
 
 if TYPE_CHECKING:
     from anicrop.layer import Layer
-    from anicrop.render import BaseRenderPlan
 
 
 @runtime_checkable
@@ -216,52 +211,3 @@ class GroupLayer(Container, BaseLayer):
     @property
     def matrix(self) -> np.ndarray:
         return self.parent.matrix @ self._parent_inverse @ self.transform.matrix
-
-    def render(
-        self,
-        renderer: Callable,
-        plan_cls: BaseRenderPlan,
-        surface: Canvas | Viewport,
-        miniview: np.ndarray,
-        interp: InterpolationOption = InterpolationOption.LANCZOS,
-    ) -> tuple[bool, list[tuple[Any, Any, Any]]]:
-
-        if not self.visible:
-            return False, []
-
-        result = False
-        images_gp = []
-
-        for container in self:
-            if not container.visible:
-                continue
-
-            elif isinstance(container, GroupLayer):
-                result, images = container.render(
-                    renderer, plan_cls, surface, miniview, interp)
-                images_gp.extend(images)
-
-                if result:
-                    break
-            else:
-                layer = container
-                plan = plan_cls(layer, surface)
-                image = renderer(layer, plan, interp=interp)
-
-                if image:
-                    images_gp.append((layer, image, plan))
-
-                    if layer._opacity_mask is not None:
-                        np.maximum(miniview, layer._opacity_mask, out=miniview)
-                    if np.all(miniview == 255):
-                        result = True
-
-        if images_gp:
-
-            # Podemos fazer o blend das imagens aqui
-            buffer = Image.new(surface.size, ImageFormat.RGBA)
-            image = blend_rendered_images(images_gp, buffer)
-            group_plan = plan_cls(self, surface)
-            return result, [(self, image, group_plan)]
-
-        return False, []
