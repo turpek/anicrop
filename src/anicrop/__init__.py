@@ -5,6 +5,7 @@ from .spatial import Region, Span
 from .layer import Layer
 from .image import Image
 from .viewer import Viewer
+from .frame import BaseFrame, CanvasFrame, ViewportFrame
 
 __all__ = [
     "Document",
@@ -14,5 +15,8 @@ __all__ = [
     "Span",
     "Layer",
     "Image",
-    "Viewer"
+    "Viewer",
+    "BaseFrame",
+    "CanvasFrame",
+    "ViewportFrame",
 ]

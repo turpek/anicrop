@@ -8,13 +8,10 @@ from anicrop.image import Image
 from anicrop.spatial import Region, Span
 from anicrop.type import Id
 from anicrop.transform import (
-    calculate_new_rect_from_layer,
     mat_global,
     mat_inverse,
     mat_scale,
     mat_position,
-    Composer,
-    ComposerRel,
 )
 from collections import deque
 from typing import Optional

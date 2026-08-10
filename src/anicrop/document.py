@@ -5,12 +5,12 @@ import cv2
 import numpy as np
 
 from anicrop.canvas import Canvas
-from anicrop.container import Container, LayerStack
+from anicrop.container import Container, GroupLayer, LayerStack
 from anicrop.enums import ImageFormat
 from anicrop.history import GlobalHistory
 from anicrop.image import Image
 from anicrop.layer import Layer
-from anicrop.proxy import BaseHistoryProxy, LayerStackProxy, ProxyLayer
+from anicrop.proxy import BaseHistoryProxy, GroupProxy, LayerStackProxy, ProxyLayer
 from anicrop.render import CanvasRender, ViewportRender
 from anicrop.viewport import Viewport
 
@@ -21,7 +21,7 @@ class DocumentPolicy(ABC):
         ...
 
     @abstractmethod
-    def process_layer(self, layer: Layer, history: GlobalHistory | None) -> Any:
+    def process_layer(self, layer: Layer | GroupLayer, history: GlobalHistory | None) -> Any:
         ...
 
 
@@ -33,9 +33,11 @@ class ReactiveDocumentPolicy(DocumentPolicy):
         stack = LayerStackProxy(LayerStack(), history)
         return history, stack
 
-    def process_layer(self, layer: Layer, history: GlobalHistory | None) -> Any:
+    def process_layer(self, layer: Layer | GroupLayer, history: GlobalHistory | None) -> Any:
         if isinstance(layer, BaseHistoryProxy):
             return layer
+        if isinstance(layer, GroupLayer):
+            return GroupProxy(layer, history)
         return ProxyLayer(layer, history)
 
 
@@ -45,7 +47,7 @@ class DirectDocumentPolicy(DocumentPolicy):
     def setup(self) -> tuple[None, LayerStack]:
         return None, LayerStack()
 
-    def process_layer(self, layer: Layer, history: GlobalHistory | None) -> Layer:
+    def process_layer(self, layer: Layer | GroupLayer, history: GlobalHistory | None) -> Any:
         return getattr(layer, '_target', layer)
 
 
@@ -88,9 +90,9 @@ class Document:
         doc.add_layer(layer)
         return doc
 
-    def add_layer(self, layer: Layer) -> Any:
+    def add_layer(self, layer: Layer | GroupLayer) -> Any:
         """
-        Adiciona um Layer na pilha do documento de acordo com a política ativa.
+        Adiciona um Layer ou GroupLayer na pilha do documento de acordo com a política ativa.
         """
         processed_layer = self._policy.process_layer(layer, self.history)
         self.stack.append(processed_layer)
@@ -103,6 +105,13 @@ class Document:
         layer = self.create_layer_instance(
             name, path, opacity=opacity, canvas=self.canvas)
         return self.add_layer(layer)
+
+    def create_group(self, name: str = "Group") -> Any:
+        """
+        Fábrica oficial para criar e adicionar um novo Grupo (GroupLayer) na pilha do Documento.
+        """
+        group = GroupLayer(name=name)
+        return self.add_layer(group)
 
     def preview(self, viewport: Viewport) -> np.ndarray:
         """

@@ -3,7 +3,8 @@ from anicrop.image import Image
 from anicrop.enums import ImageFormat
 from anicrop.layer import Layer
 from anicrop.container import GroupLayer
-from anicrop.render import ViewportRender, ViewportPlan
+from anicrop.render import ViewportRender, SceneTraverser
+from anicrop.frame import ViewportFrame
 from anicrop.viewport import Viewport
 from anicrop.transform import mat_global
 
@@ -34,15 +35,14 @@ def test_group_layer_integration_transforms():
     # 4. Renderizar tudo na Viewport
     viewport = Viewport((200, 200))
     renderer = ViewportRender()
-    miniview = np.zeros((32, 32), dtype=np.uint8)
 
-    # Executa o render recursivo do grupo raiz
-    result, images_gp = root.render(
-        renderer.render_area, ViewportPlan, viewport, miniview)
+    # Executa o render recursivo do grupo raiz via SceneTraverser
+    traverser = SceneTraverser(renderer, viewport, ViewportFrame)
+    images_gp = traverser.traverse(root)
 
     # Extrair a imagem renderizada do grupo raiz
     assert len(images_gp) == 1
-    root_layer, rendered_image, root_plan = images_gp[0]
+    root_layer, rendered_image, root_frame = images_gp[0]
 
     # 5. Verificar a imagem resultante
     # Procura onde o alpha (canal 3) é 255

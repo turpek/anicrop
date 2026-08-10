@@ -2,8 +2,9 @@ from anicrop.spatial import Region
 
 
 class Canvas:
-    def __init__(self, width: int, height: int):
+    def __init__(self, width: int, height: int, bg_color: tuple[int, int, int, int] = (0, 0, 0, 0)):
         self._region = Region.from_size(width, height)
+        self.bg_color = bg_color
 
     @property
     def size(self) -> tuple[int, int]:
