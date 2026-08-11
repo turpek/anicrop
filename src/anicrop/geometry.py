@@ -25,7 +25,7 @@ class GeometryController:
     def __init__(self, base: GeometryStrategy, layout: GeometryStrategy):
         self._base: GeometryStrategy = base
         self._layout: GeometryStrategy = layout
-        self._offset = layout.region - base.region
+        self._offset = base.region - layout.region
 
     @property
     def base(self) -> GeometryStrategy:
@@ -36,14 +36,19 @@ class GeometryController:
         return self._layout
 
     def sync(self, value: Region):
-        self._base._region = value
-        self._layout._region = self._offset + value
+        self._layout._region = value
+        self._base._region = value + self._offset
 
     def set_x(self, value: int | Span) -> None:
-        self.sync(self._base._region.replace(x=value))
+        self.sync(self._layout.region.replace(x=value))
 
     def set_y(self, value: int | Span) -> None:
-        self.sync(self._base._region.replace(y=value))
+        self.sync(self._layout.region.replace(y=value))
+
+    def set_strategy(self, layout_strategy: GeometryStrategy) -> None:
+        self._layout = layout_strategy
+        self._offset = self._base.region - self._layout.region
+
 
 
 class GeometryStrategy(ABC):
@@ -116,21 +121,24 @@ class FitGeometry(GeometryStrategy):
     def __init__(
         self,
         base: BaseLayer,
-        region: Optional[Region] = None,
+        region: Region,
     ):
         self._base = base
-        self._region = region
         self._local_matrix = mat_inverse(base.base.matrix)
+        self._region = self._calculate_region(self._local_matrix, region)
+
+    def _calculate_region(self, matrix: ndarray, region: Region) -> Region:
+        rect = calculate_region_rect(matrix, region)
+        return Region.from_rect(*rect)
 
     @property
     def matrix(self) -> ndarray:
-        return mat_global(self._base) @ self.mask.local_matrix
+        return self._base.base.matrix
 
     @property
     def region(self) -> Region:
-        return self.mask.region
+        return self._region
 
     @property
     def global_region(self) -> Region:
-        rect = calculate_new_rect(self.matrix, self.mask.region.size)
-        return Region.from_rect(*rect)
+        return self._calculate_region(self.matrix, self.region)

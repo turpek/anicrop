@@ -150,10 +150,10 @@ def test_geometry_controller_sync_on_coordinate_mutation():
 
     controller = GeometryController(base_geom, layout_geom)
 
-    # Mutação de coordenadas da região base via controller.sync
-    new_base_region = Region.from_rect(10, 0, 100, 100)
-    controller.sync(new_base_region)
+    # Mutação de coordenadas da região de layout via controller.sync
+    new_layout_region = Region.from_rect(10, 0, 100, 100)
+    controller.sync(new_layout_region)
 
-    # Verifica se ambas as estratégias (base e layout) foram sincronizadas proporcionalmente
-    assert controller.base.region == Region.from_rect(10, 0, 100, 100)
-    assert controller.layout.region == Region.from_rect(15, 5, 100, 100)
+    # Verifica se ambas as estratégias (layout e base) foram sincronizadas proporcionalmente
+    assert controller.layout.region == Region.from_rect(10, 0, 100, 100)
+    assert controller.base.region == Region.from_rect(5, -5, 100, 100)

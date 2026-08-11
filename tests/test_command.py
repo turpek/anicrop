@@ -351,7 +351,7 @@ def test_geometry_controller_snapshot_restore():
 
     # Mutação de coordenadas e troca de estratégia
     controller.sync(Region.from_rect(20, 20, 10, 10))
-    assert controller.base.region == Region.from_rect(20, 20, 10, 10)
+    assert controller.layout.region == Region.from_rect(20, 20, 10, 10)
 
     # Restauração via snapshot
     snapshot.restore()

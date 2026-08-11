@@ -90,7 +90,7 @@ class GeometryControllerSnapshot(StateSnapshot):
 
     def __init__(self, controller: GeometryController):
         self._state = {
-            "base_region": controller.base.region,
+            "layout_region": controller.layout.region,
             "layout_strategy": controller.layout,
             "offset": controller._offset,
         }
@@ -99,10 +99,10 @@ class GeometryControllerSnapshot(StateSnapshot):
     def restore(self) -> None:
         self._controller._layout = self._state["layout_strategy"]
         self._controller._offset = self._state["offset"]
-        self._controller.sync(self._state["base_region"])
+        self._controller.sync(self._state["layout_region"])
 
     def _region_changed(self, other: GeometryControllerSnapshot) -> bool:
-        return self._state["base_region"] != other._state["base_region"]
+        return self._state["layout_region"] != other._state["layout_region"]
 
     def _instance_changed(self, other: GeometryControllerSnapshot) -> bool:
         return self._state["layout_strategy"] is not other._state["layout_strategy"]
