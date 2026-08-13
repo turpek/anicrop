@@ -259,7 +259,7 @@ class SceneTraverser:
     def traverse(
         self,
         container: Iterable[Layer | GroupLayer] | Container
-    ) -> list[tuple[Layer | GroupLayer, Image, BaseFrame]]:
+    ) -> list[tuple[Layer | GroupLayer, Image, Region]]:
         rendered_items = []
 
         for item in container:
@@ -274,7 +274,7 @@ class SceneTraverser:
                     group_image = blend_rendered_images(children_items, buffer)
                     group_frame = self.frame_cls(item, self.surface)
 
-                    rendered_items.append((item, group_image, group_frame))
+                    rendered_items.append((item, group_image, group_frame.dst_region))
                     if np.all(self.miniview == 255):
                         break
             else:
@@ -282,7 +282,8 @@ class SceneTraverser:
 
                 if image is not None:
                     frame = self.frame_cls(item, self.surface)
-                    rendered_items.append((item, image, frame))
+                    rendered_items.append((item, image, frame.dst_region))
+
                     if item._opacity_mask is not None:
                         np.maximum(self.miniview, item._opacity_mask, out=self.miniview)
                     if np.all(self.miniview == 255):

@@ -3,10 +3,11 @@ from abc import ABC, abstractmethod
 from functools import reduce
 from numpy import ndarray
 from operator import or_
-from typing import Optional, TYPE_CHECKING
+from typing import TYPE_CHECKING
 
 from anicrop.spatial import Region, Span
-from anicrop.transform import calculate_new_rect, mat_global, mat_inverse, mat_position
+from anicrop.transform import calculate_new_rect, calculate_region_rect, mat_inverse, mat_position, mat_global
+
 
 import numpy as np
 
@@ -48,7 +49,6 @@ class GeometryController:
     def set_strategy(self, layout_strategy: GeometryStrategy) -> None:
         self._layout = layout_strategy
         self._offset = self._base.region - self._layout.region
-
 
 
 class GeometryStrategy(ABC):
@@ -124,16 +124,13 @@ class FitGeometry(GeometryStrategy):
         region: Region,
     ):
         self._base = base
-        self._local_matrix = mat_inverse(base.base.matrix)
-        self._region = self._calculate_region(self._local_matrix, region)
-
-    def _calculate_region(self, matrix: ndarray, region: Region) -> Region:
-        rect = calculate_region_rect(matrix, region)
-        return Region.from_rect(*rect)
+        parent_mat = base.parent.matrix
+        rect = calculate_region_rect(mat_inverse(parent_mat), region)
+        self._region = Region.from_rect(*rect)
 
     @property
     def matrix(self) -> ndarray:
-        return self._base.base.matrix
+        return self._base.parent.matrix @ self._base.transform.matrix
 
     @property
     def region(self) -> Region:
@@ -141,4 +138,31 @@ class FitGeometry(GeometryStrategy):
 
     @property
     def global_region(self) -> Region:
-        return self._calculate_region(self.matrix, self.region)
+        rect = calculate_region_rect(self.matrix, self._region)
+        return Region.from_rect(*rect)
+
+
+class FitGroupGeometry(GeometryStrategy):
+
+    def __init__(
+        self,
+        base: GroupLayer,
+        region: Region,
+    ):
+        self._base = base
+        parent_mat = base.parent.matrix
+        rect = calculate_region_rect(mat_inverse(parent_mat), region)
+        self._region = Region.from_rect(*rect)
+
+    @property
+    def matrix(self) -> ndarray:
+        return self._base.parent.matrix @ self._base.transform.matrix
+
+    @property
+    def region(self) -> Region:
+        return self._region
+
+    @property
+    def global_region(self) -> Region:
+        rect = calculate_region_rect(self.matrix, self._region)
+        return Region.from_rect(*rect)

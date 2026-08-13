@@ -1,11 +1,11 @@
-import pytest
-import numpy as np
 from unittest.mock import MagicMock
+import numpy as np
+import pytest
 
-from anicrop.spatial import Region
-from anicrop.layer import Layer
 from anicrop.container import GroupLayer
-from anicrop.geometry import LayerGeometry, GroupGeometry, GeometryController
+from anicrop.geometry import FitGroupGeometry, GeometryController, GroupGeometry, LayerGeometry
+from anicrop.layer import Layer
+from anicrop.spatial import Region
 from anicrop.transform import mat_translation
 
 
@@ -157,3 +157,54 @@ def test_geometry_controller_sync_on_coordinate_mutation():
     # Verifica se ambas as estratégias (layout e base) foram sincronizadas proporcionalmente
     assert controller.layout.region == Region.from_rect(10, 0, 100, 100)
     assert controller.base.region == Region.from_rect(5, -5, 100, 100)
+
+
+def test_fit_group_geometry_region_and_global_region():
+    """Valida se FitGroupGeometry armazena a região local no pai e projeta a global_region no Canvas."""
+    group_mock = MagicMock(spec=GroupLayer)
+    group_mock.parent = MagicMock()
+    # Pai com translação de (20, 30)
+    group_mock.parent.matrix = np.array([
+        [1.0, 0.0, 20.0],
+        [0.0, 1.0, 30.0],
+        [0.0, 0.0, 1.0]
+    ])
+    group_mock.transform = MagicMock()
+    group_mock.transform.matrix = np.identity(3)
+
+    # Moldura passada no Canvas: (50, 50, 150, 100)
+    ref_region = Region.from_rect(50, 50, 150, 100)
+    strategy = FitGroupGeometry(group_mock, ref_region)
+
+    # 1. Região local no espaço do grupo pai (subtrai 20, 30): Region(30, 20, 150, 100)
+    assert strategy.region == Region.from_rect(30, 20, 150, 100)
+
+    # 2. Região global no Canvas (re-projeta através do pai): Region(50, 50, 150, 100)
+    assert strategy.global_region == Region.from_rect(50, 50, 150, 100)
+
+
+def test_fit_group_geometry_matrix():
+    """Valida se a matriz da FitGroupGeometry é composta pela matriz do pai e transformação do grupo."""
+    group_mock = MagicMock(spec=GroupLayer)
+    group_mock.parent = MagicMock()
+    group_mock.parent.matrix = np.array([
+        [1.0, 0.0, 20.0],
+        [0.0, 1.0, 30.0],
+        [0.0, 0.0, 1.0]
+    ])
+    group_mock.transform = MagicMock()
+    group_mock.transform.matrix = np.array([
+        [2.0, 0.0, 0.0],
+        [0.0, 2.0, 0.0],
+        [0.0, 0.0, 1.0]
+    ])
+
+    ref_region = Region.from_rect(0, 0, 100, 100)
+    strategy = FitGroupGeometry(group_mock, ref_region)
+
+    expected_matrix = np.array([
+        [2.0, 0.0, 20.0],
+        [0.0, 2.0, 30.0],
+        [0.0, 0.0, 1.0]
+    ])
+    np.testing.assert_array_almost_equal(strategy.matrix, expected_matrix)

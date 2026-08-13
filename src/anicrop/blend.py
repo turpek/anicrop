@@ -1,23 +1,26 @@
 from __future__ import annotations
-from anicrop.enums import BlendMode
-from anicrop.image import Image
-from typing import Any, TYPE_CHECKING
+from typing import Iterable, TYPE_CHECKING
 
 import numpy as np
 
+
+from anicrop.enums import BlendMode
+from anicrop.image import Image
+from anicrop.spatial import Region
+
 if TYPE_CHECKING:
+    from anicrop.container import GroupLayer
     from anicrop.layer import Layer
 
 
 def blend_rendered_images(
-    images: list[tuple[Layer, Image, Any]],
+    images: Iterable[tuple[Layer | GroupLayer, Image, Region]],
     buffer: Image,
 ) -> Image:
     """Realiza a composição das imagens renderizadas em ordem reversa diretamente no buffer de destino."""
-    for layer, image, plan in images:
-        dst_region = plan.dst_region
+    for layer, image, region in images:
         blend = BLEND_MODE.get(layer.blend_mode)
-        blend(buffer.view(dst_region), image, layer.opacity)
+        blend(buffer.view(region), image, layer.opacity)
     return buffer
 
 

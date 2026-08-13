@@ -210,6 +210,21 @@ def mat_inverse(matrix: np.ndarray) -> np.ndarray:
     return np.linalg.inv(matrix)
 
 
+def transform_vector(
+    matrix: np.ndarray,
+    start_region: Region,
+    target_region: Region,
+) -> tuple[int, int]:
+    """Calcula o vetor offset entre duas regiões e o projeta através de uma matriz 3x3 (sem translação)."""
+    dx, dy = (target_region - start_region).top_left
+
+    m_rot_scale = matrix.copy()
+    m_rot_scale[:2, 2] = 0.0
+
+    vec = m_rot_scale @ np.array([dx, dy, 1.0], dtype=np.float32)
+    return int(round(vec[0])), int(round(vec[1]))
+
+
 class TransformBase(ABC):
 
     @abstractmethod

@@ -1,37 +1,37 @@
+from __future__ import annotations
+
+from functools import reduce
+from operator import or_
+from typing import Sequence
+
 from anicrop.canvas import Canvas
 from anicrop.container import BaseLayer, Container, GroupLayer
+from anicrop.geometry import FitGeometry, FitGroupGeometry
+
 from anicrop.image import calculate_content_rect
 from anicrop.layer import Layer
 from anicrop.spatial import Region
-from functools import reduce
-from operator import or_
-from typing import Callable, Sequence
+from anicrop.transform import (
+    calculate_region_rect,
+    mat_global,
+    mat_inverse,
+    transform_vector,
+)
 
 
-def _resolve_group(resolve_layer: Callable, group: GroupLayer, *args):
-    if len(group) == 0:
-        return False
-
-    result = False
-    for child in group:
-        if isinstance(child, Layer):
-            result |= resolve_layer(child, *args)
-        else:
-            result |= _resolve_group(resolve_layer, child, *args)
-    return result
-
-
-def _resolve_region(
+def resolve_region(
     ref: tuple[tuple[int, int], tuple[int, int]] | Region | Canvas | BaseLayer,
-):
+) -> Region:
     if isinstance(ref, tuple):
         return Region.from_rect(*ref)
-    elif isinstance(ref, (BaseLayer, Canvas)):
+    elif isinstance(ref, Canvas):
         return ref.region
+    elif isinstance(ref, BaseLayer):
+        return ref.global_region
     return ref
 
 
-def content_region(target: Layer | GroupLayer) -> Region:
+def content_region(target: Layer | GroupLayer) -> Region | None:
     if not target._edits:
         return None
 
@@ -39,55 +39,36 @@ def content_region(target: Layer | GroupLayer) -> Region:
         return calculate_content_rect(edit.image) + edit.region.top_left
 
     content_roi = reduce(or_, [roi(e) for e in target._edits])
-    content_roi += target.region.top_left
+    content_roi += target.base.region.top_left
     return content_roi
 
 
 class LayerLayoutStrategy:
 
     @classmethod
-    def _resolve_layer(cls, target: Layer, new_region: Region) -> bool:
-        old_region = target.region
-        offset = (old_region - new_region).top_left
-        target.region = new_region
-
-        for edit in target._edits:
-            edit._region += offset
-        return True
-
-    @classmethod
-    def crop(cls, target: Layer, ref_region: Region) -> bool:
-        if not ref_region.overlaps(target.region):
-            return False
-
-        if target.region == ref_region:
-            return False
-
-        old_region = target.region
-        new_region = old_region & ref_region
-        return cls._resolve_layer(target, new_region)
-
-    @classmethod
     def fit(cls, target: Layer, ref_region: Region) -> bool:
-        if target.region == ref_region or not ref_region.overlaps(target.region):
+        if target.global_region == ref_region:
             return False
-        return cls._resolve_layer(target, ref_region)
+        fit_strategy = FitGeometry(target, ref_region)
+        target.control.set_strategy(fit_strategy)
+        return True
 
     @classmethod
     def align(
         cls,
         target: Layer,
         ref_region: Region,
-        factor_x: float = 0.5,
-        factor_y: float = 0.5,
+        anchor_x: float = 0.5,
+        anchor_y: float = 0.5,
     ) -> bool:
-        old_region = target.region
-        new_region = old_region.align(ref_region, factor_x, factor_y)
-
-        if old_region == new_region:
+        new_global_region = target.global_region.align(ref_region, anchor_x, anchor_y)
+        if target.global_region == new_global_region:
             return False
 
-        target.region = new_region
+        dx, dy = transform_vector(
+            mat_inverse(target.parent.matrix), target.global_region, new_global_region
+        )
+        target.region += (dx, dy)
         return True
 
     @classmethod
@@ -97,25 +78,23 @@ class LayerLayoutStrategy:
         ref_region: Region,
         anchor_x: float = 0.5,
         anchor_y: float = 0.5,
-    ):
-        return cls.fit(target, ref_region.align(target.region, anchor_x, anchor_y))
+    ) -> bool:
+        aligned_ref = ref_region.align(target.global_region, anchor_x, anchor_y)
+        return cls.fit(target, aligned_ref)
 
     @classmethod
     def fit_content(cls, target: Layer, *args, **kwargs) -> bool:
         content_roi = content_region(target)
-        if target.region == content_roi:
+        if content_roi is None:
             return False
-        return cls._resolve_layer(target, content_roi)
+        parent_mat = target.parent.matrix
+        global_roi = Region.from_rect(*calculate_region_rect(parent_mat, content_roi))
+        if target.global_region == global_roi:
+            return False
+        return cls.fit(target, global_roi)
 
 
 class CanvasLayoutStrategy:
-    @classmethod
-    def crop(cls, target: Canvas, ref_region: Region) -> bool:
-        if not ref_region.overlaps(target.region) or target.region == ref_region:
-            return False
-
-        target._region &= ref_region
-        return True
 
     @classmethod
     def fit(cls, target: Canvas, ref_region: Region) -> bool:
@@ -130,10 +109,10 @@ class CanvasLayoutStrategy:
         cls,
         target: Canvas,
         ref_region: Region,
-        factor_x: float = 0.5,
-        factor_y: float = 0.5,
+        anchor_x: float = 0.5,
+        anchor_y: float = 0.5,
     ) -> bool:
-        new_region = target._region.align(ref_region, factor_x, factor_y)
+        new_region = target._region.align(ref_region, anchor_x, anchor_y)
         if target._region == new_region:
             return False
         target._region = new_region
@@ -146,7 +125,7 @@ class CanvasLayoutStrategy:
         ref_region: Region,
         anchor_x: float = 0.5,
         anchor_y: float = 0.5,
-    ):
+    ) -> bool:
         ref_region = ref_region.align(target.region, anchor_x, anchor_y)
         return cls.fit(target, ref_region)
 
@@ -154,9 +133,12 @@ class CanvasLayoutStrategy:
     def _extract_items(
         cls,
         item: Layer | Container,
-    ) -> Region:
+    ) -> Sequence[Region]:
         if isinstance(item, Layer):
-            yield content_region(item)
+            local_roi = content_region(item)
+            if local_roi is not None:
+                rect = calculate_region_rect(mat_global(item), local_roi)
+                yield Region.from_rect(*rect)
         else:
             for child in item:
                 yield from cls._extract_items(child)
@@ -167,7 +149,6 @@ class CanvasLayoutStrategy:
         target: Canvas,
         container: Container | Sequence[Layer],
     ) -> bool:
-
         if len(container) == 0:
             return False
 
@@ -183,31 +164,36 @@ class CanvasLayoutStrategy:
             return False
 
         target._region = new_region
-
         return True
 
 
 class GroupLayoutStrategy:
 
     @classmethod
-    def crop(cls, target: GroupLayer, ref_region: Region) -> bool:
-        return _resolve_group(LayerLayoutStrategy.crop, target, ref_region)
-
-    @classmethod
     def fit(cls, target: GroupLayer, ref_region: Region) -> bool:
-        return _resolve_group(LayerLayoutStrategy.fit, target, ref_region)
+        if target.global_region == ref_region:
+            return False
+        fit_strategy = FitGroupGeometry(target, ref_region)
+        target.control.set_strategy(fit_strategy)
+        return True
 
     @classmethod
     def align(
         cls,
         target: GroupLayer,
         ref_region: Region,
-        factor_x: float = 0.5,
-        factor_y: float = 0.5,
+        anchor_x: float = 0.5,
+        anchor_y: float = 0.5,
     ) -> bool:
-        return _resolve_group(
-            LayerLayoutStrategy.align, target, ref_region, factor_x, factor_y
+        new_global_region = target.global_region.align(ref_region, anchor_x, anchor_y)
+        if target.global_region == new_global_region:
+            return False
+
+        dx, dy = transform_vector(
+            mat_inverse(target.parent.matrix), target.global_region, new_global_region
         )
+        target.transform.translate(dx, dy)
+        return True
 
     @classmethod
     def resize_bounds(
@@ -217,13 +203,19 @@ class GroupLayoutStrategy:
         anchor_x: float = 0.5,
         anchor_y: float = 0.5,
     ) -> bool:
-        return _resolve_group(
-            LayerLayoutStrategy.resize_bounds, target, ref_region, anchor_x, anchor_y
-        )
+        aligned_ref = ref_region.align(target.global_region, anchor_x, anchor_y)
+        return cls.fit(target, aligned_ref)
 
     @classmethod
     def fit_content(cls, target: GroupLayer, *args, **kwargs) -> bool:
-        return _resolve_group(LayerLayoutStrategy.fit_content, target)
+        content_roi = content_region(target)
+        if content_roi is None:
+            return False
+        parent_mat = target.parent.matrix
+        global_roi = Region.from_rect(*calculate_region_rect(parent_mat, content_roi))
+        if target.global_region == global_roi:
+            return False
+        return cls.fit(target, global_roi)
 
 
 class Layout:
@@ -234,21 +226,12 @@ class Layout:
         Canvas: CanvasLayoutStrategy,
     }
 
-    def crop(
-        self,
-        target: Canvas | BaseLayer,
-        ref: tuple[tuple[int, int], tuple[int, int]] | Region | Canvas | BaseLayer,
-    ) -> bool:
-        ref_region = _resolve_region(ref)
-        strategy_class = self.STRATEGIES[type(target)]
-        return strategy_class.crop(target, ref_region)
-
     def fit(
         self,
         target: Canvas | BaseLayer,
         ref: tuple[tuple[int, int], tuple[int, int]] | Region | Canvas | BaseLayer,
     ) -> bool:
-        ref_region = _resolve_region(ref)
+        ref_region = resolve_region(ref)
         strategy_class = self.STRATEGIES[type(target)]
         return strategy_class.fit(target, ref_region)
 
@@ -256,12 +239,12 @@ class Layout:
         self,
         target: Canvas | BaseLayer,
         ref: tuple[tuple[int, int], tuple[int, int]] | Region | Canvas | BaseLayer,
-        factor_x: float = 0.5,
-        factor_y: float = 0.5,
+        anchor_x: float = 0.5,
+        anchor_y: float = 0.5,
     ) -> bool:
-        ref_region = _resolve_region(ref)
+        ref_region = resolve_region(ref)
         strategy_class = self.STRATEGIES[type(target)]
-        return strategy_class.align(target, ref_region, factor_x, factor_y)
+        return strategy_class.align(target, ref_region, anchor_x, anchor_y)
 
     def resize_bounds(
         self,
@@ -270,7 +253,7 @@ class Layout:
         new_height: int,
         anchor_x: float = 0.5,
         anchor_y: float = 0.5,
-    ):
+    ) -> bool:
         ref_region = Region.from_size(new_width, new_height)
         strategy_class = self.STRATEGIES[type(target)]
         return strategy_class.resize_bounds(target, ref_region, anchor_x, anchor_y)

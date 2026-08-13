@@ -3,7 +3,9 @@ from abc import ABC
 from typing import Optional, TYPE_CHECKING
 import numpy as np
 
+from anicrop.canvas import Canvas
 from anicrop.spatial import Region, rect_to_region
+
 from anicrop.transform import (
     calculate_new_rect,
     calculate_region_rect,
@@ -102,6 +104,7 @@ class CanvasFrame(BaseFrame):
         self.layer = layer
         self.local = local
 
+        view_region = view_region.region if isinstance(view_region, Canvas) else view_region
         m_global = mat_global(layer)
 
         if local:
@@ -116,5 +119,5 @@ class CanvasFrame(BaseFrame):
             matrix = m_global
             view_target = view_region
 
-        bounds = rect_to_region(calculate_new_rect(matrix, layer.region.size))
+        bounds = layer.global_region
         super().__init__(bounds, view_target, matrix=matrix, surface_size=bounds.size)
