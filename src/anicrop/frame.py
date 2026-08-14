@@ -1,6 +1,6 @@
 from __future__ import annotations
 from abc import ABC
-from typing import Optional, TYPE_CHECKING
+from typing import Protocol, runtime_checkable, TYPE_CHECKING
 import numpy as np
 
 from anicrop.canvas import Canvas
@@ -15,8 +15,16 @@ from anicrop.transform import (
 
 
 if TYPE_CHECKING:
-    from anicrop.layer import Layer, EditLayer
+    from anicrop.layer import EditLayer
     from anicrop.viewport import Viewport
+    from anicrop.container import BaseLayer
+
+
+@runtime_checkable
+class SurfaceProtocol(Protocol):
+    size: tuple[int, int]
+    region: Region
+    bg_color: tuple[int, int, int, int] | None
 
 
 class BaseFrame(ABC):
@@ -39,7 +47,7 @@ class BaseFrame(ABC):
     ) -> Region | None:
 
         if view_region is None:
-            return final_region
+            return None
         if view_region.overlaps(final_region):
             return view_region & final_region
         return None
@@ -58,6 +66,13 @@ class BaseFrame(ABC):
 
         # Retorna a escala final exata combinada de tudo!
         return float(s[0])
+
+    def _effective_view(self, surface_region: Region, view_region: Region) -> Region | None:
+        if view_region is not None:
+            if surface_region.overlaps(view_region):
+                return view_region & surface_region
+        else:
+            return surface_region
 
     @property
     def bounds(self) -> Region:
@@ -79,45 +94,49 @@ class BaseFrame(ABC):
 class ViewportFrame(BaseFrame):
     def __init__(
         self,
-        layer: Layer,
+        base: BaseLayer,
         viewport: Viewport,
+        view_region: Region | None = None,
         local: bool = False,
     ):
-        self.layer = layer
+        self.base = base
         self.viewport = viewport
         self.local = local
 
-        m_view = viewport.roi_matrix @ viewport.fit_matrix(layer.canvas_size)
-        matrix = m_view if local else m_view @ mat_global(layer)
-        bounds = rect_to_region(calculate_new_rect(matrix, layer.region.size))
+        effective_view = self._effective_view(viewport.region, view_region)
+        m_view = viewport.roi_matrix @ viewport.fit_matrix(base.canvas_size)
+        matrix = m_view if local else m_view @ mat_global(base)
+        bounds = rect_to_region(calculate_new_rect(matrix, base.region.size))
 
-        super().__init__(bounds, viewport.region, matrix=matrix, surface_size=viewport.size)
+        super().__init__(bounds, effective_view, matrix=matrix, surface_size=viewport.size)
 
 
 class CanvasFrame(BaseFrame):
     def __init__(
         self,
-        layer: Layer,
-        view_region: Optional[Region] = None,
+        base: BaseLayer,
+        canvas: Canvas,
+        view_region: Region | None = None,
         local: bool = False,
     ):
-        self.layer = layer
+        self.base = base
         self.local = local
 
-        view_region = view_region.region if isinstance(view_region, Canvas) else view_region
-        m_global = mat_global(layer)
+        m_global = mat_global(base)
+        effective_view = self._effective_view(canvas.region, view_region)
 
         if local:
             matrix = np.identity(3, dtype=np.float32)
-            if view_region is not None:
+            if effective_view is not None:
                 inv_matrix = mat_inverse(m_global)
-                rect = calculate_region_rect(inv_matrix, view_region)
+                rect = calculate_region_rect(inv_matrix, effective_view)
                 view_target = rect_to_region(rect)
             else:
                 view_target = None
+            bounds = base.region
         else:
             matrix = m_global
-            view_target = view_region
+            view_target = effective_view
+            bounds = base.global_region
 
-        bounds = layer.global_region
         super().__init__(bounds, view_target, matrix=matrix, surface_size=bounds.size)
