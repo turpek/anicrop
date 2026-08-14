@@ -64,8 +64,9 @@ class Document:
 
     def __init__(self, name: str, width: int, height: int, wrap_proxy: bool = True):
         self.name = name
-        self.canvas = Canvas(width, height)
+        self.canvas = Canvas.from_size(width, height)
         self.wrap_proxy = wrap_proxy
+
         self._policy = self._POLICIES[wrap_proxy]
         self.history, self.stack = self._policy.setup()
 

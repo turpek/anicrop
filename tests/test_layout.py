@@ -46,7 +46,7 @@ def make_transformed_layer(
             (25, -25, 50, 100),
             id='layer_rotated_90',
         ),
-        pytest.param(Canvas(200, 150), (0, 0, 200, 150), id='canvas_object'),
+        pytest.param(Canvas.from_size(200, 150), (0, 0, 200, 150), id='canvas_object'),
     ],
 )
 def test_resolve_region(ref, expected_rect):
