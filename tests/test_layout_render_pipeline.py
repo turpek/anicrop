@@ -270,7 +270,7 @@ def test_align_geometry_render_pipeline(
     mocker.patch("anicrop.render.render_patch", side_effect=fake_render_patch)
 
     layer = make_test_layer(top_left, transform)
-    canvas = Canvas(200, 200)
+    canvas = Canvas.from_size(200, 200)
 
     layout = Layout()
     layout.align(layer, canvas, anchor_x=align_anchors[0], anchor_y=align_anchors[1])
@@ -299,7 +299,7 @@ def test_fit_and_align_geometry_render_pipeline(mocker):
     mocker.patch("anicrop.render.render_patch", side_effect=fake_render_patch)
 
     layer = make_test_layer((0, 0), TransformRel())
-    canvas = Canvas(200, 200)
+    canvas = Canvas.from_size(200, 200)
 
     layout = Layout()
     # Step 1: fit expandindo para (0, 0, 150, 80)
@@ -390,7 +390,7 @@ def test_fit_content_and_align_geometry_render_pipeline(mocker):
     mock_img.format = ImageFormat.RGBA
 
     layer = Layer(mock_img)
-    canvas = Canvas(200, 200)
+    canvas = Canvas.from_size(200, 200)
     layout = Layout()
 
     # Step 1: fit_content -> moldura (25, 25, 150, 150)

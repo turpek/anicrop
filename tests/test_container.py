@@ -236,7 +236,7 @@ def test_group_layer_set_transform_com_referencia_layer_e_canvas(mocker):
     pt_origem = np.array([0, 0, 1], dtype=np.float32)
     np.testing.assert_allclose(group.matrix @ pt_origem, [1000, 0, 1], atol=1e-4)
 
-    canvas_obj = Canvas(500, 500)
+    canvas_obj = Canvas.from_size(500, 500)
     group.set_transform(t_rel, reference=canvas_obj)
     np.testing.assert_allclose(group.matrix @ pt_origem, [500, 0, 1], atol=1e-4)
 

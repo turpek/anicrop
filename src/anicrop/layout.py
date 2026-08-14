@@ -101,7 +101,7 @@ class CanvasLayoutStrategy:
         if not ref_region.overlaps(target.region) or target.region == ref_region:
             return False
 
-        target._region = ref_region
+        target.region = ref_region
         return True
 
     @classmethod
@@ -112,10 +112,10 @@ class CanvasLayoutStrategy:
         anchor_x: float = 0.5,
         anchor_y: float = 0.5,
     ) -> bool:
-        new_region = target._region.align(ref_region, anchor_x, anchor_y)
-        if target._region == new_region:
+        new_region = target.region.align(ref_region, anchor_x, anchor_y)
+        if target.region == new_region:
             return False
-        target._region = new_region
+        target.region = new_region
         return True
 
     @classmethod
@@ -160,10 +160,10 @@ class CanvasLayoutStrategy:
             return False
 
         new_region = reduce(or_, regions, new_region)
-        if new_region == target._region:
+        if new_region == target.region:
             return False
 
-        target._region = new_region
+        target.region = new_region
         return True
 
 

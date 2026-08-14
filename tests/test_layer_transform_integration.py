@@ -183,7 +183,7 @@ def test_layer_set_transform_com_referencia_layer_e_canvas():
                                pt_origem, [1000, 0, 1], atol=1e-4)
 
     # 2. Passando Canvas como referência (500x500 -> pivô 250, 250)
-    canvas_obj = Canvas(500, 500)
+    canvas_obj = Canvas.from_size(500, 500)
     layer_filho.set_transform(t_rel, reference=canvas_obj)
     np.testing.assert_allclose(layer_filho.transform.matrix @
                                pt_origem, [500, 0, 1], atol=1e-4)
