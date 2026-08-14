@@ -1,10 +1,12 @@
 from __future__ import annotations
+from anicrop.blend import blend_rendered_images, BLEND_MODE
+from anicrop.canvas import Canvas
 from anicrop.frame import (
     BaseFrame,
     CanvasFrame,
+    SurfaceProtocol,
     ViewportFrame,
 )
-from anicrop.blend import blend_rendered_images, BLEND_MODE
 from anicrop.enums import InterpolationOption, WarpMode
 from anicrop.image import Image, ImageFormat
 from anicrop.layer import Layer, EditLayer
@@ -18,17 +20,10 @@ from anicrop.transform import (
 )
 from anicrop.viewport import Viewport
 from abc import ABC
-from typing import Iterable, Protocol, runtime_checkable
+from typing import Iterable
 
 import cv2
 import numpy as np
-
-
-@runtime_checkable
-class SurfaceProtocol(Protocol):
-    size: tuple[int, int]
-    region: Region
-    bg_color: tuple[int, int, int, int] | None
 
 
 def warp_affine(
@@ -258,7 +253,8 @@ class SceneTraverser:
 
     def traverse(
         self,
-        container: Iterable[Layer | GroupLayer] | Container
+        container: Iterable[Layer | GroupLayer] | Container,
+        local=False,
     ) -> list[tuple[Layer | GroupLayer, Image, Region]]:
         rendered_items = []
 
@@ -272,16 +268,16 @@ class SceneTraverser:
                 if children_items:
                     buffer = Image.new(self.surface.size, ImageFormat.RGBA)
                     group_image = blend_rendered_images(children_items, buffer)
-                    group_frame = self.frame_cls(item, self.surface)
+                    group_frame = self.frame_cls(item, self.surface, local=local)
 
                     rendered_items.append((item, group_image, group_frame.dst_region))
                     if np.all(self.miniview == 255):
                         break
             else:
-                image = self.renderer.render_area(item, self.surface, self.interp)
+                frame = self.frame_cls(item, self.surface, local=local)
+                image = self.renderer.render_area(item, frame, self.interp)
 
                 if image is not None:
-                    frame = self.frame_cls(item, self.surface)
                     rendered_items.append((item, image, frame.dst_region))
 
                     if item._opacity_mask is not None:
@@ -321,19 +317,17 @@ class BaseRenderer(ABC):
     def render_area(
         self,
         layer: Layer,
-        view: Viewport | Region | None = None,
+        frame: BaseFrame,
         interp: InterpolationOption = InterpolationOption.LANCZOS,
-        local: bool = False,
     ) -> Image | None:
-        plan = self.frame_cls(layer, view, local=local)
 
-        dst_region = plan.dst_region
+        dst_region = frame.dst_region
         if dst_region is not None:
             layer_image = Image.new(dst_region.size, layer.format)
-            image = self._flatten_edits(layer, layer_image, plan, interp)
+            image = self._flatten_edits(layer, layer_image, frame, interp)
 
             layer._opacity_mask = generate_opacity_mask(
-                image, dst_region, plan.surface_size, self._target_size
+                image, dst_region, frame.surface_size, self._target_size
             )
 
             return image
@@ -344,7 +338,7 @@ class BaseRenderer(ABC):
         self,
         container: Iterable[Layer | GroupLayer] | Container,
         surface: SurfaceProtocol,
-        interp: InterpolationOption = InterpolationOption.LANCZOS
+        interp: InterpolationOption = InterpolationOption.LANCZOS,
     ) -> Image:
 
         traverser = SceneTraverser(
@@ -364,11 +358,10 @@ class CanvasRender(BaseRenderer):
     def render_area(
         self,
         layer: Layer,
-        view: Region | None = None,
+        frame: CanvasFrame,
         interp: InterpolationOption = InterpolationOption.LANCZOS,
-        local: bool = False,
     ) -> Image | None:
-        return super().render_area(layer, view=view, interp=interp, local=local)
+        return super().render_area(layer, frame=frame, interp=interp)
 
     def render(
         self,
@@ -376,7 +369,9 @@ class CanvasRender(BaseRenderer):
         interp: InterpolationOption = InterpolationOption.LANCZOS,
         local: bool = False,
     ) -> Image | None:
-        return self.render_area(layer, interp=interp, local=local)
+        canvas = Canvas()
+        frame = CanvasFrame(layer, local=local)
+        return self.render_area(layer, frame, interp=interp)
 
 
 class ViewportRender(BaseRenderer):
@@ -387,8 +382,7 @@ class ViewportRender(BaseRenderer):
     def render_area(
         self,
         layer: Layer,
-        view: Viewport,
+        frame: ViewportFrame,
         interp: InterpolationOption = InterpolationOption.LANCZOS,
-        local: bool = False,
     ) -> Image | None:
-        return super().render_area(layer, view=view, interp=interp, local=local)
+        return super().render_area(layer, frame=frame, interp=interp)
