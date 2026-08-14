@@ -160,7 +160,7 @@ def test_viewport_frame_local_matrix_and_bounds():
 def test_canvas_frame_space_partial_overlap():
     layer = make_layer(w=200, h=200, x=50, y=50)
     # view_region = Region(Span(0, 100), Span(0, 100))
-    canvas = Canvas(100, 100)
+    canvas = Canvas.from_size(100, 100)
 
     frame = CanvasFrame(layer, canvas)
 
@@ -172,8 +172,7 @@ def test_canvas_frame_space_partial_overlap():
 def test_canvas_frame_full_render_no_clipping():
     layer = make_layer(w=200, h=200, x=150, y=250)
 
-    canvas = Canvas(200, 200)
-    canvas._region += (150, 250)
+    canvas = Canvas.from_rect(150, 250, 200, 200)
     frame = CanvasFrame(layer, canvas)
 
     assert frame.bounds == Region(Span(150, 200), Span(250, 200))
@@ -188,8 +187,7 @@ def test_canvas_frame_local_state():
     layer = Layer(img_mexican)
     layer.set_transform(TransformRel().rotate(-90).translate(150, 250))
 
-    canvas = Canvas(20, 10)
-    canvas._region += (190, 250)
+    canvas = Canvas.from_rect(190, 250, 20, 10)
     frame = CanvasFrame(layer, canvas, local=True)
 
     assert frame.bounds == Region(Span(0, 100), Span(0, 100))
@@ -200,7 +198,7 @@ def test_canvas_frame_local_state():
 def test_canvas_frame_with_explicit_view_region_global():
     """Valida se view_region restringe o dst_region no espaço global."""
     layer = make_layer(w=200, h=200, x=0, y=0)
-    canvas = Canvas(300, 300)
+    canvas = Canvas.from_size(300, 300)
     view_region = Region(Span(20, 50), Span(30, 40))
 
     frame = CanvasFrame(layer, canvas, view_region=view_region)
@@ -217,7 +215,7 @@ def test_canvas_frame_with_explicit_view_region_local():
     layer = Layer(img_mexican)
     layer.set_transform(TransformRel().rotate(-90).translate(150, 250))
 
-    canvas = Canvas(500, 500)
+    canvas = Canvas.from_size(500, 500)
     view_region = Region(Span(190, 20), Span(250, 10))
 
     frame = CanvasFrame(layer, canvas, view_region=view_region, local=True)
@@ -230,7 +228,7 @@ def test_canvas_frame_with_explicit_view_region_local():
 def test_canvas_frame_culling_layer_outside_canvas():
     """Valida culling quando a camada está totalmente fora do Canvas."""
     layer = make_layer(w=100, h=100, x=500, y=500)
-    canvas = Canvas(200, 200)
+    canvas = Canvas.from_size(200, 200)
 
     frame = CanvasFrame(layer, canvas)
 
@@ -241,7 +239,7 @@ def test_canvas_frame_culling_layer_outside_canvas():
 def test_canvas_frame_culling_view_region_outside_layer():
     """Valida culling quando view_region não intersecta a camada."""
     layer = make_layer(w=100, h=100, x=0, y=0)
-    canvas = Canvas(500, 500)
+    canvas = Canvas.from_size(500, 500)
     view_region = Region(Span(300, 50), Span(300, 50))
 
     frame = CanvasFrame(layer, canvas, view_region=view_region)
@@ -253,7 +251,7 @@ def test_canvas_frame_culling_view_region_outside_layer():
 def test_canvas_frame_culling_view_region_outside_canvas():
     """Valida culling quando view_region está totalmente fora do Canvas."""
     layer = make_layer(w=100, h=100, x=0, y=0)
-    canvas = Canvas(200, 200)
+    canvas = Canvas.from_size(200, 200)
     view_region = Region(Span(400, 50), Span(400, 50))
 
     frame = CanvasFrame(layer, canvas, view_region=view_region)
@@ -266,7 +264,7 @@ def test_canvas_frame_global_matrix_and_bounds():
     """Valida se a matriz do frame projeta coordenadas locais para os pontos analíticos reais no Canvas."""
     layer = make_layer(w=100, h=100, x=10, y=20)
     layer.transform.rotate(90)
-    canvas = Canvas(300, 400)
+    canvas = Canvas.from_size(300, 400)
 
     frame = CanvasFrame(layer, canvas, local=False)
 
@@ -286,7 +284,7 @@ def test_canvas_frame_local_matrix_and_bounds():
     """Valida se no modo local a matriz é a identidade e os bounds são no espaço local."""
     layer = make_layer(w=100, h=100, x=10, y=20)
     layer.transform.rotate(90)
-    canvas = Canvas(300, 400)
+    canvas = Canvas.from_size(300, 400)
 
     frame = CanvasFrame(layer, canvas, local=True)
 
@@ -298,7 +296,7 @@ def test_canvas_frame_local_matrix_and_bounds():
 def test_canvas_frame_surface_size():
     """Valida se surface_size reflete canvas.size."""
     layer = make_layer(w=100, h=100, x=10, y=20)
-    canvas = Canvas(300, 400)
+    canvas = Canvas.from_size(300, 400)
 
     frame = CanvasFrame(layer, canvas)
     assert frame.surface_size == (300, 400)

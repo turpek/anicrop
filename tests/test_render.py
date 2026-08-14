@@ -569,7 +569,7 @@ def test_edit_renderer_mexican_hat():
     layer.add_edit(img_hat, Region(Span(40, 20), Span(0, 20)))
 
     # 4. Renderiza o Chapéu (Edit 1) individualmente para ver os números
-    canvas = Canvas(100, 100)
+    canvas = Canvas.from_size(100, 100)
     frame = CanvasFrame(layer, canvas, local=True)
     warped_image, dest_region = render_edit(
         layer._edits[1], frame, interp=InterpolationOption.NEAREST)
@@ -612,8 +612,7 @@ def test_edit_renderer_with_global_render_region_clipping():
     layer.add_edit(img_hat, Region(Span(40, 20), Span(0, 20)))
 
     # 3. Solicitamos a renderização passando o CanvasFrame(local=True) com o Canvas recortado (Y=0..10, X=40..60)
-    canvas = Canvas(20, 10)
-    canvas._region += (40, 0)
+    canvas = Canvas.from_rect(40, 0, 20, 10)
     frame = CanvasFrame(layer, canvas, local=True)
 
     result = render_edit(
@@ -661,7 +660,7 @@ def test_edit_renderer_render_final_mexican_hat_full():
     layer.add_edit(img_hat, Region(Span(40, 20), Span(0, 20)))
 
     # 3. Executa o render com CanvasFrame configurado para global (local=False)
-    canvas = Canvas(100, 100)
+    canvas = Canvas.from_size(100, 100)
     frame = CanvasFrame(layer, canvas, local=False)
     result = render_edit(
         layer._edits[1],
@@ -710,8 +709,7 @@ def test_edit_renderer_render_final_mexican_hat_with_clipping():
     layer.add_edit(img_hat, Region(Span(40, 20), Span(0, 20)))
 
     # 3. Solicita render com CanvasFrame(local=False) para a metade superior da tela (Global Y=0..10, X=40..60)
-    canvas = Canvas(20, 10)
-    canvas._region += (40, 0)
+    canvas = Canvas.from_rect(40, 0, 20, 10)
     frame = CanvasFrame(layer, canvas, local=False)
 
     result = render_edit(
@@ -765,7 +763,7 @@ def test_render_image_direto():
     """Testa a função atômica render_image diretamente com uma Image e um CanvasFrame."""
     img = make_img(w=50, h=50, color=(0, 255, 0, 255))
     layer = make_layer(w=50, h=50, color=(0, 255, 0, 255))
-    canvas = Canvas(50, 50)
+    canvas = Canvas.from_size(50, 50)
     frame = CanvasFrame(layer, canvas)
     m_local = np.identity(3, dtype=np.float32)
 
@@ -773,6 +771,7 @@ def test_render_image_direto():
     assert result is not None
     warped_image, dest_region = result
     assert warped_image.width == 50
+
     assert warped_image.height == 50
     assert dest_region == Region(Span(0, 50), Span(0, 50))
 
