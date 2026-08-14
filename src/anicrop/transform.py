@@ -331,6 +331,10 @@ class Composer(ABC):
     def region(self) -> Region:
         return self._region
 
+    def sync_region(self, region: Region) -> None:
+        """Sincroniza a região de referência deste Composer com a região ativa da camada."""
+        self._region = region
+
     @abstractmethod
     def rotate(self, angle: float, px: float, py: float) -> Self:
         ...

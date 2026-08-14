@@ -251,3 +251,17 @@ def test_transform_factory_classmethods():
 
     t_abs = Transform.absolute()
     assert isinstance(t_abs, TransformAbs)
+
+
+def test_composer_sync_region():
+    """Valida se o método sync_region atualiza a região de referência do Composer."""
+    composer = ComposerRel((50, 50))
+    assert composer.size == (50, 50)
+    assert composer.region == Region.from_size(50, 50)
+
+    # Sincroniza para uma nova região de 100x200 em (20, 30)
+    new_region = Region.from_rect(20, 30, 100, 200)
+    composer.sync_region(new_region)
+
+    assert composer.size == (100, 200)
+    assert composer.region == new_region

@@ -439,3 +439,28 @@ def test_mover_item_inexistente_deve_lancar_value_error(mocker, container_cls, i
 
     assert str(
         exc_info.value) == f"Item {item_invalido} is not in this {container.__class__.__name__}"
+
+
+def test_group_layer_transform_rotate_pivot_respects_layout_fit_region():
+    """
+    Valida se o cálculo do pivô relativo (0.5, 0.5) do Composer no GroupLayer
+    utiliza a moldura ativa do Layout (layout.region) em vez da base.region dos filhos.
+    Se a base.region (40x40 em 50, 50) fosse usada, a rotação de 90° de um grupo
+    ajustado para (0, 0, 100, 100) calcularia o pivô em (70, 70), deslocando a global_region incorretamente.
+    """
+    from anicrop.image import Image, ImageFormat
+    from anicrop.layout import Layout
+    group = GroupLayer()
+    child = Layer(Image(np.zeros((40, 40, 4), dtype=np.uint8), ImageFormat.RGBA))
+    child.region += (50, 50)
+    group.append(child)
+
+    layout = Layout()
+    layout.fit(group, Region.from_rect(0, 0, 100, 100))
+    assert group.global_region == Region.from_rect(0, 0, 100, 100)
+
+    # Rotação de 90° no centro (0.5, 0.5) da moldura de 100x100
+    group.transform.rotate(90)
+
+    # A global_region deve permanecer perfeitamente em (0, 0, 100, 100)
+    assert group.global_region == Region.from_rect(0, 0, 100, 100)

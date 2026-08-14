@@ -357,3 +357,25 @@ def test_layer_snapshot_completeness(image):
 
     stale_attributes = snapshot_attributes - layer_attributes
     assert not stale_attributes, f"LIXO DETECTADO: Os Snapshots estão salvando propriedades {stale_attributes} que não existem mais no Layer!"
+
+
+def test_layer_transform_rotate_pivot_respects_layout_fit_region():
+    """
+    Valida se o cálculo do pivô relativo (0.5, 0.5) do Composer no Layer
+    utiliza a moldura ativa do Layout (layout.region) em vez da base.region original.
+    Se a base.region (40x40) fosse usada, a rotação de 90° de um quadrado ajustado
+    para (0, 0, 100, 100) calcularia o pivô em (20, 20), deslocando a global_region incorretamente.
+    """
+    from anicrop.layout import Layout
+    img = Image(np.zeros((40, 40, 4), dtype=np.uint8), ImageFormat.RGBA)
+    layer = Layer(img)
+
+    layout = Layout()
+    layout.fit(layer, Region.from_rect(0, 0, 100, 100))
+    assert layer.global_region == Region.from_rect(0, 0, 100, 100)
+
+    # Rotação de 90° no centro (0.5, 0.5) do quadrado de 100x100
+    layer.transform.rotate(90)
+
+    # A global_region deve permanecer perfeitamente em (0, 0, 100, 100)
+    assert layer.global_region == Region.from_rect(0, 0, 100, 100)

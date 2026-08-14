@@ -173,19 +173,19 @@ class BaseLayer(ABC):
 
     @property
     def transform(self) -> Composer:
-        self._transform._region = self.base.region
+        self._transform.sync_region(self.region)
         return self._transform
 
     def transform_clear(self) -> None:
-        self._transform = ComposerRel(self.base.region.size)
+        self._transform = ComposerRel(self.region.size)
 
     def set_transform(
         self,
         transform: Transform,
         reference: Optional[Canvas | Layer] = None,
     ) -> None:
-        self._transform = transform.create_composer(self.base.region.size)
-        ref_size = reference.region.size if reference is not None else self.base.region.size
+        self._transform = transform.create_composer(self.region.size)
+        ref_size = reference.region.size if reference is not None else self.region.size
         self._transform.add_transform(transform, reference_size=ref_size)
 
 
