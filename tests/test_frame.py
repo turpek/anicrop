@@ -300,3 +300,113 @@ def test_canvas_frame_surface_size():
 
     frame = CanvasFrame(layer, canvas)
     assert frame.surface_size == (300, 400)
+
+
+@pytest.mark.parametrize(
+    "layer_rect, canvas_size, view_rect, expect_dst_rect, expect_src_rect",
+    [
+        pytest.param(
+            (50, 50, 100, 100),
+            (300, 300),
+            (0, 0, 200, 200),
+            (50, 50, 100, 100),
+            (0, 0, 100, 100),
+            id="view_region_larger_than_layer",
+        ),
+        pytest.param(
+            (-50, -50, 200, 200),
+            (300, 300),
+            (50, 50, 200, 200),
+            (50, 50, 100, 100),
+            (100, 100, 100, 100),
+            id="triple_partial_overlap",
+        ),
+        pytest.param(
+            (0, 0, 100, 100),
+            (200, 200),
+            (60, 70, 100, 100),
+            (60, 70, 40, 30),
+            (60, 70, 40, 30),
+            id="corner_clipping",
+        ),
+    ],
+)
+def test_canvas_frame_view_region_edge_cases(
+    layer_rect,
+    canvas_size,
+    view_rect,
+    expect_dst_rect,
+    expect_src_rect,
+):
+    """Testa restrições e recortes de dst_region e src_region em CanvasFrame com view_region explícita."""
+    x, y, w, h = layer_rect
+    layer = make_layer(w=w, h=h, x=x, y=y)
+    canvas = Canvas.from_size(*canvas_size)
+    view_region = Region.from_rect(*view_rect)
+
+    frame = CanvasFrame(layer, canvas, view_region=view_region)
+
+    assert frame.dst_region == Region.from_rect(*expect_dst_rect)
+    assert frame.src_region == Region.from_rect(*expect_src_rect)
+
+
+@pytest.mark.parametrize(
+    "layer_rect, view_rect, expect_dst_rect, expect_src_rect",
+    [
+        pytest.param(
+            (0, 0, 100, 100),
+            (200, 100, 400, 400),
+            (350, 250, 100, 100),
+            (0, 0, 100, 100),
+            id="view_region_larger_than_projected_layer",
+        ),
+        pytest.param(
+            (0, 0, 100, 100),
+            (380, 270, 50, 50),
+            (380, 270, 50, 50),
+            (30, 20, 50, 50),
+            id="partial_screen_crop",
+        ),
+        pytest.param(
+            (-400, -300, 200, 200),
+            (20, 20, 60, 60),
+            (20, 20, 60, 60),
+            (120, 120, 60, 60),
+            id="triple_partial_screen_overlap",
+        ),
+    ],
+)
+def test_viewport_frame_view_region_edge_cases(
+    layer_rect,
+    view_rect,
+    expect_dst_rect,
+    expect_src_rect,
+):
+    """Testa projeção e recortes de dst_region e src_region na ViewportFrame com view_region explícita."""
+    x, y, w, h = layer_rect
+    viewport = Viewport((800, 600), 1.0)
+    layer = make_layer(w=w, h=h, x=x, y=y)
+    view_region = Region.from_rect(*view_rect)
+
+    frame = ViewportFrame(layer, viewport, view_region=view_region)
+
+    assert frame.dst_region == Region.from_rect(*expect_dst_rect)
+    assert frame.src_region == Region.from_rect(*expect_src_rect)
+
+
+@pytest.mark.parametrize(
+    "layer_rect, canvas_size, expected_dst",
+    [
+        pytest.param((1000, 1000, 100, 100), (500, 500), None, id="culling_total_100_porcento_fora"),
+        pytest.param((-40, -30, 100, 100), (500, 500), Region.from_rect(0, 0, 60, 70), id="recorte_topo_esquerdo_coords_negativas"),
+        pytest.param((450, 470, 100, 100), (500, 500), Region.from_rect(450, 470, 50, 30), id="recorte_base_direita_limite_canvas"),
+    ],
+)
+def test_canvas_frame_recorte_e_culling_nas_bordas(layer_rect, canvas_size, expected_dst):
+    """Valida o cálculo exato de dst_region no CanvasFrame para culling total e recortes parciais de borda."""
+    canvas = Canvas.from_size(*canvas_size)
+    layer = make_layer(w=layer_rect[2], h=layer_rect[3], x=layer_rect[0], y=layer_rect[1])
+
+    frame = CanvasFrame(layer, canvas)
+
+    assert frame.dst_region == expected_dst

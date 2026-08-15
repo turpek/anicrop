@@ -74,10 +74,10 @@ def test_merge_down_em_varias_posicoes(
     # O mock_funcao_blend é a função falsa que o dicionário retorna quando chamamos .get()
     mock_blend = mock_blend_dict.get.return_value
 
-    # Interceptamos o método render() do LayerRender.
+    # Interceptamos o método render_layer() do CanvasRender.
     # O side_effect retorna o down na primeira vez que for chamado, e o up na segunda!
     mocker.patch(
-        'anicrop.render.CanvasRender.render',
+        'anicrop.render.CanvasRender.render_layer',
         side_effect=[mock_image_down, mock_image_up]
     )
 
@@ -149,10 +149,10 @@ def test_merge_down_em_varias_posicoes_com_layer_up_60_graus_e_layer_down_45_gra
     # O mock_funcao_blend é a função falsa que o dicionário retorna quando chamamos .get()
     mock_blend = mock_blend_dict.get.return_value
 
-    # Interceptamos o método render() do LayerRender.
+    # Interceptamos o método render_layer() do CanvasRender.
     # O side_effect retorna o down na primeira vez que for chamado, e o up na segunda!
     mocker.patch(
-        'anicrop.render.CanvasRender.render',
+        'anicrop.render.CanvasRender.render_layer',
         side_effect=[mock_image_down, mock_image_up]
     )
 

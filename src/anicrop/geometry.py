@@ -150,13 +150,13 @@ class FitGroupGeometry(GeometryStrategy):
         region: Region,
     ):
         self._base = base
-        parent_mat = base.parent.matrix
-        rect = calculate_region_rect(mat_inverse(parent_mat), region)
+        self._initial_inverse = mat_inverse(base.matrix)
+        rect = calculate_region_rect(self._initial_inverse, region)
         self._region = Region.from_rect(*rect)
 
     @property
     def matrix(self) -> ndarray:
-        return self._base.parent.matrix @ self._base.transform.matrix
+        return self._base.matrix @ self._initial_inverse
 
     @property
     def region(self) -> Region:
@@ -164,5 +164,5 @@ class FitGroupGeometry(GeometryStrategy):
 
     @property
     def global_region(self) -> Region:
-        rect = calculate_region_rect(self.matrix, self._region)
+        rect = calculate_region_rect(self._base.matrix, self._region)
         return Region.from_rect(*rect)

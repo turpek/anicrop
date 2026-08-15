@@ -16,7 +16,8 @@ def test_viewport_render_area_returns_image():
     viewport = Viewport((800, 600), 1.0)
     vr = ViewportRender()
 
-    rendered = vr.render_area(layer, viewport)
+    frame = ViewportFrame(layer, viewport)
+    rendered = vr.render_area(layer, frame)
     assert rendered is not None
     assert rendered.width > 0
     assert rendered.height > 0
@@ -45,5 +46,6 @@ def test_viewport_render_passes_scale_factor_to_lod():
     viewport = Viewport((800, 600), 0.1)  # Scale 0.1 -> n=3
     vr = ViewportRender()
 
-    rendered = vr.render_area(layer, viewport)
+    frame = ViewportFrame(layer, viewport)
+    rendered = vr.render_area(layer, frame)
     assert rendered is not None

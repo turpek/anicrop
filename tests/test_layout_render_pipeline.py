@@ -81,9 +81,9 @@ def test_render_pipeline_integration(
     spy_view = mocker.spy(Image, "view")
 
     renderer = CanvasRender()
-    rendered_image = renderer.render_area(layer)
+    rendered_image = renderer.render_layer(layer)
 
-    plan = CanvasFrame(layer)
+    plan = CanvasFrame(layer, Canvas(layer.global_region))
     assert plan.dst_region == Region.from_rect(*expect_plan_dst_rect)
 
     assert rendered_image is not None
@@ -110,9 +110,9 @@ def test_render_pipeline_integration_with_parent_group_transforms(mocker):
     spy_view = mocker.spy(Image, "view")
 
     renderer = CanvasRender()
-    rendered_image = renderer.render_area(layer)
+    rendered_image = renderer.render_layer(layer)
 
-    plan = CanvasFrame(layer)
+    plan = CanvasFrame(layer, Canvas(layer.global_region))
     assert plan.dst_region == Region.from_rect(-51, 57, 213, 213)
 
     assert rendered_image is not None
@@ -183,9 +183,9 @@ def test_fit_geometry_render_pipeline(
     spy_view = mocker.spy(Image, "view")
 
     renderer = CanvasRender()
-    rendered_image = renderer.render_area(layer)
+    rendered_image = renderer.render_layer(layer)
 
-    plan = CanvasFrame(layer)
+    plan = CanvasFrame(layer, Canvas(layer.global_region))
     assert plan.dst_region == Region.from_rect(*expect_plan_dst_rect)
 
     assert rendered_image is not None
@@ -215,9 +215,9 @@ def test_fit_geometry_render_pipeline_with_parent_group_transforms(mocker):
     spy_view = mocker.spy(Image, "view")
 
     renderer = CanvasRender()
-    rendered_image = renderer.render_area(layer)
+    rendered_image = renderer.render_layer(layer)
 
-    plan = CanvasFrame(layer)
+    plan = CanvasFrame(layer, Canvas(layer.global_region))
     assert plan.dst_region == Region.from_rect(-51, 57, 213, 213)
 
     assert rendered_image is not None
@@ -278,9 +278,9 @@ def test_align_geometry_render_pipeline(
     spy_view = mocker.spy(Image, "view")
 
     renderer = CanvasRender()
-    rendered_image = renderer.render_area(layer)
+    plan = CanvasFrame(layer, canvas)
+    rendered_image = renderer.render_area(layer, plan)
 
-    plan = CanvasFrame(layer)
     assert plan.dst_region == Region.from_rect(*expect_plan_dst_rect)
 
     assert rendered_image is not None
@@ -311,10 +311,10 @@ def test_fit_and_align_geometry_render_pipeline(mocker):
     spy_view = mocker.spy(Image, "view")
 
     renderer = CanvasRender()
-    rendered_image = renderer.render_area(layer)
+    plan = CanvasFrame(layer, canvas)
+    rendered_image = renderer.render_area(layer, plan)
 
     # Moldura de 150x80 encostada no canto (200, 200) -> (50, 120, 150, 80)
-    plan = CanvasFrame(layer)
     assert plan.dst_region == Region.from_rect(50, 120, 150, 80)
 
     assert rendered_image is not None
@@ -357,10 +357,10 @@ def test_fit_content_geometry_render_pipeline(mocker):
     spy_view = mocker.spy(Image, "view")
 
     renderer = CanvasRender()
-    rendered_image = renderer.render_area(layer)
+    rendered_image = renderer.render_layer(layer)
 
     # A moldura do fit_content envolve o conteúdo visível de (25, 25, 150, 150)
-    plan = CanvasFrame(layer)
+    plan = CanvasFrame(layer, Canvas(layer.global_region))
     assert plan.dst_region == Region.from_rect(25, 25, 150, 150)
 
     assert rendered_image is not None
@@ -402,10 +402,10 @@ def test_fit_content_and_align_geometry_render_pipeline(mocker):
     spy_view = mocker.spy(Image, "view")
 
     renderer = CanvasRender()
-    rendered_image = renderer.render_area(layer)
+    plan = CanvasFrame(layer, canvas)
+    rendered_image = renderer.render_area(layer, plan)
 
     # Moldura de 150x150 encostada no canto (200, 200) -> (50, 50, 150, 150)
-    plan = CanvasFrame(layer, canvas)
     assert plan.dst_region == Region.from_rect(50, 50, 150, 150)
 
     assert rendered_image is not None
@@ -442,9 +442,9 @@ def test_fit_content_with_layer_transform_render_pipeline(mocker):
     spy_view = mocker.spy(Image, "view")
 
     renderer = CanvasRender()
-    rendered_image = renderer.render_area(layer)
+    rendered_image = renderer.render_layer(layer)
 
-    plan = CanvasFrame(layer)
+    plan = CanvasFrame(layer, Canvas(layer.global_region))
     assert plan.dst_region == Region.from_rect(25, 25, 150, 150)
 
     assert rendered_image is not None
@@ -485,11 +485,11 @@ def test_fit_content_in_parent_group_render_pipeline(mocker):
     spy_view = mocker.spy(Image, "view")
 
     renderer = CanvasRender()
-    rendered_image = renderer.render_area(layer)
+    rendered_image = renderer.render_layer(layer)
 
     # ROI local na camada: (25, 25, 150, 150) + offset base (10, 10) -> no grupo: (35, 35, 150, 150)
     # No Espaço Global (Canvas) com translação do grupo (20, 30): (55, 65, 150, 150)
-    plan = CanvasFrame(layer)
+    plan = CanvasFrame(layer, Canvas(layer.global_region))
     assert plan.dst_region == Region.from_rect(55, 65, 150, 150)
 
     assert rendered_image is not None
@@ -554,9 +554,9 @@ def test_resize_bounds_geometry_render_pipeline(
     spy_view = mocker.spy(Image, "view")
 
     renderer = CanvasRender()
-    rendered_image = renderer.render_area(layer)
+    rendered_image = renderer.render_layer(layer)
 
-    plan = CanvasFrame(layer)
+    plan = CanvasFrame(layer, Canvas(layer.global_region))
     assert plan.dst_region == Region.from_rect(*expect_plan_dst_rect)
 
     assert rendered_image is not None
@@ -588,9 +588,9 @@ def test_resize_bounds_in_parent_group_render_pipeline(mocker):
     spy_view = mocker.spy(Image, "view")
 
     renderer = CanvasRender()
-    rendered_image = renderer.render_area(layer)
+    rendered_image = renderer.render_layer(layer)
 
-    plan = CanvasFrame(layer)
+    plan = CanvasFrame(layer, Canvas(layer.global_region))
     assert plan.dst_region == Region.from_rect(50, 50, 150, 80)
 
     assert rendered_image is not None

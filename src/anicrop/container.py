@@ -44,7 +44,7 @@ class NullContainer(ABC):
     def matrix(self) -> np.ndarray:
         return self.__matrix
 
-    def remove(self, item: Container | Layer) -> None:
+    def remove(self, item: BaseLayer) -> None:
         ...
 
 
@@ -71,19 +71,19 @@ class Container(NullContainer):
     def __iter__(self):
         return iter(self._children)
 
-    def __getitem__(self, index: int) -> Container | Layer:
+    def __getitem__(self, index: int) -> BaseLayer:
         return self._children[index]
 
     def clear(self) -> None:
         while self._children:
             self.remove(self._children[-1])
 
-    def pop(self, index: int = -1) -> Container | Layer:
+    def pop(self, index: int = -1) -> BaseLayer:
         item = self._children[index]
         self.remove(item)
         return item
 
-    def _check_and_remove_item(self, item: Container | Layer):
+    def _check_and_remove_item(self, item: BaseLayer):
         if isinstance(item, LayerStack):
             raise TypeError(
                 "A LayerStack is a Root object and cannot be added as a child.")
@@ -97,24 +97,24 @@ class Container(NullContainer):
         item.parent.remove(item)
         item._parent_inverse = mat_inverse(self.matrix)
 
-    def append(self, item: Container | Layer) -> None:
+    def append(self, item: BaseLayer) -> None:
         self._check_and_remove_item(item)
         self._children.append(item)
         item.parent = self
 
-    def insert(self, index: int, item: Container | Layer) -> None:
+    def insert(self, index: int, item: BaseLayer) -> None:
         self._check_and_remove_item(item)
         self._children.insert(index, item)
         item.parent = self
 
-    def remove(self, item: Container | Layer) -> None:
+    def remove(self, item: BaseLayer) -> None:
         if item not in self._children:
             raise ValueError(f"Item {item} is not in this {self.__class__.__name__}")
         self._children.remove(item)
         item.parent = _NULL_CONTAINER
         item._parent_inverse = mat_inverse(item.parent.matrix)
 
-    def move(self, item: Container | Layer, new_index: int) -> None:
+    def move(self, item: BaseLayer, new_index: int) -> None:
         if item not in self._children:
             raise ValueError(f"Item {item} is not in this {self.__class__.__name__}")
         old_index = self._children.index(item)
@@ -210,7 +210,7 @@ class GroupLayer(Container, BaseLayer):
     def __repr__(self):
         return f'GroupLayer(name="{self.name}")'
 
-    def _check_ancestor(self, item: "GroupLayer | Layer"):
+    def _check_ancestor(self, item: BaseLayer):
         # Verifica ciclos (evita adicionar um pai/avô como filho)
         curr = self.parent
         while curr is not _NULL_CONTAINER:
@@ -218,11 +218,11 @@ class GroupLayer(Container, BaseLayer):
                 raise ValueError("Cannot add an ancestor container to a child container")
             curr = curr.parent
 
-    def append(self, item: "GroupLayer | Layer") -> None:
+    def append(self, item: BaseLayer) -> None:
         self._check_ancestor(item)
         super().append(item)
 
-    def insert(self, index: int, item: GroupLayer | Layer) -> None:
+    def insert(self, index: int, item: BaseLayer) -> None:
         self._check_ancestor(item)
         super().insert(index, item)
 

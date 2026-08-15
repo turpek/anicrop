@@ -14,8 +14,8 @@ def merge_down(layer_up: Layer, layer_down: Layer) -> Layer:
     canvas = Image.new(canvas_region.size, layer_up.format)
 
     render = CanvasRender()
-    image_up = render.render(layer_up)
-    image_down = render.render(layer_down)
+    image_up = render.render_layer(layer_up)
+    image_down = render.render_layer(layer_down)
 
     blend = BLEND_MODE.get(BlendMode.HARD_MASKING)
     blend(canvas.view(view_down), image_down, layer_down.opacity)

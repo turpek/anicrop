@@ -280,3 +280,70 @@ def test_layout_group_layer_fit_usa_fit_group_geometry():
     # Filhas permanecem 100% intactas
     assert layer1.region == Region.from_rect(0, 0, 100, 50)
     assert layer2.region == Region.from_rect(100, 50, 100, 50)
+
+
+@pytest.mark.parametrize("root_transform, sub_transform, ref_rect", [
+    (
+        TransformRel().translate(50, 50),
+        TransformRel().translate(30, 30),
+        (80, 80, 80, 80),
+    ),
+    (
+        TransformRel().translate(40, 60).scale(2.0, 2.0),
+        TransformRel().translate(20, 10).scale(1.0, 0.5),
+        (100, 120, 200, 150),
+    ),
+    (
+        TransformRel().translate(50, 50),
+        TransformRel().translate(30, 30).rotate(90),
+        (50, 50, 120, 120),
+    ),
+    (
+        TransformRel().translate(30, 40).scale(2.0, 2.0).rotate(180),
+        TransformRel().translate(20, 10).rotate(180),
+        (60, 70, 240, 180),
+    ),
+], ids=["translation_only", "translation_scale", "translation_rotation_90", "composite_transforms_180"])
+def test_layout_fit_group_layer_com_transformacao_propria(root_transform, sub_transform, ref_rect):
+    """
+    Valida se layout.fit em GroupLayer com transformações arbitrárias (translação, escala, rotação)
+    e contido em um pai também transformado posiciona a global_region no Canvas com precisão exata.
+    """
+    root_group = GroupLayer()
+    sub_group = GroupLayer()
+    root_group.append(sub_group)
+
+    child = make_transformed_layer(x=20, y=20, w=40, h=40)
+    sub_group.append(child)
+
+    root_group.set_transform(root_transform)
+    sub_group.set_transform(sub_transform)
+
+    target_region = Region.from_rect(*ref_rect)
+
+    layout = Layout()
+    result = layout.fit(sub_group, target_region)
+
+    assert result is True
+    assert sub_group.global_region == target_region
+
+
+def test_layout_fit_group_layer_rigid_unit_rotation_45():
+    """
+    Testa se após o layout.fit limitar o GroupLayer em (0, 0, 50, 50),
+    uma rotação posterior de 45° no grupo gira o grupo como uma unidade rígida,
+    fazendo a global_region no Canvas se expandir para a AABB envolvente do quadrado girado (~72x72).
+    """
+    group = GroupLayer()
+    layer = make_transformed_layer(x=0, y=0, w=100, h=100)
+    group.append(layer)
+
+    layout = Layout()
+    layout.fit(group, Region.from_rect(0, 0, 50, 50))
+    assert group.global_region == Region.from_rect(0, 0, 50, 50)
+
+    # Aplica rotação de 45° no grupo após o Fit
+    group.transform.rotate(45)
+
+    # O quadrado de 50x50 girado em 45° tem AABB perfeitamente simétrica de (72, 72)
+    assert group.global_region.size == (72, 72)

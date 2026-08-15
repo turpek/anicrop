@@ -160,51 +160,82 @@ def test_geometry_controller_sync_on_coordinate_mutation():
 
 
 def test_fit_group_geometry_region_and_global_region():
-    """Valida se FitGroupGeometry armazena a região local no pai e projeta a global_region no Canvas."""
+    """Valida se FitGroupGeometry armazena a região local na base e projeta a global_region no Canvas."""
     group_mock = MagicMock(spec=GroupLayer)
-    group_mock.parent = MagicMock()
-    # Pai com translação de (20, 30)
-    group_mock.parent.matrix = np.array([
+    # Matriz global da base com translação de (20, 30)
+    group_mock.matrix = np.array([
         [1.0, 0.0, 20.0],
         [0.0, 1.0, 30.0],
         [0.0, 0.0, 1.0]
     ])
-    group_mock.transform = MagicMock()
-    group_mock.transform.matrix = np.identity(3)
 
     # Moldura passada no Canvas: (50, 50, 150, 100)
     ref_region = Region.from_rect(50, 50, 150, 100)
     strategy = FitGroupGeometry(group_mock, ref_region)
 
-    # 1. Região local no espaço do grupo pai (subtrai 20, 30): Region(30, 20, 150, 100)
+    # 1. Região local no espaço da própria base (subtrai 20, 30): Region(30, 20, 150, 100)
     assert strategy.region == Region.from_rect(30, 20, 150, 100)
 
-    # 2. Região global no Canvas (re-projeta através do pai): Region(50, 50, 150, 100)
+    # 2. Região global no Canvas (re-projeta através de base.matrix): Region(50, 50, 150, 100)
     assert strategy.global_region == Region.from_rect(50, 50, 150, 100)
 
 
 def test_fit_group_geometry_matrix():
-    """Valida se a matriz da FitGroupGeometry é composta pela matriz do pai e transformação do grupo."""
+    """Valida se a matriz da FitGroupGeometry aplica o cálculo compensatório da base (Delta = base.matrix @ initial_inverse)."""
     group_mock = MagicMock(spec=GroupLayer)
-    group_mock.parent = MagicMock()
-    group_mock.parent.matrix = np.array([
+    group_mock.matrix = np.array([
         [1.0, 0.0, 20.0],
         [0.0, 1.0, 30.0],
-        [0.0, 0.0, 1.0]
-    ])
-    group_mock.transform = MagicMock()
-    group_mock.transform.matrix = np.array([
-        [2.0, 0.0, 0.0],
-        [0.0, 2.0, 0.0],
         [0.0, 0.0, 1.0]
     ])
 
     ref_region = Region.from_rect(0, 0, 100, 100)
     strategy = FitGroupGeometry(group_mock, ref_region)
 
-    expected_matrix = np.array([
-        [2.0, 0.0, 20.0],
-        [0.0, 2.0, 30.0],
+    # 1. No momento inicial, a matriz compensatória é a Identidade
+    np.testing.assert_array_almost_equal(strategy.matrix, np.identity(3))
+
+    # 2. Se a base for transformada posteriormente (ex: move mais +10, +15)
+    group_mock.matrix = np.array([
+        [1.0, 0.0, 30.0],
+        [0.0, 1.0, 45.0],
         [0.0, 0.0, 1.0]
     ])
-    np.testing.assert_array_almost_equal(strategy.matrix, expected_matrix)
+    expected_delta_matrix = np.array([
+        [1.0, 0.0, 10.0],
+        [0.0, 1.0, 15.0],
+        [0.0, 0.0, 1.0]
+    ])
+    np.testing.assert_array_almost_equal(strategy.matrix, expected_delta_matrix)
+
+
+def test_fit_group_geometry_com_transformacao_propria():
+    """
+    Testa se FitGroupGeometry projeta a global_region no Canvas com precisão
+    e acompanha transformações posteriores da própria base como uma unidade rígida.
+    """
+    group_mock = MagicMock(spec=GroupLayer)
+    # Matriz composta total do grupo (50 + 30 = 80)
+    group_mock.matrix = np.array([
+        [1.0, 0.0, 80.0],
+        [0.0, 1.0, 80.0],
+        [0.0, 0.0, 1.0]
+    ])
+
+    # Passamos uma moldura de (80, 80, 80, 80) no Canvas
+    ref_region = Region.from_rect(80, 80, 80, 80)
+    strategy = FitGroupGeometry(group_mock, ref_region)
+
+    # Região local na base fica em (0, 0, 80, 80)
+    assert strategy.region == Region.from_rect(0, 0, 80, 80)
+
+    # A global_region resultante DEVE coincidir exatamente com a moldura solicitada no Canvas
+    assert strategy.global_region == Region.from_rect(80, 80, 80, 80)
+
+    # Se a base for movida posteriormente para (90, 90):
+    group_mock.matrix = np.array([
+        [1.0, 0.0, 90.0],
+        [0.0, 1.0, 90.0],
+        [0.0, 0.0, 1.0]
+    ])
+    assert strategy.global_region == Region.from_rect(90, 90, 80, 80)
