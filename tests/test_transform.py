@@ -9,8 +9,10 @@ from anicrop.transform import (
     ComposerAbs,
     TransformAbs,
     Transform,
+    has_distortion,
 )
 from anicrop.spatial import Region, Span
+
 
 # Importando as intenções para teste direto
 from anicrop.transform import TRotate, TScale, TTranslate
@@ -265,3 +267,19 @@ def test_composer_sync_region():
 
     assert composer.size == (100, 200)
     assert composer.region == new_region
+
+
+@pytest.mark.parametrize(
+    "matrix, expected_has_distortion",
+    [
+        pytest.param(np.eye(3, dtype=np.float32), False, id="identidade_sem_distorcao"),
+        pytest.param(mat_translation(10, 20), False, id="translacao_sem_distorcao"),
+        pytest.param(TransformRel().rotate(45).get_matrix((100, 100)), True, id="rotacao_com_distorcao"),
+        pytest.param(TransformRel().scale(2.0, 2.0).get_matrix((100, 100)), True, id="escala_com_distorcao"),
+        pytest.param(TransformRel().translate(15, -30).get_matrix((100, 100)), False, id="translacao_relativa_sem_distorcao"),
+    ],
+)
+def test_has_distortion_function(matrix, expected_has_distortion):
+    """Valida se a função has_distortion identifica qualquer distorção afim (rotação/escala) na matriz."""
+    assert has_distortion(matrix) is expected_has_distortion
+

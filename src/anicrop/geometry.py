@@ -8,7 +8,6 @@ from typing import TYPE_CHECKING
 from anicrop.spatial import Region, Span
 from anicrop.transform import calculate_new_rect, calculate_region_rect, mat_inverse, mat_position, mat_global
 
-
 import numpy as np
 
 if TYPE_CHECKING:
@@ -53,10 +52,28 @@ class GeometryController:
 
 class GeometryStrategy(ABC):
 
-    @property
+    def __init__(self):
+        self._cached_matrix: ndarray | None = None
+        self._resolve_matrix = self._direct_matrix
+
     @abstractmethod
-    def matrix(self) -> Region:
+    def _compute_matrix(self) -> ndarray:
+        """Calcula a matriz dinamicamente."""
         ...
+
+    def _direct_matrix(self) -> ndarray:
+        """Executa o cálculo dinâmico diretamente."""
+        return self._compute_matrix()
+
+    def _lazy_matrix(self) -> ndarray:
+        """Retorna a matriz em snapshot, calculando apenas na 1ª consulta."""
+        if self._cached_matrix is None:
+            self._cached_matrix = self._compute_matrix()
+        return self._cached_matrix
+
+    @property
+    def matrix(self) -> ndarray:
+        return self._resolve_matrix()
 
     @property
     @abstractmethod
@@ -72,11 +89,11 @@ class GeometryStrategy(ABC):
 class LayerGeometry(GeometryStrategy):
 
     def __init__(self, base: Layer, region: Region):
+        super().__init__()
         self._base = base
         self._region = region
 
-    @property
-    def matrix(self) -> ndarray:
+    def _compute_matrix(self) -> ndarray:
         base = self._base
         return base.parent.matrix @ mat_position(self.region) @ base.transform.matrix
 
@@ -93,11 +110,11 @@ class LayerGeometry(GeometryStrategy):
 class GroupGeometry(GeometryStrategy):
 
     def __init__(self, base: GroupLayer, region: Region):
+        super().__init__()
         self._base = base
         self._region = region
 
-    @property
-    def matrix(self) -> np.ndarray:
+    def _compute_matrix(self) -> np.ndarray:
         base = self._base
         return base.parent.matrix @ base._parent_inverse @ base.transform.matrix
 
@@ -123,13 +140,13 @@ class FitGeometry(GeometryStrategy):
         base: BaseLayer,
         region: Region,
     ):
+        super().__init__()
         self._base = base
         parent_mat = base.parent.matrix
         rect = calculate_region_rect(mat_inverse(parent_mat), region)
         self._region = Region.from_rect(*rect)
 
-    @property
-    def matrix(self) -> ndarray:
+    def _compute_matrix(self) -> ndarray:
         return self._base.parent.matrix @ self._base.transform.matrix
 
     @property
@@ -149,13 +166,13 @@ class FitGroupGeometry(GeometryStrategy):
         base: GroupLayer,
         region: Region,
     ):
+        super().__init__()
         self._base = base
         self._initial_inverse = mat_inverse(base.matrix)
         rect = calculate_region_rect(self._initial_inverse, region)
         self._region = Region.from_rect(*rect)
 
-    @property
-    def matrix(self) -> ndarray:
+    def _compute_matrix(self) -> ndarray:
         return self._base.matrix @ self._initial_inverse
 
     @property

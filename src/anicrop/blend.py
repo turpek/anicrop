@@ -117,9 +117,23 @@ def blend_normal(base: Image, edit: Image, opacity: float = 1.0) -> None:
     b_view = base[:h, :w]
     e_view = edit[:h, :w]
 
+    # Fast-Path: Cópia direta para imagens 100% sólidas com opacidade total (1.0)
+    if opacity >= 1.0:
+        if e_view.shape[-1] == 3 and b_view.shape[-1] == 3:
+            np.copyto(b_view, e_view)
+            return
+        if e_view.shape[-1] == 4 and b_view.shape[-1] == 4 and np.all(e_view[..., 3] == 255):
+            np.copyto(b_view, e_view)
+            return
+        if e_view.shape[-1] == 3 and b_view.shape[-1] == 4:
+            np.copyto(b_view[..., :3], e_view)
+            b_view[..., 3] = 255
+            return
+
     # 1. Criar a máscara (Otimização)
     if e_view.shape[-1] == 4:
         mask = e_view[..., 3] > 0
+
     else:
         mask = np.ones((h, w), dtype=bool)
 

@@ -1,37 +1,39 @@
 from __future__ import annotations
-from anicrop.blend import blend_rendered_images, BLEND_MODE
-from anicrop.canvas import Canvas
-from anicrop.frame import (
-    BaseFrame,
-    CanvasFrame,
-    SurfaceProtocol,
-    ViewportFrame,
-)
-from anicrop.enums import InterpolationOption, WarpMode
-from anicrop.image import Image, ImageFormat
-from anicrop.layer import Layer, EditLayer
-from anicrop.container import GroupLayer, Container
-from anicrop.spatial import Region, rect_to_region
-from anicrop.transform import (
-    calculate_new_rect,
-    calculate_region_rect,
-    mat_inverse,
-    mat_translation
-)
-from anicrop.viewport import Viewport
 from abc import ABC
 from typing import Iterable
 
 import cv2
 import numpy as np
 
+from anicrop.blend import blend_rendered_images, BLEND_MODE
+from anicrop.canvas import Canvas
+from anicrop.container import Container, GroupLayer, freeze_geometry
+from anicrop.enums import InterpolationOption, WarpMode
+from anicrop.frame import (
+    BaseFrame,
+    CanvasFrame,
+    SurfaceProtocol,
+    ViewportFrame,
+)
+from anicrop.image import Image, ImageFormat
+from anicrop.layer import Layer, EditLayer
+from anicrop.spatial import Region, rect_to_region
+from anicrop.transform import (
+    calculate_new_rect,
+    calculate_region_rect,
+    has_distortion,
+    mat_inverse,
+    mat_translation,
+)
+
 
 def warp_affine(
     src_data: np.ndarray,
     m_cv2: np.ndarray,
     dest_size: tuple[int, int],
-    interp: InterpolationOption = InterpolationOption.LINEAR
-):
+    interp: InterpolationOption = InterpolationOption.LINEAR,
+    dst: np.ndarray | None = None,
+) -> np.ndarray:
     M_affine = m_cv2[:2, :].astype(np.float64)
 
     # Usa BORDER_REPLICATE para que o kernel de interpolação (Lanczos/Linear) não amoste
@@ -40,6 +42,7 @@ def warp_affine(
         src_data,
         M_affine,
         dest_size,
+        dst=dst,
         flags=interp.value,
         borderMode=cv2.BORDER_CONSTANT,
         borderValue=(0, 0, 0, 0),
@@ -50,12 +53,14 @@ def warp_perspective(
     src_data: np.ndarray,
     m_cv2: np.ndarray,
     dest_size: tuple[int, int],
-    interp: InterpolationOption = InterpolationOption.LINEAR
-):
+    interp: InterpolationOption = InterpolationOption.LINEAR,
+    dst: np.ndarray | None = None,
+) -> np.ndarray:
     return cv2.warpPerspective(
         src_data,
         m_cv2,
         dest_size,
+        dst=dst,
         flags=interp.value,
     )
 
@@ -72,7 +77,8 @@ def render_patch(
     dest_region: Region,
     warp_mode: WarpMode = WarpMode.AFFINE,
     interp: InterpolationOption = InterpolationOption.LANCZOS,
-):
+    dst: np.ndarray | None = None,
+) -> np.ndarray | None:
 
     # 1. Região ideal com a margem do Lanczos (pode ter start negativo)
     target_region = rect_to_region(calculate_region_rect(
@@ -107,7 +113,9 @@ def render_patch(
                  M_src_offset).astype(np.float64)
 
         warp = WARP_MODE.get(warp_mode, warp_affine)
-        return warp(src_data, M_cv2, dest_region.size, interp)
+        return warp(src_data, M_cv2, dest_region.size, interp, dst=dst)
+
+    return None
 
 
 def generate_opacity_mask(
@@ -163,41 +171,55 @@ def generate_opacity_mask(
     return eroded_alpha
 
 
+def without_distortion(
+    image: Image,
+    edit_bbox: Region,
+    dst_frame: Region,
+    dst_local,
+    target_dst: np.ndarray
+) -> Image:
+
+    src_view = edit_bbox.overlap_with(dst_frame)
+    if target_dst is not None:
+        np.copyto(target_dst, image[src_view])
+        return Image(target_dst, image.format), dst_local
+    return image.crop(src_view), dst_local
+
+
 def render_image(
     image: Image,
     plan: BaseFrame,
     m_local: np.ndarray,
     warp_mode: WarpMode = WarpMode.AFFINE,
     interp: InterpolationOption = InterpolationOption.LANCZOS,
+    dst: Image | None = None,
 ) -> tuple[Image, Region] | None:
     """Núcleo atômico: renderiza cirurgicamente qualquer Image usando o plano/frame e a matriz local m_local."""
+    dst_frame = plan.dst_region
     m_render = plan.matrix @ m_local
 
     # Bounding box projetado no espaço de destino do plano/frame
-    edit_bbox = rect_to_region(
-        calculate_new_rect(m_render, image.size)
-    )
+    edit_bbox = rect_to_region(calculate_new_rect(m_render, image.size))
 
     # Culling: Descarta se a edição não colide com a região visível no destino
-    if plan.dst_region is None or not edit_bbox.overlaps(plan.dst_region):
+    if dst_frame is None or not edit_bbox.overlaps(dst_frame):
         return None
 
-    dest_region = edit_bbox & plan.dst_region
+    dst_patch = edit_bbox & dst_frame
+    dst_local = dst_patch - dst_frame
+    target_dst = dst[dst_local] if dst else None
+
+    if not has_distortion(m_render):
+        return without_distortion(image, edit_bbox, dst_frame, dst_local, target_dst)
 
     # Executa o warp da imagem para a dest_region no espaço de destino
-    pixel_data = render_patch(
-        image,
-        m_render,
-        dest_region,
-        warp_mode,
-        interp
-    )
+    pixel_data = render_patch(image, m_render, dst_patch, warp_mode, interp, dst=target_dst)
 
     if pixel_data is None:
         return None
 
     warped_image = Image(pixel_data, image.format)
-    return warped_image, dest_region - plan.dst_region
+    return warped_image, dst_local
 
 
 def render_edit(
@@ -205,6 +227,7 @@ def render_edit(
     plan: BaseFrame,
     warp_mode: WarpMode = WarpMode.AFFINE,
     interp: InterpolationOption = InterpolationOption.LANCZOS,
+    dst: Image | None = None,
 ) -> tuple[Image, Region] | None:
     """Renderiza cirurgicamente um EditLayer ajustando o LOD automaticamente através do frame."""
     scale = plan.screen_scale(edit_layer)
@@ -216,6 +239,7 @@ def render_edit(
         m_local,
         warp_mode=warp_mode,
         interp=interp,
+        dst=dst,
     )
 
 
@@ -225,9 +249,10 @@ def render_viewport_edit(
     scale_factor: float = 1.0,
     warp_mode: WarpMode = WarpMode.AFFINE,
     interp: InterpolationOption = InterpolationOption.LANCZOS,
+    dst: Image | None = None,
 ) -> tuple[Image, Region] | None:
     """Auxiliar da Viewport: repassa para render_edit (o frame calcula a escala)."""
-    return render_edit(edit_layer, plan, warp_mode=warp_mode, interp=interp)
+    return render_edit(edit_layer, plan, warp_mode=warp_mode, interp=interp, dst=dst)
 
 
 class SceneTraverser:
@@ -258,9 +283,10 @@ class SceneTraverser:
         local=False,
     ) -> list[tuple[Layer | GroupLayer, Image, Region]]:
         rendered_items = []
+        effective_region = view_region if view_region is not None else self.surface.region
 
         for item in container:
-            if not item.visible:
+            if not item.visible or not item.global_region.overlaps(effective_region):
                 continue
 
             if isinstance(item, GroupLayer):
@@ -271,13 +297,7 @@ class SceneTraverser:
                 if children_items:
                     buffer = Image.new(dst_region.size, ImageFormat.RGBA)
                     group_image = blend_rendered_images(children_items, buffer)
-
-                    if view_region is not None:
-                        group_dst = dst_region - view_region
-                    else:
-                        group_dst = dst_region
-
-                    rendered_items.append((item, group_image, group_dst))
+                    rendered_items.append((item, group_image, group_frame.targ_region))
                     if np.all(self.miniview == 255):
                         break
             else:
@@ -285,12 +305,7 @@ class SceneTraverser:
                 image = self.renderer.render_area(item, frame, self.interp)
 
                 if image is not None:
-
-                    if view_region is not None:
-                        dst_region = frame.dst_region - view_region
-                    else:
-                        dst_region = frame.dst_region
-                    rendered_items.append((item, image, dst_region))
+                    rendered_items.append((item, image, frame.targ_region))
 
                     if item._opacity_mask is not None:
                         np.maximum(self.miniview, item._opacity_mask, out=self.miniview)
@@ -308,6 +323,24 @@ class BaseRenderer[FrameT: BaseFrame](ABC):
 
         self.frame_cls = frame_cls
         self._target_size = target_size
+        self._scratch_image: Image | None = None
+
+    def _get_scratch_buffer(
+        self, width: int, height: int, fmt: ImageFormat = ImageFormat.RGBA
+    ) -> Image:
+        if (
+            self._scratch_image is None or
+            self._scratch_image.height < height or
+            self._scratch_image.width < width or
+            self._scratch_image.format != fmt
+        ):
+            current_h = self._scratch_image.height if self._scratch_image is not None else 0
+            current_w = self._scratch_image.width if self._scratch_image is not None else 0
+            new_h = max(height, int(current_h * 1.5))
+            new_w = max(width, int(current_w * 1.5))
+            self._scratch_image = Image.new((new_w, new_h), fmt)
+
+        return self._scratch_image.view(Region.from_size(width, height))
 
     def _flatten_edits(
         self,
@@ -316,8 +349,10 @@ class BaseRenderer[FrameT: BaseFrame](ABC):
         plan: BaseFrame,
         interp: InterpolationOption,
     ) -> Image:
+        scratch = self._get_scratch_buffer(*layer_image.size, layer_image.format)
+
         for edit_layer in layer._edits:
-            result = render_edit(edit_layer, plan, interp=interp)
+            result = render_edit(edit_layer, plan, interp=interp, dst=scratch)
             if result is None:
                 continue
             edit_image, dst_region = result
@@ -352,14 +387,14 @@ class BaseRenderer[FrameT: BaseFrame](ABC):
         surface: SurfaceProtocol,
         interp: InterpolationOption = InterpolationOption.LANCZOS,
     ) -> Image:
+        with freeze_geometry(container):
+            traverser = SceneTraverser(
+                self, surface, self.frame_cls, interp=interp, target_size=self._target_size
+            )
+            images = traverser.traverse(container)
 
-        traverser = SceneTraverser(
-            self, surface, self.frame_cls, interp=interp, target_size=self._target_size
-        )
-        images = traverser.traverse(container)
-
-        composition = Image.new(surface.size, ImageFormat.RGBA, color=surface.bg_color)
-        return blend_rendered_images(reversed(images), composition)
+            composition = Image.new(surface.size, ImageFormat.RGBA, color=surface.bg_color)
+            return blend_rendered_images(reversed(images), composition)
 
     def render_patch(
         self,
@@ -368,14 +403,14 @@ class BaseRenderer[FrameT: BaseFrame](ABC):
         view_region: Region,
         interp: InterpolationOption = InterpolationOption.LANCZOS,
     ) -> Image:
+        with freeze_geometry(container):
+            traverser = SceneTraverser(
+                self, surface, self.frame_cls, interp=interp, target_size=self._target_size
+            )
+            images = traverser.traverse(container, view_region)
 
-        traverser = SceneTraverser(
-            self, surface, self.frame_cls, interp=interp, target_size=self._target_size
-        )
-        images = traverser.traverse(container, view_region)
-
-        composition = Image.new(view_region.size, ImageFormat.RGBA, color=surface.bg_color)
-        return blend_rendered_images(reversed(images), composition)
+            composition = Image.new(view_region.size, ImageFormat.RGBA, color=surface.bg_color)
+            return blend_rendered_images(reversed(images), composition)
 
 
 class CanvasRender(BaseRenderer[CanvasFrame]):

@@ -4,14 +4,26 @@ import numpy as np
 import pytest
 
 from anicrop.canvas import Canvas
-from anicrop.container import GroupLayer
+from anicrop.container import GroupLayer, LayerStack
+
 
 from anicrop.enums import BlendMode, ImageFormat, InterpolationOption, WarpMode
 from anicrop.frame import CanvasFrame, ViewportFrame
 from anicrop.image import Image
 from anicrop.layer import Layer
 import anicrop.render
-from anicrop.render import CanvasRender, SceneTraverser, ViewportRender, generate_opacity_mask, render_edit, render_image, render_patch
+from anicrop.render import (
+    CanvasRender,
+    SceneTraverser,
+    ViewportRender,
+    generate_opacity_mask,
+    render_edit,
+    render_image,
+    render_patch,
+    warp_affine,
+    warp_perspective,
+)
+
 from anicrop.spatial import Region, Span
 from anicrop.transform import TransformRel
 from anicrop.viewport import Viewport
@@ -259,10 +271,10 @@ def test_scene_traverser_recursivo_com_culling(mocker):
 
     mock_frame = mocker.MagicMock()
     mock_frame.dst_region = Region.from_size(100, 100)
+    mock_frame.targ_region = Region.from_size(100, 100)
     mock_frame_cls = mocker.MagicMock(return_value=mock_frame)
 
-    mock_surface = mocker.MagicMock()
-    mock_surface.size = (100, 100)
+    mock_surface = Canvas.from_size(100, 100)
 
     traverser = SceneTraverser(mock_renderer, mock_surface, mock_frame_cls)
     images_gp = traverser.traverse([group_raiz])
@@ -283,7 +295,7 @@ def test_scene_traverser_ignora_itens_invisiveis(mocker, item_cls):
     group = GroupLayer()
     group.append(item)
 
-    traverser = SceneTraverser(mocker.Mock(), mocker.MagicMock(size=(10, 10)), mocker.Mock())
+    traverser = SceneTraverser(mocker.Mock(), Canvas.from_size(10, 10), mocker.Mock())
     result = traverser.traverse([group])
 
     assert result == []
@@ -299,7 +311,7 @@ def test_scene_traverser_ignora_tudo_se_raiz_for_invisivel(mocker):
     child.parent = mocker.Mock()
     root.append(child)
 
-    traverser = SceneTraverser(mocker.Mock(), mocker.MagicMock(size=(10, 10)), mocker.Mock())
+    traverser = SceneTraverser(mocker.Mock(), Canvas.from_size(10, 10), mocker.Mock())
     result = traverser.traverse([root])
 
     assert result == []
@@ -368,3 +380,169 @@ def test_scene_traverser_grupo_com_todos_filhos_fora_da_tela_retorna_lista_vazia
     result = traverser.traverse([group])
 
     assert result == []
+
+
+# ==============================================================================
+# Otimização: Fast-Path para Translação Pura (Bypass de render_patch)
+# ==============================================================================
+
+@pytest.mark.parametrize(
+    "tx, ty",
+    [
+        pytest.param(10, 20, id="transladado_inteiro_ativa_fast_path"),
+        pytest.param(0, 0, id="identidade_ativa_fast_path"),
+    ],
+)
+def test_render_image_fast_path_translacao_pura(mocker, tx, ty):
+    """Valida se render_image realiza bypass completo de render_patch em matrizes de translação pura."""
+    spy_patch = mocker.spy(anicrop.render, "render_patch")
+    img = make_img(w=100, h=100, color=(255, 0, 0, 255))
+    layer = make_layer(w=100, h=100, x=tx, y=ty, color=(255, 0, 0, 255))
+    canvas = Canvas.from_size(200, 200)
+    frame = CanvasFrame(layer, canvas)
+    m_local = np.identity(3, dtype=np.float32)
+
+    result = render_image(img, frame, m_local)
+
+    assert result is not None
+    warped_image, dest_region = result
+    assert dest_region == Region.from_size(100, 100)
+    assert not spy_patch.called
+    np.testing.assert_array_equal(warped_image[0, 0], [255, 0, 0, 255])
+
+
+def test_render_image_rotacao_nao_ativa_fast_path(mocker):
+    """Valida se render_image continua delegando para render_patch quando houver rotação ou escala."""
+    spy_patch = mocker.spy(anicrop.render, "render_patch")
+    img = make_img(w=100, h=100, color=(255, 0, 0, 255))
+    layer = make_layer(w=100, h=100, color=(255, 0, 0, 255))
+    layer.transform.rotate(45)
+    canvas = Canvas.from_size(200, 200)
+    frame = CanvasFrame(layer, canvas)
+    m_local = np.identity(3, dtype=np.float32)
+
+    result = render_image(img, frame, m_local)
+
+    assert result is not None
+    assert spy_patch.called
+
+
+def test_canvas_render_area_translacao_pura_com_mock_blend(mocker):
+    """Valida se CanvasRender.render_area executa o fast-path sem invocar render_patch nem onerar blend."""
+    spy_patch = mocker.spy(anicrop.render, "render_patch")
+    mocker.patch.dict("anicrop.render.BLEND_MODE", {BlendMode.NORMAL: mocker.MagicMock()})
+
+    layer = make_layer(w=100, h=100, x=10, y=10)
+    canvas = Canvas.from_size(200, 200)
+    frame = CanvasFrame(layer, canvas)
+
+    renderer = CanvasRender()
+    result = renderer.render_area(layer, frame)
+
+    assert result is not None
+    assert not spy_patch.called
+
+
+def test_render_image_fast_path_recorte_negativo_preserva_pixels_corretos():
+    """Valida se o fast-path com coordenadas negativas fatia a sub-região correta da imagem fonte."""
+    data = np.zeros((100, 100, 4), dtype=np.uint8)
+    data[:50, :] = [255, 0, 0, 255]
+    data[50:, :] = [0, 0, 255, 255]
+    img = Image(data, ImageFormat.RGBA)
+
+    layer = Layer(img)
+    layer.region += (0, -50)
+    canvas = Canvas.from_size(100, 100)
+    frame = CanvasFrame(layer, canvas)
+    m_local = np.identity(3, dtype=np.float32)
+
+    result = render_image(img, frame, m_local)
+
+    assert result is not None
+    warped_image, dest_region = result
+    assert dest_region == Region.from_size(100, 50)
+    assert warped_image.size == (100, 50)
+    np.testing.assert_array_equal(warped_image[0, 0], [0, 0, 255, 255])
+
+
+def test_scene_traverser_pre_culling_ignora_camadas_e_grupos_fora_da_superficie(mocker):
+    """Valida se o SceneTraverser descarta camadas e grupos fora da superfície sem instanciar frames."""
+    stack = LayerStack()
+    layer_in = make_layer(w=50, h=50, x=10, y=10)
+    layer_out = make_layer(w=50, h=50, x=500, y=500)
+    group_out = GroupLayer()
+    group_child = make_layer(w=50, h=50, x=1000, y=1000)
+    group_out.append(group_child)
+    stack.append(layer_in)
+    stack.append(layer_out)
+    stack.append(group_out)
+    canvas = Canvas.from_size(100, 100)
+    spy_frame = mocker.spy(CanvasFrame, "__init__")
+
+    renderer = CanvasRender()
+    _ = renderer.render_scene(stack, canvas)
+
+    assert spy_frame.call_count == 1
+    assert spy_frame.call_args[0][1] == layer_in
+
+
+def test_scene_traverser_pre_culling_respeita_view_region_em_render_patch(mocker):
+    """Valida se o SceneTraverser filtra por view_region durante render_patch."""
+    stack = LayerStack()
+    layer_in_canvas_but_out_of_patch = make_layer(w=20, h=20, x=10, y=10)
+    layer_in_patch = make_layer(w=20, h=20, x=80, y=80)
+    stack.append(layer_in_canvas_but_out_of_patch)
+    stack.append(layer_in_patch)
+    canvas = Canvas.from_size(200, 200)
+    patch_region = Region.from_rect(70, 70, 50, 50)
+    spy_frame = mocker.spy(CanvasFrame, "__init__")
+
+    renderer = CanvasRender()
+    _ = renderer.render_patch(stack, canvas, patch_region)
+
+    assert spy_frame.call_count == 1
+    assert spy_frame.call_args[0][1] == layer_in_patch
+
+
+def test_warp_affine_com_parametro_dst_reutiliza_buffer_prealocado():
+    """Valida se warp_affine escreve diretamente no buffer pré-alocado passado em dst."""
+    src_data = np.full((50, 50, 4), 255, dtype=np.uint8)
+    m_cv2 = np.identity(3, dtype=np.float64)
+    dst_buffer = np.zeros((50, 50, 4), dtype=np.uint8)
+
+    result = warp_affine(src_data, m_cv2, (50, 50), dst=dst_buffer)
+
+    assert result is dst_buffer
+    np.testing.assert_array_equal(result[0, 0], [255, 255, 255, 255])
+
+
+def test_render_patch_com_parametro_dst_escreve_diretamente_no_buffer():
+    """Valida se render_patch reaproveita o array de destino passado em dst."""
+    src_img = make_img(w=50, h=50, color=(255, 0, 0, 255))
+    m_global = np.identity(3, dtype=np.float32)
+    dst_region = Region.from_size(50, 50)
+    dst_buffer = np.zeros((50, 50, 4), dtype=np.uint8)
+
+    result = render_patch(src_img, m_global, dst_region, dst=dst_buffer)
+
+    assert result is dst_buffer
+    np.testing.assert_array_equal(result[0, 0], [255, 0, 0, 255])
+
+
+def test_renderer_scratch_buffer_reutiliza_memoria_e_expande_conforme_necessidade():
+    """Valida se o scratch buffer reaproveita fatias do mesmo array e expande sob demanda."""
+    renderer = CanvasRender()
+
+    # 1. Primeira alocação (100x100)
+    buf1 = renderer._get_scratch_buffer(100, 100, ImageFormat.RGBA)
+    assert buf1.size == (100, 100)
+
+    # 2. Segunda requisição menor (50x50) deve reutilizar o mesmo array base
+    buf2 = renderer._get_scratch_buffer(50, 50, ImageFormat.RGBA)
+    assert buf2.size == (50, 50)
+    assert buf2._data.base is buf1._data.base
+
+    # 3. Terceira requisição maior (300x300) deve expandir o buffer
+    buf3 = renderer._get_scratch_buffer(300, 300, ImageFormat.RGBA)
+    assert buf3.size == (300, 300)
+    assert buf3._data.base is not buf1._data.base

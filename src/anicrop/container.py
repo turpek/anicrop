@@ -1,6 +1,9 @@
 from __future__ import annotations
 from abc import ABC
+from collections.abc import Generator, Iterable
+from contextlib import contextmanager
 from typing import Optional, Protocol, runtime_checkable, TYPE_CHECKING
+
 
 from anicrop.canvas import Canvas
 from anicrop.enums import BlendMode
@@ -164,11 +167,15 @@ class BaseLayer(ABC):
         return self.control.layout.global_region
 
     @property
-    def base(self) -> Region:
+    def matrix(self) -> np.ndarray:
+        return self.control.base.matrix
+
+    @property
+    def base(self) -> GeometryStrategy:
         return self.control.base
 
     @property
-    def layout(self) -> Region:
+    def layout(self) -> GeometryStrategy:
         return self.control.layout
 
     @property
@@ -228,4 +235,30 @@ class GroupLayer(Container, BaseLayer):
 
     @property
     def matrix(self) -> np.ndarray:
-        return self.parent.matrix @ self._parent_inverse @ self.transform.matrix
+        return self.control.base.matrix
+
+
+def walk_nodes(root: BaseLayer | Container | Iterable[BaseLayer]) -> Generator[BaseLayer, None, None]:
+    """Gera uma travessia preguiçosa de todos os nós a partir de uma raiz ou coleção (DFS)."""
+    if isinstance(root, BaseLayer):
+        yield root
+
+    if isinstance(root, (Container, Iterable)) and not isinstance(root, (str, bytes)):
+        for child in root:
+            yield from walk_nodes(child)
+
+
+@contextmanager
+def freeze_geometry(container: Container | Iterable[BaseLayer]) -> Generator[None, None, None]:
+    """Congela temporariamente o cálculo de matrizes com snapshot sob demanda para todos os nós."""
+    def _toggle_freeze(enable: bool) -> None:
+        for node in walk_nodes(container):
+            for strategy in (node.control.base, node.control.layout):
+                strategy._cached_matrix = None
+                strategy._resolve_matrix = strategy._lazy_matrix if enable else strategy._direct_matrix
+
+    _toggle_freeze(True)
+    try:
+        yield
+    finally:
+        _toggle_freeze(False)

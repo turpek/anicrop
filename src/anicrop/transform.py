@@ -20,6 +20,20 @@ def corners_to_rect(min_x, min_y, max_x, max_y):
     return min_x, min_y, new_w, new_h
 
 
+def has_distortion(matrix: np.ndarray) -> bool:
+    """Retorna True se a matriz contiver distorção afim (rotação, escala != 1 ou cisalhamento)."""
+    return not (
+        matrix[0, 0] == 1.0
+        and matrix[1, 1] == 1.0
+        and matrix[0, 1] == 0.0
+        and matrix[1, 0] == 0.0
+        and matrix[2, 0] == 0.0
+        and matrix[2, 1] == 0.0
+        and matrix[2, 2] == 1.0
+    )
+
+
+
 def calculate_new_corners(
     matrix: np.ndarray,
     size: tuple[int, int],

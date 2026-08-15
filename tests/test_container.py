@@ -1,10 +1,15 @@
+from unittest.mock import MagicMock
 import numpy as np
 import pytest
 
 from anicrop.canvas import Canvas
-from anicrop.container import Container, GroupLayer, LayerStack, _NULL_CONTAINER
+from anicrop.container import Container, GroupLayer, LayerStack, _NULL_CONTAINER, walk_nodes
+from anicrop.image import Image
+from anicrop.layout import Layout
 from anicrop.layer import Layer
 from anicrop.spatial import Region, Span
+
+
 from anicrop.transform import (
     TransformAbs,
     TransformRel,
@@ -448,10 +453,10 @@ def test_group_layer_transform_rotate_pivot_respects_layout_fit_region():
     Se a base.region (40x40 em 50, 50) fosse usada, a rotação de 90° de um grupo
     ajustado para (0, 0, 100, 100) calcularia o pivô em (70, 70), deslocando a global_region incorretamente.
     """
-    from anicrop.image import Image, ImageFormat
-    from anicrop.layout import Layout
     group = GroupLayer()
-    child = Layer(Image(np.zeros((40, 40, 4), dtype=np.uint8), ImageFormat.RGBA))
+    mock_child_img = MagicMock(spec=Image)
+    mock_child_img.size = (40, 40)
+    child = Layer(mock_child_img)
     child.region += (50, 50)
     group.append(child)
 
@@ -464,3 +469,24 @@ def test_group_layer_transform_rotate_pivot_respects_layout_fit_region():
 
     # A global_region deve permanecer perfeitamente em (0, 0, 100, 100)
     assert group.global_region == Region.from_rect(0, 0, 100, 100)
+
+
+def test_walk_nodes_com_camadas_e_grupos_aninhados():
+    """Valida se walk_nodes realiza a travessia DFS completa de uma árvore contendo grupos e camadas."""
+    root = GroupLayer(name="root_group")
+    mock_img1 = MagicMock(spec=Image)
+    mock_img1.size = (10, 10)
+    child_layer1 = Layer(mock_img1, name="layer1")
+
+    child_group = GroupLayer(name="sub_group")
+    mock_img2 = MagicMock(spec=Image)
+    mock_img2.size = (10, 10)
+    sub_child_layer = Layer(mock_img2, name="sub_layer")
+
+    child_group.append(sub_child_layer)
+    root.append(child_layer1)
+    root.append(child_group)
+
+    result = list(walk_nodes(root))
+
+    assert result == [root, child_layer1, child_group, sub_child_layer]

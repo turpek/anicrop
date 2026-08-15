@@ -2,9 +2,16 @@ from unittest.mock import MagicMock
 import numpy as np
 import pytest
 
-from anicrop.container import GroupLayer
-from anicrop.geometry import FitGroupGeometry, GeometryController, GroupGeometry, LayerGeometry
+from anicrop.container import GroupLayer, freeze_geometry
+from anicrop.geometry import (
+    FitGroupGeometry,
+    GeometryController,
+    GroupGeometry,
+    LayerGeometry,
+)
+from anicrop.image import Image
 from anicrop.layer import Layer
+
 from anicrop.spatial import Region
 from anicrop.transform import mat_translation
 
@@ -239,3 +246,54 @@ def test_fit_group_geometry_com_transformacao_propria():
         [0.0, 0.0, 1.0]
     ])
     assert strategy.global_region == Region.from_rect(90, 90, 80, 80)
+
+
+def test_freeze_geometry_congelamento_e_restauracao(mocker):
+    """Valida se freeze_geometry congela matrizes sob demanda e restaura o modo dinâmico ao sair."""
+    group = GroupLayer()
+    mock_img1 = MagicMock(spec=Image)
+    mock_img1.size = (50, 50)
+    mock_img2 = MagicMock(spec=Image)
+    mock_img2.size = (50, 50)
+    layer1 = Layer(mock_img1)
+    layer2 = Layer(mock_img2)
+    group.append(layer1)
+    group.append(layer2)
+
+    spy_calc = mocker.spy(layer1.base, "_compute_matrix")
+
+    # Fora do contexto: acessos dinâmicos
+    _ = layer1.matrix
+    _ = layer1.matrix
+    assert spy_calc.call_count == 2
+
+    spy_calc.reset_mock()
+
+    # Dentro do contexto: calcula apenas no 1º acesso e reutiliza
+    with freeze_geometry(group):
+        for _ in range(5):
+            _ = layer1.matrix
+        assert spy_calc.call_count == 1
+
+    spy_calc.reset_mock()
+
+    # Fora do contexto: volta a calcular dinamicamente
+    _ = layer1.matrix
+    _ = layer1.matrix
+    assert spy_calc.call_count == 2
+
+
+def test_freeze_geometry_restaura_em_caso_de_excecao():
+    """Valida se freeze_geometry restaura o modo dinâmico mesmo quando ocorre exceção dentro do bloco."""
+    group = GroupLayer()
+    mock_img = MagicMock(spec=Image)
+    mock_img.size = (50, 50)
+    layer = Layer(mock_img)
+    group.append(layer)
+
+    with pytest.raises(RuntimeError):
+        with freeze_geometry(group):
+            _ = layer.matrix
+            raise RuntimeError("Erro forçado")
+
+    assert layer.base._cached_matrix is None

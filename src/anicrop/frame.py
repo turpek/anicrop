@@ -38,8 +38,9 @@ class BaseFrame(ABC):
     ):
         self._bounds = bounds
         self._matrix = matrix
+        self._view_region = view_region
         self._dst_region = self._render_region(self.bounds, view_region)
-        self._src_region = self._view_region(self.bounds, self.dst_region)
+        self._src_region = self._source_region(self.bounds, self.dst_region)
         self.surface_size = surface_size if surface_size is not None else bounds.size
 
     def _render_region(
@@ -52,7 +53,7 @@ class BaseFrame(ABC):
             return view_region & final_region
         return None
 
-    def _view_region(self, bounds: Region, dst_region: None | Region) -> None | Region:
+    def _source_region(self, bounds: Region, dst_region: None | Region) -> None | Region:
         if dst_region and bounds.overlaps(dst_region):
             return bounds.overlap_with(dst_region)
 
@@ -80,6 +81,12 @@ class BaseFrame(ABC):
 
     @property
     def dst_region(self) -> None | Region:
+        return self._dst_region
+
+    @property
+    def targ_region(self) -> None | Region:
+        if self._dst_region is not None and self._view_region is not None:
+            return self._dst_region - self._view_region
         return self._dst_region
 
     @property

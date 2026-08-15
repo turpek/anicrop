@@ -410,3 +410,26 @@ def test_canvas_frame_recorte_e_culling_nas_bordas(layer_rect, canvas_size, expe
     frame = CanvasFrame(layer, canvas)
 
     assert frame.dst_region == expected_dst
+
+
+def test_frame_targ_region_com_view_region_calcula_offset_relativo():
+    """Valida se targ_region desconta o view_region quando uma janela de visualização está ativa."""
+    canvas = Canvas.from_size(1000, 1000)
+    layer = make_layer(w=200, h=200, x=300, y=400)
+    view_region = Region.from_rect(200, 200, 500, 500)
+
+    frame = CanvasFrame(layer, canvas, view_region=view_region)
+
+    assert frame.dst_region == Region.from_rect(300, 400, 200, 200)
+    assert frame.targ_region == Region.from_rect(100, 200, 200, 200)
+
+
+def test_frame_targ_region_sem_view_region_retorna_dst_region_integral():
+    """Valida se targ_region retorna exatamente dst_region quando view_region é None."""
+    canvas = Canvas.from_size(1000, 1000)
+    layer = make_layer(w=200, h=200, x=300, y=400)
+
+    frame = CanvasFrame(layer, canvas, view_region=None)
+
+    assert frame.dst_region == Region.from_rect(300, 400, 200, 200)
+    assert frame.targ_region == Region.from_rect(300, 400, 200, 200)

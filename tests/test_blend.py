@@ -212,3 +212,29 @@ def test_blend_normal_sets_base_alpha_to_opaque():
     # Base deve ser Vermelha e Opaca
     assert np.all(base._data[..., 0] == 255)
     assert np.all(base._data[..., 3] == 255)
+
+
+@pytest.mark.parametrize(
+    "base_fmt, edit_fmt, edit_alpha, opacity, expected_copyto",
+    [
+        pytest.param(ImageFormat.RGBA, ImageFormat.RGBA, 255, 1.0, True, id="rgba_solido_com_opacidade_total_usa_copyto"),
+        pytest.param(ImageFormat.RGB, ImageFormat.RGB, None, 1.0, True, id="rgb_solido_com_opacidade_total_usa_copyto"),
+        pytest.param(ImageFormat.RGBA, ImageFormat.RGBA, 128, 1.0, False, id="rgba_semi_transparente_nao_usa_copyto"),
+        pytest.param(ImageFormat.RGBA, ImageFormat.RGBA, 255, 0.5, False, id="rgba_solido_com_opacidade_reduzida_nao_usa_copyto"),
+    ],
+)
+def test_blend_normal_fast_path_copyto(mocker, base_fmt, edit_fmt, edit_alpha, opacity, expected_copyto):
+    """Valida se o fast-path de np.copyto é ativado exclusivamente para camadas sólidas com opacidade 1.0."""
+    spy_copyto = mocker.spy(np, "copyto")
+    base_channels = 4 if base_fmt == ImageFormat.RGBA else 3
+    edit_channels = 4 if edit_fmt == ImageFormat.RGBA else 3
+
+    base = Image(np.zeros((10, 10, base_channels), dtype=np.uint8), base_fmt)
+    edit_arr = np.full((10, 10, edit_channels), 200, dtype=np.uint8)
+    if edit_alpha is not None and edit_channels == 4:
+        edit_arr[..., 3] = edit_alpha
+    edit = Image(edit_arr, edit_fmt)
+
+    blend_normal(base, edit, opacity=opacity)
+
+    assert spy_copyto.called is expected_copyto
