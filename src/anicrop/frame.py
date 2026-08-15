@@ -146,4 +146,4 @@ class CanvasFrame(BaseFrame):
             view_target = effective_view
             bounds = base.global_region
 
-        super().__init__(bounds, view_target, matrix=matrix, surface_size=bounds.size)
+        super().__init__(bounds, view_target, matrix=matrix, surface_size=canvas.size)

@@ -292,7 +292,6 @@ def test_canvas_frame_local_matrix_and_bounds():
     np.testing.assert_allclose(frame.matrix, np.identity(3, dtype=np.float32))
 
 
-@pytest.mark.skip(reason="surface_size será tratado na Tarefa 17")
 def test_canvas_frame_surface_size():
     """Valida se surface_size reflete canvas.size."""
     layer = make_layer(w=100, h=100, x=10, y=20)

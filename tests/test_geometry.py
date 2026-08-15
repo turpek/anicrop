@@ -188,7 +188,7 @@ def test_fit_group_geometry_region_and_global_region():
 
 
 def test_fit_group_geometry_matrix():
-    """Valida se a matriz da FitGroupGeometry aplica o cálculo compensatório da base (Delta = base.matrix @ initial_inverse)."""
+    """Valida se a matriz da FitGroupGeometry retorna a matriz global da base do grupo."""
     group_mock = MagicMock(spec=GroupLayer)
     group_mock.matrix = np.array([
         [1.0, 0.0, 20.0],
@@ -199,8 +199,8 @@ def test_fit_group_geometry_matrix():
     ref_region = Region.from_rect(0, 0, 100, 100)
     strategy = FitGroupGeometry(group_mock, ref_region)
 
-    # 1. No momento inicial, a matriz compensatória é a Identidade
-    np.testing.assert_array_almost_equal(strategy.matrix, np.identity(3))
+    # 1. No momento inicial, a matriz é a matriz global da base
+    np.testing.assert_array_almost_equal(strategy.matrix, group_mock.matrix)
 
     # 2. Se a base for transformada posteriormente (ex: move mais +10, +15)
     group_mock.matrix = np.array([
@@ -208,12 +208,7 @@ def test_fit_group_geometry_matrix():
         [0.0, 1.0, 45.0],
         [0.0, 0.0, 1.0]
     ])
-    expected_delta_matrix = np.array([
-        [1.0, 0.0, 10.0],
-        [0.0, 1.0, 15.0],
-        [0.0, 0.0, 1.0]
-    ])
-    np.testing.assert_array_almost_equal(strategy.matrix, expected_delta_matrix)
+    np.testing.assert_array_almost_equal(strategy.matrix, group_mock.matrix)
 
 
 def test_fit_group_geometry_com_transformacao_propria():
