@@ -89,9 +89,9 @@ class DisabledPolicy(ActionPolicy):
 
 class GlobalHistory:
 
-    def __init__(self):
-        self._undo_stack = deque()
-        self._redo_stack = deque()
+    def __init__(self) -> None:
+        self._undo_stack: deque[Command] = deque()
+        self._redo_stack: deque[Command] = deque()
         self._policy: ActionPolicy = NormalPolicy()
 
     @property

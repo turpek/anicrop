@@ -1,4 +1,5 @@
 from anicrop.layer import Layer
+from collections.abc import Iterator
 from typing import Optional
 
 
@@ -10,7 +11,7 @@ class LayerStack:
     def __len__(self) -> int:
         return len(self._stack)
 
-    def __iter__(self) -> iter:
+    def __iter__(self) -> Iterator[Layer]:
         return iter(self._stack)
 
     def __normalize_index(self, index: int) -> int:

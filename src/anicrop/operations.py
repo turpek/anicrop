@@ -17,11 +17,13 @@ def merge_down(layer_up: Layer, layer_down: Layer) -> Layer:
     image_up = render.render_layer(layer_up)
     image_down = render.render_layer(layer_down)
 
-    blend = BLEND_MODE.get(BlendMode.HARD_MASKING)
-    blend(canvas.view(view_down), image_down, layer_down.opacity)
+    blend_down = BLEND_MODE.get(BlendMode.HARD_MASKING)
+    if image_down is not None and blend_down is not None:
+        blend_down(canvas.view(view_down), image_down, layer_down.opacity)
 
-    blend = BLEND_MODE.get(layer_up.blend_mode)
-    blend(canvas.view(view_up), image_up, layer_up.opacity)
+    blend_up = BLEND_MODE.get(layer_up.blend_mode)
+    if image_up is not None and blend_up is not None:
+        blend_up(canvas.view(view_up), image_up, layer_up.opacity)
 
     layer = Layer(canvas, blend_mode=layer_down.blend_mode)
     layer.region = canvas_region

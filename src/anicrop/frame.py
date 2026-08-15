@@ -22,9 +22,15 @@ if TYPE_CHECKING:
 
 @runtime_checkable
 class SurfaceProtocol(Protocol):
-    size: tuple[int, int]
-    region: Region
-    bg_color: tuple[int, int, int, int] | None
+    bg_color: tuple[int, int, int, int]
+
+    @property
+    def region(self) -> Region:
+        ...
+
+    @property
+    def size(self) -> tuple[int, int]:
+        ...
 
 
 class BaseFrame(ABC):
@@ -56,6 +62,7 @@ class BaseFrame(ABC):
     def _source_region(self, bounds: Region, dst_region: None | Region) -> None | Region:
         if dst_region and bounds.overlaps(dst_region):
             return bounds.overlap_with(dst_region)
+        return None
 
     def screen_scale(self, edit_layer: EditLayer) -> float:
         m_edit_local = edit_layer.local_matrix
@@ -68,12 +75,12 @@ class BaseFrame(ABC):
         # Retorna a escala final exata combinada de tudo!
         return float(s[0])
 
-    def _effective_view(self, surface_region: Region, view_region: Region) -> Region | None:
+    def _effective_view(self, surface_region: Region, view_region: Region | None) -> Region | None:
         if view_region is not None:
             if surface_region.overlaps(view_region):
                 return view_region & surface_region
-        else:
-            return surface_region
+            return None
+        return surface_region
 
     @property
     def bounds(self) -> Region:

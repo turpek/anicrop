@@ -17,8 +17,9 @@ class ProxyRegistry:
 
     def __init__(self, history: Any):
         self._history = history
-        self._cache: weakref.WeakValueDictionary[int,
-                                                 BaseHistoryProxy] = weakref.WeakValueDictionary()
+        self._cache: weakref.WeakValueDictionary[int, BaseHistoryProxy] = (
+            weakref.WeakValueDictionary()
+        )
 
     def get_or_create(self, target: Any) -> Any:
         if target is None or type(target) is NullContainer:
@@ -30,6 +31,7 @@ class ProxyRegistry:
         if target_id in self._cache:
             return self._cache[target_id]
 
+        proxy_cls: type[BaseHistoryProxy]
         if isinstance(target, GroupLayer):
             proxy_cls = GroupProxy
         elif isinstance(target, LayerStack):
@@ -56,8 +58,8 @@ def get_registry_for_history(history: Any) -> ProxyRegistry:
 
 class BaseHistoryProxy:
     """Classe base que cuida da interceptação segura de estado e histórico."""
-    _ACTION_ROUTER = {}
-    _CHAINABLE_PROPERTIES = ()
+    _ACTION_ROUTER: dict[str, type] = {}
+    _CHAINABLE_PROPERTIES: tuple[str, ...] = ()
 
     def __new__(cls, target: Any, history: GlobalHistory, registry: ProxyRegistry | None = None):
         if isinstance(target, BaseHistoryProxy):
@@ -104,7 +106,17 @@ class BaseHistoryProxy:
         return dir(target)
 
     def __getattribute__(self, name: str) -> Any:
-        if name in ("_target", "_history", "_registry", "_ACTION_ROUTER", "_CHAINABLE_PROPERTIES", "_resolve_command", "_extract_command_value", "__dict__", "__class__"):
+        if name in (
+            "_target",
+            "_history",
+            "_registry",
+            "_ACTION_ROUTER",
+            "_CHAINABLE_PROPERTIES",
+            "_resolve_command",
+            "_extract_command_value",
+            "__dict__",
+            "__class__"
+        ):
             return object.__getattribute__(self, name)
 
         if name == "parent":

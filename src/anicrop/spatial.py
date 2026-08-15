@@ -3,7 +3,6 @@ from dataclasses import dataclass
 from operator import add, sub
 from ovld import ovld
 from typing import Callable, Optional
-from anicrop.type import Vector
 
 
 class SpanError(Exception):
@@ -299,9 +298,9 @@ class Region:
         length = f'length=({self.x.length},{self.y.length})'
         return f'{type(self).__name__}({start}, {length})'
 
-    def __shift(self, operation: Callable, offset: int | tuple[int, int] | Region | Vector) -> Region:
-        if isinstance(offset, (Vector, Region)):
-            x, y = offset.x, offset.y
+    def __shift(self, operation: Callable, offset: int | tuple[int, int] | Region) -> Region:
+        if isinstance(offset, Region):
+            x, y = offset.x.start, offset.y.start
 
         elif isinstance(offset, tuple):
             x, y = offset[0], offset[1]
@@ -311,15 +310,15 @@ class Region:
 
         else:
             raise TypeError(
-                "offset must be an int, a (x, y) tuple, or a Vector instance "
+                "offset must be an int, a (x, y) tuple, or a Region instance "
                 f"(got {type(offset).__name__})"
             )
         return Region(operation(self.x, x), operation(self.y, y))
 
-    def __add__(self, offset: int | tuple[int, int] | Region | Vector) -> Region:
+    def __add__(self, offset: int | tuple[int, int] | Region) -> Region:
         return self.__shift(add, offset)
 
-    def __sub__(self, offset: int | tuple[int, int] | Region | Vector) -> Region:
+    def __sub__(self, offset: int | tuple[int, int] | Region) -> Region:
         return self.__shift(sub, offset)
 
     def __or__(self, other: Region) -> Region:
@@ -336,7 +335,7 @@ class Region:
         self,
         span_op_x: Callable,
         span_op_y: Callable,
-        all: Vector | int | None = None,
+        all: int | tuple[int, int] | None = None,
         *,
         left: int = 0,
         right: int = 0,
@@ -344,9 +343,9 @@ class Region:
         bottom: int = 0
     ) -> Region:
 
-        if isinstance(all, Vector):
-            left = right = all.x
-            top = bottom = all.y
+        if isinstance(all, tuple):
+            left = right = all[0]
+            top = bottom = all[1]
 
         elif isinstance(all, int):
             left = right = all
@@ -381,7 +380,7 @@ class Region:
 
     def expand(
         self,
-        all: Vector | int | None = None,
+        all: int | tuple[int, int] | None = None,
         *,
         left: int = 0,
         right: int = 0,
@@ -397,7 +396,7 @@ class Region:
 
     def shrink(
         self,
-        all: Vector | int | None = None,
+        all: int | tuple[int, int] | None = None,
         *,
         left: int = 0,
         right: int = 0,
@@ -411,8 +410,8 @@ class Region:
             top=top, bottom=bottom
         )
 
-    def offset_to(self, other: Region, anchor_end: bool = False) -> Vector:
-        """Calculates the 2D offset vector between this region and another.
+    def offset_to(self, other: Region, anchor_end: bool = False) -> tuple[int, int]:
+        """Calculates the 2D offset (x, y) between this region and another.
 
         When `anchor_end` is False (default), calculates offsets between top-left start points.
         When `anchor_end` is True, calculates offsets between bottom-right end points.
@@ -422,9 +421,9 @@ class Region:
             anchor_end: If True, calculates offsets between end points instead of start points.
 
         Returns:
-            A Vector containing the (x, y) offset values.
+            A tuple (x, y) containing the offset values.
         """
-        return Vector(
+        return (
             self.x.offset_to(other.x, anchor_end=anchor_end),
             self.y.offset_to(other.y, anchor_end=anchor_end)
         )

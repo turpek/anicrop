@@ -35,7 +35,7 @@ class GeometryController:
     def layout(self) -> GeometryStrategy:
         return self._layout
 
-    def sync(self, value: Region):
+    def sync(self, value: Region) -> None:
         self._layout._region = value
         self._base._region = value + self._offset
 
@@ -51,8 +51,9 @@ class GeometryController:
 
 
 class GeometryStrategy(ABC):
+    _region: Region
 
-    def __init__(self):
+    def __init__(self) -> None:
         self._cached_matrix: ndarray | None = None
         self._resolve_matrix = self._direct_matrix
 

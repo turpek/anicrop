@@ -1,13 +1,14 @@
 from __future__ import annotations
 from abc import ABC
-from typing import Iterable
+from typing import Any, Callable, Iterable
+
 
 import cv2
 import numpy as np
 
 from anicrop.blend import blend_rendered_images, BLEND_MODE
 from anicrop.canvas import Canvas
-from anicrop.container import Container, GroupLayer, freeze_geometry
+from anicrop.container import BaseLayer, Container, GroupLayer, freeze_geometry
 from anicrop.enums import InterpolationOption, WarpMode
 from anicrop.frame import (
     BaseFrame,
@@ -93,13 +94,13 @@ def render_patch(
         src_data = src_image[valid_region]
 
         # 3. Calcula o padding usando offset_to (inicio e fim)
-        pad_start = target_region.offset_to(valid_region)
-        pad_end = valid_region.offset_to(target_region, anchor_end=True)
+        pad_x_start, pad_y_start = target_region.offset_to(valid_region)
+        pad_x_end, pad_y_end = valid_region.offset_to(target_region, anchor_end=True)
 
-        if (pad_start.x | pad_start.y | pad_end.x | pad_end.y) > 0:
+        if (pad_x_start | pad_y_start | pad_x_end | pad_y_end) > 0:
             src_data = np.pad(
                 src_data,
-                ((pad_start.y, pad_end.y), (pad_start.x, pad_end.x), (0, 0)),
+                ((pad_y_start, pad_y_end), (pad_x_start, pad_x_end), (0, 0)),
                 mode='constant'
             )
 
@@ -175,9 +176,9 @@ def without_distortion(
     image: Image,
     edit_bbox: Region,
     dst_frame: Region,
-    dst_local,
-    target_dst: np.ndarray
-) -> Image:
+    dst_local: Region,
+    target_dst: np.ndarray | None,
+) -> tuple[Image, Region]:
 
     src_view = edit_bbox.overlap_with(dst_frame)
     if target_dst is not None:
@@ -265,7 +266,7 @@ class SceneTraverser:
         self,
         renderer: BaseRenderer,
         surface: SurfaceProtocol,
-        frame_cls: type[BaseFrame],
+        frame_cls: Callable[..., BaseFrame],
         interp: InterpolationOption = InterpolationOption.LANCZOS,
         target_size: tuple[int, int] = (32, 32),
     ):
@@ -281,8 +282,8 @@ class SceneTraverser:
         container: Iterable[Layer | GroupLayer] | Container,
         view_region: Region | None = None,
         local=False,
-    ) -> list[tuple[Layer | GroupLayer, Image, Region]]:
-        rendered_items = []
+    ) -> list[tuple[BaseLayer, Image, Region]]:
+        rendered_items: list[tuple[BaseLayer, Image, Region]] = []
         effective_region = view_region if view_region is not None else self.surface.region
 
         for item in container:
@@ -304,7 +305,7 @@ class SceneTraverser:
                 frame = self.frame_cls(item, self.surface, view_region, local=local)
                 image = self.renderer.render_area(item, frame, self.interp)
 
-                if image is not None:
+                if image:
                     rendered_items.append((item, image, frame.targ_region))
 
                     if item._opacity_mask is not None:
@@ -356,7 +357,7 @@ class BaseRenderer[FrameT: BaseFrame](ABC):
             if result is None:
                 continue
             edit_image, dst_region = result
-            blend = BLEND_MODE.get(edit_layer.blend_mode)
+            blend = BLEND_MODE[edit_layer.blend_mode]
             blend(layer_image.view(dst_region), edit_image)
 
         return layer_image

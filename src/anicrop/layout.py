@@ -1,8 +1,9 @@
 from __future__ import annotations
 
+from collections.abc import Iterator
 from functools import reduce
 from operator import or_
-from typing import Sequence
+from typing import Any, Sequence
 
 from anicrop.canvas import Canvas
 from anicrop.container import BaseLayer, Container, GroupLayer
@@ -20,7 +21,7 @@ from anicrop.transform import (
 
 
 def resolve_region(
-    ref: tuple[tuple[int, int], tuple[int, int]] | Region | Canvas | BaseLayer,
+    ref: tuple[int, int, int, int] | Region | Canvas | BaseLayer,
 ) -> Region:
     if isinstance(ref, tuple):
         return Region.from_rect(*ref)
@@ -132,8 +133,8 @@ class CanvasLayoutStrategy:
     @classmethod
     def _extract_items(
         cls,
-        item: Layer | Container,
-    ) -> Sequence[Region]:
+        item: Layer | Container | Sequence[Layer],
+    ) -> Iterator[Region]:
         if isinstance(item, Layer):
             local_roi = content_region(item)
             if local_roi is not None:
@@ -220,7 +221,7 @@ class GroupLayoutStrategy:
 
 class Layout:
 
-    STRATEGIES = {
+    STRATEGIES: dict[type, Any] = {
         Layer: LayerLayoutStrategy,
         GroupLayer: GroupLayoutStrategy,
         Canvas: CanvasLayoutStrategy,
@@ -229,7 +230,7 @@ class Layout:
     def fit(
         self,
         target: Canvas | BaseLayer,
-        ref: tuple[tuple[int, int], tuple[int, int]] | Region | Canvas | BaseLayer,
+        ref: tuple[int, int, int, int] | Region | Canvas | BaseLayer,
     ) -> bool:
         ref_region = resolve_region(ref)
         strategy_class = self.STRATEGIES[type(target)]
@@ -238,7 +239,7 @@ class Layout:
     def align(
         self,
         target: Canvas | BaseLayer,
-        ref: tuple[tuple[int, int], tuple[int, int]] | Region | Canvas | BaseLayer,
+        ref: tuple[int, int, int, int] | Region | Canvas | BaseLayer,
         anchor_x: float = 0.5,
         anchor_y: float = 0.5,
     ) -> bool:
@@ -261,7 +262,8 @@ class Layout:
     def fit_content(
         self,
         target: Layer | GroupLayer | Canvas,
-        container: Container | Sequence[Layer] = None,
+        container: Container | Sequence[Layer] | None = None,
     ) -> bool:
+
         strategy_class = self.STRATEGIES[type(target)]
         return strategy_class.fit_content(target, container=container)

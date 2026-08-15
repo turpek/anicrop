@@ -282,4 +282,3 @@ def test_composer_sync_region():
 def test_has_distortion_function(matrix, expected_has_distortion):
     """Valida se a função has_distortion identifica qualquer distorção afim (rotação/escala) na matriz."""
     assert has_distortion(matrix) is expected_has_distortion
-

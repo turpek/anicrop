@@ -9,18 +9,18 @@ from anicrop.image import Image
 from anicrop.spatial import Region
 
 if TYPE_CHECKING:
-    from anicrop.container import GroupLayer
+    from anicrop.container import BaseLayer
     from anicrop.layer import Layer
 
 
 def blend_rendered_images(
-    images: Iterable[tuple[Layer | GroupLayer, Image, Region]],
+    images: Iterable[tuple[BaseLayer, Image, Region]],
     buffer: Image,
 ) -> Image:
     """Realiza a composição das imagens renderizadas em ordem reversa diretamente no buffer de destino."""
-    for layer, image, region in images:
-        blend = BLEND_MODE.get(layer.blend_mode)
-        blend(buffer.view(region), image, layer.opacity)
+    for base_layer, image, region in images:
+        blend = BLEND_MODE[base_layer.blend_mode]
+        blend(buffer.view(region), image, base_layer.opacity)
     return buffer
 
 
@@ -33,12 +33,12 @@ def blend_normal_linear(base: Image, edit: Image, opacity: float = 1.0) -> None:
     if opacity <= 0.0:
         return
 
-    base = base[...]
-    edit = edit[...]
-    h, w = min(base.shape[0], edit.shape[0]), min(base.shape[1], edit.shape[1])
+    base_arr = base[...]
+    edit_arr = edit[...]
+    h, w = min(base_arr.shape[0], edit_arr.shape[0]), min(base_arr.shape[1], edit_arr.shape[1])
 
-    b_view = base[:h, :w]
-    e_view = edit[:h, :w]
+    b_view = base_arr[:h, :w]
+    e_view = edit_arr[:h, :w]
 
     # 1. Criar a máscara (Otimização)
     if e_view.shape[-1] == 4:
@@ -110,12 +110,12 @@ def blend_normal(base: Image, edit: Image, opacity: float = 1.0) -> None:
     if opacity <= 0.0:
         return
 
-    base = base[...]
-    edit = edit[...]
-    h, w = min(base.shape[0], edit.shape[0]), min(base.shape[1], edit.shape[1])
+    base_arr = base[...]
+    edit_arr = edit[...]
+    h, w = min(base_arr.shape[0], edit_arr.shape[0]), min(base_arr.shape[1], edit_arr.shape[1])
 
-    b_view = base[:h, :w]
-    e_view = edit[:h, :w]
+    b_view = base_arr[:h, :w]
+    e_view = edit_arr[:h, :w]
 
     # Fast-Path: Cópia direta para imagens 100% sólidas com opacidade total (1.0)
     if opacity >= 1.0:

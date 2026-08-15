@@ -2,7 +2,7 @@ from __future__ import annotations
 from abc import ABC
 from collections.abc import Generator, Iterable
 from contextlib import contextmanager
-from typing import Optional, Protocol, runtime_checkable, TYPE_CHECKING
+from typing import Any, Callable, Optional, Protocol, runtime_checkable, TYPE_CHECKING
 
 
 from anicrop.canvas import Canvas
@@ -135,14 +135,16 @@ class BaseLayer(ABC):
 
     def __init__(
         self,
-        parent: NullContainer,
-        geometry_cls: type(GeometryStrategy),
+        parent: NullContainer | Container,
+        geometry_cls: Callable[[Any, Region], GeometryStrategy],
         region: Region,
+
         opacity: float = 1.0,
         blend_mode: BlendMode = BlendMode.NORMAL,
         name: str = 'BaseLayer',
     ):
-        self._transform = ComposerRel(region.size)
+        self.parent = parent
+        self._transform: Composer = ComposerRel(region.size)
         self._parent_inverse = mat_inverse(parent.matrix)
 
         self.opacity = opacity

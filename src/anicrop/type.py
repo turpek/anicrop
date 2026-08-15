@@ -8,7 +8,8 @@ from typing import Protocol
 import numpy as np
 
 RotationInput = float | tuple[float, float, float]
-ScaleInput = float | tuple[float, float], tuple[float, float, float, float]
+ScaleInput = float | tuple[float, float] | tuple[float, float, float, float]
+
 
 _count = count()
 

@@ -1,17 +1,19 @@
 from __future__ import annotations
 from abc import ABC, abstractmethod
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
+
 from anicrop.spatial import Region
 from typing import Self, TYPE_CHECKING
 
 import numpy as np
 
 if TYPE_CHECKING:
+    from anicrop.container import BaseLayer
     from anicrop.layer import EditLayer, Layer
     from anicrop.type import TransformState
 
-
-TransformBase: list[TRotate | TScale | TTranslate]
+Size2D = tuple[float, float]
+Point2D = tuple[float, float]
 
 
 def corners_to_rect(min_x, min_y, max_x, max_y):
@@ -23,22 +25,21 @@ def corners_to_rect(min_x, min_y, max_x, max_y):
 def has_distortion(matrix: np.ndarray) -> bool:
     """Retorna True se a matriz contiver distorção afim (rotação, escala != 1 ou cisalhamento)."""
     return not (
-        matrix[0, 0] == 1.0
-        and matrix[1, 1] == 1.0
-        and matrix[0, 1] == 0.0
-        and matrix[1, 0] == 0.0
-        and matrix[2, 0] == 0.0
-        and matrix[2, 1] == 0.0
-        and matrix[2, 2] == 1.0
+        matrix[0, 0] == 1.0 and
+        matrix[1, 1] == 1.0 and
+        matrix[0, 1] == 0.0 and
+        matrix[1, 0] == 0.0 and
+        matrix[2, 0] == 0.0 and
+        matrix[2, 1] == 0.0 and
+        matrix[2, 2] == 1.0
     )
-
 
 
 def calculate_new_corners(
     matrix: np.ndarray,
-    size: tuple[int, int],
-    top_left: tuple[int, int] = (0, 0)
-) -> tuple[int, int, int, int]:
+    size: Size2D,
+    top_left: Point2D = (0.0, 0.0)
+) -> tuple[float, float, float, float]:
     """retorna min_x, min_y, max_x, max_y"""
     x, y = top_left
     w, h = size
@@ -56,11 +57,11 @@ def calculate_new_corners(
     transformed_corners[0, :] /= transformed_corners[2, :]
     transformed_corners[1, :] /= transformed_corners[2, :]
 
-    min_x = np.min(transformed_corners[0, :])
-    min_y = np.min(transformed_corners[1, :])
+    min_x = float(np.min(transformed_corners[0, :]))
+    min_y = float(np.min(transformed_corners[1, :]))
 
-    max_x = np.max(transformed_corners[0, :])
-    max_y = np.max(transformed_corners[1, :])
+    max_x = float(np.max(transformed_corners[0, :]))
+    max_y = float(np.max(transformed_corners[1, :]))
 
     return min_x, min_y, max_x, max_y
 
@@ -181,7 +182,7 @@ def mat_pivot(transform: TransformState, size: tuple[int, int]) -> np.ndarray:
     return create_pivot_transform_rel(transform.matrix, *size, *transform.pivot)
 
 
-def mat_global(layer: Layer) -> np.ndarray:
+def mat_global(layer: BaseLayer) -> np.ndarray:
     return layer.parent.matrix @ mat_position(layer.base.region) @ layer.transform.matrix
 
 
@@ -242,7 +243,7 @@ def transform_vector(
 class TransformBase(ABC):
 
     @abstractmethod
-    def matrix(self, size: tuple[int, int] = (0, 0), top_left: tuple[int, int] = (0, 0)) -> np.ndarray:
+    def matrix(self, size: Size2D = (0.0, 0.0), top_left: Point2D = (0.0, 0.0)) -> np.ndarray:
         ...
 
 
@@ -258,7 +259,7 @@ class TRotate(TransformBase):
         self._pivots = pivot_x, pivot_y
         self._pivot_fn = pivot_fn
 
-    def matrix(self, size: tuple[int, int] = (0, 0), top_left: tuple[int, int] = (0, 0)) -> np.ndarray:
+    def matrix(self, size: Size2D = (0.0, 0.0), top_left: Point2D = (0.0, 0.0)) -> np.ndarray:
         w, h = size
         x, y = top_left
         return self._pivot_fn(
@@ -282,7 +283,7 @@ class TScale(TransformBase):
         self._pivots = pivot_x, pivot_y
         self._pivot_fn = pivot_fn
 
-    def matrix(self, size: tuple[int, int] = (0, 0), top_left: tuple[int, int] = (0, 0)) -> np.ndarray:
+    def matrix(self, size: Size2D = (0.0, 0.0), top_left: Point2D = (0.0, 0.0)) -> np.ndarray:
         w, h = size
         x, y = top_left
         return self._pivot_fn(
@@ -299,7 +300,7 @@ class TTranslate(TransformBase):
         self._x = x
         self._y = y
 
-    def matrix(self, size: tuple[int, int] = (0, 0), top_left: tuple[int, int] = (0, 0)) -> np.ndarray:
+    def matrix(self, size: Size2D = (0.0, 0.0), top_left: Point2D = (0.0, 0.0)) -> np.ndarray:
         return mat_translation(self._x, self._y)
 
 
@@ -365,8 +366,9 @@ class Composer(ABC):
     def add_transform(
         self,
         transf: Transform,
-        reference_size: tuple[int, int] = None
+        reference_size: tuple[int, int] | None = None
     ) -> Self:
+
         ref_size = reference_size or self.size
         self._distortion = transf._get_distortion(ref_size) @ self._distortion
         self._translation = transf._get_translate(ref_size) @ self._translation
@@ -453,13 +455,13 @@ class Transform(ABC):
         self._intentions = intentions
         self._translate = translate
 
-    def _validate_list(self, transf: list, cls_types: type | tuple[type]) -> bool:
+    def _validate_list(self, transf: list, cls_types: type | tuple[type, ...]) -> bool:
         for op in transf:
             if isinstance(op, cls_types):
                 return True
         return False
 
-    def _check_transform_list(self, transf: list[TransformBase]) -> bool:
+    def _check_transform_list(self, transf: Sequence[TransformBase]) -> bool:
         return len(transf) == 0 or len(transf) == 1
 
     def translate(self, x: int = 0, y: int = 0) -> Self:
@@ -472,12 +474,12 @@ class Transform(ABC):
 
     @abstractmethod
     def _list_to_matrix(
-        self, size: tuple[int, int], matrix_list: list[TransformBase],
+        self, size: tuple[int, int], matrix_list: Sequence[TransformBase],
     ) -> np.ndarray:
         ...
 
     def _get_first_transform(
-        self, size: tuple[int, int], transf: list[TransformBase],
+        self, size: tuple[int, int], transf: Sequence[TransformBase],
     ) -> np.ndarray:
         if len(transf) == 0:
             return np.identity(3, dtype=np.float32)
@@ -517,17 +519,17 @@ class TransformRel(Transform):
     ):
         super().__init__(intentions, translate)
 
-    def __get_rect(self, matrix: np.ndarray, size: tuple[float, float]):
+    def __get_rect(self, matrix: np.ndarray, size: Size2D):
         x, y, w, h = corners_to_rect(*calculate_new_corners(matrix, size))
         return (x, y), (w, h)
 
     def _list_to_matrix(
-        self, size: tuple[int, int], matrix_list: list[TransformBase],
+        self, size: tuple[int, int], matrix_list: Sequence[TransformBase],
     ) -> np.ndarray:
 
-        top_left = (0, 0)
+        top_left: Point2D = (0.0, 0.0)
         m_total = np.identity(3, dtype=np.float32)
-        current_size = size
+        current_size: Size2D = size
         for op in matrix_list:
             m_total = op.matrix(current_size, top_left) @ m_total
             top_left, current_size = self.__get_rect(m_total, size)
@@ -559,7 +561,7 @@ class TransformAbs(Transform):
         super().__init__(intentions, translate)
 
     def _list_to_matrix(
-        self, size: tuple[int, int], matrix_list: list[TransformBase],
+        self, size: tuple[int, int], matrix_list: Sequence[TransformBase],
     ) -> np.ndarray:
         m_total = np.identity(3, dtype=np.float32)
         for op in matrix_list:

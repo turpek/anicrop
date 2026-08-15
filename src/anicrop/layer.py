@@ -185,8 +185,12 @@ class Layer(BaseLayer):
     def canvas_size(self) -> tuple[int, int]:
         return self._canvas.size if self._canvas else self.base.region.size
 
-    @BaseLayer.region.setter
-    def region(self, other: Region) -> Region:
+    @property
+    def region(self) -> Region:
+        return self.control.layout.region
+
+    @region.setter
+    def region(self, other: Region) -> None:
         if not isinstance(other, Region):
             raise TypeError(f"Expected Region, got {type(other).__name__}")
         self.control.sync(other)

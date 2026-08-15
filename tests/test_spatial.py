@@ -1,4 +1,5 @@
-from anicrop.spatial import Span, SpanError, Region, Vector
+from anicrop.spatial import Span, SpanError, Region
+
 from pytest import raises
 import pytest
 import re
@@ -201,12 +202,12 @@ def test_Region_deslocamento_para_direita_no_eixo_x():
 
 
 def test_Region_deslocamento_para_direita_no_eixo_y():
-    region = Region(Span(10), Span(5)) + Vector(0, 3)
+    region = Region(Span(10), Span(5)) + (0, 3)
     assert region == Region(Span(10), Span(3, 5))
 
 
 def test_Region_deslocamento_para_esquerda_no_eixo_xy():
-    region = Region(Span(5, 5), Span(10, 5)) - Vector(2, 3)
+    region = Region(Span(5, 5), Span(10, 5)) - (2, 3)
     assert region == Region(Span(3, 5), Span(7, 5))
 
 
@@ -246,13 +247,13 @@ def test_Region_deslocamento_negativo_nos_eixos_xy_com_tupla():
 
 
 def test_Region_deslocamento_positivo_com_tipo_errado():
-    expect = r"offset must be an int, a \(x, y\) tuple, or a Vector instance \(got list\)"
+    expect = r"offset must be an int, a \(x, y\) tuple, or a Region instance \(got list\)"
     with raises(TypeError, match=expect):
         Region.from_size(10, 5) + [2, 3]
 
 
 def test_Region_deslocamento_negativo_com_tipo_errado():
-    expect = r"offset must be an int, a \(x, y\) tuple, or a Vector instance \(got list\)"
+    expect = r"offset must be an int, a \(x, y\) tuple, or a Region instance \(got list\)"
     with raises(TypeError, match=expect):
         Region(Span(2, 10), Span(5, 12)) - [2, 3]
 
@@ -298,17 +299,17 @@ def test_Region_height():
 
 
 def test_Region_expand_em_no_eixo_xy():
-    region = Region(Span(5, 5), Span(10, 5)).expand(Vector(5, 5))
+    region = Region(Span(5, 5), Span(10, 5)).expand((5, 5))
     assert region == Region(Span(0, 15), Span(5, 15))
 
 
 def test_Region_expand_em_no_eixo_x():
-    region = Region(Span(5, 5), Span(10, 5)).expand(Vector(5, 0))
+    region = Region(Span(5, 5), Span(10, 5)).expand((5, 0))
     assert region == Region(Span(0, 15), Span(10, 5))
 
 
 def test_Region_expand_em_no_eixo_y():
-    region = Region(Span(5, 5), Span(10, 5)).expand(Vector(0, 5))
+    region = Region(Span(5, 5), Span(10, 5)).expand((0, 5))
     assert region == Region(Span(5, 5), Span(5, 15))
 
 
@@ -323,17 +324,17 @@ def test_Region_expand_right_e_bottom():
 
 
 def test_Region_shrink_em_no_eixo_xy():
-    region = Region(Span(0, 15), Span(10, 15)).shrink(Vector(5, 5))
+    region = Region(Span(0, 15), Span(10, 15)).shrink((5, 5))
     assert region == Region(Span(5, 5), Span(15, 5))
 
 
 def test_Region_shrink_em_no_eixo_x():
-    region = Region(Span(0, 15), Span(10, 15)).shrink(Vector(5, 0))
+    region = Region(Span(0, 15), Span(10, 15)).shrink((5, 0))
     assert region == Region(Span(5, 5), Span(10, 15))
 
 
 def test_Region_shrink_em_no_eixo_y():
-    region = Region(Span(0, 15), Span(10, 15)).shrink(Vector(0, 5))
+    region = Region(Span(0, 15), Span(10, 15)).shrink((0, 5))
     assert region == Region(Span(0, 15), Span(15, 5))
 
 
@@ -350,13 +351,13 @@ def test_Region_shrink_right_e_bottom():
 def test_Region_offset_positivo():
     region = Region(Span(50, 110), Span(55, 135))
     result = Region(Span(0, 15), Span(10, 15)).offset_to(region)
-    assert result == Vector(50, 45)
+    assert result == (50, 45)
 
 
 def test_Region_offset_negativo():
     region = Region(Span(0, 15), Span(10, 15))
     result = Region(Span(50, 110), Span(55, 135)).offset_to(region)
-    assert result == Vector(-50, -45)
+    assert result == (-50, -45)
 
 
 def test_Region_overlap_with_regionB_em_regionA():
@@ -393,7 +394,7 @@ def test_Region_offset_to_anchor_end():
     region1 = Region(Span(-4, 58), Span(-4, 58))  # end = (54, 54)
     region2 = Region(Span(0, 50), Span(0, 50))    # end = (50, 50)
     result = region1.offset_to(region2, anchor_end=True)
-    assert result == Vector(-4, -4)
+    assert result == (-4, -4)
 
 
 def test_Span_slack():

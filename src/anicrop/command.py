@@ -34,7 +34,15 @@ def _create_snapshot(
 class StateSnapshot(ABC):
 
     @abstractmethod
+    def __init__(self, item: Any):
+        ...
+
+    @abstractmethod
     def restore(self) -> None:
+        ...
+
+    @abstractmethod
+    def has_change(self, other: Any) -> bool:
         ...
 
 
@@ -55,7 +63,7 @@ class ContainerSnapshot(StateSnapshot):
         self._item.parent = self._parent
         self._parent._children = list(self._parent_children)
 
-    def has_change(self, other: ContainerSnapshot):
+    def has_change(self, other: ContainerSnapshot) -> bool:
         return self._children != other._children
 
 
@@ -89,26 +97,24 @@ class NullContainerSnapshot(StateSnapshot):
 class GeometryControllerSnapshot(StateSnapshot):
 
     def __init__(self, controller: GeometryController):
-        self._state = {
-            "layout_region": controller.layout.region,
-            "layout_strategy": controller.layout,
-            "offset": controller._offset,
-        }
+        self._layout_region = controller.layout.region
+        self._layout_strategy = controller.layout
+        self._offset = controller._offset
         self._controller = controller
 
     def restore(self) -> None:
-        self._controller._layout = self._state["layout_strategy"]
-        self._controller._offset = self._state["offset"]
-        self._controller.sync(self._state["layout_region"])
+        self._controller._layout = self._layout_strategy
+        self._controller._offset = self._offset
+        self._controller.sync(self._layout_region)
 
     def _region_changed(self, other: GeometryControllerSnapshot) -> bool:
-        return self._state["layout_region"] != other._state["layout_region"]
+        return self._layout_region != other._layout_region
 
     def _instance_changed(self, other: GeometryControllerSnapshot) -> bool:
-        return self._state["layout_strategy"] is not other._state["layout_strategy"]
+        return self._layout_strategy is not other._layout_strategy
 
     def _type_changed(self, other: GeometryControllerSnapshot) -> bool:
-        return type(self._state["layout_strategy"]) is not type(other._state["layout_strategy"])
+        return type(self._layout_strategy) is not type(other._layout_strategy)
 
     def has_change(self, other: GeometryControllerSnapshot) -> bool:
         return (
@@ -121,32 +127,30 @@ class GeometryControllerSnapshot(StateSnapshot):
 class BaseLayerSnapshot(StateSnapshot):
 
     def __init__(self, item: BaseLayer):
-        self._state = {
-            "name": item.name,
-            "opacity": item.opacity,
-            "blend_mode": item.blend_mode,
-            "visible": item.visible,
-            "transform": item._transform.copy(),
-            "control": GeometryControllerSnapshot(item.control),
-        }
+        self._name = item.name
+        self._opacity = item.opacity
+        self._blend_mode = item.blend_mode
+        self._visible = item.visible
+        self._transform = item._transform.copy()
+        self._control = GeometryControllerSnapshot(item.control)
         self._item = item
 
     def restore(self) -> None:
-        self._item.name = self._state["name"]
-        self._item.opacity = self._state["opacity"]
-        self._item.blend_mode = self._state["blend_mode"]
-        self._item.visible = self._state["visible"]
-        self._item._transform = self._state["transform"].copy()
-        self._state["control"].restore()
+        self._item.name = self._name
+        self._item.opacity = self._opacity
+        self._item.blend_mode = self._blend_mode
+        self._item.visible = self._visible
+        self._item._transform = self._transform.copy()
+        self._control.restore()
 
     def has_change(self, other: BaseLayerSnapshot) -> bool:
         return (
-            self._state["name"] != other._state["name"] or
-            self._state["opacity"] != other._state["opacity"] or
-            self._state["blend_mode"] != other._state["blend_mode"] or
-            self._state["visible"] != other._state["visible"] or
-            self._state["transform"] != other._state["transform"] or
-            self._state["control"].has_change(other._state["control"])
+            self._name != other._name or
+            self._opacity != other._opacity or
+            self._blend_mode != other._blend_mode or
+            self._visible != other._visible or
+            self._transform != other._transform or
+            self._control.has_change(other._control)
         )
 
 

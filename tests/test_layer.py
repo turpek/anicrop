@@ -342,11 +342,13 @@ def test_layer_snapshot_completeness(image):
 
     # Mapeia as chaves do BaseLayerSnapshot
     snapshot_attributes = set()
-    for key in base_snapshot._state.keys():
-        if hasattr(layer, f"_{key}") and key != 'visible':
-            snapshot_attributes.add(f"_{key}")
-        else:
-            snapshot_attributes.add(key)
+    for attr in vars(base_snapshot).keys():
+        if attr.startswith('_') and attr != '_item':
+            key = attr[1:]
+            if hasattr(layer, f"_{key}") and key != 'visible':
+                snapshot_attributes.add(f"_{key}")
+            else:
+                snapshot_attributes.add(key)
 
     # Adiciona os atributos salvos pelo LayerImageSnapshot
     snapshot_attributes.add("_edits")

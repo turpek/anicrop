@@ -1,11 +1,13 @@
 """Provides the Image class, a wrapper for image data processing."""
 
 from __future__ import annotations
+from types import EllipsisType
 from anicrop.enums import ImageFormat
 from anicrop.spatial import Region, Span
 from numpy import ndarray
-from typing import Any
+from typing import Any, cast
 import numpy as np
+
 import zarr
 import cv2
 import uuid
@@ -22,7 +24,7 @@ class Image:
     It ensures that the underlying image data is a valid 2D or 3D array.
     """
 
-    def __init__(self, image: ndarray | zarr.core.Array, image_format: ImageFormat):
+    def __init__(self, image: ndarray | zarr.Array, image_format: ImageFormat):
         """Initializes the Image object.
 
         Args:
@@ -37,7 +39,7 @@ class Image:
 
         elif image.shape[0] == 0 or image.shape[1] == 0:
             raise ValueError("image dimensions must be greater than zero")
-        elif image.ndim == 2:
+        elif isinstance(image, np.ndarray) and image.ndim == 2:
             image = image[..., np.newaxis]
         elif image.ndim == 3 and image.shape[2] == 0:
             raise ValueError("image must have at least one channel")
@@ -83,7 +85,7 @@ class Image:
         Returns:
             The selected ndarray slice of the image data.
         """
-        return self._data[self.__to_indexer(key)]
+        return cast(ndarray, self._data[self.__to_indexer(key)])
 
     def __setitem__(self, key: Region | Any, value: Any) -> None:
         """Sets a part of the image using indexing.
@@ -166,7 +168,7 @@ class Image:
             zarr_dir = manager_global.workspace_path / f"{uuid.uuid4().hex}.zarr"
 
             zarr_chunks = (min(512, height), min(512, width), channels)
-            z_arr = zarr.open(
+            z_arr = zarr.open_array(
                 str(zarr_dir),
                 mode="w",
                 shape=shape,
@@ -194,10 +196,10 @@ class Image:
         new_img[...] = resized_data
         return new_img
 
-    def view(self, region: Ellipsis | Region) -> Image:
+    def view(self, region: EllipsisType | Region) -> Image:
         return Image(self[region], self.format)
 
-    def crop(self, region: Ellipsis | Region) -> Image:
+    def crop(self, region: EllipsisType | Region) -> Image:
         return Image(self[region].copy(), self.format)
 
     @classmethod
@@ -212,11 +214,13 @@ class Image:
 
     @classmethod
     def _open_with_opencv(cls, file_path: str, image_format: ImageFormat) -> Image:
-        data = cv2.imread(file_path, cv2.IMREAD_UNCHANGED)
-        if data is None:
+        raw_data = cv2.imread(file_path, cv2.IMREAD_UNCHANGED)
+        if raw_data is None:
             raise FileNotFoundError(f"Could not load image at {file_path}")
 
+        data: np.ndarray = raw_data
         if data.ndim == 2:
+
             loaded_channels = 1
         else:
             loaded_channels = data.shape[2]
@@ -236,8 +240,8 @@ class Image:
                 data = cv2.cvtColor(data, cv2.COLOR_BGR2GRAY)
             elif image_format == ImageFormat.GRAY_ALPHA:
                 gray = cv2.cvtColor(data, cv2.COLOR_BGR2GRAY)
-                alpha = np.full(gray.shape, 255, dtype=np.uint8)
-                data = np.dstack([gray, alpha])
+                alpha_chan = np.full(gray.shape, 255, dtype=np.uint8)
+                data = np.dstack([gray, alpha_chan])
             elif image_format == ImageFormat.RGB:
                 data = cv2.cvtColor(data, cv2.COLOR_BGR2RGB)
             elif image_format == ImageFormat.RGBA:
@@ -247,8 +251,8 @@ class Image:
                 data = cv2.cvtColor(data, cv2.COLOR_BGRA2GRAY)
             elif image_format == ImageFormat.GRAY_ALPHA:
                 gray = cv2.cvtColor(data, cv2.COLOR_BGRA2GRAY)
-                alpha = data[..., 3]
-                data = np.dstack([gray, alpha])
+                alpha_chan = data[..., 3]
+                data = np.dstack([gray, alpha_chan])
             elif image_format == ImageFormat.RGB:
                 data = cv2.cvtColor(data, cv2.COLOR_BGRA2RGB)
             elif image_format == ImageFormat.RGBA:
@@ -269,17 +273,15 @@ class Image:
 
         zarr_dir = manager_global.workspace_path / f"{uuid.uuid4().hex}.zarr"
 
-        with PILImage.open(file_path) as pil_img:
-            if mode:
-                pil_img = pil_img.convert(mode)
-
+        with PILImage.open(file_path) as opened_img:
+            pil_img = opened_img.convert(mode) if mode else opened_img
             width, height = pil_img.size
             channels = image_format.channels
 
             zarr_shape = (height, width, channels)
             zarr_chunks = (512, 512, channels)
 
-            z_arr = zarr.open(
+            z_arr = zarr.open_array(
                 str(zarr_dir),
                 mode="w",
                 shape=zarr_shape,
@@ -301,7 +303,7 @@ class Image:
 
                     z_arr[y:y_end, x:x_end] = tile_np
 
-        return cls(zarr.open(str(zarr_dir), mode="r"), image_format)
+        return cls(zarr.open_array(str(zarr_dir), mode="r"), image_format)
 
 
 def calculate_content_rect(image: Image) -> Region:
