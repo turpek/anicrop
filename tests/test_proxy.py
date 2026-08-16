@@ -1,13 +1,12 @@
 import numpy as np
 import pytest
 
-from anicrop.command import BaseLayerCommand, LayerImageCommand
+from anicrop.command import BaseLayerCommand
 from anicrop.container import GroupLayer
 from anicrop.history import GlobalHistory
 from anicrop.image import Image, ImageFormat
-from anicrop.layer import EditLayer, Layer
+from anicrop.layer import Layer
 from anicrop.proxy import GroupProxy, ProxyLayer, is_property_with_setter
-from anicrop.spatial import Region
 
 
 def make_img(w=10, h=10):
