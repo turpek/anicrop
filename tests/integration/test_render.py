@@ -421,3 +421,24 @@ def test_canvas_render_escalas_extremas(canvas_render, scale_x, scale_y, expecte
     result = canvas_render.render_layer(layer)
 
     assert result.size == expected_size
+
+
+def test_render_layer_multiplos_edits_formatos_mistos(canvas_render):
+    """Valida render_layer para camada contendo múltiplos EditLayers com formatos mistos (RGB, RGBA, GRAY)."""
+    base_img = Image(np.full((100, 100, 3), [0, 0, 255], dtype=np.uint8), ImageFormat.RGB)
+    layer = Layer(base_img)
+
+    sticker_data = np.full((30, 30, 4), [255, 0, 0, 255], dtype=np.uint8)
+    sticker_img = Image(sticker_data, ImageFormat.RGBA)
+    layer.add_edit(sticker_img, Region.from_rect(10, 10, 30, 30))
+
+    stamp_data = np.full((20, 20, 1), 128, dtype=np.uint8)
+    stamp_img = Image(stamp_data, ImageFormat.GRAY)
+    layer.add_edit(stamp_img, Region.from_rect(50, 50, 20, 20))
+
+    result = canvas_render.render_layer(layer)
+
+    assert result.format == ImageFormat.RGB
+    np.testing.assert_array_equal(result[0, 0], [0, 0, 255])
+    np.testing.assert_array_equal(result[15, 15], [255, 0, 0])
+    np.testing.assert_array_equal(result[55, 55], [128, 128, 128])

@@ -4,7 +4,7 @@ from typing import Iterable, TYPE_CHECKING
 import numpy as np
 
 
-from anicrop.enums import BlendMode
+from anicrop.enums import BlendMode, ImageFormat
 from anicrop.image import Image
 from anicrop.spatial import Region
 
@@ -39,17 +39,20 @@ def blend_normal_linear(base: Image, edit: Image, opacity: float = 1.0) -> None:
     b_view = base_arr[:h, :w]
     e_view = edit_arr[:h, :w]
 
+    b_has_alpha = b_view.shape[-1] in (2, 4)
+    e_has_alpha = e_view.shape[-1] in (2, 4)
+
     # 1. Criar a máscara (Otimização)
-    if e_view.shape[-1] == 4:
-        mask = e_view[..., 3] > 0
+    if e_has_alpha:
+        mask = e_view[..., -1] > 0
     else:
         mask = np.ones((h, w), dtype=bool)
 
     if not np.any(mask):
         return
 
-    b_channels = 1 if b_view.shape[-1] == 1 else 3
-    e_channels = 1 if e_view.shape[-1] == 1 else 3
+    b_channels = 1 if b_view.shape[-1] in (1, 2) else 3
+    e_channels = 1 if e_view.shape[-1] in (1, 2) else 3
 
     # =====================================================================
     # 2. EXTRAÇÃO E LINEARIZAÇÃO DO OVERLAY (EDIT)
@@ -64,8 +67,8 @@ def blend_normal_linear(base: Image, edit: Image, opacity: float = 1.0) -> None:
     # LINEARIZA: Eleva a 2.2 para remover a curva da tela
     rgb_e_lin = rgb_e_srgb ** 2.2
 
-    if e_view.shape[-1] == 4:
-        alpha_e = (e_view[mask, 3:4].astype(np.float32) / 255.0) * opacity
+    if e_has_alpha:
+        alpha_e = (e_view[mask, -1:].astype(np.float32) / 255.0) * opacity
     else:
         alpha_e = np.full((np.count_nonzero(mask), 1), opacity, dtype=np.float32)
 
@@ -75,9 +78,9 @@ def blend_normal_linear(base: Image, edit: Image, opacity: float = 1.0) -> None:
     rgb_b_srgb = b_view[mask, :b_channels].astype(np.float32) / 255.0
     rgb_b_lin = rgb_b_srgb ** 2.2  # Lineariza o fundo
 
-    if b_view.shape[-1] == 4:
+    if b_has_alpha:
         # Fundo COM transparência
-        alpha_b = b_view[mask, 3:4].astype(np.float32) / 255.0
+        alpha_b = b_view[mask, -1:].astype(np.float32) / 255.0
 
         # Calcula o Alpha resultante da mesclagem (mesma fórmula Porter-Duff)
         out_a = alpha_e + alpha_b * (1.0 - alpha_e)
@@ -91,7 +94,7 @@ def blend_normal_linear(base: Image, edit: Image, opacity: float = 1.0) -> None:
 
         # Injeta de volta (Cor sRGB e Alpha original)
         b_view[mask, :b_channels] = np.clip(out_rgb_srgb * 255, 0, 255).astype(np.uint8)
-        b_view[mask, 3:4] = np.clip(out_a * 255, 0, 255).astype(np.uint8)
+        b_view[mask, -1:] = np.clip(out_a * 255, 0, 255).astype(np.uint8)
 
     else:
         # Fundo SÓLIDO (Ex: RGB puro ou Grayscale)
@@ -118,12 +121,15 @@ def blend_normal(base: Image, edit: Image, opacity: float = 1.0) -> None:
     b_view = base_arr[:h, :w]
     e_view = edit_arr[:h, :w]
 
-    b_channels = 1 if b_view.shape[-1] == 1 else 3
-    e_channels = 1 if e_view.shape[-1] == 1 else 3
+    b_has_alpha = b_view.shape[-1] in (2, 4)
+    e_has_alpha = e_view.shape[-1] in (2, 4)
+
+    b_channels = 1 if b_view.shape[-1] in (1, 2) else 3
+    e_channels = 1 if e_view.shape[-1] in (1, 2) else 3
 
     # Fast-Path: Cópia direta para imagens 100% sólidas com opacidade total (1.0)
     if opacity >= 1.0:
-        if e_view.shape[-1] == b_view.shape[-1] and (e_view.shape[-1] in (1, 3) or (e_view.shape[-1] == 4 and np.all(e_view[..., 3] == 255))):
+        if e_view.shape[-1] == b_view.shape[-1] and (not e_has_alpha or np.all(e_view[..., -1] == 255)):
             np.copyto(b_view, e_view)
             return
         if e_view.shape[-1] == 3 and b_view.shape[-1] == 4:
@@ -137,10 +143,14 @@ def blend_normal(base: Image, edit: Image, opacity: float = 1.0) -> None:
         if e_view.shape[-1] == 1 and b_view.shape[-1] == 3:
             np.copyto(b_view, np.repeat(e_view, 3, axis=-1))
             return
+        if e_view.shape[-1] == 1 and b_view.shape[-1] == 2:
+            np.copyto(b_view[..., :1], e_view)
+            b_view[..., 1] = 255
+            return
 
     # 1. Criar a máscara (Otimização)
-    if e_view.shape[-1] == 4:
-        mask = e_view[..., 3] > 0
+    if e_has_alpha:
+        mask = e_view[..., -1] > 0
     else:
         mask = np.ones((h, w), dtype=bool)
 
@@ -154,17 +164,17 @@ def blend_normal(base: Image, edit: Image, opacity: float = 1.0) -> None:
     elif b_channels == 1 and e_channels == 3:
         rgb_e = (0.299 * rgb_e[..., 0:1] + 0.587 * rgb_e[..., 1:2] + 0.114 * rgb_e[..., 2:3])
 
-    if e_view.shape[-1] == 4:
-        alpha_e = (e_view[mask, 3:4].astype(np.float32) / 255.0) * opacity
+    if e_has_alpha:
+        alpha_e = (e_view[mask, -1:].astype(np.float32) / 255.0) * opacity
     else:
         alpha_e = np.full((np.count_nonzero(mask), 1), opacity, dtype=np.float32)
 
     # 3. Matemática baseada no formato do Fundo (Base)
     rgb_b = b_view[mask, :b_channels].astype(np.float32)
 
-    if b_view.shape[-1] == 4:
+    if b_has_alpha:
         # Fundo COM transparência (Usa Porter-Duff Over)
-        alpha_b = b_view[mask, 3:4].astype(np.float32) / 255.0
+        alpha_b = b_view[mask, -1:].astype(np.float32) / 255.0
 
         # Calcula o Alpha resultante da mesclagem das duas camadas
         out_a = alpha_e + alpha_b * (1.0 - alpha_e)
@@ -174,7 +184,7 @@ def blend_normal(base: Image, edit: Image, opacity: float = 1.0) -> None:
 
         # Injeta de volta (Cor e Alpha novo)
         b_view[mask, :b_channels] = np.clip(out_rgb, 0, 255).astype(np.uint8)
-        b_view[mask, 3:4] = np.clip(out_a * 255, 0, 255).astype(np.uint8)
+        b_view[mask, -1:] = np.clip(out_a * 255, 0, 255).astype(np.uint8)
 
     else:
         # Fundo SÓLIDO (Ex: RGB puro ou Grayscale)
@@ -229,10 +239,10 @@ def hard_masking(base: Image, overlay: Image, opacity: float = 1.0) -> Image:
             f"Format mismatch: cannot blend '{overlay.format}' into '{base.format}'."
         )
 
-    color_channels = overlay.channels
+    color_channels = 1 if overlay.format in (ImageFormat.GRAY, ImageFormat.GRAY_ALPHA) else 3
 
     if overlay.has_alpha:
-        hard_masking_overlay_with_alpha(base, overlay, color_channels - 1, opacity)
+        hard_masking_overlay_with_alpha(base, overlay, color_channels, opacity)
     else:
         hard_masking_overlay_without_alpha(base, overlay, color_channels, opacity)
 

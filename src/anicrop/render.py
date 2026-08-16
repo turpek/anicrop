@@ -295,7 +295,7 @@ class SceneTraverser:
 
         for item in container:
             frame = self.frame_cls(item, self.surface, view_region, local=local)
-            if not item.visible or frame.dst_region is None:
+            if not item.is_renderable or frame.dst_region is None:
                 continue
 
             if isinstance(item, GroupLayer):

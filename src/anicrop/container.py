@@ -157,6 +157,11 @@ class BaseLayer(ABC):
         self.control = GeometryController(base, layout)
 
     @property
+    def is_renderable(self) -> bool:
+        """Indica se a camada deve ser processada no pipeline de renderização."""
+        return self.visible and self.opacity > 0.0
+
+    @property
     def canvas_size(self) -> tuple[int, int]:
         return self.region.size
 

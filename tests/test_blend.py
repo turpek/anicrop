@@ -248,6 +248,9 @@ def test_blend_normal_fast_path_copyto(mocker, base_fmt, edit_fmt, edit_alpha, o
         pytest.param(ImageFormat.GRAY, ImageFormat.RGB, [255, 0, 0], [76], id="base_gray_edit_red"),
         pytest.param(ImageFormat.RGB, ImageFormat.GRAY, [128], [128, 128, 128], id="base_rgb_edit_gray"),
         pytest.param(ImageFormat.GRAY, ImageFormat.GRAY, [200], [200], id="base_gray_edit_gray"),
+        pytest.param(ImageFormat.GRAY_ALPHA, ImageFormat.GRAY_ALPHA, [200, 255], [200, 255], id="base_gray_alpha_edit_gray_alpha"),
+        pytest.param(ImageFormat.RGBA, ImageFormat.GRAY_ALPHA, [100, 255], [100, 100, 100, 255], id="base_rgba_edit_gray_alpha"),
+        pytest.param(ImageFormat.GRAY_ALPHA, ImageFormat.RGB, [255, 0, 0], [76, 255], id="base_gray_alpha_edit_rgb"),
     ],
 )
 def test_blend_normal_formatos_mistos(base_fmt, edit_fmt, edit_color, expected_pixel):

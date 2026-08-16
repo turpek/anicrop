@@ -288,30 +288,34 @@ def test_scene_traverser_recursivo_com_culling(mocker):
 @pytest.mark.parametrize("item_cls", [Layer, GroupLayer])
 def test_scene_traverser_ignora_itens_invisiveis(mocker, item_cls):
     """Valida se o SceneTraverser ignora camadas ou grupos que possuem visible=False."""
-    item = mocker.MagicMock(spec=item_cls)
-    type(item).visible = mocker.PropertyMock(return_value=False)
-    item.parent = mocker.Mock()
+    item = make_layer(10, 10) if item_cls is Layer else GroupLayer()
+    item.visible = False
 
     group = GroupLayer()
     group.append(item)
 
-    traverser = SceneTraverser(mocker.Mock(), Canvas.from_size(10, 10), mocker.Mock())
+    renderer = CanvasRender()
+    canvas = Canvas.from_size(10, 10)
+    traverser = SceneTraverser(renderer, canvas, CanvasFrame)
     result = traverser.traverse([group])
 
     assert result == []
 
 
-def test_scene_traverser_ignora_tudo_se_raiz_for_invisivel(mocker):
+def test_scene_traverser_ignora_tudo_se_raiz_for_invisivel():
     """Valida se uma árvore inteira é sumariamente descartada quando o grupo raiz for invisível."""
     root = GroupLayer()
     root.visible = False
 
-    child = mocker.MagicMock(spec=GroupLayer)
-    type(child).visible = mocker.PropertyMock(return_value=True)
-    child.parent = mocker.Mock()
+    child = GroupLayer()
+    child.visible = True
+    child_layer = make_layer(10, 10)
+    child.append(child_layer)
     root.append(child)
 
-    traverser = SceneTraverser(mocker.Mock(), Canvas.from_size(10, 10), mocker.Mock())
+    renderer = CanvasRender()
+    canvas = Canvas.from_size(10, 10)
+    traverser = SceneTraverser(renderer, canvas, CanvasFrame)
     result = traverser.traverse([root])
 
     assert result == []
@@ -501,6 +505,24 @@ def test_scene_traverser_pre_culling_respeita_view_region_em_render_patch(mocker
 
     assert spy_render.call_count == 1
     assert spy_render.call_args[0][0] == layer_in_patch
+
+
+def test_scene_traverser_culling_camada_com_opacidade_zero(mocker):
+    """Valida se o SceneTraverser descarta camadas com opacidade zero sem chamar render_area."""
+    stack = LayerStack()
+    layer_visible = make_layer(w=20, h=20, x=10, y=10)
+    layer_invisible = make_layer(w=20, h=20, x=40, y=40)
+    layer_invisible.opacity = 0.0
+    stack.append(layer_visible)
+    stack.append(layer_invisible)
+    canvas = Canvas.from_size(100, 100)
+
+    renderer = CanvasRender()
+    spy_render = mocker.spy(renderer, "render_area")
+    _ = renderer.render_scene(stack, canvas)
+
+    assert spy_render.call_count == 1
+    assert spy_render.call_args[0][0] == layer_visible
 
 
 def test_warp_affine_com_parametro_dst_reutiliza_buffer_prealocado():

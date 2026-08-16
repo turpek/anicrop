@@ -128,6 +128,23 @@ def test_viewport_render_patch_com_view_region():
     np.testing.assert_array_equal(patch_image[0, 0], [255, 0, 0, 255])
 
 
+def test_viewport_render_com_zoom_pan_e_rotacao():
+    """Valida render_scene de camada rotacionada sob zoom e pan no Viewport."""
+    layer = make_layer(100, 100, (255, 0, 0, 255))
+    layer.transform.rotate(45)
+
+    viewport = Viewport(size=(200, 200), fit_scale=1.0)
+    viewport.scale = Scale(1.5, 1.5)
+    viewport.region += (10, 10)
+
+    vr = ViewportRender()
+    comp = vr.render_scene([layer], viewport)
+
+    assert comp.size == (200, 200)
+    assert comp[100, 100][0] == 255
+    assert comp[100, 100][3] == 255
+
+
 @pytest.mark.slow
 def test_viewport_render_passes_scale_factor_to_lod():
     """Valida se ViewportRender repassa o scale_factor da Viewport para a seleção de LOD dos edits."""
