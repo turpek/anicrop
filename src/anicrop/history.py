@@ -6,7 +6,6 @@ from contextlib import contextmanager
 
 if TYPE_CHECKING:
     from anicrop.command import Command
-    from anicrop.layer import Layer
 
 
 class ActionPolicy(ABC):
