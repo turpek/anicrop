@@ -4,9 +4,11 @@ import pytest
 from anicrop.document import Document
 from anicrop.enums import ImageFormat
 from anicrop.geometry import FitGeometry, FitGroupGeometry, GroupGeometry, LayerGeometry
+from anicrop.history import GlobalHistory
 from anicrop.image import Image
 from anicrop.layer import Layer
 from anicrop.layout import Layout
+from anicrop.proxy import ProxyLayer
 from anicrop.spatial import Region
 
 
@@ -127,6 +129,47 @@ def test_layout_fit_group_proxy_undo_redo(make_doc_with_group):
 
     assert group_proxy.global_region == Region.from_size(800, 800)
     assert isinstance(group_proxy.layout, FitGroupGeometry)
+
+
+def test_read_properties_preserves_undo_empty_and_redo_empty():
+    """Valida se leituras passivas mantêm undo_empty e redo_empty sem registrar operações indesejadas."""
+    history = GlobalHistory()
+    img = Image(np.ones((200, 200, 4), dtype=np.uint8) * 255, ImageFormat.RGBA)
+    layer = Layer(img, name="layer1")
+    layer_proxy = ProxyLayer(layer, history)
+    layout = Layout()
+
+    assert history.undo_empty()
+    assert history.redo_empty()
+
+    layout.fit(layer_proxy, (0, 0, 500, 500))
+
+    assert not history.undo_empty()
+    assert history.redo_empty()
+
+    history.undo()
+
+    assert history.undo_empty()
+    assert not history.redo_empty()
+
+    # Leituras passivas de propriedades
+    _ = layer_proxy.region
+    _ = layer_proxy.global_region
+    _ = layer_proxy.layout
+    _ = layer_proxy.matrix
+    _ = layer_proxy.control.layout.region
+    _ = layer_proxy.x
+    _ = layer_proxy.y
+
+    # Garante rigorosamente que nenhuma operação indesejada vazou para o undo stack
+    assert history.undo_empty()
+    assert not history.redo_empty()
+
+    history.redo()
+
+    assert not history.undo_empty()
+    assert history.redo_empty()
+    assert layer_proxy.region == Region.from_size(500, 500)
 
 
 def test_read_properties_does_not_clear_redo_stack(make_doc_with_layer):
