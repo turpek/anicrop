@@ -35,6 +35,14 @@ class Canvas:
         return self._region.size
 
     @property
+    def width(self) -> int:
+        return self._region.width
+
+    @property
+    def height(self) -> int:
+        return self._region.height
+
+    @property
     def region(self) -> Region:
         return self._region
 

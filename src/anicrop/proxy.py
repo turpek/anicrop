@@ -173,6 +173,10 @@ class BaseHistoryProxy:
 
                 if result is target:
                     return self
+                if hasattr(self, '_registry') and not isinstance(result, BaseHistoryProxy):
+                    registry = object.__getattribute__(self, '_registry')
+                    if isinstance(result, (BaseLayer, Container)):
+                        return registry.get_or_create(result)
                 return result
             return method_wrapper
 
@@ -236,14 +240,15 @@ class BaseContainerProxy(BaseHistoryProxy):
     }
 
     def _extract_command_value(self, name: str, cmd_cls: type, target: Any, args: tuple) -> Any:
+        registry = object.__getattribute__(self, '_registry')
         if cmd_cls is ReparentCommand:
             if name in ("append", "remove", "move"):
-                return args[0]
+                return registry.get_or_create(args[0])
             elif name == "insert":
-                return args[1]
+                return registry.get_or_create(args[1])
             elif name == "pop":
                 idx = args[0] if args else -1
-                return target[idx]
+                return registry.get_or_create(target[idx])
         return None
 
     def __iter__(self):

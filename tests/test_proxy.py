@@ -214,3 +214,33 @@ def test_proxy_parent_read_only_and_dir_target_only():
 
     # 2. dir(proxy) devolve exatamente os atributos do target real
     assert dir(proxy) == dir(raw_layer)
+
+
+def test_container_proxy_append_raw_layer_wraps_in_proxy():
+    """Garante que adicionar uma camada bruta a um ContainerProxy a registra e encapsula em proxy."""
+    hist = GlobalHistory()
+    group_proxy = GroupProxy(GroupLayer(name="Group"), hist)
+    raw_layer = Layer(make_img(), name="RawLayer")
+
+    group_proxy.append(raw_layer)
+
+    assert len(group_proxy) == 1
+    assert isinstance(group_proxy[0], ProxyLayer)
+    assert group_proxy[0]._target is raw_layer
+
+
+def test_container_proxy_pop_returns_proxy_and_records_history():
+    """Garante que o pop de um ContainerProxy devolve uma instância de Proxy que registra histórico."""
+    hist = GlobalHistory()
+    group_proxy = GroupProxy(GroupLayer(name="Group"), hist)
+    raw_layer = Layer(make_img(), name="L1")
+    group_proxy.append(raw_layer)
+
+    popped = group_proxy.pop(0)
+
+    assert isinstance(popped, ProxyLayer)
+    assert len(group_proxy) == 0
+
+    popped.name = "Mutated After Pop"
+    assert raw_layer.name == "Mutated After Pop"
+    assert not hist.undo_empty()
