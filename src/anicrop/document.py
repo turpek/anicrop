@@ -10,6 +10,7 @@ from anicrop.enums import ImageFormat
 from anicrop.history import GlobalHistory
 from anicrop.image import Image
 from anicrop.layer import Layer
+from anicrop.layout import Layout
 from anicrop.proxy import BaseHistoryProxy, GroupProxy, LayerStackProxy, ProxyLayer
 from anicrop.render import CanvasRender, ViewportRender
 from anicrop.viewport import Viewport
@@ -74,6 +75,7 @@ class Document:
 
         self._viewport_render = ViewportRender()
         self._canvas_render = CanvasRender()
+        self._layout = Layout()
 
     @classmethod
     def open(cls, path: str | Path, name: str, wrap_proxy: bool = True) -> Document:
@@ -89,6 +91,11 @@ class Document:
         layer._canvas = doc.canvas
         doc.add(layer)
         return doc
+
+    @property
+    def layout(self) -> Layout:
+        """Instância do motor de Layout para operações espaciais no documento."""
+        return self._layout
 
     def _validate_unique_name(self, name: str) -> None:
         """Verifica se já existe alguma camada ou grupo com este nome no documento."""

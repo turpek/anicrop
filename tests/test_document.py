@@ -200,3 +200,21 @@ def test_document_export_saves_file(tmp_path):
     assert export_file.exists()
     reloaded = Image.open(export_file, ImageFormat.RGBA)
     assert reloaded.size == (40, 40)
+
+
+def test_document_layout_property_integration():
+    """Valida operações de layout diretamente através da propriedade doc.layout."""
+    from anicrop.layout import Layout
+    doc = Document("TestDoc", 1000, 1000)
+    l1 = doc.add(Layer(make_img(200, 200), name="l1"))
+
+    assert isinstance(doc.layout, Layout)
+
+    doc.layout.fit(l1, (0, 0, 500, 500))
+    assert l1.region == Region.from_size(500, 500)
+
+    doc.layout.align(doc["l1"], doc.canvas.region, 1.0, 1.0)
+    assert l1.region == Region.from_rect(500, 500, 500, 500)
+
+    doc.history.undo()
+    assert l1.region == Region.from_size(500, 500)
