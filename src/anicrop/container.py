@@ -213,6 +213,23 @@ class BaseLayer(ABC):
         """Alias para clear_masks."""
         self.clear_masks()
 
+    def add_effect(self, effect: Effect, mask: Mask | None = None) -> Effect:
+        """Adiciona um efeito à camada, vinculando a matriz inversa da base para preservação da orientação."""
+        import copy
+        bound_effect = copy.copy(effect)
+        bound_effect.matrix = mat_inverse(mat_global(self))
+
+        if mask is not None:
+            from anicrop.effect import MaskedEffect
+            bound_effect = MaskedEffect(bound_effect, mask)
+
+        self._effects.append(bound_effect)
+        return bound_effect
+
+    def clear_effects(self) -> None:
+        """Remove todos os efeitos de pós-processamento da camada."""
+        self._effects.clear()
+
     def get_effects_padding(self) -> tuple[int, int, int, int]:
         """Calcula o padding total somado/máximo de todos os efeitos ativos."""
         top, right, bottom, left = 0, 0, 0, 0

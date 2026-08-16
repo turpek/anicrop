@@ -22,6 +22,7 @@ class BlurFilter(Effect):
         mode: BlurMode = BlurMode.GAUSSIAN,
         affect_alpha: bool = True,
         strength: float = 1.0,
+        matrix: np.ndarray | None = None,
         name: str = "BlurFilter",
     ):
         if isinstance(radius, (tuple, list)):
@@ -35,6 +36,7 @@ class BlurFilter(Effect):
         self.mode = mode
         self.affect_alpha = affect_alpha
         self.strength = float(np.clip(strength, 0.0, 1.0))
+        self.matrix = matrix if matrix is not None else np.identity(3, dtype=np.float32)
         self.name = name
 
     def prepare(self, frame: BaseFrame) -> None:
@@ -85,26 +87,24 @@ class BlurFilter(Effect):
 
         return cv2.filter2D(src_data, -1, rotated_kernel, borderType=cv2.BORDER_REFLECT_101)
 
-    def apply(self, image: Image, matrix: np.ndarray | None = None) -> Image:
+    def apply(self, image: Image, matrix: np.ndarray) -> Image:
         """Processa e desfoca o buffer de imagem adaptando ângulo e escala a partir da matriz afim."""
         if self.strength <= 0.0 or (self.radius_x <= 0.0 and self.radius_y <= 0.0):
             return image
 
         src_data = image[...]
 
-        # Resolve ângulo e escalas efetivas no espaço de renderização a partir da matriz afim
-        if matrix is not None:
-            mat_angle_deg = math.degrees(math.atan2(float(matrix[1, 0]), float(matrix[0, 0])))
-            effective_angle = self.angle + mat_angle_deg
+        # Resolve matriz delta combinando a matriz do frame com a âncora inversa do efeito
+        delta_matrix = matrix @ self.matrix
 
-            scale_x = math.hypot(float(matrix[0, 0]), float(matrix[1, 0]))
-            scale_y = math.hypot(float(matrix[0, 1]), float(matrix[1, 1]))
-            effective_rx = self.radius_x * scale_x
-            effective_ry = self.radius_y * scale_y
-        else:
-            effective_angle = self.angle
-            effective_rx = self.radius_x
-            effective_ry = self.radius_y
+        # Resolve ângulo e escalas efetivas no espaço de renderização a partir da matriz delta
+        mat_angle_deg = math.degrees(math.atan2(float(delta_matrix[1, 0]), float(delta_matrix[0, 0])))
+        effective_angle = self.angle + mat_angle_deg
+
+        scale_x = math.hypot(float(delta_matrix[0, 0]), float(delta_matrix[1, 0]))
+        scale_y = math.hypot(float(delta_matrix[0, 1]), float(delta_matrix[1, 1]))
+        effective_rx = self.radius_x * scale_x
+        effective_ry = self.radius_y * scale_y
 
         effective_angle = (effective_angle + 180.0) % 360.0 - 180.0
 
@@ -169,5 +169,6 @@ class BlurFilter(Effect):
             mode=self.mode,
             affect_alpha=self.affect_alpha,
             strength=combined_strength,
+            matrix=matrix,
             name=self.name,
         )

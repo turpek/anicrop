@@ -64,8 +64,21 @@ class Mask(EditLayer, Effect):
         target_image[..., -1] = (alpha * luma_factor).astype(np.uint8)
         return target_image
 
-    def apply(self, image: Image, matrix: np.ndarray | None = None) -> Image:
-        """Aplica a modulação de máscara sobre a imagem recebendo opcionalmente a matriz de transformação."""
+    def modulate_blend(self, original: Image, filtered: Image) -> Image:
+        """Interpola linearmente entre a imagem original e a filtrada usando o mapa de luminância da máscara."""
+        mask_data = self._extract_luma(self.image)
+        orig_data = original[...].astype(np.float32)
+        filt_data = filtered[...].astype(np.float32)
+
+        if mask_data.shape[:2] != orig_data.shape[:2]:
+            mask_data = cv2.resize(mask_data, (orig_data.shape[1], orig_data.shape[0]), interpolation=cv2.INTER_LINEAR)
+
+        luma = mask_data[..., np.newaxis]
+        blended = orig_data * (1.0 - luma) + filt_data * luma
+        return Image(np.clip(blended, 0, 255).astype(np.uint8), original.format)
+
+    def apply(self, image: Image, matrix: np.ndarray) -> Image:
+        """Aplica a modulação de máscara sobre a imagem recebendo a matriz de transformação."""
         return self.apply_modulation(image, self.image)
 
     def merge(self, other: Effect, matrix: np.ndarray) -> Mask | None:

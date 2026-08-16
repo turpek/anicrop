@@ -225,6 +225,8 @@ class ProxyLayer(BaseHistoryProxy):
         "set_mask": BaseLayerCommand,
         "clear_mask": BaseLayerCommand,
         "clear_masks": BaseLayerCommand,
+        "add_effect": BaseLayerCommand,
+        "clear_effects": BaseLayerCommand,
         "add_edit": LayerImageCommand,
         "opacity_mask": LayerImageCommand,
     }
@@ -299,6 +301,8 @@ class GroupProxy(BaseContainerProxy):
         "set_mask": BaseLayerCommand,
         "clear_mask": BaseLayerCommand,
         "clear_masks": BaseLayerCommand,
+        "add_effect": BaseLayerCommand,
+        "clear_effects": BaseLayerCommand,
     }
 
     _CHAINABLE_PROPERTIES = ("transform",)
