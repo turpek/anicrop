@@ -48,17 +48,23 @@ def blend_normal_linear(base: Image, edit: Image, opacity: float = 1.0) -> None:
     if not np.any(mask):
         return
 
+    b_channels = 1 if b_view.shape[-1] == 1 else 3
+    e_channels = 1 if e_view.shape[-1] == 1 else 3
+
     # =====================================================================
     # 2. EXTRAÇÃO E LINEARIZAÇÃO DO OVERLAY (EDIT)
     # =====================================================================
-    # Para a curva Gamma funcionar, precisamos converter a cor para a escala 0.0 a 1.0 primeiro
-    rgb_e_srgb = e_view[mask, :3].astype(np.float32) / 255.0
+    rgb_e_srgb = e_view[mask, :e_channels].astype(np.float32) / 255.0
+
+    if b_channels == 3 and e_channels == 1:
+        rgb_e_srgb = np.repeat(rgb_e_srgb, 3, axis=-1)
+    elif b_channels == 1 and e_channels == 3:
+        rgb_e_srgb = (0.299 * rgb_e_srgb[..., 0:1] + 0.587 * rgb_e_srgb[..., 1:2] + 0.114 * rgb_e_srgb[..., 2:3])
 
     # LINEARIZA: Eleva a 2.2 para remover a curva da tela
     rgb_e_lin = rgb_e_srgb ** 2.2
 
     if e_view.shape[-1] == 4:
-        # ATENÇÃO: O canal Alpha NUNCA sofre correção de Gamma, ele é sempre linear!
         alpha_e = (e_view[mask, 3:4].astype(np.float32) / 255.0) * opacity
     else:
         alpha_e = np.full((np.count_nonzero(mask), 1), opacity, dtype=np.float32)
@@ -66,10 +72,11 @@ def blend_normal_linear(base: Image, edit: Image, opacity: float = 1.0) -> None:
     # =====================================================================
     # 3. MATEMÁTICA E DESLINEARIZAÇÃO (BASE)
     # =====================================================================
+    rgb_b_srgb = b_view[mask, :b_channels].astype(np.float32) / 255.0
+    rgb_b_lin = rgb_b_srgb ** 2.2  # Lineariza o fundo
+
     if b_view.shape[-1] == 4:
         # Fundo COM transparência
-        rgb_b_srgb = b_view[mask, :3].astype(np.float32) / 255.0
-        rgb_b_lin = rgb_b_srgb ** 2.2  # Lineariza o fundo
         alpha_b = b_view[mask, 3:4].astype(np.float32) / 255.0
 
         # Calcula o Alpha resultante da mesclagem (mesma fórmula Porter-Duff)
@@ -83,21 +90,17 @@ def blend_normal_linear(base: Image, edit: Image, opacity: float = 1.0) -> None:
         out_rgb_srgb = out_rgb_lin ** (1.0 / 2.2)
 
         # Injeta de volta (Cor sRGB e Alpha original)
-        b_view[mask, :3] = np.clip(out_rgb_srgb * 255, 0, 255).astype(np.uint8)
+        b_view[mask, :b_channels] = np.clip(out_rgb_srgb * 255, 0, 255).astype(np.uint8)
         b_view[mask, 3:4] = np.clip(out_a * 255, 0, 255).astype(np.uint8)
 
     else:
-        # Fundo SÓLIDO (Ex: RGB puro)
-        rgb_b_srgb = b_view[mask, :3].astype(np.float32) / 255.0
-        rgb_b_lin = rgb_b_srgb ** 2.2  # Lineariza o fundo
-
-        # Alpha Blending comum com as cores lineares
+        # Fundo SÓLIDO (Ex: RGB puro ou Grayscale)
         out_rgb_lin = (rgb_e_lin * alpha_e) + (rgb_b_lin * (1.0 - alpha_e))
 
         # Deslineariza o resultado final
         out_rgb_srgb = out_rgb_lin ** (1.0 / 2.2)
 
-        b_view[mask, :3] = np.clip(out_rgb_srgb * 255, 0, 255).astype(np.uint8)
+        b_view[mask, :b_channels] = np.clip(out_rgb_srgb * 255, 0, 255).astype(np.uint8)
 
 
 def blend_normal(base: Image, edit: Image, opacity: float = 1.0) -> None:
@@ -105,7 +108,6 @@ def blend_normal(base: Image, edit: Image, opacity: float = 1.0) -> None:
     Realiza o blend de forma segura usando a fórmula Porter-Duff 'Over',
     preservando as bordas suaves (anti-aliasing) em fundos transparentes.
     """
-    # Otimização suprema: se a camada for invisível, não fazemos nada!
     if opacity <= 0.0:
         return
 
@@ -116,23 +118,29 @@ def blend_normal(base: Image, edit: Image, opacity: float = 1.0) -> None:
     b_view = base_arr[:h, :w]
     e_view = edit_arr[:h, :w]
 
+    b_channels = 1 if b_view.shape[-1] == 1 else 3
+    e_channels = 1 if e_view.shape[-1] == 1 else 3
+
     # Fast-Path: Cópia direta para imagens 100% sólidas com opacidade total (1.0)
     if opacity >= 1.0:
-        if e_view.shape[-1] == 3 and b_view.shape[-1] == 3:
-            np.copyto(b_view, e_view)
-            return
-        if e_view.shape[-1] == 4 and b_view.shape[-1] == 4 and np.all(e_view[..., 3] == 255):
+        if e_view.shape[-1] == b_view.shape[-1] and (e_view.shape[-1] in (1, 3) or (e_view.shape[-1] == 4 and np.all(e_view[..., 3] == 255))):
             np.copyto(b_view, e_view)
             return
         if e_view.shape[-1] == 3 and b_view.shape[-1] == 4:
             np.copyto(b_view[..., :3], e_view)
             b_view[..., 3] = 255
             return
+        if e_view.shape[-1] == 1 and b_view.shape[-1] == 4:
+            np.copyto(b_view[..., :3], np.repeat(e_view, 3, axis=-1))
+            b_view[..., 3] = 255
+            return
+        if e_view.shape[-1] == 1 and b_view.shape[-1] == 3:
+            np.copyto(b_view, np.repeat(e_view, 3, axis=-1))
+            return
 
     # 1. Criar a máscara (Otimização)
     if e_view.shape[-1] == 4:
         mask = e_view[..., 3] > 0
-
     else:
         mask = np.ones((h, w), dtype=bool)
 
@@ -140,38 +148,38 @@ def blend_normal(base: Image, edit: Image, opacity: float = 1.0) -> None:
         return
 
     # 2. Extrair dados da imagem Edit (Cima)
-    rgb_e = e_view[mask, :3].astype(np.float32)
+    rgb_e = e_view[mask, :e_channels].astype(np.float32)
+    if b_channels == 3 and e_channels == 1:
+        rgb_e = np.repeat(rgb_e, 3, axis=-1)
+    elif b_channels == 1 and e_channels == 3:
+        rgb_e = (0.299 * rgb_e[..., 0:1] + 0.587 * rgb_e[..., 1:2] + 0.114 * rgb_e[..., 2:3])
+
     if e_view.shape[-1] == 4:
-        # AQUI ENTRA O OPACITY: Multiplicamos o alfa extraído pela opacidade da camada
         alpha_e = (e_view[mask, 3:4].astype(np.float32) / 255.0) * opacity
     else:
-        # Se a imagem não tiver alfa, a opacidade vira o próprio alfa!
         alpha_e = np.full((np.count_nonzero(mask), 1), opacity, dtype=np.float32)
 
     # 3. Matemática baseada no formato do Fundo (Base)
+    rgb_b = b_view[mask, :b_channels].astype(np.float32)
+
     if b_view.shape[-1] == 4:
         # Fundo COM transparência (Usa Porter-Duff Over)
-        rgb_b = b_view[mask, :3].astype(np.float32)
         alpha_b = b_view[mask, 3:4].astype(np.float32) / 255.0
 
         # Calcula o Alpha resultante da mesclagem das duas camadas
         out_a = alpha_e + alpha_b * (1.0 - alpha_e)
-
-        # Evita divisão por zero onde o pixel final for 100% transparente
         out_a_safe = np.where(out_a == 0, 1.0, out_a)
 
-        # A Mágica: Multiplica as cores pelos seus respectivos Alphas
         out_rgb = (rgb_e * alpha_e + rgb_b * alpha_b * (1.0 - alpha_e)) / out_a_safe
 
         # Injeta de volta (Cor e Alpha novo)
-        b_view[mask, :3] = np.clip(out_rgb, 0, 255).astype(np.uint8)
+        b_view[mask, :b_channels] = np.clip(out_rgb, 0, 255).astype(np.uint8)
         b_view[mask, 3:4] = np.clip(out_a * 255, 0, 255).astype(np.uint8)
 
     else:
-        # Fundo SÓLIDO (Ex: RGB puro)
-        # Aqui o fundo é 100% opaco, então o Alpha Blending simples funciona perfeitamente
-        out_rgb = (rgb_e * alpha_e) + (b_view[mask, :3] * (1.0 - alpha_e))
-        b_view[mask, :3] = np.clip(out_rgb, 0, 255).astype(np.uint8)
+        # Fundo SÓLIDO (Ex: RGB puro ou Grayscale)
+        out_rgb = (rgb_e * alpha_e) + (rgb_b * (1.0 - alpha_e))
+        b_view[mask, :b_channels] = np.clip(out_rgb, 0, 255).astype(np.uint8)
 
 
 def hard_masking_overlay_with_alpha(

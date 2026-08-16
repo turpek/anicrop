@@ -477,13 +477,12 @@ def test_scene_traverser_pre_culling_ignora_camadas_e_grupos_fora_da_superficie(
     stack.append(layer_out)
     stack.append(group_out)
     canvas = Canvas.from_size(100, 100)
-    spy_frame = mocker.spy(CanvasFrame, "__init__")
-
     renderer = CanvasRender()
+    spy_render = mocker.spy(renderer, "render_area")
     _ = renderer.render_scene(stack, canvas)
 
-    assert spy_frame.call_count == 1
-    assert spy_frame.call_args[0][1] == layer_in
+    assert spy_render.call_count == 1
+    assert spy_render.call_args[0][0] == layer_in
 
 
 def test_scene_traverser_pre_culling_respeita_view_region_em_render_patch(mocker):
@@ -495,13 +494,13 @@ def test_scene_traverser_pre_culling_respeita_view_region_em_render_patch(mocker
     stack.append(layer_in_patch)
     canvas = Canvas.from_size(200, 200)
     patch_region = Region.from_rect(70, 70, 50, 50)
-    spy_frame = mocker.spy(CanvasFrame, "__init__")
 
     renderer = CanvasRender()
+    spy_render = mocker.spy(renderer, "render_area")
     _ = renderer.render_patch(stack, canvas, patch_region)
 
-    assert spy_frame.call_count == 1
-    assert spy_frame.call_args[0][1] == layer_in_patch
+    assert spy_render.call_count == 1
+    assert spy_render.call_args[0][0] == layer_in_patch
 
 
 def test_warp_affine_com_parametro_dst_reutiliza_buffer_prealocado():

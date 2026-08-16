@@ -238,3 +238,25 @@ def test_blend_normal_fast_path_copyto(mocker, base_fmt, edit_fmt, edit_alpha, o
     blend_normal(base, edit, opacity=opacity)
 
     assert spy_copyto.called is expected_copyto
+
+
+@pytest.mark.parametrize(
+    "base_fmt, edit_fmt, edit_color, expected_pixel",
+    [
+        pytest.param(ImageFormat.RGBA, ImageFormat.RGB, [255, 0, 0], [255, 0, 0, 255], id="base_rgba_edit_rgb"),
+        pytest.param(ImageFormat.RGB, ImageFormat.RGBA, [0, 255, 0, 255], [0, 255, 0], id="base_rgb_edit_rgba"),
+        pytest.param(ImageFormat.GRAY, ImageFormat.RGB, [255, 0, 0], [76], id="base_gray_edit_red"),
+        pytest.param(ImageFormat.RGB, ImageFormat.GRAY, [128], [128, 128, 128], id="base_rgb_edit_gray"),
+        pytest.param(ImageFormat.GRAY, ImageFormat.GRAY, [200], [200], id="base_gray_edit_gray"),
+    ],
+)
+def test_blend_normal_formatos_mistos(base_fmt, edit_fmt, edit_color, expected_pixel):
+    """Valida se blend_normal harmoniza e converte formatos mistos corretamente."""
+    base = Image(np.zeros((10, 10, base_fmt.channels), dtype=np.uint8), base_fmt)
+    edit_arr = np.zeros((10, 10, edit_fmt.channels), dtype=np.uint8)
+    edit_arr[:] = edit_color
+    edit = Image(edit_arr, edit_fmt)
+
+    blend_normal(base, edit, opacity=1.0)
+
+    np.testing.assert_array_equal(base[0, 0], expected_pixel)

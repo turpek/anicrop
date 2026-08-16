@@ -96,7 +96,7 @@ def test_canvas_render_achatar_edicoes_e_transformar(canvas_render):
 def test_render_fluxo_real_com_quina(canvas_render):
     """Testa fluxo encadeado de rotação inicial, adição de edição na quina, rotação inversa e escala."""
     bg_image = make_img(w=100, h=100, color=(0, 0, 255, 255))
-    layer = Layer(bg_image, Region.from_size(100, 100))
+    layer = Layer(bg_image)
     layer.transform.rotate(90)
 
     edit_data = np.zeros((20, 20, 4), dtype=np.uint8)

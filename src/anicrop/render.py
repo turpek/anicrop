@@ -9,7 +9,7 @@ import numpy as np
 from anicrop.blend import blend_rendered_images, BLEND_MODE
 from anicrop.canvas import Canvas
 from anicrop.container import BaseLayer, Container, GroupLayer, freeze_geometry
-from anicrop.enums import InterpolationOption, WarpMode
+from anicrop.enums import BlendMode, InterpolationOption, WarpMode
 from anicrop.frame import (
     BaseFrame,
     CanvasFrame,
@@ -123,11 +123,16 @@ def generate_opacity_mask(
     image: Image,
     render_region: Region,
     viewport_size: tuple[int, int],
-    target_size=(32, 32)
+    target_size=(32, 32),
+    opacity: float = 1.0,
+    blend_mode: BlendMode = BlendMode.NORMAL,
 ) -> np.ndarray:
     """Função usada para gerar miniaturas do layer mapeadas proporcionalmente na tela"""
 
     eroded_alpha = np.zeros(target_size, dtype=np.uint8)
+
+    if blend_mode != BlendMode.NORMAL or opacity <= 0.0:
+        return eroded_alpha
 
     scale_x = target_size[0] / viewport_size[0]
     scale_y = target_size[1] / viewport_size[1]
@@ -149,6 +154,9 @@ def generate_opacity_mask(
                                interpolation=cv2.INTER_NEAREST)
     else:
         mini_mask = np.full((th_img, tw_img), 255, dtype=np.uint8)
+
+    if opacity < 1.0:
+        mini_mask = (mini_mask.astype(np.float32) * opacity).astype(np.uint8)
 
     # Descobre as coordenadas proporcionais na grade target_size
     start_x = int(render_region.top_left[0] * scale_x)
@@ -284,25 +292,22 @@ class SceneTraverser:
         local=False,
     ) -> list[tuple[BaseLayer, Image, Region]]:
         rendered_items: list[tuple[BaseLayer, Image, Region]] = []
-        effective_region = view_region if view_region is not None else self.surface.region
 
         for item in container:
-            if not item.visible or not item.global_region.overlaps(effective_region):
+            frame = self.frame_cls(item, self.surface, view_region, local=local)
+            if not item.visible or frame.dst_region is None:
                 continue
 
             if isinstance(item, GroupLayer):
-                group_frame = self.frame_cls(item, self.surface, view_region, local=local)
-                dst_region = group_frame.dst_region
-                children_items = self.traverse(item, dst_region)
+                children_items = self.traverse(item, frame.dst_region)
 
                 if children_items:
-                    buffer = Image.new(dst_region.size, ImageFormat.RGBA)
+                    buffer = Image.new(frame.dst_region.size, ImageFormat.RGBA)
                     group_image = blend_rendered_images(children_items, buffer)
-                    rendered_items.append((item, group_image, group_frame.targ_region))
+                    rendered_items.append((item, group_image, frame.targ_region))
                     if np.all(self.miniview == 255):
                         break
             else:
-                frame = self.frame_cls(item, self.surface, view_region, local=local)
                 image = self.renderer.render_area(item, frame, self.interp)
 
                 if image:
@@ -350,9 +355,8 @@ class BaseRenderer[FrameT: BaseFrame](ABC):
         plan: BaseFrame,
         interp: InterpolationOption,
     ) -> Image:
-        scratch = self._get_scratch_buffer(*layer_image.size, layer_image.format)
-
         for edit_layer in layer._edits:
+            scratch = self._get_scratch_buffer(*layer_image.size, edit_layer.image.format)
             result = render_edit(edit_layer, plan, interp=interp, dst=scratch)
             if result is None:
                 continue
@@ -375,7 +379,12 @@ class BaseRenderer[FrameT: BaseFrame](ABC):
             image = self._flatten_edits(layer, layer_image, frame, interp)
 
             layer._opacity_mask = generate_opacity_mask(
-                image, dst_region, frame.surface_size, self._target_size
+                image,
+                dst_region,
+                frame.surface_size,
+                self._target_size,
+                opacity=layer.opacity,
+                blend_mode=layer.blend_mode,
             )
 
             return image
