@@ -56,6 +56,10 @@ class GeometryStrategy(ABC):
     def __init__(self) -> None:
         self._cached_matrix: ndarray | None = None
         self._resolve_matrix = self._direct_matrix
+        self._cached_region: Region | None = None
+        self._resolve_region = self._direct_region
+        self._cached_global_region: Region | None = None
+        self._resolve_global_region = self._direct_global_region
 
     @abstractmethod
     def _compute_matrix(self) -> ndarray:
@@ -76,15 +80,43 @@ class GeometryStrategy(ABC):
     def matrix(self) -> ndarray:
         return self._resolve_matrix()
 
-    @property
     @abstractmethod
-    def region(self) -> Region:
+    def _compute_region(self) -> Region:
+        """Calcula a região local dinamicamente."""
         ...
 
+    def _direct_region(self) -> Region:
+        """Executa o cálculo de região local dinamicamente."""
+        return self._compute_region()
+
+    def _lazy_region(self) -> Region:
+        """Retorna a região local em snapshot, calculando apenas na 1ª consulta."""
+        if self._cached_region is None:
+            self._cached_region = self._compute_region()
+        return self._cached_region
+
     @property
+    def region(self) -> Region:
+        return self._resolve_region()
+
     @abstractmethod
-    def global_region(self) -> Region:
+    def _compute_global_region(self) -> Region:
+        """Calcula a região global dinamicamente."""
         ...
+
+    def _direct_global_region(self) -> Region:
+        """Executa o cálculo de região global dinamicamente."""
+        return self._compute_global_region()
+
+    def _lazy_global_region(self) -> Region:
+        """Retorna a região global em snapshot, calculando apenas na 1ª consulta."""
+        if self._cached_global_region is None:
+            self._cached_global_region = self._compute_global_region()
+        return self._cached_global_region
+
+    @property
+    def global_region(self) -> Region:
+        return self._resolve_global_region()
 
 
 class LayerGeometry(GeometryStrategy):
@@ -98,12 +130,10 @@ class LayerGeometry(GeometryStrategy):
         base = self._base
         return base.parent.matrix @ mat_position(self.region) @ base.transform.matrix
 
-    @property
-    def region(self) -> Region:
+    def _compute_region(self) -> Region:
         return self._region
 
-    @property
-    def global_region(self) -> Region:
+    def _compute_global_region(self) -> Region:
         rect = calculate_new_rect(self.matrix, self.region.size)
         return Region.from_rect(*rect)
 
@@ -119,19 +149,17 @@ class GroupGeometry(GeometryStrategy):
         base = self._base
         return base.parent.matrix @ base._parent_inverse @ base.transform.matrix
 
-    def _calculate_region(self, attr_name: str) -> Region:
+    def _compute_region(self) -> Region:
         base = self._base
         if len(base):
-            return reduce(or_, [getattr(c, attr_name) for c in base])
+            return reduce(or_, [c.region for c in base])
         return self._region
 
-    @property
-    def region(self) -> Region:
-        return self._calculate_region('region')
-
-    @property
-    def global_region(self) -> Region:
-        return self._calculate_region('global_region')
+    def _compute_global_region(self) -> Region:
+        base = self._base
+        if len(base):
+            return reduce(or_, [c.global_region for c in base])
+        return self._region
 
 
 class FitGeometry(GeometryStrategy):
@@ -150,12 +178,10 @@ class FitGeometry(GeometryStrategy):
     def _compute_matrix(self) -> ndarray:
         return self._base.parent.matrix @ self._base.transform.matrix
 
-    @property
-    def region(self) -> Region:
+    def _compute_region(self) -> Region:
         return self._region
 
-    @property
-    def global_region(self) -> Region:
+    def _compute_global_region(self) -> Region:
         rect = calculate_region_rect(self.matrix, self._region)
         return Region.from_rect(*rect)
 
@@ -175,11 +201,9 @@ class FitGroupGeometry(GeometryStrategy):
     def _compute_matrix(self) -> ndarray:
         return self._base.matrix
 
-    @property
-    def region(self) -> Region:
+    def _compute_region(self) -> Region:
         return self._region
 
-    @property
-    def global_region(self) -> Region:
+    def _compute_global_region(self) -> Region:
         rect = calculate_region_rect(self.matrix, self._region)
         return Region.from_rect(*rect)

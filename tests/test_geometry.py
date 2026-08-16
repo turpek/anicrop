@@ -292,3 +292,26 @@ def test_freeze_geometry_restaura_em_caso_de_excecao():
             raise RuntimeError("Erro forçado")
 
     assert layer.base._cached_matrix is None
+
+
+def test_freeze_geometry_congelamento_region_e_global_region(mocker):
+    """Valida se freeze_geometry congela region e global_region de grupos e layers sob demanda."""
+    group = GroupLayer()
+    mock_img = MagicMock(spec=Image)
+    mock_img.size = (50, 50)
+    layer = Layer(mock_img)
+    group.append(layer)
+
+    spy_region = mocker.spy(group.layout, "_compute_region")
+    spy_global = mocker.spy(group.layout, "_compute_global_region")
+
+    with freeze_geometry(group):
+        for _ in range(5):
+            _ = group.region
+            _ = group.global_region
+
+        assert spy_region.call_count == 1
+        assert spy_global.call_count == 1
+
+    assert group.layout._cached_region is None
+    assert group.layout._cached_global_region is None

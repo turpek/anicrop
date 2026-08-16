@@ -257,12 +257,16 @@ def walk_nodes(root: BaseLayer | Container | Iterable[BaseLayer]) -> Generator[B
 
 @contextmanager
 def freeze_geometry(container: Container | Iterable[BaseLayer]) -> Generator[None, None, None]:
-    """Congela temporariamente o cálculo de matrizes com snapshot sob demanda para todos os nós."""
+    """Congela temporariamente o cálculo de matrizes e regiões com snapshot sob demanda para todos os nós."""
     def _toggle_freeze(enable: bool) -> None:
         for node in walk_nodes(container):
             for strategy in (node.control.base, node.control.layout):
                 strategy._cached_matrix = None
+                strategy._cached_region = None
+                strategy._cached_global_region = None
                 strategy._resolve_matrix = strategy._lazy_matrix if enable else strategy._direct_matrix
+                strategy._resolve_region = strategy._lazy_region if enable else strategy._direct_region
+                strategy._resolve_global_region = strategy._lazy_global_region if enable else strategy._direct_global_region
 
     _toggle_freeze(True)
     try:
