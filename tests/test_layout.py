@@ -347,3 +347,141 @@ def test_layout_fit_group_layer_rigid_unit_rotation_45():
 
     # O quadrado de 50x50 girado em 45° tem AABB perfeitamente simétrica de (72, 72)
     assert group.global_region.size == (72, 72)
+
+
+@pytest.mark.parametrize(
+    "new_w, new_h, anchor_x, anchor_y, expected_rect",
+    [
+        pytest.param(300, 200, 0.0, 0.0, (0, 0, 300, 200), id="anchor_top_left"),
+        pytest.param(300, 200, 0.5, 0.5, (-50, -50, 300, 200), id="anchor_center"),
+        pytest.param(300, 200, 1.0, 1.0, (-100, -100, 300, 200), id="anchor_bottom_right"),
+    ],
+)
+def test_group_layout_resize_bounds(new_w, new_h, anchor_x, anchor_y, expected_rect):
+    """Valida se layout.resize_bounds em GroupLayer redimensiona a moldura com as ancoras corretas sem alterar os filhos."""
+    group = GroupLayer()
+    layer1 = make_transformed_layer(x=0, y=0, w=100, h=50)
+    layer2 = make_transformed_layer(x=100, y=50, w=100, h=50)
+    group.append(layer1)
+    group.append(layer2)
+
+    layout = Layout()
+    result = layout.resize_bounds(group, new_w, new_h, anchor_x=anchor_x, anchor_y=anchor_y)
+
+    assert result is True
+    assert group.global_region == Region.from_rect(*expected_rect)
+    assert layer1.region == Region.from_rect(0, 0, 100, 50)
+    assert layer2.region == Region.from_rect(100, 50, 100, 50)
+
+
+def test_group_layout_fit_content(mocker):
+    """Valida se layout.fit_content em GroupLayer consolida o conteudo de todas as camadas filhas e ajusta a moldura do grupo."""
+    group = GroupLayer()
+    layer1 = make_transformed_layer(x=10, y=20, w=100, h=50)
+    layer2 = make_transformed_layer(x=100, y=50, w=100, h=50)
+
+    mock_img1 = MagicMock(spec=Image)
+    mock_img1.size = (40, 20)
+    edit1 = EditLayer(mock_img1, Region.from_rect(10, 10, 40, 20), np.identity(3))
+    layer1._edits.clear()
+    layer1._edits.append(edit1)
+
+    mock_img2 = MagicMock(spec=Image)
+    mock_img2.size = (80, 40)
+    edit2 = EditLayer(mock_img2, Region.from_rect(0, 0, 80, 40), np.identity(3))
+    layer2._edits.clear()
+    layer2._edits.append(edit2)
+
+    group.append(layer1)
+    group.append(layer2)
+
+    def fake_content_rect(img):
+        if img is mock_img1:
+            return Region.from_rect(0, 0, 40, 20)
+        return Region.from_rect(0, 0, 80, 40)
+
+    mocker.patch("anicrop.layout.calculate_content_rect", side_effect=fake_content_rect)
+
+    layout = Layout()
+    result = layout.fit_content(group)
+
+    assert result is True
+    assert group.global_region == Region.from_rect(20, 30, 160, 60)
+    assert layer1.region == Region.from_rect(10, 20, 100, 50)
+    assert layer2.region == Region.from_rect(100, 50, 100, 50)
+
+
+def test_group_layout_fit_content_com_camada_filha_rotacionada(mocker):
+    """Valida se layout.fit_content em GroupLayer projeta corretamente o conteudo de camada filha com rotacao de 90°."""
+    group = GroupLayer()
+    layer = make_transformed_layer(x=50, y=50, w=100, h=100, transform=TransformRel().rotate(90))
+
+    mock_img = MagicMock(spec=Image)
+    mock_img.size = (40, 20)
+    edit = EditLayer(mock_img, Region.from_rect(20, 30, 40, 20), np.identity(3))
+    layer._edits.clear()
+    layer._edits.append(edit)
+    group.append(layer)
+
+    mocker.patch(
+        "anicrop.layout.calculate_content_rect",
+        return_value=Region.from_rect(0, 0, 40, 20),
+    )
+
+    layout = Layout()
+    result = layout.fit_content(group)
+
+    assert result is True
+    assert group.global_region.size == (20, 40)
+
+
+def test_canvas_fit_content_com_group_layer_aninhado(mocker):
+    """Valida se layout.fit_content em Canvas calcula a bounding box global através de GroupLayers recursivos."""
+    group = GroupLayer()
+    layer = make_transformed_layer(x=20, y=30, w=100, h=50)
+
+    mock_img = MagicMock(spec=Image)
+    mock_img.size = (40, 20)
+    edit = EditLayer(mock_img, Region.from_rect(10, 10, 40, 20), np.identity(3))
+    layer._edits.clear()
+    layer._edits.append(edit)
+    group.append(layer)
+
+    mocker.patch(
+        "anicrop.layout.calculate_content_rect",
+        return_value=Region.from_rect(0, 0, 40, 20),
+    )
+
+    canvas = Canvas.from_size(500, 500)
+    layout = Layout()
+    result = layout.fit_content(canvas, [group])
+
+    assert result is True
+    assert canvas.region == Region.from_rect(30, 40, 40, 20)
+
+
+def test_group_layout_fit_content_empty_group():
+    """Valida se layout.fit_content em GroupLayer vazio retorna False sem alterar a moldura."""
+    group = GroupLayer()
+    layout = Layout()
+
+    result = layout.fit_content(group)
+
+    assert result is False
+
+
+def test_group_layout_fit_content_already_fitted(mocker):
+    """Valida se layout.fit_content em GroupLayer cujo conteudo ja coincide com a moldura retorna False."""
+    group = GroupLayer()
+    layer = make_transformed_layer(x=0, y=0, w=100, h=50)
+    group.append(layer)
+
+    mocker.patch(
+        "anicrop.layout.calculate_content_rect",
+        return_value=Region.from_rect(0, 0, 100, 50),
+    )
+
+    layout = Layout()
+    result = layout.fit_content(group)
+
+    assert result is False

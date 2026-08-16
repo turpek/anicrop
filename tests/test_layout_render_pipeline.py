@@ -8,7 +8,7 @@ from anicrop.canvas import Canvas
 from anicrop.container import GroupLayer
 from anicrop.frame import CanvasFrame
 from anicrop.image import Image, ImageFormat
-from anicrop.layer import Layer
+from anicrop.layer import Layer, EditLayer
 from anicrop.layout import Layout
 from anicrop.render import CanvasRender
 from anicrop.spatial import Region
@@ -576,3 +576,147 @@ def test_resize_bounds_in_parent_group_render_pipeline(mocker):
     assert spy_view.call_count >= 1
     view_region_arg = spy_view.call_args_list[-1][0][1]
     assert view_region_arg == Region.from_rect(0, 0, 100, 50)
+
+
+def test_group_layout_fit_content_render_pipeline(mocker):
+    """Testa o pipeline real de renderização quando layout.fit_content é executado em um GroupLayer com múltiplas camadas."""
+    def fake_render_patch(image, m_render, dest_region, *args, **kwargs):
+        return np.zeros((dest_region.height, dest_region.width, 4), dtype=np.uint8)
+
+    mocker.patch("anicrop.render.render_patch", side_effect=fake_render_patch)
+
+    group = GroupLayer()
+    layer1 = make_test_layer((10, 20), TransformRel())
+    layer2 = make_test_layer((100, 50), TransformRel())
+
+    img1 = Image.new((40, 20), ImageFormat.RGBA)
+    edit1 = EditLayer(img1, Region.from_rect(10, 10, 40, 20), np.identity(3))
+    layer1._edits.clear()
+    layer1._edits.append(edit1)
+
+    img2 = Image.new((80, 40), ImageFormat.RGBA)
+    edit2 = EditLayer(img2, Region.from_rect(0, 0, 80, 40), np.identity(3))
+    layer2._edits.clear()
+    layer2._edits.append(edit2)
+
+    group.append(layer1)
+    group.append(layer2)
+
+    def fake_content_rect(img):
+        if img is img1:
+            return Region.from_rect(0, 0, 40, 20)
+        return Region.from_rect(0, 0, 80, 40)
+
+    mocker.patch("anicrop.layout.calculate_content_rect", side_effect=fake_content_rect)
+
+    layout = Layout()
+    layout.fit_content(group)
+
+    renderer = CanvasRender()
+    canvas = Canvas(group.global_region)
+    rendered_image = renderer.render_scene([group], canvas)
+
+    assert rendered_image is not None
+    assert rendered_image.size == (160, 60)
+
+
+def test_group_layout_align_render_pipeline(mocker):
+    """Testa o pipeline real de renderização quando layout.align é executado em um GroupLayer."""
+    def fake_render_patch(image, m_render, dest_region, *args, **kwargs):
+        return np.zeros((dest_region.height, dest_region.width, 4), dtype=np.uint8)
+
+    mocker.patch("anicrop.render.render_patch", side_effect=fake_render_patch)
+
+    group = GroupLayer()
+    layer1 = make_test_layer((0, 0), TransformRel())
+    layer2 = make_test_layer((100, 50), TransformRel())
+    group.append(layer1)
+    group.append(layer2)
+
+    canvas = Canvas.from_size(400, 300)
+    layout = Layout()
+    layout.align(group, canvas, anchor_x=1.0, anchor_y=1.0)
+
+    renderer = CanvasRender()
+    rendered_image = renderer.render_scene([group], canvas)
+
+    assert rendered_image is not None
+    assert rendered_image.size == canvas.size
+    assert group.global_region == Region.from_rect(200, 200, 200, 100)
+
+
+def test_group_layout_fit_render_pipeline(mocker):
+    """Testa o pipeline real de renderização quando layout.fit é executado em um GroupLayer."""
+    def fake_render_patch(image, m_render, dest_region, *args, **kwargs):
+        return np.zeros((dest_region.height, dest_region.width, 4), dtype=np.uint8)
+
+    mocker.patch("anicrop.render.render_patch", side_effect=fake_render_patch)
+
+    group = GroupLayer()
+    layer1 = make_test_layer((0, 0), TransformRel())
+    layer2 = make_test_layer((50, 25), TransformRel())
+    group.append(layer1)
+    group.append(layer2)
+
+    layout = Layout()
+    layout.fit(group, Region.from_rect(20, 20, 100, 60))
+
+    canvas = Canvas.from_size(300, 300)
+    renderer = CanvasRender()
+    rendered_image = renderer.render_scene([group], canvas)
+
+    assert rendered_image is not None
+    assert group.global_region == Region.from_rect(20, 20, 100, 60)
+
+
+def test_group_layout_resize_bounds_render_pipeline(mocker):
+    """Testa o pipeline real de renderização quando layout.resize_bounds é executado em um GroupLayer com ancoras centradas."""
+    def fake_render_patch(image, m_render, dest_region, *args, **kwargs):
+        return np.zeros((dest_region.height, dest_region.width, 4), dtype=np.uint8)
+
+    mocker.patch("anicrop.render.render_patch", side_effect=fake_render_patch)
+
+    group = GroupLayer()
+    layer = make_test_layer((50, 50), TransformRel())
+    group.append(layer)
+
+    layout = Layout()
+    layout.resize_bounds(group, 200, 100, anchor_x=0.5, anchor_y=0.5)
+
+    canvas = Canvas.from_size(300, 300)
+    renderer = CanvasRender()
+    rendered_image = renderer.render_scene([group], canvas)
+
+    assert rendered_image is not None
+    assert group.global_region == Region.from_rect(0, 25, 200, 100)
+
+
+def test_canvas_layout_fit_content_render_pipeline(mocker):
+    """Testa o pipeline real de renderização quando layout.fit_content é executado em um Canvas contendo camadas com edições."""
+    def fake_render_patch(image, m_render, dest_region, *args, **kwargs):
+        return np.zeros((dest_region.height, dest_region.width, 4), dtype=np.uint8)
+
+    mocker.patch("anicrop.render.render_patch", side_effect=fake_render_patch)
+
+    layer = make_test_layer((50, 50), TransformRel())
+    img = Image.new((100, 80), ImageFormat.RGBA)
+    edit = EditLayer(img, Region.from_rect(20, 30, 100, 80), np.identity(3))
+    layer._edits.clear()
+    layer._edits.append(edit)
+
+    mocker.patch(
+        "anicrop.layout.calculate_content_rect",
+        return_value=Region.from_rect(0, 0, 100, 80),
+    )
+
+    canvas = Canvas.from_size(800, 600)
+    layout = Layout()
+    layout.fit_content(canvas, [layer])
+
+    assert canvas.region == Region.from_rect(70, 80, 100, 80)
+
+    renderer = CanvasRender()
+    rendered_image = renderer.render_scene([layer], canvas)
+
+    assert rendered_image is not None
+    assert rendered_image.size == (100, 80)

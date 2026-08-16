@@ -32,7 +32,8 @@ def resolve_region(
     return ref
 
 
-def content_region(target: Layer | GroupLayer) -> Region | None:
+def content_region(target: Layer) -> Region | None:
+    """Calcula a ROI de conteúdo no espaço de coordenadas do Layer (somada com base.region.top_left)."""
     if not target._edits:
         return None
 
@@ -40,8 +41,35 @@ def content_region(target: Layer | GroupLayer) -> Region | None:
         return calculate_content_rect(edit.image) + edit.region.top_left
 
     content_roi = reduce(or_, [roi(e) for e in target._edits])
-    content_roi += target.base.region.top_left
-    return content_roi
+    return content_roi + target.base.region.top_left
+
+
+def global_content_region(
+    container: Layer | Container | Sequence[Layer],
+) -> Region | None:
+    """Calcula a Bounding Box de conteúdo de todos os elementos projetada no Espaço Global."""
+    def _extract(item: Layer | Container | Sequence[Layer]) -> Iterator[Region]:
+        if isinstance(item, Layer):
+            if not item._edits:
+                return
+
+            def roi(edit):
+                return calculate_content_rect(edit.image) + edit.region.top_left
+
+            local_roi = reduce(or_, [roi(e) for e in item._edits])
+            rect = calculate_region_rect(mat_global(item), local_roi)
+            yield Region.from_rect(*rect)
+        else:
+            for child in item:
+                yield from _extract(child)
+
+    regions = filter(None, _extract(container))
+    try:
+        first_region = next(regions)
+    except StopIteration:
+        return None
+
+    return reduce(or_, regions, first_region)
 
 
 class LayerLayoutStrategy:
@@ -131,37 +159,13 @@ class CanvasLayoutStrategy:
         return cls.fit(target, ref_region)
 
     @classmethod
-    def _extract_items(
-        cls,
-        item: Layer | Container | Sequence[Layer],
-    ) -> Iterator[Region]:
-        if isinstance(item, Layer):
-            local_roi = content_region(item)
-            if local_roi is not None:
-                rect = calculate_region_rect(mat_global(item), local_roi)
-                yield Region.from_rect(*rect)
-        else:
-            for child in item:
-                yield from cls._extract_items(child)
-
-    @classmethod
     def fit_content(
         cls,
         target: Canvas,
         container: Container | Sequence[Layer],
     ) -> bool:
-        if len(container) == 0:
-            return False
-
-        regions = filter(None, cls._extract_items(container))
-
-        try:
-            new_region = next(regions)
-        except StopIteration:
-            return False
-
-        new_region = reduce(or_, regions, new_region)
-        if new_region == target.region:
+        new_region = global_content_region(container)
+        if new_region is None or new_region == target.region:
             return False
 
         target.region = new_region
@@ -209,12 +213,8 @@ class GroupLayoutStrategy:
 
     @classmethod
     def fit_content(cls, target: GroupLayer, *args, **kwargs) -> bool:
-        content_roi = content_region(target)
-        if content_roi is None:
-            return False
-        parent_mat = target.parent.matrix
-        global_roi = Region.from_rect(*calculate_region_rect(parent_mat, content_roi))
-        if target.global_region == global_roi:
+        global_roi = global_content_region(target)
+        if global_roi is None or target.global_region == global_roi:
             return False
         return cls.fit(target, global_roi)
 

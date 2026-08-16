@@ -10,7 +10,6 @@ from anicrop.spatial import Region
 
 if TYPE_CHECKING:
     from anicrop.container import BaseLayer
-    from anicrop.layer import Layer
 
 
 def blend_rendered_images(
