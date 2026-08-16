@@ -11,6 +11,13 @@ class BlendMode(Enum):
     HARD_MASKING = 'hard_masking'
 
 
+class BlurMode(StrEnum):
+    """Algoritmo de desfoque utilizado por filtros de desfoque."""
+    GAUSSIAN = "gaussian"
+    BOX = "box"
+    MEDIAN = "median"
+
+
 class InterpolationOption(Enum):
     """Opções de interpolação do OpenCV para o motor de renderização."""
 
