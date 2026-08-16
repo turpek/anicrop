@@ -60,9 +60,8 @@ class BlurFilter(Effect):
 
         return (pad_y, pad_x, pad_y, pad_x)
 
-    def _apply_directional(self, src_data: np.ndarray) -> np.ndarray:
+    def _apply_directional(self, src_data: np.ndarray, length: float, angle_deg: float) -> np.ndarray:
         """Aplica desfoque direcional linear no ângulo especificado usando kernel 2D rotacionado."""
-        length = self.radius_x
         multiplier = 3.0 if self.mode == BlurMode.GAUSSIAN else 2.0
         ksize = max(3, int(math.ceil(length * multiplier))) | 1
 
@@ -77,7 +76,7 @@ class BlurFilter(Effect):
 
         # Rotaciona a linha do kernel para a inclinação desejada
         center = (ksize / 2.0 - 0.5, ksize / 2.0 - 0.5)
-        rot_mat = cv2.getRotationMatrix2D(center, -self.angle, 1.0)
+        rot_mat = cv2.getRotationMatrix2D(center, -angle_deg, 1.0)
         rotated_kernel = cv2.warpAffine(kernel, rot_mat, (ksize, ksize))
 
         k_sum = np.sum(rotated_kernel)
@@ -87,38 +86,53 @@ class BlurFilter(Effect):
         return cv2.filter2D(src_data, -1, rotated_kernel, borderType=cv2.BORDER_REFLECT_101)
 
     def apply(self, image: Image, matrix: np.ndarray | None = None) -> Image:
-        """Processa e desfoca o buffer de imagem."""
+        """Processa e desfoca o buffer de imagem adaptando ângulo e escala a partir da matriz afim."""
         if self.strength <= 0.0 or (self.radius_x <= 0.0 and self.radius_y <= 0.0):
             return image
 
         src_data = image[...]
 
-        if self.angle != 0.0 and self.mode in (BlurMode.GAUSSIAN, BlurMode.BOX):
-            processed = self._apply_directional(src_data)
+        # Resolve ângulo e escalas efetivas no espaço de renderização a partir da matriz afim
+        if matrix is not None:
+            mat_angle_deg = math.degrees(math.atan2(float(matrix[1, 0]), float(matrix[0, 0])))
+            effective_angle = self.angle + mat_angle_deg
+
+            scale_x = math.hypot(float(matrix[0, 0]), float(matrix[1, 0]))
+            scale_y = math.hypot(float(matrix[0, 1]), float(matrix[1, 1]))
+            effective_rx = self.radius_x * scale_x
+            effective_ry = self.radius_y * scale_y
+        else:
+            effective_angle = self.angle
+            effective_rx = self.radius_x
+            effective_ry = self.radius_y
+
+        effective_angle = (effective_angle + 180.0) % 360.0 - 180.0
+
+        if abs(effective_angle) > 1e-4 and self.mode in (BlurMode.GAUSSIAN, BlurMode.BOX):
+            processed = self._apply_directional(src_data, length=effective_rx, angle_deg=effective_angle)
         elif self.mode == BlurMode.GAUSSIAN:
-            # Tratamento explícito de 1D vs 2D para contornar a regra interna do OpenCV onde sigmaY=0 herda sigmaX
-            if self.radius_x > 0 and self.radius_y == 0:
-                kx = int(math.ceil(self.radius_x * 3.0)) * 2 + 1
+            if effective_rx > 0 and effective_ry <= 1e-4:
+                kx = int(math.ceil(effective_rx * 3.0)) * 2 + 1
                 processed = cv2.GaussianBlur(
-                    src_data, (kx, 1), sigmaX=self.radius_x, sigmaY=0, borderType=cv2.BORDER_REFLECT_101
+                    src_data, (kx, 1), sigmaX=effective_rx, sigmaY=0, borderType=cv2.BORDER_REFLECT_101
                 )
-            elif self.radius_x == 0 and self.radius_y > 0:
-                ky = int(math.ceil(self.radius_y * 3.0)) * 2 + 1
+            elif effective_rx <= 1e-4 and effective_ry > 0:
+                ky = int(math.ceil(effective_ry * 3.0)) * 2 + 1
                 processed = cv2.GaussianBlur(
-                    src_data, (1, ky), sigmaX=0, sigmaY=self.radius_y, borderType=cv2.BORDER_REFLECT_101
+                    src_data, (1, ky), sigmaX=0, sigmaY=effective_ry, borderType=cv2.BORDER_REFLECT_101
                 )
             else:
-                kx = int(math.ceil(self.radius_x * 3.0)) * 2 + 1
-                ky = int(math.ceil(self.radius_y * 3.0)) * 2 + 1
+                kx = int(math.ceil(effective_rx * 3.0)) * 2 + 1
+                ky = int(math.ceil(effective_ry * 3.0)) * 2 + 1
                 processed = cv2.GaussianBlur(
-                    src_data, (kx, ky), sigmaX=self.radius_x, sigmaY=self.radius_y, borderType=cv2.BORDER_REFLECT_101
+                    src_data, (kx, ky), sigmaX=effective_rx, sigmaY=effective_ry, borderType=cv2.BORDER_REFLECT_101
                 )
         elif self.mode == BlurMode.BOX:
-            kx = max(1, int(round(self.radius_x * 2.0 + 1.0))) | 1 if self.radius_x > 0 else 1
-            ky = max(1, int(round(self.radius_y * 2.0 + 1.0))) | 1 if self.radius_y > 0 else 1
+            kx = max(1, int(round(effective_rx * 2.0 + 1.0))) | 1 if effective_rx > 0 else 1
+            ky = max(1, int(round(effective_ry * 2.0 + 1.0))) | 1 if effective_ry > 0 else 1
             processed = cv2.boxFilter(src_data, -1, (kx, ky), borderType=cv2.BORDER_REFLECT_101)
         elif self.mode == BlurMode.MEDIAN:
-            k = max(1, int(round(self.radius_x * 2.0 + 1.0))) | 1
+            k = max(1, int(round(effective_rx * 2.0 + 1.0))) | 1
             processed = cv2.medianBlur(src_data, k)
         else:
             processed = src_data

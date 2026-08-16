@@ -190,6 +190,32 @@ def test_blur_filter_directional_angle_diffuses_along_diagonal():
     assert result[25, 5, 0] == 0
 
 
+def test_blur_filter_apply_with_rotated_matrix_adjusts_effective_angle():
+    """Valida se uma matriz rotacionada em 45 graus ajusta automaticamente o ângulo de desfoque."""
+    data = np.zeros((31, 31, 4), dtype=np.uint8)
+    data[..., -1] = 255
+    data[15, 15, :3] = 255
+    img = Image(data, ImageFormat.RGBA)
+
+    # Blur horizontal local (angle=0), mas com matriz rotacionada em 45 graus
+    blur = BlurFilter(radius=8.0, angle=0.0, mode=BlurMode.GAUSSIAN)
+
+    rad = math.radians(45.0)
+    cos_a, sin_a = math.cos(rad), math.sin(rad)
+    matrix = np.array([
+        [cos_a, -sin_a, 0.0],
+        [sin_a, cos_a, 0.0],
+        [0.0, 0.0, 1.0],
+    ], dtype=np.float32)
+
+    result = blur.apply(img, matrix)
+
+    # O desfoque horizontal acompanhou a rotação da matriz e espalhou na diagonal de 45 graus
+    assert result[17, 17, 0] > 0
+    assert result[13, 13, 0] > 0
+    assert result[25, 5, 0] == 0
+
+
 def test_render_layer_with_blur_filter_in_pipeline():
     """Valida a renderização completa de uma camada com BlurFilter aplicado via CanvasRender."""
     canvas = Canvas.from_size(100, 100)
