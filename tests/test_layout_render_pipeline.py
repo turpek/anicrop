@@ -72,7 +72,7 @@ def test_render_pipeline_integration(
     def fake_render_patch(image, m_render, dest_region, *args, **kwargs):
         return np.zeros((dest_region.height, dest_region.width, 4), dtype=np.uint8)
 
-    mocker.patch("anicrop.render.render_patch", side_effect=fake_render_patch)
+    mocker.patch("anicrop.render.warp_patch", side_effect=fake_render_patch)
 
     layer = make_test_layer(top_left, transform)
     spy_view = mocker.spy(Image, "view")
@@ -96,7 +96,7 @@ def test_render_pipeline_integration_with_parent_group_transforms(mocker):
     def fake_render_patch(image, m_render, dest_region, *args, **kwargs):
         return np.zeros((dest_region.height, dest_region.width, 4), dtype=np.uint8)
 
-    mocker.patch("anicrop.render.render_patch", side_effect=fake_render_patch)
+    mocker.patch("anicrop.render.warp_patch", side_effect=fake_render_patch)
 
     group = GroupLayer()
     group.set_transform(TransformRel().translate(20, 30).rotate(45).scale(2.0, 2.0))
@@ -170,7 +170,7 @@ def test_fit_geometry_render_pipeline(
     def fake_render_patch(image, m_render, dest_region, *args, **kwargs):
         return np.zeros((dest_region.height, dest_region.width, 4), dtype=np.uint8)
 
-    mocker.patch("anicrop.render.render_patch", side_effect=fake_render_patch)
+    mocker.patch("anicrop.render.warp_patch", side_effect=fake_render_patch)
 
     layer = make_test_layer(top_left, transform)
 
@@ -198,7 +198,7 @@ def test_fit_geometry_render_pipeline_with_parent_group_transforms(mocker):
     def fake_render_patch(image, m_render, dest_region, *args, **kwargs):
         return np.zeros((dest_region.height, dest_region.width, 4), dtype=np.uint8)
 
-    mocker.patch("anicrop.render.render_patch", side_effect=fake_render_patch)
+    mocker.patch("anicrop.render.warp_patch", side_effect=fake_render_patch)
 
     group = GroupLayer()
     group.set_transform(TransformRel().translate(20, 30).rotate(45).scale(2.0, 2.0))
@@ -264,7 +264,7 @@ def test_align_geometry_render_pipeline(
     def fake_render_patch(image, m_render, dest_region, *args, **kwargs):
         return np.zeros((dest_region.height, dest_region.width, 4), dtype=np.uint8)
 
-    mocker.patch("anicrop.render.render_patch", side_effect=fake_render_patch)
+    mocker.patch("anicrop.render.warp_patch", side_effect=fake_render_patch)
 
     layer = make_test_layer(top_left, transform)
     canvas = Canvas.from_size(200, 200)
@@ -293,7 +293,7 @@ def test_fit_and_align_geometry_render_pipeline(mocker):
     def fake_render_patch(image, m_render, dest_region, *args, **kwargs):
         return np.zeros((dest_region.height, dest_region.width, 4), dtype=np.uint8)
 
-    mocker.patch("anicrop.render.render_patch", side_effect=fake_render_patch)
+    mocker.patch("anicrop.render.warp_patch", side_effect=fake_render_patch)
 
     layer = make_test_layer((0, 0), TransformRel())
     canvas = Canvas.from_size(200, 200)
@@ -332,7 +332,7 @@ def test_fit_content_geometry_render_pipeline(mocker):
     def fake_render_patch(image, m_render, dest_region, *args, **kwargs):
         return np.zeros((dest_region.height, dest_region.width, 4), dtype=np.uint8)
 
-    mocker.patch("anicrop.render.render_patch", side_effect=fake_render_patch)
+    mocker.patch("anicrop.render.warp_patch", side_effect=fake_render_patch)
 
     # Imagem base de 200x200 cujo conteúdo visível fica entre (25, 25) e (175, 175) -> Region(25, 25, 150, 150)
     mocker.patch(
@@ -369,7 +369,7 @@ def test_fit_content_and_align_geometry_render_pipeline(mocker):
     def fake_render_patch(image, m_render, dest_region, *args, **kwargs):
         return np.zeros((dest_region.height, dest_region.width, 4), dtype=np.uint8)
 
-    mocker.patch("anicrop.render.render_patch", side_effect=fake_render_patch)
+    mocker.patch("anicrop.render.warp_patch", side_effect=fake_render_patch)
     mocker.patch(
         "anicrop.layout.calculate_content_rect",
         return_value=Region.from_rect(25, 25, 150, 150),
@@ -408,7 +408,7 @@ def test_fit_content_with_layer_transform_render_pipeline(mocker):
     def fake_render_patch(image, m_render, dest_region, *args, **kwargs):
         return np.zeros((dest_region.height, dest_region.width, 4), dtype=np.uint8)
 
-    mocker.patch("anicrop.render.render_patch", side_effect=fake_render_patch)
+    mocker.patch("anicrop.render.warp_patch", side_effect=fake_render_patch)
     mocker.patch(
         "anicrop.layout.calculate_content_rect",
         return_value=Region.from_rect(25, 25, 150, 150),
@@ -442,7 +442,7 @@ def test_fit_content_in_parent_group_render_pipeline(mocker):
     def fake_render_patch(image, m_render, dest_region, *args, **kwargs):
         return np.zeros((dest_region.height, dest_region.width, 4), dtype=np.uint8)
 
-    mocker.patch("anicrop.render.render_patch", side_effect=fake_render_patch)
+    mocker.patch("anicrop.render.warp_patch", side_effect=fake_render_patch)
     mocker.patch(
         "anicrop.layout.calculate_content_rect",
         return_value=Region.from_rect(25, 25, 150, 150),
@@ -521,7 +521,7 @@ def test_resize_bounds_geometry_render_pipeline(
     def fake_render_patch(image, m_render, dest_region, *args, **kwargs):
         return np.zeros((dest_region.height, dest_region.width, 4), dtype=np.uint8)
 
-    mocker.patch("anicrop.render.render_patch", side_effect=fake_render_patch)
+    mocker.patch("anicrop.render.warp_patch", side_effect=fake_render_patch)
 
     layer = make_test_layer((50, 50), TransformRel())
 
@@ -549,7 +549,7 @@ def test_resize_bounds_in_parent_group_render_pipeline(mocker):
     def fake_render_patch(image, m_render, dest_region, *args, **kwargs):
         return np.zeros((dest_region.height, dest_region.width, 4), dtype=np.uint8)
 
-    mocker.patch("anicrop.render.render_patch", side_effect=fake_render_patch)
+    mocker.patch("anicrop.render.warp_patch", side_effect=fake_render_patch)
 
     group = GroupLayer()
     group.set_transform(TransformRel().translate(20, 30))
@@ -583,7 +583,7 @@ def test_group_layout_fit_content_render_pipeline(mocker):
     def fake_render_patch(image, m_render, dest_region, *args, **kwargs):
         return np.zeros((dest_region.height, dest_region.width, 4), dtype=np.uint8)
 
-    mocker.patch("anicrop.render.render_patch", side_effect=fake_render_patch)
+    mocker.patch("anicrop.render.warp_patch", side_effect=fake_render_patch)
 
     group = GroupLayer()
     layer1 = make_test_layer((10, 20), TransformRel())
@@ -625,7 +625,7 @@ def test_group_layout_align_render_pipeline(mocker):
     def fake_render_patch(image, m_render, dest_region, *args, **kwargs):
         return np.zeros((dest_region.height, dest_region.width, 4), dtype=np.uint8)
 
-    mocker.patch("anicrop.render.render_patch", side_effect=fake_render_patch)
+    mocker.patch("anicrop.render.warp_patch", side_effect=fake_render_patch)
 
     group = GroupLayer()
     layer1 = make_test_layer((0, 0), TransformRel())
@@ -650,7 +650,7 @@ def test_group_layout_fit_render_pipeline(mocker):
     def fake_render_patch(image, m_render, dest_region, *args, **kwargs):
         return np.zeros((dest_region.height, dest_region.width, 4), dtype=np.uint8)
 
-    mocker.patch("anicrop.render.render_patch", side_effect=fake_render_patch)
+    mocker.patch("anicrop.render.warp_patch", side_effect=fake_render_patch)
 
     group = GroupLayer()
     layer1 = make_test_layer((0, 0), TransformRel())
@@ -674,7 +674,7 @@ def test_group_layout_resize_bounds_render_pipeline(mocker):
     def fake_render_patch(image, m_render, dest_region, *args, **kwargs):
         return np.zeros((dest_region.height, dest_region.width, 4), dtype=np.uint8)
 
-    mocker.patch("anicrop.render.render_patch", side_effect=fake_render_patch)
+    mocker.patch("anicrop.render.warp_patch", side_effect=fake_render_patch)
 
     group = GroupLayer()
     layer = make_test_layer((50, 50), TransformRel())
@@ -696,7 +696,7 @@ def test_canvas_layout_fit_content_render_pipeline(mocker):
     def fake_render_patch(image, m_render, dest_region, *args, **kwargs):
         return np.zeros((dest_region.height, dest_region.width, 4), dtype=np.uint8)
 
-    mocker.patch("anicrop.render.render_patch", side_effect=fake_render_patch)
+    mocker.patch("anicrop.render.warp_patch", side_effect=fake_render_patch)
 
     layer = make_test_layer((50, 50), TransformRel())
     img = Image.new((100, 80), ImageFormat.RGBA)

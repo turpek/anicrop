@@ -72,7 +72,7 @@ WARP_MODE = {
 }
 
 
-def render_patch(
+def warp_patch(
     src_image: Image,
     matrix_global: np.ndarray,
     dest_region: Region,
@@ -214,7 +214,7 @@ def render_image(
         return without_distortion(image, edit_bbox, dst_frame, dst_local, target_dst)
 
     # Executa o warp da imagem para a dest_region no espaço de destino
-    pixel_data = render_patch(image, m_render, dst_patch, warp_mode, interp, dst=target_dst)
+    pixel_data = warp_patch(image, m_render, dst_patch, warp_mode, interp, dst=target_dst)
 
     if pixel_data is None:
         return None
@@ -403,14 +403,18 @@ class BaseRenderer[FrameT: BaseFrame](ABC):
         surface: SurfaceProtocol,
         view_region: Region,
         interp: InterpolationOption = InterpolationOption.LANCZOS,
-    ) -> Image:
+    ) -> Image | None:
+        if not surface.region.overlaps(view_region):
+            return None
+
+        effective_region = surface.region & view_region
         with freeze_geometry(container):
             traverser = SceneTraverser(
                 self, surface, self.frame_cls, interp=interp, target_size=self._target_size
             )
-            images = traverser.traverse(container, view_region)
+            images = traverser.traverse(container, effective_region)
 
-            composition = Image.new(view_region.size, ImageFormat.RGBA, color=surface.bg_color)
+            composition = Image.new(effective_region.size, ImageFormat.RGBA, color=surface.bg_color)
             return blend_rendered_images(reversed(images), composition)
 
 

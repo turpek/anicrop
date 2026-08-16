@@ -190,6 +190,31 @@ def test_canvas_render_patch_com_group_layer_e_view_region():
     np.testing.assert_array_equal(result_image[0, 0], [0, 255, 0, 255])
 
 
+def test_canvas_render_patch_outside_surface_returns_none():
+    """Valida se o render_patch retorna None quando a view_region solicitada nao intercepta o surface."""
+    layer = make_layer(w=100, h=100, x=50, y=50)
+    canvas = Canvas.from_size(200, 200)
+    view_region = Region.from_rect(500, 500, 50, 50)
+
+    renderer = CanvasRender()
+    result_image = renderer.render_patch([layer], canvas, view_region=view_region)
+
+    assert result_image is None
+
+
+def test_canvas_render_patch_partial_overlap_returns_effective_size():
+    """Valida se o render_patch recorta e retorna o tamanho da intersecção quando a view_region ultrapassa as bordas do surface."""
+    layer = make_layer(w=100, h=100, x=0, y=0)
+    canvas = Canvas.from_size(200, 200)
+    view_region = Region.from_rect(-50, -50, 100, 100)
+
+    renderer = CanvasRender()
+    result_image = renderer.render_patch([layer], canvas, view_region=view_region)
+
+    assert result_image is not None
+    assert result_image.size == (50, 50)
+
+
 @pytest.mark.parametrize(
     "group_trans, group_frame_rect, child_rect, expect_child_slice, expect_group_slice",
     [

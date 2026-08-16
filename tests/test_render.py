@@ -19,8 +19,8 @@ from anicrop.render import (
     generate_opacity_mask,
     render_edit,
     render_image,
-    render_patch,
     warp_affine,
+    warp_patch,
     warp_perspective,
 )
 
@@ -78,7 +78,7 @@ def make_checkerboard_image(w: int = 20, h: int = 20) -> tuple[Image, dict[str, 
         pytest.param("modo_inexistente", "affine", id="fallback_affine_quando_modo_inexistente"),
     ],
 )
-def test_render_patch_dispatch_and_fallback(mocker, warp_mode, expected_target):
+def test_warp_patch_dispatch_and_fallback(mocker, warp_mode, expected_target):
     """Valida o despacho correto do WarpMode com fallback para warp_affine em modos não mapeados."""
     mocks = {
         "affine": mocker.patch("anicrop.render.warp_affine"),
@@ -91,7 +91,7 @@ def test_render_patch_dispatch_and_fallback(mocker, warp_mode, expected_target):
     )
 
     img = make_img(10, 10)
-    render_patch(img, np.eye(3), Region.from_size(10, 10), warp_mode=warp_mode)
+    warp_patch(img, np.eye(3), Region.from_size(10, 10), warp_mode=warp_mode)
 
     assert mocks[expected_target].called
 
@@ -322,8 +322,8 @@ def test_scene_traverser_ignora_tudo_se_raiz_for_invisivel(mocker):
 # ==============================================================================
 
 def test_canvas_render_area_culling_total_retorna_none(mocker):
-    """Valida se CanvasRender.render_area descarta camadas fora do Canvas retornando None sem invocar render_patch."""
-    spy_patch = mocker.spy(anicrop.render, "render_patch")
+    """Valida se CanvasRender.render_area descarta camadas fora do Canvas retornando None sem invocar warp_patch."""
+    spy_patch = mocker.spy(anicrop.render, "warp_patch")
     canvas = Canvas.from_size(500, 500)
     layer = make_layer(w=100, h=100, x=1000, y=1000)
     frame = CanvasFrame(layer, canvas)
@@ -383,7 +383,7 @@ def test_scene_traverser_grupo_com_todos_filhos_fora_da_tela_retorna_lista_vazia
 
 
 # ==============================================================================
-# Otimização: Fast-Path para Translação Pura (Bypass de render_patch)
+# Otimização: Fast-Path para Translação Pura (Bypass de warp_patch)
 # ==============================================================================
 
 @pytest.mark.parametrize(
@@ -394,8 +394,8 @@ def test_scene_traverser_grupo_com_todos_filhos_fora_da_tela_retorna_lista_vazia
     ],
 )
 def test_render_image_fast_path_translacao_pura(mocker, tx, ty):
-    """Valida se render_image realiza bypass completo de render_patch em matrizes de translação pura."""
-    spy_patch = mocker.spy(anicrop.render, "render_patch")
+    """Valida se render_image realiza bypass completo de warp_patch em matrizes de translação pura."""
+    spy_patch = mocker.spy(anicrop.render, "warp_patch")
     img = make_img(w=100, h=100, color=(255, 0, 0, 255))
     layer = make_layer(w=100, h=100, x=tx, y=ty, color=(255, 0, 0, 255))
     canvas = Canvas.from_size(200, 200)
@@ -412,8 +412,8 @@ def test_render_image_fast_path_translacao_pura(mocker, tx, ty):
 
 
 def test_render_image_rotacao_nao_ativa_fast_path(mocker):
-    """Valida se render_image continua delegando para render_patch quando houver rotação ou escala."""
-    spy_patch = mocker.spy(anicrop.render, "render_patch")
+    """Valida se render_image continua delegando para warp_patch quando houver rotação ou escala."""
+    spy_patch = mocker.spy(anicrop.render, "warp_patch")
     img = make_img(w=100, h=100, color=(255, 0, 0, 255))
     layer = make_layer(w=100, h=100, color=(255, 0, 0, 255))
     layer.transform.rotate(45)
@@ -428,8 +428,8 @@ def test_render_image_rotacao_nao_ativa_fast_path(mocker):
 
 
 def test_canvas_render_area_translacao_pura_com_mock_blend(mocker):
-    """Valida se CanvasRender.render_area executa o fast-path sem invocar render_patch nem onerar blend."""
-    spy_patch = mocker.spy(anicrop.render, "render_patch")
+    """Valida se CanvasRender.render_area executa o fast-path sem invocar warp_patch nem onerar blend."""
+    spy_patch = mocker.spy(anicrop.render, "warp_patch")
     mocker.patch.dict("anicrop.render.BLEND_MODE", {BlendMode.NORMAL: mocker.MagicMock()})
 
     layer = make_layer(w=100, h=100, x=10, y=10)
@@ -516,14 +516,14 @@ def test_warp_affine_com_parametro_dst_reutiliza_buffer_prealocado():
     np.testing.assert_array_equal(result[0, 0], [255, 255, 255, 255])
 
 
-def test_render_patch_com_parametro_dst_escreve_diretamente_no_buffer():
-    """Valida se render_patch reaproveita o array de destino passado em dst."""
+def test_warp_patch_com_parametro_dst_escreve_diretamente_no_buffer():
+    """Valida se warp_patch reaproveita o array de destino passado em dst."""
     src_img = make_img(w=50, h=50, color=(255, 0, 0, 255))
     m_global = np.identity(3, dtype=np.float32)
     dst_region = Region.from_size(50, 50)
     dst_buffer = np.zeros((50, 50, 4), dtype=np.uint8)
 
-    result = render_patch(src_img, m_global, dst_region, dst=dst_buffer)
+    result = warp_patch(src_img, m_global, dst_region, dst=dst_buffer)
 
     assert result is dst_buffer
     np.testing.assert_array_equal(result[0, 0], [255, 0, 0, 255])
