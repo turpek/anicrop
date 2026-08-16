@@ -149,7 +149,7 @@ def test_viewport_render_scene_posicionamento_camadas(viewport_render):
     fundo = make_layer(w=1080, h=719, color=(0, 0, 255, 255))
     logo = make_layer(w=200, h=200, x=150, y=100, color=(255, 0, 0, 255))
 
-    comp = viewport_render.render_scene([logo, fundo], viewport)
+    comp = viewport_render.render_scene([fundo, logo], viewport)
 
     assert comp.size == (800, 600)
     np.testing.assert_array_equal(comp[0, 0], [0, 0, 255, 255])
@@ -347,7 +347,7 @@ def test_canvas_render_scene_early_exit_por_oclusao_total(mocker):
     renderer = CanvasRender()
     spy_area = mocker.spy(renderer, "render_area")
 
-    result = renderer.render_scene([top_solid_layer, bottom_layer], canvas)
+    result = renderer.render_scene([bottom_layer, top_solid_layer], canvas)
 
     assert result.size == (200, 200)
     assert spy_area.call_count == 1

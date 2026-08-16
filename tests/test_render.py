@@ -152,9 +152,9 @@ def test_generate_opacity_mask_spatial_mapping():
     "layer_configs, expected_rendered_count",
     [
         pytest.param([(1.0, 0), (1.0, 0)], 2, id="sem_oclusao_todas_camadas_renderizadas"),
-        pytest.param([(1.0, 255), (1.0, 0)], 1, id="oclusao_total_pelo_topo_interrompe_abaixo"),
+        pytest.param([(1.0, 0), (1.0, 255)], 1, id="oclusao_total_pelo_topo_interrompe_abaixo"),
         pytest.param([(1.0, 0), (1.0, 255), (1.0, 0)], 2, id="oclusao_pelo_meio_renderiza_topo_e_meio"),
-        pytest.param([(0.9, 229), (1.0, 0)], 2, id="topo_semi_transparente_nao_interrompe"),
+        pytest.param([(1.0, 0), (0.9, 229)], 2, id="topo_semi_transparente_nao_interrompe"),
     ],
 )
 def test_render_scene_culling_por_oclusao(mocker, layer_configs, expected_rendered_count):

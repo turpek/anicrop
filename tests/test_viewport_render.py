@@ -87,7 +87,7 @@ def test_viewport_render_com_opacidade_e_blend():
     viewport = Viewport(size=(100, 100), fit_scale=1.0)
     vr = ViewportRender()
 
-    composition = vr.render_scene([fg_layer, bg_layer], viewport)
+    composition = vr.render_scene([bg_layer, fg_layer], viewport)
 
     pixel = composition[50, 50]
     assert pixel[0] > 0

@@ -15,6 +15,12 @@ def make_img(w: int = 10, h: int = 10) -> Image:
     return Image(np.zeros((h, w, 4), dtype=np.uint8), ImageFormat.RGBA)
 
 
+def make_solid(color: tuple[int, int, int, int], w: int = 50, h: int = 50) -> Image:
+    data = np.zeros((h, w, 4), dtype=np.uint8)
+    data[:] = color
+    return Image(data, ImageFormat.RGBA)
+
+
 def test_document_reactive_mode():
     """Valida inicialização do documento em modo reativo com histórico e proxies."""
     doc = Document("TestDoc", 100, 100, wrap_proxy=True)
@@ -218,3 +224,49 @@ def test_document_layout_property_integration():
 
     doc.history.undo()
     assert l1.region == Region.from_size(500, 500)
+
+
+def test_document_render_stack_z_order_bottom_to_top():
+    """Valida se camadas adicionadas sequencialmente na raiz respeitam a sobreposição visual (última sobre a primeira)."""
+    doc = Document("TestDoc", 50, 50)
+    doc.add(Layer(make_solid((255, 0, 0, 255), 50, 50), name="fundo_vermelho"))
+    doc.add(Layer(make_solid((0, 0, 255, 255), 50, 50), name="topo_azul"))
+
+    rendered = doc.render()
+
+    np.testing.assert_array_equal(rendered[0, 0], [0, 0, 255, 255])
+    np.testing.assert_array_equal(rendered[25, 25], [0, 0, 255, 255])
+
+
+def test_document_render_grouplayer_z_order_bottom_to_top():
+    """Valida se camadas adicionadas em um grupo respeitam a ordem de sobreposição interna."""
+    doc = Document("TestDoc", 50, 50)
+    group = doc.add_group("grupo")
+    group.append(Layer(make_solid((255, 0, 0, 255), 50, 50), name="g_fundo"))
+    group.append(Layer(make_solid((0, 255, 0, 255), 50, 50), name="g_topo"))
+
+    rendered = doc.render()
+
+    np.testing.assert_array_equal(rendered[0, 0], [0, 255, 0, 255])
+    np.testing.assert_array_equal(rendered[25, 25], [0, 255, 0, 255])
+
+
+def test_document_render_interleaved_hierarchy_z_order():
+    """Valida composição correta entre camadas soltas e grupos aninhados na pilha."""
+    doc = Document("TestDoc", 50, 50)
+    doc.add(Layer(make_solid((255, 0, 0, 255), 50, 50), name="base_fundo"))
+
+    group = doc.add_group("grupo_meio")
+    group.append(Layer(make_solid((0, 255, 0, 255), 50, 50), name="g_fundo"))
+    group.append(Layer(make_solid((255, 255, 0, 255), 50, 50), name="g_topo"))
+
+    doc.add(Layer(make_solid((0, 0, 255, 255), 50, 50), name="topo_geral"))
+
+    # Topo geral azul cobre tudo
+    rendered_all = doc.render()
+    np.testing.assert_array_equal(rendered_all[25, 25], [0, 0, 255, 255])
+
+    # Ocultando o topo geral, o topo do grupo (amarelo) cobre o fundo
+    doc["topo_geral"].visible = False
+    rendered_no_top = doc.render()
+    np.testing.assert_array_equal(rendered_no_top[25, 25], [255, 255, 0, 255])

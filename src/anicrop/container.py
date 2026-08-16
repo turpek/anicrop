@@ -74,6 +74,9 @@ class Container(NullContainer):
     def __iter__(self):
         return iter(self._children)
 
+    def __reversed__(self):
+        return reversed(self._children)
+
     def __getitem__(self, index: int) -> BaseLayer:
         return self._children[index]
 

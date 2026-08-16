@@ -256,6 +256,11 @@ class BaseContainerProxy(BaseHistoryProxy):
         for item in object.__getattribute__(self, '_target'):
             yield registry.get_or_create(item)
 
+    def __reversed__(self):
+        registry = object.__getattribute__(self, '_registry')
+        for item in reversed(object.__getattribute__(self, '_target')):
+            yield registry.get_or_create(item)
+
     def __len__(self):
         return len(object.__getattribute__(self, '_target'))
 

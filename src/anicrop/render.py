@@ -293,7 +293,7 @@ class SceneTraverser:
     ) -> list[tuple[BaseLayer, Image, Region]]:
         rendered_items: list[tuple[BaseLayer, Image, Region]] = []
 
-        for item in container:
+        for item in reversed(container):
             frame = self.frame_cls(item, self.surface, view_region, local=local)
             if not item.is_renderable or frame.dst_region is None:
                 continue
@@ -303,7 +303,7 @@ class SceneTraverser:
 
                 if children_items:
                     buffer = Image.new(frame.dst_region.size, ImageFormat.RGBA)
-                    group_image = blend_rendered_images(children_items, buffer)
+                    group_image = blend_rendered_images(reversed(children_items), buffer)
                     rendered_items.append((item, group_image, frame.targ_region))
                     if np.all(self.miniview == 255):
                         break
