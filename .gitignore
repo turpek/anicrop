@@ -12,3 +12,7 @@ scratch
 docs
 cont.txt
 *.png
+*.so
+*.pyd
+build/
+src/anicrop/native/*.c

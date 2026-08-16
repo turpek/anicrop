@@ -23,22 +23,21 @@ def blend_rendered_images(
     return buffer
 
 
-def blend_normal_linear(base: Image, edit: Image, opacity: float = 1.0) -> None:
-    """
-    Realiza o blend de forma fisicamente correta (Linear Blending).
-    Converte as cores sRGB para espaço linear antes da mistura (evitando o escurecimento
-    dos tons médios) e converte de volta para sRGB ao final.
-    """
-    if opacity <= 0.0:
-        return
+try:
+    from anicrop.native.blend import (
+        blend_normal as _cy_blend_normal,
+        blend_normal_linear as _cy_blend_normal_linear,
+        hard_masking as _cy_hard_masking,
+    )
+    _HAS_CY_BLEND = True
+except ImportError:
+    _cy_blend_normal = None
+    _cy_blend_normal_linear = None
+    _cy_hard_masking = None
+    _HAS_CY_BLEND = False
 
-    base_arr = base[...]
-    edit_arr = edit[...]
-    h, w = min(base_arr.shape[0], edit_arr.shape[0]), min(base_arr.shape[1], edit_arr.shape[1])
 
-    b_view = base_arr[:h, :w]
-    e_view = edit_arr[:h, :w]
-
+def _blend_normal_linear_numpy(b_view: np.ndarray, e_view: np.ndarray, opacity: float) -> None:
     b_has_alpha = b_view.shape[-1] in (2, 4)
     e_has_alpha = e_view.shape[-1] in (2, 4)
 
@@ -46,6 +45,7 @@ def blend_normal_linear(base: Image, edit: Image, opacity: float = 1.0) -> None:
     if e_has_alpha:
         mask = e_view[..., -1] > 0
     else:
+        h, w = b_view.shape[:2]
         mask = np.ones((h, w), dtype=bool)
 
     if not np.any(mask):
@@ -54,9 +54,7 @@ def blend_normal_linear(base: Image, edit: Image, opacity: float = 1.0) -> None:
     b_channels = 1 if b_view.shape[-1] in (1, 2) else 3
     e_channels = 1 if e_view.shape[-1] in (1, 2) else 3
 
-    # =====================================================================
     # 2. EXTRAÇÃO E LINEARIZAÇÃO DO OVERLAY (EDIT)
-    # =====================================================================
     rgb_e_srgb = e_view[mask, :e_channels].astype(np.float32) / 255.0
 
     if b_channels == 3 and e_channels == 1:
@@ -72,9 +70,7 @@ def blend_normal_linear(base: Image, edit: Image, opacity: float = 1.0) -> None:
     else:
         alpha_e = np.full((np.count_nonzero(mask), 1), opacity, dtype=np.float32)
 
-    # =====================================================================
     # 3. MATEMÁTICA E DESLINEARIZAÇÃO (BASE)
-    # =====================================================================
     rgb_b_srgb = b_view[mask, :b_channels].astype(np.float32) / 255.0
     rgb_b_lin = rgb_b_srgb ** 2.2  # Lineariza o fundo
 
@@ -106,10 +102,11 @@ def blend_normal_linear(base: Image, edit: Image, opacity: float = 1.0) -> None:
         b_view[mask, :b_channels] = np.clip(out_rgb_srgb * 255, 0, 255).astype(np.uint8)
 
 
-def blend_normal(base: Image, edit: Image, opacity: float = 1.0) -> None:
-    """
-    Realiza o blend de forma segura usando a fórmula Porter-Duff 'Over',
-    preservando as bordas suaves (anti-aliasing) em fundos transparentes.
+def blend_normal_linear(base: Image, edit: Image, opacity: float = 1.0) -> None:
+    """Realiza o blend de forma fisicamente correta (Linear Blending).
+
+    Converte as cores sRGB para espaço linear antes da mistura (evitando o escurecimento
+    dos tons médios) e converte de volta para sRGB ao final.
     """
     if opacity <= 0.0:
         return
@@ -121,6 +118,14 @@ def blend_normal(base: Image, edit: Image, opacity: float = 1.0) -> None:
     b_view = base_arr[:h, :w]
     e_view = edit_arr[:h, :w]
 
+    if _HAS_CY_BLEND and _cy_blend_normal_linear is not None:
+        _cy_blend_normal_linear(b_view, e_view, opacity)
+        return
+
+    _blend_normal_linear_numpy(b_view, e_view, opacity)
+
+
+def _blend_normal_numpy(b_view: np.ndarray, e_view: np.ndarray, opacity: float) -> None:
     b_has_alpha = b_view.shape[-1] in (2, 4)
     e_has_alpha = e_view.shape[-1] in (2, 4)
 
@@ -152,6 +157,7 @@ def blend_normal(base: Image, edit: Image, opacity: float = 1.0) -> None:
     if e_has_alpha:
         mask = e_view[..., -1] > 0
     else:
+        h, w = b_view.shape[:2]
         mask = np.ones((h, w), dtype=bool)
 
     if not np.any(mask):
@@ -192,6 +198,52 @@ def blend_normal(base: Image, edit: Image, opacity: float = 1.0) -> None:
         b_view[mask, :b_channels] = np.clip(out_rgb, 0, 255).astype(np.uint8)
 
 
+def blend_normal(base: Image, edit: Image, opacity: float = 1.0) -> None:
+    """Realiza o blend de forma segura usando a fórmula Porter-Duff 'Over',
+
+    preservando as bordas suaves (anti-aliasing) em fundos transparentes.
+    """
+    if opacity <= 0.0:
+        return
+
+    base_arr = base[...]
+    edit_arr = edit[...]
+    h, w = min(base_arr.shape[0], edit_arr.shape[0]), min(base_arr.shape[1], edit_arr.shape[1])
+
+    b_view = base_arr[:h, :w]
+    e_view = edit_arr[:h, :w]
+
+    b_has_alpha = b_view.shape[-1] in (2, 4)
+    e_has_alpha = e_view.shape[-1] in (2, 4)
+
+    # Fast-Path: Cópia direta para imagens 100% sólidas com opacidade total (1.0)
+    if opacity >= 1.0:
+        if e_view.shape[-1] == b_view.shape[-1] and (not e_has_alpha or np.all(e_view[..., -1] == 255)):
+            np.copyto(b_view, e_view)
+            return
+        if e_view.shape[-1] == 3 and b_view.shape[-1] == 4:
+            np.copyto(b_view[..., :3], e_view)
+            b_view[..., 3] = 255
+            return
+        if e_view.shape[-1] == 1 and b_view.shape[-1] == 4:
+            np.copyto(b_view[..., :3], np.repeat(e_view, 3, axis=-1))
+            b_view[..., 3] = 255
+            return
+        if e_view.shape[-1] == 1 and b_view.shape[-1] == 3:
+            np.copyto(b_view, np.repeat(e_view, 3, axis=-1))
+            return
+        if e_view.shape[-1] == 1 and b_view.shape[-1] == 2:
+            np.copyto(b_view[..., :1], e_view)
+            b_view[..., 1] = 255
+            return
+
+    if _HAS_CY_BLEND and _cy_blend_normal is not None:
+        _cy_blend_normal(b_view, e_view, opacity)
+        return
+
+    _blend_normal_numpy(b_view, e_view, opacity)
+
+
 def hard_masking_overlay_with_alpha(
     base: Image,
     overlay: Image,
@@ -229,6 +281,15 @@ def hard_masking_overlay_without_alpha(
         base[..., -1] = alpha_value
 
 
+def _hard_masking_numpy(base: Image, overlay: Image, opacity: float = 1.0) -> Image:
+    color_channels = 1 if overlay.format in (ImageFormat.GRAY, ImageFormat.GRAY_ALPHA) else 3
+    if overlay.has_alpha:
+        hard_masking_overlay_with_alpha(base, overlay, color_channels, opacity)
+    else:
+        hard_masking_overlay_without_alpha(base, overlay, color_channels, opacity)
+    return base
+
+
 def hard_masking(base: Image, overlay: Image, opacity: float = 1.0) -> Image:
 
     if base.size != overlay.size:
@@ -239,14 +300,11 @@ def hard_masking(base: Image, overlay: Image, opacity: float = 1.0) -> Image:
             f"Format mismatch: cannot blend '{overlay.format}' into '{base.format}'."
         )
 
-    color_channels = 1 if overlay.format in (ImageFormat.GRAY, ImageFormat.GRAY_ALPHA) else 3
+    if _HAS_CY_BLEND and _cy_hard_masking is not None:
+        _cy_hard_masking(base[...], overlay[...], opacity)
+        return base
 
-    if overlay.has_alpha:
-        hard_masking_overlay_with_alpha(base, overlay, color_channels, opacity)
-    else:
-        hard_masking_overlay_without_alpha(base, overlay, color_channels, opacity)
-
-    return base
+    return _hard_masking_numpy(base, overlay, opacity)
 
 
 BLEND_MODE = {
