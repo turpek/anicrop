@@ -216,6 +216,7 @@ class ProxyLayer(BaseHistoryProxy):
         "x": BaseLayerCommand,
         "y": BaseLayerCommand,
         "region": BaseLayerCommand,
+        "layout": BaseLayerCommand,
         "add_edit": LayerImageCommand,
         "opacity_mask": LayerImageCommand,
     }
@@ -279,6 +280,7 @@ class GroupProxy(BaseContainerProxy):
         "visible": BaseLayerCommand,
         "transform": BaseLayerCommand,
         "region": BaseLayerCommand,
+        "layout": BaseLayerCommand,
     }
 
     _CHAINABLE_PROPERTIES = ("transform",)

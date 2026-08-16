@@ -79,7 +79,7 @@ class LayerLayoutStrategy:
         if target.global_region == ref_region:
             return False
         fit_strategy = FitGeometry(target, ref_region)
-        target.control.set_strategy(fit_strategy)
+        target.layout = fit_strategy
         return True
 
     @classmethod
@@ -179,7 +179,7 @@ class GroupLayoutStrategy:
         if target.global_region == ref_region:
             return False
         fit_strategy = FitGroupGeometry(target, ref_region)
-        target.control.set_strategy(fit_strategy)
+        target.layout = fit_strategy
         return True
 
     @classmethod
@@ -221,11 +221,14 @@ class GroupLayoutStrategy:
 
 class Layout:
 
-    STRATEGIES: dict[type, Any] = {
-        Layer: LayerLayoutStrategy,
-        GroupLayer: GroupLayoutStrategy,
-        Canvas: CanvasLayoutStrategy,
-    }
+    def _resolve_strategy(self, target: Any) -> type:
+        if isinstance(target, GroupLayer):
+            return GroupLayoutStrategy
+        if isinstance(target, Layer):
+            return LayerLayoutStrategy
+        if isinstance(target, Canvas):
+            return CanvasLayoutStrategy
+        raise TypeError(f"Unsupported target type: {type(target).__name__}")
 
     def fit(
         self,
@@ -233,7 +236,7 @@ class Layout:
         ref: tuple[int, int, int, int] | Region | Canvas | BaseLayer,
     ) -> bool:
         ref_region = resolve_region(ref)
-        strategy_class = self.STRATEGIES[type(target)]
+        strategy_class = self._resolve_strategy(target)
         return strategy_class.fit(target, ref_region)
 
     def align(
@@ -244,7 +247,7 @@ class Layout:
         anchor_y: float = 0.5,
     ) -> bool:
         ref_region = resolve_region(ref)
-        strategy_class = self.STRATEGIES[type(target)]
+        strategy_class = self._resolve_strategy(target)
         return strategy_class.align(target, ref_region, anchor_x, anchor_y)
 
     def resize_bounds(
@@ -256,7 +259,7 @@ class Layout:
         anchor_y: float = 0.5,
     ) -> bool:
         ref_region = Region.from_size(new_width, new_height)
-        strategy_class = self.STRATEGIES[type(target)]
+        strategy_class = self._resolve_strategy(target)
         return strategy_class.resize_bounds(target, ref_region, anchor_x, anchor_y)
 
     def fit_content(
@@ -265,5 +268,5 @@ class Layout:
         container: Container | Sequence[Layer] | None = None,
     ) -> bool:
 
-        strategy_class = self.STRATEGIES[type(target)]
+        strategy_class = self._resolve_strategy(target)
         return strategy_class.fit_content(target, container=container)

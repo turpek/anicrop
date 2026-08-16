@@ -185,6 +185,10 @@ class BaseLayer(ABC):
     def layout(self) -> GeometryStrategy:
         return self.control.layout
 
+    @layout.setter
+    def layout(self, strategy: GeometryStrategy) -> None:
+        self.control.set_strategy(strategy)
+
     @property
     def transform(self) -> Composer:
         self._transform.sync_region(self.region)
