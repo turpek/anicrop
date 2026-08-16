@@ -350,3 +350,23 @@ def test_image_save_and_reopen(tmp_path):
     reopened = Image.open(save_path, ImageFormat.RGBA)
     assert reopened.shape == (50, 50, 4)
     assert np.all(reopened[0, 0] == (255, 0, 0, 255))
+
+
+def test_image_bgr_conversion_and_region():
+    """Valida conversão de canais com img.bgr() total e com fatiamento por Region."""
+    # Cria uma imagem 10x10 RGBA vermelha: R=255, G=0, B=0, A=255
+    arr = np.zeros((10, 10, 4), dtype=np.uint8)
+    arr[..., 0] = 255
+    arr[..., 3] = 255
+    img = Image(arr, ImageFormat.RGBA)
+
+    # 1. img.bgr() total: no formato BGRA do OpenCV, o canal 2 é R e o canal 0 é B
+    bgra_full = img.bgr()
+    assert bgra_full.shape == (10, 10, 4)
+    assert np.all(bgra_full[0, 0] == (0, 0, 255, 255))
+
+    # 2. img.bgr(region) parcial:
+    sub_region = Region.from_rect(2, 2, 4, 4)
+    bgra_sub = img.bgr(sub_region)
+    assert bgra_sub.shape == (4, 4, 4)
+    assert np.all(bgra_sub[0, 0] == (0, 0, 255, 255))

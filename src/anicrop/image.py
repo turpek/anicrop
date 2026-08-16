@@ -196,30 +196,30 @@ class Image:
         new_img[...] = resized_data
         return new_img
 
-    def view(self, region: EllipsisType | Region) -> Image:
+    def view(self, region: EllipsisType | Region = ...) -> Image:
         return Image(self[region], self.format)
 
-    def crop(self, region: EllipsisType | Region) -> Image:
+    def crop(self, region: EllipsisType | Region = ...) -> Image:
         return Image(self[region].copy(), self.format)
+
+    def bgr(self, region: EllipsisType | Region = ...) -> np.ndarray:
+        """Extrai a matriz NumPy da região convertida para o formato BGR/BGRA do OpenCV."""
+        frame = self[region]
+
+        if self.format == ImageFormat.RGBA:
+            return cv2.cvtColor(frame, cv2.COLOR_RGBA2BGRA)
+        elif self.format == ImageFormat.RGB:
+            return cv2.cvtColor(frame, cv2.COLOR_RGB2BGR)
+        elif self.format == ImageFormat.GRAY_ALPHA:
+            gray_bgr = cv2.cvtColor(frame[..., 0], cv2.COLOR_GRAY2BGR)
+            return np.dstack([gray_bgr, frame[..., 1]])
+        elif self.format == ImageFormat.GRAY:
+            return frame[..., 0] if frame.ndim == 3 else frame
+        return frame
 
     def save(self, file_path: str | Path) -> None:
         """Salva a imagem no disco no caminho especificado."""
-        file_path = str(file_path)
-        frame = self[...]
-
-        if self.format == ImageFormat.RGBA:
-            frame_save = cv2.cvtColor(frame, cv2.COLOR_RGBA2BGRA)
-        elif self.format == ImageFormat.RGB:
-            frame_save = cv2.cvtColor(frame, cv2.COLOR_RGB2BGR)
-        elif self.format == ImageFormat.GRAY_ALPHA:
-            bgr = cv2.cvtColor(frame[..., 0], cv2.COLOR_GRAY2BGR)
-            frame_save = np.dstack([bgr, frame[..., 1]])
-        elif self.format == ImageFormat.GRAY:
-            frame_save = frame[..., 0] if frame.ndim == 3 else frame
-        else:
-            frame_save = frame
-
-        cv2.imwrite(file_path, frame_save)
+        cv2.imwrite(str(file_path), self.bgr())
 
     @classmethod
     def open(cls, file_path: str | Path, image_format: ImageFormat) -> Image:

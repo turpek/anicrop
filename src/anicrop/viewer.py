@@ -49,17 +49,7 @@ class Viewer:
             cv2.imshow(self.window_name, frame_display)
             return
 
-        frame = img[...]
-
-        # O frame interno do motor é RGBA (ou RGB). O OpenCV requer BGR/BGRA.
-        if frame.shape[2] == 4:
-            frame_display = cv2.cvtColor(frame, cv2.COLOR_RGBA2BGRA)
-        elif frame.shape[2] == 3:
-            frame_display = cv2.cvtColor(frame, cv2.COLOR_RGB2BGR)
-        else:
-            frame_display = frame
-
-        cv2.imshow(self.window_name, frame_display)
+        cv2.imshow(self.window_name, img.bgr())
 
     def wait(self, delay: int = 0) -> int:
         """
