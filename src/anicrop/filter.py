@@ -13,11 +13,12 @@ if TYPE_CHECKING:
 
 
 class BlurFilter(Effect):
-    """Filtro de desfoque versátil suportando múltiplos algoritmos e dimensões independentes."""
+    """Filtro de desfoque versátil com suporte a raio 1D/2D, ângulo direcional e múltiplos modos."""
 
     def __init__(
         self,
         radius: float | tuple[float, float] = 5.0,
+        angle: float = 0.0,
         mode: BlurMode = BlurMode.GAUSSIAN,
         affect_alpha: bool = True,
         strength: float = 1.0,
@@ -30,6 +31,7 @@ class BlurFilter(Effect):
             self.radius_x = float(radius)
             self.radius_y = float(radius)
 
+        self.angle = float(angle)
         self.mode = mode
         self.affect_alpha = affect_alpha
         self.strength = float(np.clip(strength, 0.0, 1.0))
@@ -44,14 +46,45 @@ class BlurFilter(Effect):
         if not self.affect_alpha or self.strength <= 0.0:
             return (0, 0, 0, 0)
 
-        if self.mode == BlurMode.GAUSSIAN:
-            pad_x = int(math.ceil(self.radius_x * 3.0))
-            pad_y = int(math.ceil(self.radius_y * 3.0))
+        multiplier = 3.0 if self.mode == BlurMode.GAUSSIAN else 1.0
+
+        if self.angle != 0.0:
+            rad = math.radians(self.angle)
+            len_x = self.radius_x * multiplier
+            len_y = self.radius_y * multiplier if self.radius_y > 0 else len_x
+            pad_x = int(math.ceil(abs(math.cos(rad)) * len_x + abs(math.sin(rad)) * len_y))
+            pad_y = int(math.ceil(abs(math.sin(rad)) * len_x + abs(math.cos(rad)) * len_y))
         else:
-            pad_x = int(math.ceil(self.radius_x))
-            pad_y = int(math.ceil(self.radius_y))
+            pad_x = int(math.ceil(self.radius_x * multiplier)) if self.radius_x > 0 else 0
+            pad_y = int(math.ceil(self.radius_y * multiplier)) if self.radius_y > 0 else 0
 
         return (pad_y, pad_x, pad_y, pad_x)
+
+    def _apply_directional(self, src_data: np.ndarray) -> np.ndarray:
+        """Aplica desfoque direcional linear no ângulo especificado usando kernel 2D rotacionado."""
+        length = self.radius_x
+        multiplier = 3.0 if self.mode == BlurMode.GAUSSIAN else 2.0
+        ksize = max(3, int(math.ceil(length * multiplier))) | 1
+
+        kernel = np.zeros((ksize, ksize), dtype=np.float32)
+
+        if self.mode == BlurMode.GAUSSIAN:
+            x = np.linspace(-3.0, 3.0, ksize)
+            line = np.exp(-0.5 * x**2)
+            kernel[ksize // 2, :] = line / np.sum(line)
+        else:
+            kernel[ksize // 2, :] = 1.0 / ksize
+
+        # Rotaciona a linha do kernel para a inclinação desejada
+        center = (ksize / 2.0 - 0.5, ksize / 2.0 - 0.5)
+        rot_mat = cv2.getRotationMatrix2D(center, -self.angle, 1.0)
+        rotated_kernel = cv2.warpAffine(kernel, rot_mat, (ksize, ksize))
+
+        k_sum = np.sum(rotated_kernel)
+        if k_sum > 0:
+            rotated_kernel /= k_sum
+
+        return cv2.filter2D(src_data, -1, rotated_kernel, borderType=cv2.BORDER_REFLECT_101)
 
     def apply(self, image: Image, matrix: np.ndarray | None = None) -> Image:
         """Processa e desfoca o buffer de imagem."""
@@ -59,34 +92,36 @@ class BlurFilter(Effect):
             return image
 
         src_data = image[...]
-        processed = src_data
 
-        if self.mode == BlurMode.GAUSSIAN:
-            processed = cv2.GaussianBlur(
-                src_data,
-                (0, 0),
-                sigmaX=self.radius_x,
-                sigmaY=self.radius_y,
-                borderType=cv2.BORDER_REFLECT_101,
-            )
+        if self.angle != 0.0 and self.mode in (BlurMode.GAUSSIAN, BlurMode.BOX):
+            processed = self._apply_directional(src_data)
+        elif self.mode == BlurMode.GAUSSIAN:
+            # Tratamento explícito de 1D vs 2D para contornar a regra interna do OpenCV onde sigmaY=0 herda sigmaX
+            if self.radius_x > 0 and self.radius_y == 0:
+                kx = int(math.ceil(self.radius_x * 3.0)) * 2 + 1
+                processed = cv2.GaussianBlur(
+                    src_data, (kx, 1), sigmaX=self.radius_x, sigmaY=0, borderType=cv2.BORDER_REFLECT_101
+                )
+            elif self.radius_x == 0 and self.radius_y > 0:
+                ky = int(math.ceil(self.radius_y * 3.0)) * 2 + 1
+                processed = cv2.GaussianBlur(
+                    src_data, (1, ky), sigmaX=0, sigmaY=self.radius_y, borderType=cv2.BORDER_REFLECT_101
+                )
+            else:
+                kx = int(math.ceil(self.radius_x * 3.0)) * 2 + 1
+                ky = int(math.ceil(self.radius_y * 3.0)) * 2 + 1
+                processed = cv2.GaussianBlur(
+                    src_data, (kx, ky), sigmaX=self.radius_x, sigmaY=self.radius_y, borderType=cv2.BORDER_REFLECT_101
+                )
         elif self.mode == BlurMode.BOX:
-            kx = max(1, int(round(self.radius_x * 2.0 + 1.0)))
-            ky = max(1, int(round(self.radius_y * 2.0 + 1.0)))
-            if kx % 2 == 0:
-                kx += 1
-            if ky % 2 == 0:
-                ky += 1
-            processed = cv2.boxFilter(
-                src_data,
-                -1,
-                (kx, ky),
-                borderType=cv2.BORDER_REFLECT_101,
-            )
+            kx = max(1, int(round(self.radius_x * 2.0 + 1.0))) | 1 if self.radius_x > 0 else 1
+            ky = max(1, int(round(self.radius_y * 2.0 + 1.0))) | 1 if self.radius_y > 0 else 1
+            processed = cv2.boxFilter(src_data, -1, (kx, ky), borderType=cv2.BORDER_REFLECT_101)
         elif self.mode == BlurMode.MEDIAN:
-            k = max(1, int(round(self.radius_x * 2.0 + 1.0)))
-            if k % 2 == 0:
-                k += 1
+            k = max(1, int(round(self.radius_x * 2.0 + 1.0))) | 1
             processed = cv2.medianBlur(src_data, k)
+        else:
+            processed = src_data
 
         if not self.affect_alpha and image.format.has_alpha:
             processed = np.copy(processed)
@@ -107,7 +142,7 @@ class BlurFilter(Effect):
         if self.mode != BlurMode.GAUSSIAN or other.mode != BlurMode.GAUSSIAN:
             return None
 
-        if self.affect_alpha != other.affect_alpha:
+        if self.angle != other.angle or self.affect_alpha != other.affect_alpha:
             return None
 
         combined_rx = math.hypot(self.radius_x, other.radius_x)
@@ -116,6 +151,7 @@ class BlurFilter(Effect):
 
         return BlurFilter(
             radius=(combined_rx, combined_ry),
+            angle=self.angle,
             mode=self.mode,
             affect_alpha=self.affect_alpha,
             strength=combined_strength,

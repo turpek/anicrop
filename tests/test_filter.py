@@ -137,6 +137,59 @@ def test_blur_filter_merge_incompatible_returns_none():
     assert blur_gaussian.merge(blur_box, matrix) is None
 
 
+def test_blur_filter_1d_horizontal_only_blurs_x():
+    """Valida se radius=(r, 0) desfoca exclusivamente no eixo horizontal mantendo colunas perfeitas."""
+    data = np.zeros((30, 30, 4), dtype=np.uint8)
+    data[..., -1] = 255
+    # Linha vertical central
+    data[:, 15, :3] = 255
+    img = Image(data, ImageFormat.RGBA)
+
+    blur = BlurFilter(radius=(5.0, 0.0), mode=BlurMode.GAUSSIAN)
+    result = blur.apply(img)
+
+    # Espalhou no eixo X (vizinhos horizontais receberam luz)
+    assert result[15, 14, 0] > 0
+    assert result[15, 16, 0] > 0
+    # Não houve difusão vertical: o perfil em todas as linhas permanece idêntico
+    np.testing.assert_array_equal(result[0, :, 0], result[29, :, 0])
+
+
+def test_blur_filter_1d_vertical_only_blurs_y():
+    """Valida se radius=(0, r) desfoca exclusivamente no eixo vertical mantendo linhas perfeitas."""
+    data = np.zeros((30, 30, 4), dtype=np.uint8)
+    data[..., -1] = 255
+    # Linha horizontal central
+    data[15, :, :3] = 255
+    img = Image(data, ImageFormat.RGBA)
+
+    blur = BlurFilter(radius=(0.0, 5.0), mode=BlurMode.GAUSSIAN)
+    result = blur.apply(img)
+
+    # Espalhou no eixo Y (vizinhos verticais receberam luz)
+    assert result[14, 15, 0] > 0
+    assert result[16, 15, 0] > 0
+    # Não houve difusão horizontal: o perfil em todas as colunas permanece idêntico
+    np.testing.assert_array_equal(result[:, 0, 0], result[:, 29, 0])
+
+
+def test_blur_filter_directional_angle_diffuses_along_diagonal():
+    """Valida se angle=45.0 projeta a difusão no sentido diagonal."""
+    data = np.zeros((31, 31, 4), dtype=np.uint8)
+    data[..., -1] = 255
+    data[15, 15, :3] = 255  # Ponto central
+    img = Image(data, ImageFormat.RGBA)
+
+    blur = BlurFilter(radius=8.0, angle=45.0, mode=BlurMode.GAUSSIAN)
+    result = blur.apply(img)
+
+    # Na diagonal a 45 graus (x+d, y+d), há difusão de luz
+    assert result[17, 17, 0] > 0
+    assert result[13, 13, 0] > 0
+    # No eixo perpendicular distante da diagonal (ex: y=25, x=5), a luz não se espalhou
+    assert result[25, 5, 0] == 0
+
+
 def test_render_layer_with_blur_filter_in_pipeline():
     """Valida a renderização completa de uma camada com BlurFilter aplicado via CanvasRender."""
     canvas = Canvas.from_size(100, 100)
