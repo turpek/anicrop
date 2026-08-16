@@ -1,6 +1,7 @@
 import numpy as np
 import pytest
 
+from anicrop.container import GroupLayer
 from anicrop.document import Document
 from anicrop.enums import ImageFormat
 from anicrop.geometry import FitGeometry, FitGroupGeometry, GroupGeometry, LayerGeometry
@@ -8,7 +9,7 @@ from anicrop.history import GlobalHistory
 from anicrop.image import Image
 from anicrop.layer import Layer
 from anicrop.layout import Layout
-from anicrop.proxy import ProxyLayer
+from anicrop.proxy import GroupProxy, ProxyLayer
 from anicrop.spatial import Region
 
 
@@ -129,6 +130,93 @@ def test_layout_fit_group_proxy_undo_redo(make_doc_with_group):
 
     assert group_proxy.global_region == Region.from_size(800, 800)
     assert isinstance(group_proxy.layout, FitGroupGeometry)
+
+
+def test_layout_align_group_proxy_undo_redo(make_doc_with_group):
+    """Valida se layout.align em GroupProxy grava histórico e suporta Undo/Redo."""
+    doc, group_proxy = make_doc_with_group(1000, 1000)
+    layout = Layout()
+    initial_stack_size = len(doc.history._undo_stack)
+
+    layout.align(group_proxy, (0, 0, 1000, 1000), 1.0, 1.0)
+
+    assert len(doc.history._undo_stack) == initial_stack_size + 1
+    assert group_proxy.global_region == Region.from_rect(600, 600, 400, 400)
+
+    doc.history.undo()
+
+    assert group_proxy.global_region == Region.from_rect(0, 0, 400, 400)
+    assert len(doc.history._redo_stack) == 1
+
+    doc.history.redo()
+
+    assert group_proxy.global_region == Region.from_rect(600, 600, 400, 400)
+
+
+def test_layout_resize_bounds_group_proxy_undo_redo(make_doc_with_group):
+    """Valida se layout.resize_bounds em GroupProxy grava histórico e suporta Undo/Redo."""
+    doc, group_proxy = make_doc_with_group(1000, 1000)
+    layout = Layout()
+    initial_stack_size = len(doc.history._undo_stack)
+
+    layout.resize_bounds(group_proxy, 600, 600, anchor_x=0.5, anchor_y=0.5)
+
+    assert len(doc.history._undo_stack) == initial_stack_size + 1
+    assert group_proxy.global_region == Region.from_rect(-100, -100, 600, 600)
+
+    doc.history.undo()
+
+    assert group_proxy.global_region == Region.from_rect(0, 0, 400, 400)
+    assert len(doc.history._redo_stack) == 1
+
+    doc.history.redo()
+
+    assert group_proxy.global_region == Region.from_rect(-100, -100, 600, 600)
+
+
+def test_group_read_properties_preserves_undo_empty_and_redo_empty():
+    """Valida se leituras passivas em GroupProxy mantêm undo_empty e redo_empty sem ações indesejadas."""
+    history = GlobalHistory()
+    group = GroupLayer(name="group1")
+    group_proxy = GroupProxy(group, history)
+    img1 = Image(np.ones((200, 200, 4), dtype=np.uint8) * 255, ImageFormat.RGBA)
+    l1 = ProxyLayer(Layer(img1, name="l1"), history)
+    l1.region = Region.from_rect(0, 0, 200, 200)
+    group_proxy.append(l1)
+
+    history._undo_stack.clear()
+    history._redo_stack.clear()
+    layout = Layout()
+
+    assert history.undo_empty()
+    assert history.redo_empty()
+
+    layout.fit(group_proxy, (0, 0, 800, 800))
+
+    assert not history.undo_empty()
+    assert history.redo_empty()
+
+    history.undo()
+
+    assert history.undo_empty()
+    assert not history.redo_empty()
+
+    # Leituras passivas no GroupProxy
+    _ = group_proxy.region
+    _ = group_proxy.global_region
+    _ = group_proxy.layout
+    _ = group_proxy.matrix
+    _ = group_proxy.control.layout.region
+
+    # Garante ausência de efeitos colaterais
+    assert history.undo_empty()
+    assert not history.redo_empty()
+
+    history.redo()
+
+    assert not history.undo_empty()
+    assert history.redo_empty()
+    assert group_proxy.global_region == Region.from_size(800, 800)
 
 
 def test_read_properties_preserves_undo_empty_and_redo_empty():
