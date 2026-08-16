@@ -1,12 +1,12 @@
 from __future__ import annotations
 from abc import ABC, abstractmethod
 from pathlib import Path
-from typing import Any, Iterator
+from typing import Iterator, TypeVar
 import cv2
 import numpy as np
 
 from anicrop.canvas import Canvas
-from anicrop.container import Container, GroupLayer, LayerStack
+from anicrop.container import BaseLayer, Container, GroupLayer, LayerStack
 from anicrop.enums import ImageFormat
 from anicrop.history import GlobalHistory
 from anicrop.image import Image
@@ -15,6 +15,8 @@ from anicrop.proxy import BaseHistoryProxy, GroupProxy, LayerStackProxy, ProxyLa
 from anicrop.render import CanvasRender, ViewportRender
 from anicrop.viewport import Viewport
 
+LayerT = TypeVar("LayerT", bound=BaseLayer)
+
 
 class DocumentPolicy(ABC):
     @abstractmethod
@@ -22,7 +24,7 @@ class DocumentPolicy(ABC):
         ...
 
     @abstractmethod
-    def process_layer(self, layer: Layer | GroupLayer, history: GlobalHistory | None) -> Any:
+    def process_layer(self, layer: LayerT, history: GlobalHistory | None) -> LayerT:
         ...
 
 
@@ -34,12 +36,12 @@ class ReactiveDocumentPolicy(DocumentPolicy):
         stack = LayerStackProxy(LayerStack(), history)
         return history, stack
 
-    def process_layer(self, layer: Layer | GroupLayer, history: GlobalHistory | None) -> Any:
+    def process_layer(self, layer: LayerT, history: GlobalHistory | None) -> LayerT:
         if isinstance(layer, BaseHistoryProxy):
             return layer
         if isinstance(layer, GroupLayer):
-            return GroupProxy(layer, history)
-        return ProxyLayer(layer, history)
+            return GroupProxy(layer, history)  # type: ignore[return-value]
+        return ProxyLayer(layer, history)  # type: ignore[return-value]
 
 
 class DirectDocumentPolicy(DocumentPolicy):
@@ -48,7 +50,7 @@ class DirectDocumentPolicy(DocumentPolicy):
     def setup(self) -> tuple[None, LayerStack]:
         return None, LayerStack()
 
-    def process_layer(self, layer: Layer | GroupLayer, history: GlobalHistory | None) -> Any:
+    def process_layer(self, layer: LayerT, history: GlobalHistory | None) -> LayerT:
         return getattr(layer, "_target", layer)
 
 
@@ -74,41 +76,30 @@ class Document:
         self._viewport_render = ViewportRender()
         self._canvas_render = CanvasRender()
 
-    @staticmethod
-    def create_layer_instance(name: str, path: str | Path, opacity: float = 1.0, canvas: Canvas | None = None) -> Layer:
-        """Helper estático para carregar uma imagem do disco e instanciar um Layer bruto."""
-        img = Image.open(str(path), ImageFormat.RGBA)
-        return Layer(image=img, opacity=opacity, name=name, canvas=canvas)
-
     @classmethod
-    def open(cls, path: str | Path, name: str | None = None, wrap_proxy: bool = True) -> Document:
+    def open(cls, path: str | Path, name: str, wrap_proxy: bool = True) -> Document:
         """
         Abre uma imagem do disco e cria um Documento baseado no seu tamanho,
         inserindo a imagem como primeira camada.
         """
-        layer_name = name or Path(path).stem
-        layer = cls.create_layer_instance(layer_name, path)
+        img = Image.open(str(path), ImageFormat.RGBA)
+        layer = Layer(image=img, name=name)
         w, h = layer.canvas_size
 
-        doc = cls(name=layer_name, width=w, height=h, wrap_proxy=wrap_proxy)
+        doc = cls(name=name, width=w, height=h, wrap_proxy=wrap_proxy)
         layer._canvas = doc.canvas
         doc.add(layer)
         return doc
-
-    @classmethod
-    def from_image(cls, name: str, path: str | Path, wrap_proxy: bool = True) -> Document:
-        """Alias compatível para Document.open()."""
-        return cls.open(path=path, name=name, wrap_proxy=wrap_proxy)
 
     def _validate_unique_name(self, name: str) -> None:
         """Verifica se já existe alguma camada ou grupo com este nome no documento."""
         if self._find_in_container(self.stack, name, recursive=True) is not None:
             raise ValueError(f"A layer named '{name}' already exists in the document.")
 
-    def _find_in_container(self, container: Container, name: str, recursive: bool = True) -> Any | None:
+    def _find_in_container(self, container: Container, name: str, recursive: bool = True) -> BaseLayer | None:
         """Busca interna auxiliar por nome na hierarquia de um container."""
         for child in container:
-            if getattr(child, "name", None) == name:
+            if child.name == name:
                 return child
             raw_child = getattr(child, "_target", child)
             if recursive and isinstance(raw_child, Container):
@@ -117,48 +108,33 @@ class Document:
                     return found
         return None
 
-    def add(self, layer: Layer | GroupLayer) -> Any:
+    def add(self, layer: LayerT) -> LayerT:
         """
         Adiciona um Layer ou GroupLayer na pilha do documento.
         Garante a unicidade do nome da camada no documento.
         """
-        layer_name = getattr(layer, "name", None)
-        if layer_name is not None:
-            self._validate_unique_name(layer_name)
-
+        self._validate_unique_name(layer.name)
         processed_layer = self._policy.process_layer(layer, self.history)
         self.stack.append(processed_layer)
         return processed_layer
 
-    def add_layer(self, layer: Layer | GroupLayer) -> Any:
-        """Alias compatível para add()."""
-        return self.add(layer)
-
-    def add_group(self, name: str = "Group") -> Any:
+    def add_group(self, name: str) -> GroupLayer:
         """
-        Cria e adiciona um novo Grupo (GroupLayer) na pilha do Documento.
+        Cria e adiciona um novo Grupo (GroupLayer) na pilha do Documento com nome obrigatório.
         """
         self._validate_unique_name(name)
         group = GroupLayer(name=name)
-        return self.add(group)
+        return self.add(group)  # type: ignore[return-value]
 
-    def create_group(self, name: str = "Group") -> Any:
-        """Alias compatível para add_group()."""
-        return self.add_group(name=name)
-
-    def load_layer(self, path: str | Path, name: str | None = None, opacity: float = 1.0) -> Any:
+    def load_layer(self, path: str | Path, name: str, opacity: float = 1.0) -> Layer:
         """
-        Carrega uma imagem do disco e adiciona como camada na pilha do documento.
+        Carrega uma imagem do disco e adiciona como camada na pilha do documento com nome obrigatório.
         """
-        layer_name = name or Path(path).stem
-        layer = self.create_layer_instance(layer_name, path, opacity=opacity, canvas=self.canvas)
-        return self.add(layer)
+        img = Image.open(str(path), ImageFormat.RGBA)
+        layer = Layer(image=img, opacity=opacity, name=name, canvas=self.canvas)
+        return self.add(layer)  # type: ignore[return-value]
 
-    def create_layer(self, name: str, path: str | Path, opacity: float = 1.0) -> Any:
-        """Alias compatível para load_layer()."""
-        return self.load_layer(path=path, name=name, opacity=opacity)
-
-    def find(self, name: str, recursive: bool = True) -> Any | None:
+    def find(self, name: str, recursive: bool = True) -> BaseLayer | None:
         """
         Busca uma camada pelo nome no documento. Retorna None se não encontrar.
         """
@@ -168,11 +144,11 @@ class Document:
         """Retorna a quantidade de camadas na raiz da pilha."""
         return len(self.stack)
 
-    def __iter__(self) -> Iterator[Any]:
+    def __iter__(self) -> Iterator[BaseLayer]:
         """Itera pelas camadas raiz da pilha."""
         return iter(self.stack)
 
-    def __getitem__(self, key: int | slice | str) -> Any:
+    def __getitem__(self, key: int | slice | str) -> BaseLayer | list[BaseLayer]:
         """
         Acesso polimórfico a camadas por índice inteiro, slice ou nome (string).
         """
@@ -185,7 +161,7 @@ class Document:
             return layer
         raise TypeError(f"Invalid key type {type(key).__name__}. Expected int, slice, or str.")
 
-    def __contains__(self, item: Any | str) -> bool:
+    def __contains__(self, item: BaseLayer | str) -> bool:
         """
         Verifica se uma camada (objeto ou nome) está presente no documento.
         """
@@ -205,7 +181,7 @@ class Document:
         else:
             raise TypeError(f"Invalid key type {type(key).__name__}. Expected int or str.")
 
-    def remove(self, layer_or_name: Any | str) -> None:
+    def remove(self, layer_or_name: BaseLayer | str) -> None:
         """
         Remove uma camada da pilha (aceita a instância da camada ou seu nome).
         """
@@ -223,18 +199,6 @@ class Document:
             raw_target.parent.remove(layer)
         else:
             raise ValueError(f"Layer {layer} not found in document hierarchy.")
-
-    def pop(self, index: int = -1) -> Any:
-        """Remove e retorna a camada no índice especificado."""
-        return self.stack.pop(index)
-
-    def clear(self) -> None:
-        """Remove todas as camadas da raiz do documento."""
-        self.stack.clear()
-
-    def get_bottom_layer(self) -> Any:
-        """Retorna a camada base (fundo) da pilha."""
-        return self.stack[-1]
 
     def render(self) -> Image:
         """

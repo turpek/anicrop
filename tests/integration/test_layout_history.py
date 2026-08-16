@@ -18,7 +18,7 @@ def make_doc_with_layer():
     def _factory(w: int = 1000, h: int = 1000, layer_w: int = 200, layer_h: int = 200):
         doc = Document(name="test_doc", width=w, height=h, wrap_proxy=True)
         img = Image(np.ones((layer_h, layer_w, 4), dtype=np.uint8) * 255, ImageFormat.RGBA)
-        layer_proxy = doc.add_layer(Layer(img, name="layer1"))
+        layer_proxy = doc.add(Layer(img, name="layer1"))
         return doc, layer_proxy
     return _factory
 
@@ -27,12 +27,12 @@ def make_doc_with_layer():
 def make_doc_with_group():
     def _factory(w: int = 1000, h: int = 1000):
         doc = Document(name="test_doc", width=w, height=h, wrap_proxy=True)
-        group_proxy = doc.create_group("group1")
+        group_proxy = doc.add_group("group1")
         img1 = Image(np.ones((200, 200, 4), dtype=np.uint8) * 255, ImageFormat.RGBA)
-        l1 = doc.add_layer(Layer(img1, name="l1"))
+        l1 = doc.add(Layer(img1, name="l1"))
         l1.region = Region.from_rect(0, 0, 200, 200)
         img2 = Image(np.ones((300, 300, 4), dtype=np.uint8) * 255, ImageFormat.RGBA)
-        l2 = doc.add_layer(Layer(img2, name="l2"))
+        l2 = doc.add(Layer(img2, name="l2"))
         l2.region = Region.from_rect(100, 100, 300, 300)
         group_proxy.append(l1)
         group_proxy.append(l2)

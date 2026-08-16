@@ -1,13 +1,14 @@
+from pathlib import Path
 import numpy as np
 import pytest
 
 from anicrop.document import DirectDocumentPolicy, Document, ReactiveDocumentPolicy
 from anicrop.enums import ImageFormat
-from anicrop.geometry import FitGeometry
 from anicrop.history import GlobalHistory
 from anicrop.image import Image
 from anicrop.layer import Layer
 from anicrop.proxy import GroupProxy, LayerStackProxy, ProxyLayer
+from anicrop.spatial import Region
 
 
 def make_img(w: int = 10, h: int = 10) -> Image:
@@ -49,9 +50,8 @@ def test_document_direct_mode():
     assert doc[0] is raw_layer
 
 
-def test_document_canvas_properties_and_resize():
+def test_document_canvas_properties():
     """Valida propriedades de dimensão no objeto Canvas do Document."""
-    from anicrop.spatial import Region
     doc = Document("TestDoc", 800, 600)
 
     assert doc.canvas.width == 800
@@ -77,10 +77,13 @@ def test_document_add_and_duplicate_name_error():
         doc.add(l2)
 
 
-def test_document_add_group_and_duplicate_name_error():
-    """Valida criação de grupo e prevenção de colisão de nomes com grupos."""
+def test_document_add_group_mandatory_name_and_duplicate_error():
+    """Valida criação de grupo com nome obrigatório e prevenção de colisão de nomes."""
     doc = Document("TestDoc", 100, 100)
-    doc.add_group("grupo1")
+    g1 = doc.add_group("grupo1")
+
+    assert isinstance(g1, GroupProxy)
+    assert g1.name == "grupo1"
 
     with pytest.raises(ValueError, match="A layer named 'grupo1' already exists"):
         doc.add_group("grupo1")
@@ -124,7 +127,7 @@ def test_document_find_layer_recursive():
     encontrado = doc.find("filho_aninhado", recursive=True)
 
     assert encontrado is not None
-    assert getattr(encontrado, "name", "") == "filho_aninhado"
+    assert encontrado.name == "filho_aninhado"
     assert doc.find("filho_aninhado", recursive=False) is None
 
 
@@ -144,22 +147,17 @@ def test_document_delitem_by_name_and_index():
     assert doc[0] is l3
 
 
-def test_document_remove_and_pop_and_clear():
-    """Valida métodos de mutação da pilha remove, pop e clear."""
+def test_document_remove_by_name_and_instance():
+    """Valida método remove aceitando nome da camada ou instância do objeto."""
     doc = Document("TestDoc", 100, 100)
     l1 = doc.add(Layer(make_img(), name="l1"))
     l2 = doc.add(Layer(make_img(), name="l2"))
-    l3 = doc.add(Layer(make_img(), name="l3"))
 
     doc.remove("l1")
-    assert len(doc) == 2
+    assert len(doc) == 1
     assert "l1" not in doc
 
-    popped = doc.pop(0)
-    assert popped is l2
-    assert len(doc) == 1
-
-    doc.clear()
+    doc.remove(l2)
     assert len(doc) == 0
 
 
@@ -174,14 +172,3 @@ def test_document_render_in_memory():
     assert isinstance(rendered_img, Image)
     assert rendered_img.size == (50, 50)
     assert rendered_img.format == ImageFormat.RGBA
-
-
-def test_document_backward_compatibility_aliases():
-    """Valida funcionamento dos aliases legados de compatibilidade."""
-    doc = Document("TestDoc", 100, 100)
-    l1 = doc.add_layer(Layer(make_img(), name="l1"))
-    g1 = doc.create_group("g1")
-
-    assert doc.get_bottom_layer() is g1
-    assert len(doc) == 2
-    assert doc["l1"] is l1
