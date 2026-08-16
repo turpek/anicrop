@@ -6,9 +6,12 @@ from contextlib import contextmanager
 from typing import Any, Callable, Optional, Protocol, runtime_checkable, TYPE_CHECKING
 
 
+import copy
 from anicrop.canvas import Canvas
+from anicrop.effect import Effect, MaskedEffect
 from anicrop.enums import BlendMode
 from anicrop.geometry import GeometryStrategy, GroupGeometry, GeometryController
+from anicrop.mask import Mask
 from anicrop.spatial import Region
 from anicrop.transform import (
     mat_global,
@@ -21,9 +24,7 @@ from anicrop.transform import (
 import numpy as np
 
 if TYPE_CHECKING:
-    from anicrop.effect import Effect
     from anicrop.layer import Layer
-    from anicrop.mask import Mask
 
 
 @runtime_checkable
@@ -188,7 +189,6 @@ class BaseLayer(ABC):
         name: str = "Mask",
     ) -> Mask:
         """Cria e adiciona uma máscara à fila não-destrutiva da camada."""
-        from anicrop.mask import Mask
         matrix = mat_inverse(mat_global(self))
         mask = Mask(image, region, matrix, invert=invert, name=name)
         self._masks.append(mask)
@@ -215,12 +215,10 @@ class BaseLayer(ABC):
 
     def add_effect(self, effect: Effect, mask: Mask | None = None) -> Effect:
         """Adiciona um efeito à camada, vinculando a matriz inversa da base para preservação da orientação."""
-        import copy
         bound_effect = copy.copy(effect)
         bound_effect.matrix = mat_inverse(mat_global(self))
 
         if mask is not None:
-            from anicrop.effect import MaskedEffect
             bound_effect = MaskedEffect(bound_effect, mask)
 
         self._effects.append(bound_effect)

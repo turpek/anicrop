@@ -3,10 +3,10 @@ from typing import TYPE_CHECKING
 import cv2
 import numpy as np
 
+from anicrop.edit_layer import EditLayer
 from anicrop.effect import Effect
 from anicrop.enums import BlendMode, ImageFormat
 from anicrop.image import Image
-from anicrop.layer import EditLayer
 from anicrop.spatial import Region, rect_to_region
 from anicrop.transform import calculate_new_rect
 
