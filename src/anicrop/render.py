@@ -264,6 +264,27 @@ def render_viewport_edit(
     return render_edit(edit_layer, plan, warp_mode=warp_mode, interp=interp, dst=dst)
 
 
+def apply_post_processing(
+    target_image: Image,
+    base: BaseLayer,
+    frame: BaseFrame,
+    interp: InterpolationOption = InterpolationOption.LANCZOS,
+) -> Image:
+    """Aplica a fila de efeitos e a modulação de máscara sobre a imagem rasterizada de uma camada ou grupo."""
+    image = target_image
+
+    for effect in base.effects:
+        image = effect.apply(image, frame.matrix)
+
+    for mask in base.masks:
+        mask_result = render_edit(mask, frame, interp=interp)
+        if mask_result is not None:
+            mask_image, dst_local = mask_result
+            mask.apply_modulation(image.view(dst_local), mask_image)
+
+    return image
+
+
 class SceneTraverser:
     """
     Encapsulates state and recursive traversal logic for rendering a 2D scene,
@@ -304,6 +325,7 @@ class SceneTraverser:
                 if children_items:
                     buffer = Image.new(frame.dst_region.size, ImageFormat.RGBA)
                     group_image = blend_rendered_images(reversed(children_items), buffer)
+                    group_image = apply_post_processing(group_image, item, frame, self.interp)
                     rendered_items.append((item, group_image, frame.targ_region))
                     if np.all(self.miniview == 255):
                         break
@@ -377,6 +399,7 @@ class BaseRenderer[FrameT: BaseFrame](ABC):
         if dst_region is not None:
             layer_image = Image.new(dst_region.size, layer.format)
             image = self._flatten_edits(layer, layer_image, frame, interp)
+            image = apply_post_processing(image, layer, frame, interp)
 
             layer._opacity_mask = generate_opacity_mask(
                 image,

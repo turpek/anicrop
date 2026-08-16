@@ -432,3 +432,69 @@ def test_frame_targ_region_sem_view_region_retorna_dst_region_integral():
 
     assert frame.dst_region == Region.from_rect(300, 400, 200, 200)
     assert frame.targ_region == Region.from_rect(300, 400, 200, 200)
+
+
+def test_calculate_mask_rect_combines_matrices():
+    """Valida se calculate_mask_rect combina corretamente a matriz da máscara com a matriz espacial."""
+    from anicrop.frame import calculate_mask_rect
+    from anicrop.mask import Mask
+    from anicrop.transform import mat_translation
+
+    mask_img = Image(np.zeros((50, 60, 1), dtype=np.uint8), ImageFormat.GRAY)
+    mask = Mask(mask_img, Region.from_size(50, 60), np.identity(3, dtype=np.float32))
+
+    global_mat = mat_translation(100, 200)
+    region = calculate_mask_rect(mask, global_mat)
+
+    assert region == Region.from_rect(100, 200, 50, 60)
+
+
+def test_canvas_frame_effective_view_with_mask():
+    """Valida se CanvasFrame utiliza a região da máscara como effective_view quando view_region é None."""
+    canvas = Canvas.from_size(1000, 1000)
+    layer = make_layer(w=200, h=200, x=0, y=0)
+
+    mask_img = Image(np.zeros((50, 50, 1), dtype=np.uint8), ImageFormat.GRAY)
+    layer.set_mask(mask_img, Region.from_rect(20, 30, 50, 50))
+    layer.transform.translate(100, 100)
+
+    frame = CanvasFrame(layer, canvas)
+
+    assert frame.dst_region == Region.from_rect(120, 130, 50, 50)
+
+
+def test_canvas_frame_view_region_has_priority_over_mask():
+    """Valida se view_region explícita possui prioridade sobre a máscara no CanvasFrame."""
+    canvas = Canvas.from_size(1000, 1000)
+    layer = make_layer(w=200, h=200, x=0, y=0)
+
+    mask_img = Image(np.zeros((50, 50, 1), dtype=np.uint8), ImageFormat.GRAY)
+    layer.set_mask(mask_img, Region.from_rect(20, 30, 50, 50))
+    layer.transform.translate(100, 100)
+
+    view_region = Region.from_rect(100, 100, 150, 150)
+    frame = CanvasFrame(layer, canvas, view_region=view_region)
+
+    assert frame.dst_region == Region.from_rect(100, 100, 150, 150)
+
+
+def test_canvas_frame_expand_bounds_with_effects_padding():
+    """Valida se CanvasFrame expande os bounds geométricos de acordo com o padding dos efeitos."""
+    class DummyPaddingEffect:
+        def prepare(self, frame):
+            pass
+
+        def get_padding(self):
+            return (10, 15, 20, 25)
+
+        def apply(self, image, matrix=None):
+            return image
+
+    canvas = Canvas.from_size(1000, 1000)
+    layer = make_layer(w=100, h=100, x=200, y=200)
+    layer.effects.append(DummyPaddingEffect())
+
+    frame = CanvasFrame(layer, canvas)
+
+    assert frame.bounds == Region.from_rect(175, 190, 140, 130)
+    assert frame.dst_region == Region.from_rect(175, 190, 140, 130)

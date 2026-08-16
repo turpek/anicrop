@@ -270,3 +270,25 @@ def test_document_render_interleaved_hierarchy_z_order():
     doc["topo_geral"].visible = False
     rendered_no_top = doc.render()
     np.testing.assert_array_equal(rendered_no_top[25, 25], [255, 255, 0, 255])
+
+
+def test_document_reactive_add_mask_undo_redo():
+    """Valida se operações de add_mask e clear_masks suportam Undo e Redo no Document reativo."""
+    doc = Document("TestDoc", 100, 100, wrap_proxy=True)
+    layer = doc.add(Layer(make_img(50, 50), name="L1"))
+
+    mask_img = Image(np.full((50, 50, 1), 255, dtype=np.uint8), ImageFormat.GRAY)
+    layer.add_mask(mask_img, Region.from_size(50, 50))
+    assert len(layer.masks) == 1
+
+    doc.history.undo()
+    assert len(layer.masks) == 0
+
+    doc.history.redo()
+    assert len(layer.masks) == 1
+
+    layer.clear_masks()
+    assert len(layer.masks) == 0
+
+    doc.history.undo()
+    assert len(layer.masks) == 1

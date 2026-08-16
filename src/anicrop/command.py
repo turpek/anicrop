@@ -133,6 +133,8 @@ class BaseLayerSnapshot(StateSnapshot):
         self._visible = item.visible
         self._transform = item._transform.copy()
         self._control = GeometryControllerSnapshot(item.control)
+        self._masks = list(item._masks)
+        self._effects = list(item._effects)
         self._item = item
 
     def restore(self) -> None:
@@ -142,6 +144,8 @@ class BaseLayerSnapshot(StateSnapshot):
         self._item.visible = self._visible
         self._item._transform = self._transform.copy()
         self._control.restore()
+        self._item._masks = deque(self._masks)
+        self._item._effects = list(self._effects)
 
     def has_change(self, other: BaseLayerSnapshot) -> bool:
         return (
@@ -150,7 +154,9 @@ class BaseLayerSnapshot(StateSnapshot):
             self._blend_mode != other._blend_mode or
             self._visible != other._visible or
             self._transform != other._transform or
-            self._control.has_change(other._control)
+            self._control.has_change(other._control) or
+            self._masks != other._masks or
+            self._effects != other._effects
         )
 
 

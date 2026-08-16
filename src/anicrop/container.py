@@ -1,5 +1,6 @@
 from __future__ import annotations
 from abc import ABC
+from collections import deque
 from collections.abc import Generator, Iterable
 from contextlib import contextmanager
 from typing import Any, Callable, Optional, Protocol, runtime_checkable, TYPE_CHECKING
@@ -10,6 +11,7 @@ from anicrop.enums import BlendMode
 from anicrop.geometry import GeometryStrategy, GroupGeometry, GeometryController
 from anicrop.spatial import Region
 from anicrop.transform import (
+    mat_global,
     mat_inverse,
     Composer,
     ComposerRel,
@@ -19,7 +21,9 @@ from anicrop.transform import (
 import numpy as np
 
 if TYPE_CHECKING:
+    from anicrop.effect import Effect
     from anicrop.layer import Layer
+    from anicrop.mask import Mask
 
 
 @runtime_checkable
@@ -154,15 +158,82 @@ class BaseLayer(ABC):
         self.visible = True
         self.blend_mode = blend_mode
         self.name = name
+        self._effects: list[Effect] = []
+        self._masks: deque[Mask] = deque()
 
         base = geometry_cls(self, region)
         layout = geometry_cls(self, region)
         self.control = GeometryController(base, layout)
 
     @property
+    def effects(self) -> list[Effect]:
+        """Fila de efeitos de pós-processamento de pixels aplicados sobre a camada."""
+        return self._effects
+
+    @property
+    def masks(self) -> tuple[Mask, ...]:
+        """Fila não-destrutiva de máscaras que modulam a opacidade desta camada."""
+        return tuple(self._masks)
+
+    @property
+    def mask(self) -> Mask | None:
+        """Retorna a última máscara ativa da camada ou None se a fila estiver vazia."""
+        return self._masks[-1] if self._masks else None
+
+    def add_mask(
+        self,
+        image: Image,
+        region: Region,
+        invert: bool = False,
+        name: str = "Mask",
+    ) -> Mask:
+        """Cria e adiciona uma máscara à fila não-destrutiva da camada."""
+        from anicrop.mask import Mask
+        matrix = mat_inverse(mat_global(self))
+        mask = Mask(image, region, matrix, invert=invert, name=name)
+        self._masks.append(mask)
+        return mask
+
+    def set_mask(
+        self,
+        image: Image,
+        region: Region,
+        invert: bool = False,
+        name: str = "Mask",
+    ) -> Mask:
+        """Substitui todas as máscaras existentes por uma nova máscara."""
+        self._masks.clear()
+        return self.add_mask(image, region, invert=invert, name=name)
+
+    def clear_masks(self) -> None:
+        """Remove todas as máscaras da camada."""
+        self._masks.clear()
+
+    def clear_mask(self) -> None:
+        """Alias para clear_masks."""
+        self.clear_masks()
+
+    def get_effects_padding(self) -> tuple[int, int, int, int]:
+        """Calcula o padding total somado/máximo de todos os efeitos ativos."""
+        top, right, bottom, left = 0, 0, 0, 0
+        for effect in self._effects:
+            pt, pr, pb, pl = effect.get_padding()
+            top = max(top, pt)
+            right = max(right, pr)
+            bottom = max(bottom, pb)
+            left = max(left, pl)
+        return top, right, bottom, left
+
+    @property
     def is_renderable(self) -> bool:
         """Indica se a camada deve ser processada no pipeline de renderização."""
-        return self.visible and self.opacity > 0.0
+        if not (self.visible and self.opacity > 0.0):
+            return False
+        if self._masks:
+            m_global = mat_global(self)
+            if not any(self.global_region.overlaps(m.projected_region(m_global)) for m in self._masks):
+                return False
+        return True
 
     @property
     def canvas_size(self) -> tuple[int, int]:

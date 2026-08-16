@@ -18,6 +18,7 @@ if TYPE_CHECKING:
     from anicrop.layer import EditLayer
     from anicrop.viewport import Viewport
     from anicrop.container import BaseLayer
+    from anicrop.mask import Mask
 
 
 @runtime_checkable
@@ -33,21 +34,36 @@ class SurfaceProtocol(Protocol):
         ...
 
 
+def calculate_mask_rect(mask: Mask | None, matrix: np.ndarray) -> Region | None:
+    """Calcula a Bounding Box projetada (rect) da máscara combinando sua matriz local com a matriz global fornecida."""
+    if mask is not None:
+        return mask.projected_region(matrix)
+    return None
+
+
 class BaseFrame(ABC):
 
     def __init__(
         self,
+        base: BaseLayer,
         bounds: Region,
         view_region: None | Region,
-        matrix: np.ndarray = np.identity(3, dtype=np.float32),
-        surface_size: tuple[int, int] | None = None,
+        effective_view: None | Region,
+        matrix: np.ndarray,
+        surface: SurfaceProtocol,
     ):
+        self.base = base
         self._bounds = bounds
         self._matrix = matrix
         self._view_region = view_region
-        self._dst_region = self._render_region(self.bounds, view_region)
+        self.surface = surface
+        self._dst_region = self._render_region(self.bounds, effective_view)
         self._src_region = self._source_region(self.bounds, self.dst_region)
-        self.surface_size = surface_size if surface_size is not None else bounds.size
+
+        for effect in base.effects:
+            effect.prepare(self)
+        for mask in base.masks:
+            mask.prepare(self)
 
     def _render_region(
         self, final_region: Region, view_region: Region | None,
@@ -75,12 +91,40 @@ class BaseFrame(ABC):
         # Retorna a escala final exata combinada de tudo!
         return float(s[0])
 
-    def _effective_view(self, surface_region: Region, view_region: Region | None) -> Region | None:
+    def _effective_view(
+        self,
+        surface_region: Region,
+        view_region: Region | None,
+        masks: tuple[Mask, ...] | None,
+        matrix: np.ndarray,
+    ) -> Region | None:
+        """Calcula a janela efetiva de visualização respeitando a prioridade de view_region, máscara e superfície."""
         if view_region is not None:
             if surface_region.overlaps(view_region):
                 return view_region & surface_region
             return None
+
+        if masks:
+            projected_boxes = [m.projected_region(matrix) for m in masks]
+            union_box = projected_boxes[0]
+            for b in projected_boxes[1:]:
+                union_box = union_box | b
+
+            if surface_region.overlaps(union_box):
+                return union_box & surface_region
+            return None
+
         return surface_region
+
+    def _expand_bounds(self, bounds: Region, base: BaseLayer) -> Region:
+        """Expande os limites geométricos da camada de acordo com o padding dos efeitos ativos."""
+        pad_t, pad_r, pad_b, pad_l = base.get_effects_padding()
+        return bounds.expand(
+            top=max(0, pad_t),
+            right=max(0, pad_r),
+            bottom=max(0, pad_b),
+            left=max(0, pad_l),
+        )
 
     @property
     def bounds(self) -> Region:
@@ -91,10 +135,24 @@ class BaseFrame(ABC):
         return self._dst_region
 
     @property
+    def surface_size(self) -> tuple[int, int]:
+        return self.surface.size
+
+    @property
+    def surface_region(self) -> Region:
+        return self.surface.region
+
+    @property
     def targ_region(self) -> None | Region:
-        if self._dst_region is not None and self._view_region is not None:
-            return self._dst_region - self._view_region
-        return self._dst_region
+        if self._dst_region is None:
+            return None
+
+        buffer_region = self._view_region if self._view_region is not None else self.surface.region
+
+        if buffer_region.overlaps(self._dst_region):
+            return buffer_region.overlap_with(self._dst_region)
+
+        return None
 
     @property
     def src_region(self) -> None | Region:
@@ -113,16 +171,19 @@ class ViewportFrame(BaseFrame):
         view_region: Region | None = None,
         local: bool = False,
     ):
-        self.base = base
         self.viewport = viewport
         self.local = local
 
-        effective_view = self._effective_view(viewport.region, view_region)
         m_view = viewport.roi_matrix @ viewport.fit_matrix(base.canvas_size)
         matrix = m_view if local else m_view @ mat_global(base)
-        bounds = rect_to_region(calculate_new_rect(matrix, base.region.size))
 
-        super().__init__(bounds, effective_view, matrix=matrix, surface_size=viewport.size)
+        effective_view = self._effective_view(
+            viewport.region, view_region, base.masks, matrix
+        )
+        bounds = rect_to_region(calculate_new_rect(matrix, base.region.size))
+        bounds = self._expand_bounds(bounds, base)
+
+        super().__init__(base, bounds, view_region, effective_view, matrix=matrix, surface=viewport)
 
 
 class CanvasFrame(BaseFrame):
@@ -133,14 +194,14 @@ class CanvasFrame(BaseFrame):
         view_region: Region | None = None,
         local: bool = False,
     ):
-        self.base = base
         self.local = local
 
         m_global = mat_global(base)
-        effective_view = self._effective_view(canvas.region, view_region)
-
         if local:
             matrix = np.identity(3, dtype=np.float32)
+            effective_view = self._effective_view(
+                canvas.region, view_region, base.masks, matrix
+            )
             if effective_view is not None:
                 inv_matrix = mat_inverse(m_global)
                 rect = calculate_region_rect(inv_matrix, effective_view)
@@ -150,7 +211,11 @@ class CanvasFrame(BaseFrame):
             bounds = base.region
         else:
             matrix = m_global
-            view_target = effective_view
+            view_target = self._effective_view(
+                canvas.region, view_region, base.masks, matrix
+            )
             bounds = base.global_region
 
-        super().__init__(bounds, view_target, matrix=matrix, surface_size=canvas.size)
+        bounds = self._expand_bounds(bounds, base)
+
+        super().__init__(base, bounds, view_region, view_target, matrix=matrix, surface=canvas)

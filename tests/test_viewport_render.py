@@ -157,3 +157,65 @@ def test_viewport_render_passes_scale_factor_to_lod():
     rendered = vr.render_area(layer, frame)
 
     assert rendered is not None
+
+
+def test_viewport_render_with_layer_mask_modulates_viewport_pixels():
+    """Valida se ViewportRender aplica a modulação da máscara da camada no espaço da Viewport."""
+    layer = make_layer(100, 100, (255, 0, 0, 255))
+    mask_data = np.full((100, 100, 1), 255, dtype=np.uint8)
+    mask_data[25:75, 25:75] = 0
+    mask_img = Image(mask_data, ImageFormat.GRAY)
+    layer.set_mask(mask_img, Region.from_size(100, 100))
+
+    viewport = Viewport(size=(200, 200), fit_scale=1.0)
+    vr = ViewportRender()
+    comp = vr.render_scene([layer], viewport)
+
+    assert comp.size == (200, 200)
+    # Centro mascarado (0) fica transparente revelando o fundo cinza (204) da Viewport
+    np.testing.assert_array_equal(comp[100, 100], [204, 204, 204, 255])
+    # Borda da camada (255) mantém a cor vermelha opaca
+    np.testing.assert_array_equal(comp[60, 60], [255, 0, 0, 255])
+
+
+def test_viewport_render_with_group_mask_modulates_grouped_children():
+    """Valida se ViewportRender aplica a máscara de um GroupLayer sobre todos os seus filhos na Viewport."""
+    group = GroupLayer()
+    child1 = make_layer(100, 100, (255, 0, 0, 255))
+    child2 = make_layer(100, 100, (0, 255, 0, 255))
+    group.append(child1)
+    group.append(child2)
+
+    mask_data = np.zeros((100, 100, 1), dtype=np.uint8)
+    mask_data[:50, :50] = 255
+    mask_img = Image(mask_data, ImageFormat.GRAY)
+    group.set_mask(mask_img, Region.from_size(100, 100))
+
+    viewport = Viewport(size=(200, 200), fit_scale=1.0)
+    vr = ViewportRender()
+    comp = vr.render_scene([group], viewport)
+
+    assert comp.size == (200, 200)
+    # Quadrante superior esquerdo revelado (verde por cima do vermelho)
+    np.testing.assert_array_equal(comp[60, 60], [0, 255, 0, 255])
+    # Quadrante inferior cortado pela máscara revela o fundo da viewport
+    np.testing.assert_array_equal(comp[120, 120], [204, 204, 204, 255])
+
+
+def test_viewport_render_with_inverted_mask_under_zoom():
+    """Valida se ViewportRender sob zoom de câmera renderiza máscara invertida com precisão."""
+    layer = make_layer(100, 100, (0, 0, 255, 255))
+    mask_data = np.full((100, 100, 1), 255, dtype=np.uint8)
+    mask_data[25:75, 25:75] = 0
+    mask_img = Image(mask_data, ImageFormat.GRAY)
+    layer.set_mask(mask_img, Region.from_size(100, 100), invert=True)
+
+    viewport = Viewport(size=(200, 200), fit_scale=1.0)
+    viewport.scale = Scale(1.5, 1.5)
+
+    vr = ViewportRender()
+    comp = vr.render_scene([layer], viewport)
+
+    assert comp.size == (200, 200)
+    # Com invert=True, o centro (0) vira visível (azul)
+    np.testing.assert_array_equal(comp[100, 100], [0, 0, 255, 255])
