@@ -2,7 +2,6 @@ from __future__ import annotations
 from abc import ABC, abstractmethod
 from pathlib import Path
 from typing import Iterator, TypeVar
-import cv2
 import numpy as np
 
 from anicrop.canvas import Canvas
@@ -206,25 +205,14 @@ class Document:
         """
         return self._canvas_render.render_scene(self.stack, self.canvas)
 
-    def preview(self, viewport: Viewport) -> np.ndarray:
+    def preview(self, viewport: Viewport) -> Image:
         """
-        Gera o Preview para renderizar na interface de usuário via Viewport.
+        Gera o Preview para renderizar na interface de usuário via Viewport e retorna um objeto Image.
         """
-        result_img = self._viewport_render.render_scene(self.stack, viewport)
-        return result_img[...]
+        return self._viewport_render.render_scene(self.stack, viewport)
 
     def export(self, path: str | Path) -> None:
         """
         Renderiza a composição final em alta resolução e salva no disco.
         """
-        final_img = self.render()
-        frame = final_img[...]
-
-        if frame.shape[2] == 4:
-            frame_save = cv2.cvtColor(frame, cv2.COLOR_RGBA2BGRA)
-        elif frame.shape[2] == 3:
-            frame_save = cv2.cvtColor(frame, cv2.COLOR_RGB2BGR)
-        else:
-            frame_save = frame
-
-        cv2.imwrite(str(path), frame_save)
+        self.render().save(path)

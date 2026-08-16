@@ -40,14 +40,16 @@ class Viewer:
         Gera a renderização da cena e exibe (ou atualiza) na janela.
         A janela terá a dimensão exata definida na Viewport.
         """
-        frame = self.doc.preview(self.viewport)
+        img = self.doc.preview(self.viewport)
 
-        if frame is None:
+        if img is None:
             # Mostra uma tela vazia se nada renderizou
             vw, vh = self.viewport.size
             frame_display = np.zeros((vh, vw, 3), dtype=np.uint8)
             cv2.imshow(self.window_name, frame_display)
             return
+
+        frame = img[...]
 
         # O frame interno do motor é RGBA (ou RGB). O OpenCV requer BGR/BGRA.
         if frame.shape[2] == 4:

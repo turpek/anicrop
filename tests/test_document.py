@@ -172,3 +172,31 @@ def test_document_render_in_memory():
     assert isinstance(rendered_img, Image)
     assert rendered_img.size == (50, 50)
     assert rendered_img.format == ImageFormat.RGBA
+
+
+def test_document_preview_returns_image():
+    """Valida se doc.preview() retorna uma instância de Image."""
+    from anicrop.viewport import Viewport
+    doc = Document("TestDoc", 100, 100)
+    doc.add(Layer(make_img(100, 100), name="l1"))
+    viewport = Viewport((50, 50))
+
+    preview_img = doc.preview(viewport)
+
+    assert isinstance(preview_img, Image)
+    assert preview_img.size == (50, 50)
+    assert preview_img.format == ImageFormat.RGBA
+
+
+def test_document_export_saves_file(tmp_path):
+    """Valida se doc.export() gera o arquivo de imagem no disco."""
+    doc = Document("TestDoc", 40, 40)
+    img_data = np.ones((40, 40, 4), dtype=np.uint8) * 150
+    doc.add(Layer(Image(img_data, ImageFormat.RGBA), name="l1"))
+
+    export_file = tmp_path / "export_output.png"
+    doc.export(export_file)
+
+    assert export_file.exists()
+    reloaded = Image.open(export_file, ImageFormat.RGBA)
+    assert reloaded.size == (40, 40)

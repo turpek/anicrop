@@ -202,6 +202,25 @@ class Image:
     def crop(self, region: EllipsisType | Region) -> Image:
         return Image(self[region].copy(), self.format)
 
+    def save(self, file_path: str | Path) -> None:
+        """Salva a imagem no disco no caminho especificado."""
+        file_path = str(file_path)
+        frame = self[...]
+
+        if self.format == ImageFormat.RGBA:
+            frame_save = cv2.cvtColor(frame, cv2.COLOR_RGBA2BGRA)
+        elif self.format == ImageFormat.RGB:
+            frame_save = cv2.cvtColor(frame, cv2.COLOR_RGB2BGR)
+        elif self.format == ImageFormat.GRAY_ALPHA:
+            bgr = cv2.cvtColor(frame[..., 0], cv2.COLOR_GRAY2BGR)
+            frame_save = np.dstack([bgr, frame[..., 1]])
+        elif self.format == ImageFormat.GRAY:
+            frame_save = frame[..., 0] if frame.ndim == 3 else frame
+        else:
+            frame_save = frame
+
+        cv2.imwrite(file_path, frame_save)
+
     @classmethod
     def open(cls, file_path: str | Path, image_format: ImageFormat) -> Image:
         file_path = str(file_path)

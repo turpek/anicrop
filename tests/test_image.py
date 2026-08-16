@@ -334,3 +334,19 @@ def test_image_open_zarr_converts_format(tmp_path):
     img_rgba = Image._open_with_pillow_zarr(str(source_path), ImageFormat.RGBA)
     assert img_rgba.shape == (100, 100, 4)
     assert np.all(img_rgba[0, 0] == (0, 255, 0, 255))
+
+
+def test_image_save_and_reopen(tmp_path):
+    """Valida gravação em disco com Image.save e reabertura correta com canais correspondentes."""
+    save_path = tmp_path / "saved_rgba.png"
+    arr = np.zeros((50, 50, 4), dtype=np.uint8)
+    arr[..., 0] = 255
+    arr[..., 3] = 255
+    img = Image(arr, ImageFormat.RGBA)
+
+    img.save(save_path)
+
+    assert save_path.exists()
+    reopened = Image.open(save_path, ImageFormat.RGBA)
+    assert reopened.shape == (50, 50, 4)
+    assert np.all(reopened[0, 0] == (255, 0, 0, 255))
