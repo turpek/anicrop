@@ -149,23 +149,74 @@ class BlurFilter(Effect):
         return Image(processed, image.format)
 
     def merge(self, other: Effect, matrix: np.ndarray) -> BlurFilter | None:
-        """Combina dois BlurFilters gaussianos contínuos somando seus raios quadraticamente."""
+        """Combina dois BlurFilters gaussianos somando seus tensores de covariância no espaço matricial."""
         if not isinstance(other, BlurFilter):
             return None
 
         if self.mode != BlurMode.GAUSSIAN or other.mode != BlurMode.GAUSSIAN:
             return None
 
-        if self.angle != other.angle or self.affect_alpha != other.affect_alpha:
+        if self.affect_alpha != other.affect_alpha:
             return None
 
-        combined_rx = math.hypot(self.radius_x, other.radius_x)
-        combined_ry = math.hypot(self.radius_y, other.radius_y)
+        # 1. Resolve matriz delta e parâmetros de self no espaço de renderização
+        delta_m1 = matrix @ self.matrix
+        ang1_rad = math.radians(self.angle + math.degrees(math.atan2(float(delta_m1[1, 0]), float(delta_m1[0, 0]))))
+        s_x1 = math.hypot(float(delta_m1[0, 0]), float(delta_m1[1, 0]))
+        s_y1 = math.hypot(float(delta_m1[0, 1]), float(delta_m1[1, 1]))
+        r_x1 = self.radius_x * s_x1
+        r_y1 = self.radius_y * s_y1
+
+        # Matriz de covariância Sigma 1
+        c1, s1 = math.cos(ang1_rad), math.sin(ang1_rad)
+        sig1_11 = (r_x1 ** 2) * (c1 ** 2) + (r_y1 ** 2) * (s1 ** 2)
+        sig1_22 = (r_x1 ** 2) * (s1 ** 2) + (r_y1 ** 2) * (c1 ** 2)
+        sig1_12 = (r_x1 ** 2 - r_y1 ** 2) * c1 * s1
+
+        # 2. Resolve matriz delta e parâmetros de other no espaço de renderização
+        delta_m2 = matrix @ other.matrix
+        ang2_rad = math.radians(other.angle + math.degrees(math.atan2(float(delta_m2[1, 0]), float(delta_m2[0, 0]))))
+        s_x2 = math.hypot(float(delta_m2[0, 0]), float(delta_m2[1, 0]))
+        s_y2 = math.hypot(float(delta_m2[0, 1]), float(delta_m2[1, 1]))
+        r_x2 = other.radius_x * s_x2
+        r_y2 = other.radius_y * s_y2
+
+        # Matriz de covariância Sigma 2
+        c2, s2 = math.cos(ang2_rad), math.sin(ang2_rad)
+        sig2_11 = (r_x2 ** 2) * (c2 ** 2) + (r_y2 ** 2) * (s2 ** 2)
+        sig2_22 = (r_x2 ** 2) * (s2 ** 2) + (r_y2 ** 2) * (c2 ** 2)
+        sig2_12 = (r_x2 ** 2 - r_y2 ** 2) * c2 * s2
+
+        # 3. Soma das matrizes de covariância (Teorema da Convolução de Gaussianas)
+        sig_11 = sig1_11 + sig2_11
+        sig_22 = sig1_22 + sig2_22
+        sig_12 = sig1_12 + sig2_12
+
+        # 4. Decomposição espectral da matriz simétrica 2x2 resultante
+        trace = sig_11 + sig_22
+        diff = sig_11 - sig_22
+        discriminant = math.sqrt(max(0.0, diff ** 2 + 4.0 * (sig_12 ** 2)))
+
+        lambda_1 = max(0.0, (trace + discriminant) / 2.0)
+        lambda_2 = max(0.0, (trace - discriminant) / 2.0)
+
+        rx_screen = math.sqrt(lambda_1)
+        ry_screen = math.sqrt(lambda_2)
+        angle_screen_deg = 0.5 * math.degrees(math.atan2(2.0 * sig_12, diff))
+
+        # 5. Converte do espaço da tela de volta para o espaço da matriz de destino
+        mat_angle_deg = math.degrees(math.atan2(float(matrix[1, 0]), float(matrix[0, 0])))
+        s_x_mat = math.hypot(float(matrix[0, 0]), float(matrix[1, 0]))
+        s_y_mat = math.hypot(float(matrix[0, 1]), float(matrix[1, 1]))
+
+        new_angle = (angle_screen_deg - mat_angle_deg + 180.0) % 360.0 - 180.0
+        new_rx = rx_screen / s_x_mat if s_x_mat > 0 else rx_screen
+        new_ry = ry_screen / s_y_mat if s_y_mat > 0 else ry_screen
         combined_strength = min(1.0, self.strength * other.strength)
 
         return BlurFilter(
-            radius=(combined_rx, combined_ry),
-            angle=self.angle,
+            radius=(new_rx, new_ry),
+            angle=new_angle,
             mode=self.mode,
             affect_alpha=self.affect_alpha,
             strength=combined_strength,

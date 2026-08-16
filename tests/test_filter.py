@@ -131,6 +131,43 @@ def test_blur_filter_merge_gaussian_radii():
     assert merged.affect_alpha is True
 
 
+def test_blur_filter_merge_orthogonal_produces_isotropic_gaussian():
+    """Valida se fusão de desfoque horizontal e vertical a 90 graus gera Gaussiana circular isotrópica."""
+    blur_h = BlurFilter(radius=(10.0, 0.0), angle=0.0, mode=BlurMode.GAUSSIAN)
+    blur_v = BlurFilter(radius=(10.0, 0.0), angle=90.0, mode=BlurMode.GAUSSIAN)
+
+    matrix = np.identity(3, dtype=np.float32)
+    merged = blur_h.merge(blur_v, matrix)
+
+    assert merged is not None
+    assert isinstance(merged, BlurFilter)
+    assert pytest.approx(merged.radius_x, 0.01) == 10.0
+    assert pytest.approx(merged.radius_y, 0.01) == 10.0
+
+
+def test_blur_filter_merge_with_different_base_matrices():
+    """Valida se fusão de filtros com matrizes de base distintas calcula a covariância relativa correta."""
+    rad90 = math.radians(90.0)
+    mat_rot90 = np.array([
+        [math.cos(rad90), -math.sin(rad90), 0.0],
+        [math.sin(rad90), math.cos(rad90), 0.0],
+        [0.0, 0.0, 1.0],
+    ], dtype=np.float32)
+
+    # blur1 local horizontal em base identidade (0 graus na tela)
+    blur1 = BlurFilter(radius=(6.0, 0.0), angle=0.0, matrix=np.identity(3, dtype=np.float32))
+    # blur2 local horizontal em base rotacionada 90 graus (90 graus na tela)
+    blur2 = BlurFilter(radius=(8.0, 0.0), angle=0.0, matrix=mat_rot90)
+
+    matrix = np.identity(3, dtype=np.float32)
+    merged = blur1.merge(blur2, matrix)
+
+    assert merged is not None
+    # No espaço unificado, as variâncias ortogonais são 6^2 e 8^2, gerando raios 8 e 6
+    assert pytest.approx(merged.radius_x, 0.01) == 8.0
+    assert pytest.approx(merged.radius_y, 0.01) == 6.0
+
+
 def test_blur_filter_merge_incompatible_returns_none():
     """Valida se merge retorna None quando os modos ou configurações forem incompatíveis."""
     blur_gaussian = BlurFilter(radius=3.0, mode=BlurMode.GAUSSIAN)
