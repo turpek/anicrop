@@ -147,7 +147,8 @@ def test_layer_is_renderable_with_mask():
 
     # Adiciona máscara sem overlap (em 200, 200)
     mask_data = np.full((50, 50, 1), 255, dtype=np.uint8)
-    layer.set_mask(Image(mask_data, ImageFormat.GRAY), Region.from_rect(200, 200, 50, 50))
+    layer.set_mask(Image(mask_data, ImageFormat.GRAY),
+                   Region.from_rect(200, 200, 50, 50))
     assert layer.is_renderable is False
 
     # Substitui por máscara com overlap (em 0, 0)

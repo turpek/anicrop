@@ -47,10 +47,13 @@ def test_blur_filter_radius_normalization(radius_input, expected_rx, expected_ry
 @pytest.mark.parametrize(
     "radius, mode, affect_alpha, expected_padding",
     [
-        pytest.param(3.0, BlurMode.GAUSSIAN, True, (9, 9, 9, 9), id="gaussiano_afeta_alfa_3sigma"),
-        pytest.param((4.0, 2.0), BlurMode.GAUSSIAN, True, (6, 12, 6, 12), id="gaussiano_anisotropico_afeta_alfa"),
+        pytest.param(3.0, BlurMode.GAUSSIAN, True, (9, 9, 9, 9),
+                     id="gaussiano_afeta_alfa_3sigma"),
+        pytest.param((4.0, 2.0), BlurMode.GAUSSIAN, True, (6, 12, 6, 12),
+                     id="gaussiano_anisotropico_afeta_alfa"),
         pytest.param(5.0, BlurMode.BOX, True, (5, 5, 5, 5), id="box_blur_afeta_alfa"),
-        pytest.param(5.0, BlurMode.GAUSSIAN, False, (0, 0, 0, 0), id="alfa_nao_afetado_padding_zero"),
+        pytest.param(5.0, BlurMode.GAUSSIAN, False, (0, 0, 0, 0),
+                     id="alfa_nao_afetado_padding_zero"),
     ],
 )
 def test_blur_filter_get_padding(radius, mode, affect_alpha, expected_padding):
@@ -155,12 +158,12 @@ def test_blur_filter_merge_with_different_base_matrices():
     ], dtype=np.float32)
 
     # blur1 local horizontal em base identidade (0 graus na tela)
-    blur1 = BlurFilter(radius=(6.0, 0.0), angle=0.0, matrix=np.identity(3, dtype=np.float32))
-    # blur2 local horizontal em base rotacionada 90 graus (90 graus na tela)
-    blur2 = BlurFilter(radius=(8.0, 0.0), angle=0.0, matrix=mat_rot90)
+    blur1 = BlurFilter(radius=(6.0, 0.0), angle=0.0)
+    # blur2 local horizontal
+    blur2 = BlurFilter(radius=(8.0, 0.0), angle=0.0)
 
-    matrix = np.identity(3, dtype=np.float32)
-    merged = blur1.merge(blur2, matrix)
+    # Funde blur2 em blur1 aplicando a matriz de rotação relativa de 90 graus
+    merged = blur1.merge(blur2, mat_rot90)
 
     assert merged is not None
     # No espaço unificado, as variâncias ortogonais são 6^2 e 8^2, gerando raios 8 e 6
@@ -277,10 +280,11 @@ def test_render_layer_with_masked_blur_filter():
     # Máscara branca na metade superior (y < 20) e preta na inferior
     mask_data = np.zeros((40, 40, 1), dtype=np.uint8)
     mask_data[:20, :] = 255
-    mask = Mask(Image(mask_data, ImageFormat.GRAY), Region.from_size(40, 40), np.identity(3, dtype=np.float32))
+    mask = Mask(Image(mask_data, ImageFormat.GRAY), Region.from_size(
+        40, 40), np.identity(3, dtype=np.float32))
 
     blur = BlurFilter(radius=6.0)
-    layer.add_effect(blur, mask=mask)
+    layer.bind_effect(blur, mask=mask)
 
     renderer = CanvasRender()
     result = renderer.render_scene([layer], canvas)

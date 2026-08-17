@@ -274,8 +274,7 @@ def apply_post_processing(
     image = target_image
 
     for effect in base.effects:
-        if effect.visible:
-            image = effect.apply(image, frame.matrix)
+        image = effect.apply(image, frame.matrix)
 
     if base.mask is not None and base.mask.visible:
         mask_result = render_edit(base.mask, frame, interp=interp)

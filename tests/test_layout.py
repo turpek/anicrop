@@ -33,7 +33,8 @@ def make_transformed_layer(
     'ref, expected_rect',
     [
         pytest.param((10, 20, 100, 50), (10, 20, 100, 50), id='tuple_rect'),
-        pytest.param(Region.from_rect(10, 20, 100, 50), (10, 20, 100, 50), id='region_object'),
+        pytest.param(Region.from_rect(10, 20, 100, 50),
+                     (10, 20, 100, 50), id='region_object'),
         pytest.param(
             make_transformed_layer(x=30, y=40, w=100, h=50),
             (30, 40, 100, 50),
@@ -83,8 +84,10 @@ def test_layout_fit(ref, expect_global_rect):
     [
         pytest.param((0, 0, 200, 200), 0.0, 0.0, (0, 0, 100, 50), id='align_top_left'),
         pytest.param((0, 0, 200, 200), 0.5, 0.5, (50, 75, 100, 50), id='align_center'),
-        pytest.param((0, 0, 200, 200), 1.0, 1.0, (100, 150, 100, 50), id='align_bottom_right'),
-        pytest.param((10, 20, 200, 200), 0.0, 0.0, None, id='align_already_aligned_no_op'),
+        pytest.param((0, 0, 200, 200), 1.0, 1.0,
+                     (100, 150, 100, 50), id='align_bottom_right'),
+        pytest.param((10, 20, 200, 200), 0.0, 0.0, None,
+                     id='align_already_aligned_no_op'),
     ],
 )
 def test_layout_align(ref, anchor_x, anchor_y, expect_rect):
@@ -129,10 +132,14 @@ def test_layout_align_layer_dentro_de_grupo_rotacionado():
 @pytest.mark.parametrize(
     'ref, anchor_x, anchor_y, expected_global_rect',
     [
-        pytest.param((0, 0, 400, 400), 0.0, 0.0, (0, 0, 200, 100), id='align_group_top_left'),
-        pytest.param((0, 0, 400, 400), 0.5, 0.5, (100, 150, 200, 100), id='align_group_center'),
-        pytest.param((0, 0, 400, 400), 1.0, 1.0, (200, 300, 200, 100), id='align_group_bottom_right'),
-        pytest.param((10, 20, 400, 400), 0.0, 0.0, (10, 20, 200, 100), id='align_group_no_op'),
+        pytest.param((0, 0, 400, 400), 0.0, 0.0,
+                     (0, 0, 200, 100), id='align_group_top_left'),
+        pytest.param((0, 0, 400, 400), 0.5, 0.5,
+                     (100, 150, 200, 100), id='align_group_center'),
+        pytest.param((0, 0, 400, 400), 1.0, 1.0, (200, 300, 200, 100),
+                     id='align_group_bottom_right'),
+        pytest.param((10, 20, 400, 400), 0.0, 0.0,
+                     (10, 20, 200, 100), id='align_group_no_op'),
     ],
 )
 def test_group_layout_align(ref, anchor_x, anchor_y, expected_global_rect):
@@ -153,10 +160,14 @@ def test_group_layout_align(ref, anchor_x, anchor_y, expected_global_rect):
 @pytest.mark.parametrize(
     'new_w, new_h, anchor_x, anchor_y, expect_rect',
     [
-        pytest.param(200, 100, 0.5, 0.5, (-40, -5, 200, 100), id='resize_center_anchored'),
-        pytest.param(200, 100, 0.0, 0.0, (10, 20, 200, 100), id='resize_top_left_anchored'),
-        pytest.param(200, 100, 1.0, 1.0, (-90, -30, 200, 100), id='resize_bottom_right_anchored'),
-        pytest.param(200, 100, 0.25, 0.75, (-15, -18, 200, 100), id='resize_asymmetric_anchored'),
+        pytest.param(200, 100, 0.5, 0.5, (-40, -5, 200, 100),
+                     id='resize_center_anchored'),
+        pytest.param(200, 100, 0.0, 0.0, (10, 20, 200, 100),
+                     id='resize_top_left_anchored'),
+        pytest.param(200, 100, 1.0, 1.0, (-90, -30, 200, 100),
+                     id='resize_bottom_right_anchored'),
+        pytest.param(200, 100, 0.25, 0.75, (-15, -18, 200, 100),
+                     id='resize_asymmetric_anchored'),
 
         pytest.param(100, 50, 0.5, 0.5, None, id='resize_no_op'),
     ],
@@ -165,7 +176,8 @@ def test_layout_resize_bounds(new_w, new_h, anchor_x, anchor_y, expect_rect):
     target = make_transformed_layer(x=10, y=20, w=100, h=50)
     layout = Layout()
 
-    result = layout.resize_bounds(target, new_w, new_h, anchor_x=anchor_x, anchor_y=anchor_y)
+    result = layout.resize_bounds(
+        target, new_w, new_h, anchor_x=anchor_x, anchor_y=anchor_y)
 
     if expect_rect is None:
         assert result is False
@@ -188,7 +200,8 @@ def test_layout_resize_bounds_com_rotacao_90_deg():
     'edits_rect, expect_global_rect',
     [
         pytest.param((10, 10, 40, 20), (20, 30, 40, 20), id='fit_content_contraction'),
-        pytest.param((-20, -10, 200, 150), (-10, 10, 200, 150), id='fit_content_expansion'),
+        pytest.param((-20, -10, 200, 150), (-10, 10, 200, 150),
+                     id='fit_content_expansion'),
         pytest.param(None, None, id='fit_content_empty_no_edits'),
         pytest.param((0, 0, 100, 50), None, id='fit_content_already_fitted_no_op'),
     ],
@@ -354,7 +367,8 @@ def test_layout_fit_group_layer_rigid_unit_rotation_45():
     [
         pytest.param(300, 200, 0.0, 0.0, (0, 0, 300, 200), id="anchor_top_left"),
         pytest.param(300, 200, 0.5, 0.5, (-50, -50, 300, 200), id="anchor_center"),
-        pytest.param(300, 200, 1.0, 1.0, (-100, -100, 300, 200), id="anchor_bottom_right"),
+        pytest.param(300, 200, 1.0, 1.0, (-100, -100, 300, 200),
+                     id="anchor_bottom_right"),
     ],
 )
 def test_group_layout_resize_bounds(new_w, new_h, anchor_x, anchor_y, expected_rect):
@@ -366,7 +380,8 @@ def test_group_layout_resize_bounds(new_w, new_h, anchor_x, anchor_y, expected_r
     group.append(layer2)
 
     layout = Layout()
-    result = layout.resize_bounds(group, new_w, new_h, anchor_x=anchor_x, anchor_y=anchor_y)
+    result = layout.resize_bounds(
+        group, new_w, new_h, anchor_x=anchor_x, anchor_y=anchor_y)
 
     assert result is True
     assert group.global_region == Region.from_rect(*expected_rect)
@@ -414,7 +429,8 @@ def test_group_layout_fit_content(mocker):
 def test_group_layout_fit_content_com_camada_filha_rotacionada(mocker):
     """Valida se layout.fit_content em GroupLayer projeta corretamente o conteudo de camada filha com rotacao de 90°."""
     group = GroupLayer()
-    layer = make_transformed_layer(x=50, y=50, w=100, h=100, transform=TransformRel().rotate(90))
+    layer = make_transformed_layer(
+        x=50, y=50, w=100, h=100, transform=TransformRel().rotate(90))
 
     mock_img = MagicMock(spec=Image)
     mock_img.size = (40, 20)

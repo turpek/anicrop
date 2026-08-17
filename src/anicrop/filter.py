@@ -22,8 +22,6 @@ class BlurFilter(Effect):
         mode: BlurMode = BlurMode.GAUSSIAN,
         affect_alpha: bool = True,
         strength: float = 1.0,
-        matrix: np.ndarray | None = None,
-        visible: bool = True,
         name: str = "BlurFilter",
     ):
         if isinstance(radius, (tuple, list)):
@@ -37,17 +35,11 @@ class BlurFilter(Effect):
         self.mode = mode
         self.affect_alpha = affect_alpha
         self.strength = float(np.clip(strength, 0.0, 1.0))
-        self.matrix = matrix if matrix is not None else np.identity(3, dtype=np.float32)
-        self.visible = visible
         self.name = name
-
-    def prepare(self, frame: BaseFrame) -> None:
-        """Etapa de preparação preliminar para o frame."""
-        pass
 
     def get_padding(self) -> tuple[int, int, int, int]:
         """Calcula a margem de expansão (top, right, bottom, left) necessária para o desfoque."""
-        if not self.visible or not self.affect_alpha or self.strength <= 0.0:
+        if not self.affect_alpha or self.strength <= 0.0:
             return (0, 0, 0, 0)
 
         multiplier = 3.0 if self.mode == BlurMode.GAUSSIAN else 1.0
@@ -91,20 +83,17 @@ class BlurFilter(Effect):
 
     def apply(self, image: Image, matrix: np.ndarray) -> Image:
         """Processa e desfoca o buffer de imagem adaptando ângulo e escala a partir da matriz afim."""
-        if not self.visible or self.strength <= 0.0 or (self.radius_x <= 0.0 and self.radius_y <= 0.0):
+        if self.strength <= 0.0 or (self.radius_x <= 0.0 and self.radius_y <= 0.0):
             return image
 
         src_data = image[...]
 
-        # Resolve matriz delta combinando a matriz do frame com a âncora inversa do efeito
-        delta_matrix = matrix @ self.matrix
-
-        # Resolve ângulo e escalas efetivas no espaço de renderização a partir da matriz delta
-        mat_angle_deg = math.degrees(math.atan2(float(delta_matrix[1, 0]), float(delta_matrix[0, 0])))
+        # Resolve ângulo e escalas efetivas no espaço de renderização a partir da matriz afim
+        mat_angle_deg = math.degrees(math.atan2(float(matrix[1, 0]), float(matrix[0, 0])))
         effective_angle = self.angle + mat_angle_deg
 
-        scale_x = math.hypot(float(delta_matrix[0, 0]), float(delta_matrix[1, 0]))
-        scale_y = math.hypot(float(delta_matrix[0, 1]), float(delta_matrix[1, 1]))
+        scale_x = math.hypot(float(matrix[0, 0]), float(matrix[1, 0]))
+        scale_y = math.hypot(float(matrix[0, 1]), float(matrix[1, 1]))
         effective_rx = self.radius_x * scale_x
         effective_ry = self.radius_y * scale_y
 
@@ -159,16 +148,13 @@ class BlurFilter(Effect):
         if self.mode != BlurMode.GAUSSIAN or other.mode != BlurMode.GAUSSIAN:
             return None
 
-        if self.affect_alpha != other.affect_alpha or self.visible != other.visible:
+        if self.affect_alpha != other.affect_alpha:
             return None
 
-        # 1. Resolve matriz delta e parâmetros de self no espaço de renderização
-        delta_m1 = matrix @ self.matrix
-        ang1_rad = math.radians(self.angle + math.degrees(math.atan2(float(delta_m1[1, 0]), float(delta_m1[0, 0]))))
-        s_x1 = math.hypot(float(delta_m1[0, 0]), float(delta_m1[1, 0]))
-        s_y1 = math.hypot(float(delta_m1[0, 1]), float(delta_m1[1, 1]))
-        r_x1 = self.radius_x * s_x1
-        r_y1 = self.radius_y * s_y1
+        # 1. Parâmetros de self no espaço local
+        ang1_rad = math.radians(self.angle)
+        r_x1 = self.radius_x
+        r_y1 = self.radius_y
 
         # Matriz de covariância Sigma 1
         c1, s1 = math.cos(ang1_rad), math.sin(ang1_rad)
@@ -176,11 +162,11 @@ class BlurFilter(Effect):
         sig1_22 = (r_x1 ** 2) * (s1 ** 2) + (r_y1 ** 2) * (c1 ** 2)
         sig1_12 = (r_x1 ** 2 - r_y1 ** 2) * c1 * s1
 
-        # 2. Resolve matriz delta e parâmetros de other no espaço de renderização
-        delta_m2 = matrix @ other.matrix
-        ang2_rad = math.radians(other.angle + math.degrees(math.atan2(float(delta_m2[1, 0]), float(delta_m2[0, 0]))))
-        s_x2 = math.hypot(float(delta_m2[0, 0]), float(delta_m2[1, 0]))
-        s_y2 = math.hypot(float(delta_m2[0, 1]), float(delta_m2[1, 1]))
+        # 2. Transforma other pela matriz relativa
+        mat_angle_deg = math.degrees(math.atan2(float(matrix[1, 0]), float(matrix[0, 0])))
+        ang2_rad = math.radians(other.angle + mat_angle_deg)
+        s_x2 = math.hypot(float(matrix[0, 0]), float(matrix[1, 0]))
+        s_y2 = math.hypot(float(matrix[0, 1]), float(matrix[1, 1]))
         r_x2 = other.radius_x * s_x2
         r_y2 = other.radius_y * s_y2
 
@@ -203,27 +189,18 @@ class BlurFilter(Effect):
         lambda_1 = max(0.0, (trace + discriminant) / 2.0)
         lambda_2 = max(0.0, (trace - discriminant) / 2.0)
 
-        rx_screen = math.sqrt(lambda_1)
-        ry_screen = math.sqrt(lambda_2)
-        angle_screen_deg = 0.5 * math.degrees(math.atan2(2.0 * sig_12, diff))
+        rx_merged = math.sqrt(lambda_1)
+        ry_merged = math.sqrt(lambda_2)
+        angle_merged_deg = 0.5 * math.degrees(math.atan2(2.0 * sig_12, diff))
+        angle_merged_deg = (angle_merged_deg + 180.0) % 360.0 - 180.0
 
-        # 5. Converte do espaço da tela de volta para o espaço da matriz de destino
-        mat_angle_deg = math.degrees(math.atan2(float(matrix[1, 0]), float(matrix[0, 0])))
-        s_x_mat = math.hypot(float(matrix[0, 0]), float(matrix[1, 0]))
-        s_y_mat = math.hypot(float(matrix[0, 1]), float(matrix[1, 1]))
-
-        new_angle = (angle_screen_deg - mat_angle_deg + 180.0) % 360.0 - 180.0
-        new_rx = rx_screen / s_x_mat if s_x_mat > 0 else rx_screen
-        new_ry = ry_screen / s_y_mat if s_y_mat > 0 else ry_screen
         combined_strength = min(1.0, self.strength * other.strength)
 
         return BlurFilter(
-            radius=(new_rx, new_ry),
-            angle=new_angle,
+            radius=(rx_merged, ry_merged),
+            angle=angle_merged_deg,
             mode=self.mode,
             affect_alpha=self.affect_alpha,
             strength=combined_strength,
-            matrix=matrix,
-            visible=self.visible,
             name=self.name,
         )

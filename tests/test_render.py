@@ -75,7 +75,8 @@ def make_checkerboard_image(w: int = 20, h: int = 20) -> tuple[Image, dict[str, 
     [
         pytest.param(WarpMode.AFFINE, "affine", id="dispatch_affine"),
         pytest.param(WarpMode.PERSPECTIVE, "perspective", id="dispatch_perspective"),
-        pytest.param("modo_inexistente", "affine", id="fallback_affine_quando_modo_inexistente"),
+        pytest.param("modo_inexistente", "affine",
+                     id="fallback_affine_quando_modo_inexistente"),
     ],
 )
 def test_warp_patch_dispatch_and_fallback(mocker, warp_mode, expected_target):
@@ -111,7 +112,8 @@ def test_warp_patch_dispatch_and_fallback(mocker, warp_mode, expected_target):
 def test_generate_opacity_mask_formatos_e_preenchimento(img_format, fill_value, is_expected_opaque):
     """Valida se a máscara de oclusão 32x32 identifica corretamente imagens sólidas e transparentes."""
     img = make_solid_image((100, 100), img_format, fill_value=fill_value)
-    mask = generate_opacity_mask(img, Region.from_size(100, 100), (100, 100), target_size=(32, 32))
+    mask = generate_opacity_mask(img, Region.from_size(
+        100, 100), (100, 100), target_size=(32, 32))
 
     assert mask.shape == (32, 32)
     assert bool(np.all(mask == 255)) is is_expected_opaque
@@ -123,7 +125,8 @@ def test_generate_opacity_mask_pixel_com_transparencia_minima():
     data[50, 50, 3] = 254
     img = Image(data, ImageFormat.RGBA)
 
-    mask = generate_opacity_mask(img, Region.from_size(100, 100), (100, 100), target_size=(32, 32))
+    mask = generate_opacity_mask(img, Region.from_size(
+        100, 100), (100, 100), target_size=(32, 32))
 
     assert mask.shape == (32, 32)
     assert not np.all(mask == 255)
@@ -135,7 +138,8 @@ def test_generate_opacity_mask_spatial_mapping():
     region = Region.from_rect(200, 400, 200, 200)
     viewport_size = (800, 800)
 
-    mask = generate_opacity_mask(img, render_region=region, viewport_size=viewport_size, target_size=(32, 32))
+    mask = generate_opacity_mask(img, render_region=region,
+                                 viewport_size=viewport_size, target_size=(32, 32))
 
     expected_mask = np.zeros((32, 32), dtype=np.uint8)
     expected_mask[16:24, 8:16] = 255
@@ -151,10 +155,14 @@ def test_generate_opacity_mask_spatial_mapping():
 @pytest.mark.parametrize(
     "layer_configs, expected_rendered_count",
     [
-        pytest.param([(1.0, 0), (1.0, 0)], 2, id="sem_oclusao_todas_camadas_renderizadas"),
-        pytest.param([(1.0, 0), (1.0, 255)], 1, id="oclusao_total_pelo_topo_interrompe_abaixo"),
-        pytest.param([(1.0, 0), (1.0, 255), (1.0, 0)], 2, id="oclusao_pelo_meio_renderiza_topo_e_meio"),
-        pytest.param([(1.0, 0), (0.9, 229)], 2, id="topo_semi_transparente_nao_interrompe"),
+        pytest.param([(1.0, 0), (1.0, 0)], 2,
+                     id="sem_oclusao_todas_camadas_renderizadas"),
+        pytest.param([(1.0, 0), (1.0, 255)], 1,
+                     id="oclusao_total_pelo_topo_interrompe_abaixo"),
+        pytest.param([(1.0, 0), (1.0, 255), (1.0, 0)], 2,
+                     id="oclusao_pelo_meio_renderiza_topo_e_meio"),
+        pytest.param([(1.0, 0), (0.9, 229)], 2,
+                     id="topo_semi_transparente_nao_interrompe"),
     ],
 )
 def test_render_scene_culling_por_oclusao(mocker, layer_configs, expected_rendered_count):
@@ -189,10 +197,14 @@ def test_render_scene_culling_por_oclusao(mocker, layer_configs, expected_render
 @pytest.mark.parametrize(
     "canvas_rect, is_local, expected_dest_rect, sample_point, expected_color_name",
     [
-        pytest.param((0, 0, 100, 100), True, (80, 40, 20, 20), (5, 5), "yellow", id="local_sem_recorte"),
-        pytest.param((40, 0, 20, 10), True, (0, 0, 10, 20), (5, 5), "red", id="local_com_recorte"),
-        pytest.param((0, 0, 100, 100), False, (40, 0, 20, 20), (5, 5), "red", id="global_sem_recorte"),
-        pytest.param((40, 0, 20, 10), False, (0, 0, 20, 10), (5, 5), "red", id="global_com_recorte"),
+        pytest.param((0, 0, 100, 100), True, (80, 40, 20, 20),
+                     (5, 5), "yellow", id="local_sem_recorte"),
+        pytest.param((40, 0, 20, 10), True, (0, 0, 10, 20),
+                     (5, 5), "red", id="local_com_recorte"),
+        pytest.param((0, 0, 100, 100), False, (40, 0, 20, 20),
+                     (5, 5), "red", id="global_sem_recorte"),
+        pytest.param((40, 0, 20, 10), False, (0, 0, 20, 10),
+                     (5, 5), "red", id="global_com_recorte"),
     ],
 )
 def test_render_edit_canvas_frame_projecoes_e_recortes(canvas_rect, is_local, expected_dest_rect, sample_point, expected_color_name):
@@ -211,7 +223,8 @@ def test_render_edit_canvas_frame_projecoes_e_recortes(canvas_rect, is_local, ex
 
     warped_image, dest_region = result
     assert dest_region == Region.from_rect(*expected_dest_rect)
-    np.testing.assert_array_equal(warped_image[sample_point[1], sample_point[0]], colors[expected_color_name])
+    np.testing.assert_array_equal(
+        warped_image[sample_point[1], sample_point[0]], colors[expected_color_name])
 
 
 def test_render_edit_com_viewport_frame():
@@ -342,14 +355,17 @@ def test_canvas_render_area_culling_total_retorna_none(mocker):
 @pytest.mark.parametrize(
     "layer_rect, canvas_size, expected_size",
     [
-        pytest.param((-40, -30, 100, 100), (500, 500), (60, 70), id="recorte_topo_esquerdo_coords_negativas"),
-        pytest.param((450, 470, 100, 100), (500, 500), (50, 30), id="recorte_base_direita_limite_canvas"),
+        pytest.param((-40, -30, 100, 100), (500, 500), (60, 70),
+                     id="recorte_topo_esquerdo_coords_negativas"),
+        pytest.param((450, 470, 100, 100), (500, 500), (50, 30),
+                     id="recorte_base_direita_limite_canvas"),
     ],
 )
 def test_canvas_render_area_recorte_parcial_retorna_dimensao_exata(layer_rect, canvas_size, expected_size):
     """Valida se CanvasRender.render_area recorta e retorna o retalho com a dimensão visível exata."""
     canvas = Canvas.from_size(*canvas_size)
-    layer = make_layer(w=layer_rect[2], h=layer_rect[3], x=layer_rect[0], y=layer_rect[1])
+    layer = make_layer(w=layer_rect[2], h=layer_rect[3],
+                       x=layer_rect[0], y=layer_rect[1])
     frame = CanvasFrame(layer, canvas)
 
     renderer = CanvasRender()
@@ -434,7 +450,8 @@ def test_render_image_rotacao_nao_ativa_fast_path(mocker):
 def test_canvas_render_area_translacao_pura_com_mock_blend(mocker):
     """Valida se CanvasRender.render_area executa o fast-path sem invocar warp_patch nem onerar blend."""
     spy_patch = mocker.spy(anicrop.render, "warp_patch")
-    mocker.patch.dict("anicrop.render.BLEND_MODE", {BlendMode.NORMAL: mocker.MagicMock()})
+    mocker.patch.dict("anicrop.render.BLEND_MODE", {
+                      BlendMode.NORMAL: mocker.MagicMock()})
 
     layer = make_layer(w=100, h=100, x=10, y=10)
     canvas = Canvas.from_size(200, 200)

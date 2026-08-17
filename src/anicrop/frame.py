@@ -60,12 +60,6 @@ class BaseFrame(ABC):
         self._dst_region = self._render_region(self.bounds, effective_view)
         self._src_region = self._source_region(self.bounds, self.dst_region)
 
-        for effect in base.effects:
-            if effect.visible:
-                effect.prepare(self)
-        if base.mask is not None and base.mask.visible:
-            base.mask.prepare(self)
-
     def _render_region(
         self, final_region: Region, view_region: Region | None,
     ) -> Region | None:

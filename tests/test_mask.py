@@ -41,10 +41,12 @@ def test_mask_inherits_from_edit_layer():
     [
         pytest.param(255, 255, False, 255, id="mascara_branca_mantem_opacidade_total"),
         pytest.param(0, 255, False, 0, id="mascara_preta_torna_totalmente_transparente"),
-        pytest.param(128, 255, False, 128, id="mascara_cinza_reduz_opacidade_pela_metade"),
+        pytest.param(128, 255, False, 128,
+                     id="mascara_cinza_reduz_opacidade_pela_metade"),
         pytest.param(128, 100, False, 50, id="mascara_cinza_modula_alfa_preexistente"),
         pytest.param(0, 255, True, 255, id="mascara_preta_invertida_mantem_opacidade"),
-        pytest.param(255, 255, True, 0, id="mascara_branca_invertida_torna_transparente"),
+        pytest.param(255, 255, True, 0,
+                     id="mascara_branca_invertida_torna_transparente"),
     ],
 )
 def test_mask_apply_rgba_modulation(mask_value, initial_alpha, invert, expected_alpha):

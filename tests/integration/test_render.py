@@ -125,9 +125,12 @@ def test_render_fluxo_real_com_quina(canvas_render):
 @pytest.mark.parametrize(
     "edit_rect, edit_color, sample_coord, expected_color",
     [
-        pytest.param((50, 50, 10, 10), (255, 0, 0, 255), (55, 55), (255, 0, 0, 255), id="edit_centro_transladado"),
-        pytest.param((-10, 10, 20, 20), (255, 0, 0, 255), (15, 0), (255, 0, 0, 255), id="edit_vazando_esquerda"),
-        pytest.param((90, 10, 20, 20), (0, 0, 255, 255), (15, 95), (0, 0, 255, 255), id="edit_vazando_direita"),
+        pytest.param((50, 50, 10, 10), (255, 0, 0, 255), (55, 55),
+                     (255, 0, 0, 255), id="edit_centro_transladado"),
+        pytest.param((-10, 10, 20, 20), (255, 0, 0, 255), (15, 0),
+                     (255, 0, 0, 255), id="edit_vazando_esquerda"),
+        pytest.param((90, 10, 20, 20), (0, 0, 255, 255), (15, 95),
+                     (0, 0, 255, 255), id="edit_vazando_direita"),
     ],
 )
 def test_canvas_render_layer_edits_positioning_and_clipping(canvas_render, edit_rect, edit_color, sample_coord, expected_color):
@@ -218,9 +221,12 @@ def test_canvas_render_patch_partial_overlap_returns_effective_size():
 @pytest.mark.parametrize(
     "group_trans, group_frame_rect, child_rect, expect_child_slice, expect_group_slice",
     [
-        pytest.param((50, 50), (40, 40, 120, 120), (20, 20, 50, 50), (30, 30, 50, 50), (40, 40, 120, 120), id="expanded_border"),
-        pytest.param((50, 50), (50, 50, 100, 100), (50, 50, 100, 100), (50, 50, 50, 50), (50, 50, 100, 100), id="child_clipping"),
-        pytest.param((200, 200), (200, 200, 150, 150), (20, 20, 50, 50), (20, 20, 50, 50), (200, 200, 100, 100), id="group_clipping"),
+        pytest.param((50, 50), (40, 40, 120, 120), (20, 20, 50, 50),
+                     (30, 30, 50, 50), (40, 40, 120, 120), id="expanded_border"),
+        pytest.param((50, 50), (50, 50, 100, 100), (50, 50, 100, 100),
+                     (50, 50, 50, 50), (50, 50, 100, 100), id="child_clipping"),
+        pytest.param((200, 200), (200, 200, 150, 150), (20, 20, 50, 50),
+                     (20, 20, 50, 50), (200, 200, 100, 100), id="group_clipping"),
     ],
 )
 def test_canvas_render_scene_group_layer_scenarios(mocker, group_trans, group_frame_rect, child_rect, expect_child_slice, expect_group_slice):
@@ -425,7 +431,8 @@ def test_canvas_render_escalas_extremas(canvas_render, scale_x, scale_y, expecte
 
 def test_render_layer_multiplos_edits_formatos_mistos(canvas_render):
     """Valida render_layer para camada contendo múltiplos EditLayers com formatos mistos (RGB, RGBA, GRAY)."""
-    base_img = Image(np.full((100, 100, 3), [0, 0, 255], dtype=np.uint8), ImageFormat.RGB)
+    base_img = Image(
+        np.full((100, 100, 3), [0, 0, 255], dtype=np.uint8), ImageFormat.RGB)
     layer = Layer(base_img)
 
     sticker_data = np.full((30, 30, 4), [255, 0, 0, 255], dtype=np.uint8)

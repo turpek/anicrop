@@ -217,10 +217,14 @@ def test_blend_normal_sets_base_alpha_to_opaque():
 @pytest.mark.parametrize(
     "base_fmt, edit_fmt, edit_alpha, opacity, expected_copyto",
     [
-        pytest.param(ImageFormat.RGBA, ImageFormat.RGBA, 255, 1.0, True, id="rgba_solido_com_opacidade_total_usa_copyto"),
-        pytest.param(ImageFormat.RGB, ImageFormat.RGB, None, 1.0, True, id="rgb_solido_com_opacidade_total_usa_copyto"),
-        pytest.param(ImageFormat.RGBA, ImageFormat.RGBA, 128, 1.0, False, id="rgba_semi_transparente_nao_usa_copyto"),
-        pytest.param(ImageFormat.RGBA, ImageFormat.RGBA, 255, 0.5, False, id="rgba_solido_com_opacidade_reduzida_nao_usa_copyto"),
+        pytest.param(ImageFormat.RGBA, ImageFormat.RGBA, 255, 1.0, True,
+                     id="rgba_solido_com_opacidade_total_usa_copyto"),
+        pytest.param(ImageFormat.RGB, ImageFormat.RGB, None, 1.0, True,
+                     id="rgb_solido_com_opacidade_total_usa_copyto"),
+        pytest.param(ImageFormat.RGBA, ImageFormat.RGBA, 128, 1.0,
+                     False, id="rgba_semi_transparente_nao_usa_copyto"),
+        pytest.param(ImageFormat.RGBA, ImageFormat.RGBA, 255, 0.5, False,
+                     id="rgba_solido_com_opacidade_reduzida_nao_usa_copyto"),
     ],
 )
 def test_blend_normal_fast_path_copyto(mocker, base_fmt, edit_fmt, edit_alpha, opacity, expected_copyto):
@@ -243,14 +247,22 @@ def test_blend_normal_fast_path_copyto(mocker, base_fmt, edit_fmt, edit_alpha, o
 @pytest.mark.parametrize(
     "base_fmt, edit_fmt, edit_color, expected_pixel",
     [
-        pytest.param(ImageFormat.RGBA, ImageFormat.RGB, [255, 0, 0], [255, 0, 0, 255], id="base_rgba_edit_rgb"),
-        pytest.param(ImageFormat.RGB, ImageFormat.RGBA, [0, 255, 0, 255], [0, 255, 0], id="base_rgb_edit_rgba"),
-        pytest.param(ImageFormat.GRAY, ImageFormat.RGB, [255, 0, 0], [76], id="base_gray_edit_red"),
-        pytest.param(ImageFormat.RGB, ImageFormat.GRAY, [128], [128, 128, 128], id="base_rgb_edit_gray"),
-        pytest.param(ImageFormat.GRAY, ImageFormat.GRAY, [200], [200], id="base_gray_edit_gray"),
-        pytest.param(ImageFormat.GRAY_ALPHA, ImageFormat.GRAY_ALPHA, [200, 255], [200, 255], id="base_gray_alpha_edit_gray_alpha"),
-        pytest.param(ImageFormat.RGBA, ImageFormat.GRAY_ALPHA, [100, 255], [100, 100, 100, 255], id="base_rgba_edit_gray_alpha"),
-        pytest.param(ImageFormat.GRAY_ALPHA, ImageFormat.RGB, [255, 0, 0], [76, 255], id="base_gray_alpha_edit_rgb"),
+        pytest.param(ImageFormat.RGBA, ImageFormat.RGB, [255, 0, 0], [
+                     255, 0, 0, 255], id="base_rgba_edit_rgb"),
+        pytest.param(ImageFormat.RGB, ImageFormat.RGBA, [0, 255, 0, 255], [
+                     0, 255, 0], id="base_rgb_edit_rgba"),
+        pytest.param(ImageFormat.GRAY, ImageFormat.RGB, [
+                     255, 0, 0], [76], id="base_gray_edit_red"),
+        pytest.param(ImageFormat.RGB, ImageFormat.GRAY, [128], [
+                     128, 128, 128], id="base_rgb_edit_gray"),
+        pytest.param(ImageFormat.GRAY, ImageFormat.GRAY, [
+                     200], [200], id="base_gray_edit_gray"),
+        pytest.param(ImageFormat.GRAY_ALPHA, ImageFormat.GRAY_ALPHA, [
+                     200, 255], [200, 255], id="base_gray_alpha_edit_gray_alpha"),
+        pytest.param(ImageFormat.RGBA, ImageFormat.GRAY_ALPHA, [100, 255], [
+                     100, 100, 100, 255], id="base_rgba_edit_gray_alpha"),
+        pytest.param(ImageFormat.GRAY_ALPHA, ImageFormat.RGB, [
+                     255, 0, 0], [76, 255], id="base_gray_alpha_edit_rgb"),
     ],
 )
 def test_blend_normal_formatos_mistos(base_fmt, edit_fmt, edit_color, expected_pixel):

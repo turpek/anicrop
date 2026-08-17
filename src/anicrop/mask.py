@@ -44,10 +44,6 @@ class Mask(EditLayer, Effect):
         rect = calculate_new_rect(mask_matrix, self.region.size)
         return rect_to_region(rect)
 
-    def prepare(self, frame: BaseFrame) -> None:
-        """Etapa preliminar para preparação e sincronização com o frame."""
-        pass
-
     def get_padding(self) -> tuple[int, int, int, int]:
         """Retorna a margem necessária. Máscaras apenas restringem área, portanto padding é zero."""
         return (0, 0, 0, 0)

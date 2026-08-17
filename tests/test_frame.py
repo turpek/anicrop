@@ -103,7 +103,8 @@ def test_viewport_frame_culling_layer_outside_viewport():
 def test_viewport_frame_culling_view_region_outside_layer():
     """Valida culling quando view_region está na Viewport mas fora da camada."""
     viewport = Viewport((800, 600), 1.0)
-    layer = make_layer(w=200, h=200, x=0, y=0)  # bounds na viewport: (300, 200, 200, 200)
+    # bounds na viewport: (300, 200, 200, 200)
+    layer = make_layer(w=200, h=200, x=0, y=0)
     view_region = Region(Span(100, 50), Span(100, 50))
 
     frame = ViewportFrame(layer, viewport, view_region=view_region)
@@ -396,15 +397,19 @@ def test_viewport_frame_view_region_edge_cases(
 @pytest.mark.parametrize(
     "layer_rect, canvas_size, expected_dst",
     [
-        pytest.param((1000, 1000, 100, 100), (500, 500), None, id="culling_total_100_porcento_fora"),
-        pytest.param((-40, -30, 100, 100), (500, 500), Region.from_rect(0, 0, 60, 70), id="recorte_topo_esquerdo_coords_negativas"),
-        pytest.param((450, 470, 100, 100), (500, 500), Region.from_rect(450, 470, 50, 30), id="recorte_base_direita_limite_canvas"),
+        pytest.param((1000, 1000, 100, 100), (500, 500), None,
+                     id="culling_total_100_porcento_fora"),
+        pytest.param((-40, -30, 100, 100), (500, 500), Region.from_rect(0,
+                     0, 60, 70), id="recorte_topo_esquerdo_coords_negativas"),
+        pytest.param((450, 470, 100, 100), (500, 500), Region.from_rect(
+            450, 470, 50, 30), id="recorte_base_direita_limite_canvas"),
     ],
 )
 def test_canvas_frame_recorte_e_culling_nas_bordas(layer_rect, canvas_size, expected_dst):
     """Valida o cálculo exato de dst_region no CanvasFrame para culling total e recortes parciais de borda."""
     canvas = Canvas.from_size(*canvas_size)
-    layer = make_layer(w=layer_rect[2], h=layer_rect[3], x=layer_rect[0], y=layer_rect[1])
+    layer = make_layer(w=layer_rect[2], h=layer_rect[3],
+                       x=layer_rect[0], y=layer_rect[1])
 
     frame = CanvasFrame(layer, canvas)
 
@@ -499,7 +504,7 @@ def test_canvas_frame_expand_bounds_with_effects_padding():
 
     canvas = Canvas.from_size(1000, 1000)
     layer = make_layer(w=100, h=100, x=200, y=200)
-    layer.effects.append(DummyPaddingEffect())
+    layer.add_effect(DummyPaddingEffect())
 
     frame = CanvasFrame(layer, canvas)
 
