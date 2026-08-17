@@ -1,15 +1,11 @@
 from __future__ import annotations
 import math
-from typing import TYPE_CHECKING
 import cv2
 import numpy as np
 
 from anicrop.effect import Effect
 from anicrop.enums import BlurMode
 from anicrop.image import Image
-
-if TYPE_CHECKING:
-    from anicrop.frame import BaseFrame
 
 
 class BlurFilter(Effect):

@@ -2,7 +2,6 @@ from __future__ import annotations
 from abc import ABC, abstractmethod
 from pathlib import Path
 from typing import Iterator, TypeVar
-import numpy as np
 
 from anicrop.canvas import Canvas
 from anicrop.container import BaseLayer, Container, GroupLayer, LayerStack
@@ -65,12 +64,12 @@ class Document:
         False: DirectDocumentPolicy(),
     }
 
-    def __init__(self, name: str, width: int, height: int, wrap_proxy: bool = True):
+    def __init__(self, name: str, width: int, height: int, history: bool = True):
         self.name = name
         self.canvas = Canvas.from_size(width, height)
-        self.wrap_proxy = wrap_proxy
+        self.history_enabled = history
 
-        self._policy = self._POLICIES[wrap_proxy]
+        self._policy = self._POLICIES[history]
         self.history, self.stack = self._policy.setup()
 
         self._viewport_render = ViewportRender()
@@ -78,7 +77,7 @@ class Document:
         self._layout = Layout()
 
     @classmethod
-    def open(cls, path: str | Path, name: str, wrap_proxy: bool = True) -> Document:
+    def open(cls, path: str | Path, name: str, history: bool = True) -> Document:
         """
         Abre uma imagem do disco e cria um Documento baseado no seu tamanho,
         inserindo a imagem como primeira camada.
@@ -87,7 +86,7 @@ class Document:
         layer = Layer(image=img, name=name)
         w, h = layer.canvas_size
 
-        doc = cls(name=name, width=w, height=h, wrap_proxy=wrap_proxy)
+        doc = cls(name=name, width=w, height=h, history=history)
         layer._canvas = doc.canvas
         doc.add(layer)
         return doc

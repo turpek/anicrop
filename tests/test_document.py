@@ -23,7 +23,7 @@ def make_solid(color: tuple[int, int, int, int], w: int = 50, h: int = 50) -> Im
 
 def test_document_reactive_mode():
     """Valida inicialização do documento em modo reativo com histórico e proxies."""
-    doc = Document("TestDoc", 100, 100, wrap_proxy=True)
+    doc = Document("TestDoc", 100, 100, history=True)
 
     assert isinstance(doc.history, GlobalHistory)
     assert isinstance(doc.stack, LayerStackProxy)
@@ -43,7 +43,7 @@ def test_document_reactive_mode():
 
 def test_document_direct_mode():
     """Valida inicialização do documento em modo direto de alta performance sem proxies."""
-    doc = Document("TestDoc", 100, 100, wrap_proxy=False)
+    doc = Document("TestDoc", 100, 100, history=False)
 
     assert doc.history is None
     assert not isinstance(doc.stack, LayerStackProxy)
@@ -274,7 +274,7 @@ def test_document_render_interleaved_hierarchy_z_order():
 
 def test_document_reactive_set_mask_undo_redo():
     """Valida se operações de set_mask e remove_mask suportam Undo e Redo no Document reativo."""
-    doc = Document("TestDoc", 100, 100, wrap_proxy=True)
+    doc = Document("TestDoc", 100, 100, history=True)
     layer = doc.add(Layer(make_img(50, 50), name="L1"))
 
     mask_img = Image(np.full((50, 50, 1), 255, dtype=np.uint8), ImageFormat.GRAY)

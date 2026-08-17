@@ -16,9 +16,9 @@ from anicrop.spatial import Region
 @pytest.fixture
 def make_doc_with_layer():
     def _factory(w: int = 1000, h: int = 1000, layer_w: int = 200, layer_h: int = 200):
-        doc = Document(name="test_doc", width=w, height=h, wrap_proxy=True)
-        img = Image(np.ones((layer_h, layer_w, 4), dtype=np.uint8)
-                    * 255, ImageFormat.RGBA)
+        doc = Document(name="test_doc", width=w, height=h, history=True)
+        img = Image(np.ones((layer_h, layer_w, 4), dtype=np.uint8) *
+                    255, ImageFormat.RGBA)
         layer_proxy = doc.add(Layer(img, name="layer1"))
         return doc, layer_proxy
     return _factory
@@ -27,7 +27,7 @@ def make_doc_with_layer():
 @pytest.fixture
 def make_doc_with_group():
     def _factory(w: int = 1000, h: int = 1000):
-        doc = Document(name="test_doc", width=w, height=h, wrap_proxy=True)
+        doc = Document(name="test_doc", width=w, height=h, history=True)
         group_proxy = doc.add_group("group1")
         img1 = Image(np.ones((200, 200, 4), dtype=np.uint8) * 255, ImageFormat.RGBA)
         l1 = doc.add(Layer(img1, name="l1"))

@@ -1,5 +1,5 @@
 from __future__ import annotations
-from typing import TYPE_CHECKING, Any
+from typing import Any
 import cv2
 import numpy as np
 
@@ -9,9 +9,6 @@ from anicrop.enums import BlendMode, ImageFormat
 from anicrop.image import Image
 from anicrop.spatial import Region, rect_to_region
 from anicrop.transform import calculate_new_rect
-
-if TYPE_CHECKING:
-    from anicrop.frame import BaseFrame
 
 
 class Mask(EditLayer, Effect):
