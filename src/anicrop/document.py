@@ -5,6 +5,7 @@ from typing import Iterator, TypeVar
 
 from anicrop.canvas import Canvas
 from anicrop.container import BaseLayer, Container, GroupLayer, LayerStack, NullContainer
+from anicrop.content import Content
 from anicrop.enums import ImageFormat
 from anicrop.history import GlobalHistory
 from anicrop.image import Image
@@ -76,6 +77,7 @@ class Document:
         self._viewport_render = ViewportRender()
         self._canvas_render = CanvasRender()
         self._layout = Layout()
+        self._content = Content()
 
     @classmethod
     def open(cls, path: str | Path, name: str, history: bool = True) -> Document:
@@ -96,6 +98,11 @@ class Document:
     def layout(self) -> Layout:
         """Instância do motor de Layout para operações espaciais no documento."""
         return self._layout
+
+    @property
+    def content(self) -> Content:
+        """Instância do motor de manipulação de conteúdo/pixels do documento."""
+        return self._content
 
     def _validate_unique_name(self, name: str) -> None:
         """Verifica se já existe alguma camada ou grupo com este nome no documento."""

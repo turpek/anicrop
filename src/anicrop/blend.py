@@ -307,8 +307,48 @@ def hard_masking(base: Image, overlay: Image, opacity: float = 1.0) -> Image:
     return _hard_masking_numpy(base, overlay, opacity)
 
 
+def _blend_clip_numpy(base: Image, overlay: Image, opacity: float = 1.0) -> Image:
+    """
+    Aplica o recorte de pixels (clip): modula o canal alpha da base onde houver transparência
+    e preenche com fundo branco (255) as áreas cortadas de camadas sem canal alpha.
+    """
+    b_arr = base[...]
+    o_arr = overlay[...]
+
+    if overlay.has_alpha:
+        factor = (o_arr[..., -1:].astype(np.float32) / 255.0) * opacity
+    else:
+        if overlay.format in (ImageFormat.GRAY, ImageFormat.GRAY_ALPHA):
+            luma = o_arr[..., 0:1].astype(np.float32) / 255.0
+        else:
+            luma = (0.299 * o_arr[..., 0:1] + 0.587 * o_arr[..., 1:2] + 0.114 * o_arr[..., 2:3]).astype(np.float32) / 255.0
+        factor = luma * opacity
+
+    if base.has_alpha:
+        b_arr[..., -1:] = np.clip(b_arr[..., -1:] * factor, 0, 255).astype(np.uint8)
+        mask_zero = b_arr[..., -1] == 0
+        b_arr[mask_zero, :-1] = 255
+    else:
+        color_channels = 1 if base.format == ImageFormat.GRAY else 3
+        b_arr[..., :color_channels] = np.clip(
+            b_arr[..., :color_channels] * factor + 255.0 * (1.0 - factor),
+            0,
+            255,
+        ).astype(np.uint8)
+
+    return base
+
+
+def blend_clip(base: Image, overlay: Image, opacity: float = 1.0) -> Image:
+    if base.size != overlay.size:
+        raise ValueError(f"Size mismatch: base {base.size} != overlay {overlay.size}.")
+
+    return _blend_clip_numpy(base, overlay, opacity)
+
+
 BLEND_MODE = {
     BlendMode.NORMAL: blend_normal,
     BlendMode.NORMAL_LINEAR: blend_normal_linear,
     BlendMode.HARD_MASKING: hard_masking,
+    BlendMode.CLIP: blend_clip,
 }

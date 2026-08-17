@@ -9,6 +9,7 @@ class BlendMode(Enum):
     NORMAL_LINEAR = 'normal_linear'
     MULTIPLY = 'multiply'
     HARD_MASKING = 'hard_masking'
+    CLIP = 'clip'
 
 
 class BlurMode(StrEnum):

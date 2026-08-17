@@ -275,3 +275,58 @@ def test_blend_normal_formatos_mistos(base_fmt, edit_fmt, edit_color, expected_p
     blend_normal(base, edit, opacity=1.0)
 
     np.testing.assert_array_equal(base[0, 0], expected_pixel)
+
+
+def test_blend_clip_rgba_modulates_alpha_and_sets_transparent_white():
+    """Valida se blend_clip em RGBA zera o alpha fora da mascara e preenche com branco transparente."""
+    from anicrop.blend import blend_clip
+    base_data = np.full((10, 10, 4), [255, 0, 0, 255], dtype=np.uint8)
+    base = Image(base_data, ImageFormat.RGBA)
+
+    # Máscara: metade esquerda ativa (255), metade direita nula (0)
+    clip_data = np.zeros((10, 10, 1), dtype=np.uint8)
+    clip_data[:, :5] = 255
+    clip_mask = Image(clip_data, ImageFormat.GRAY)
+
+    blend_clip(base, clip_mask)
+
+    # Metade esquerda preservada (vermelho opaco)
+    np.testing.assert_array_equal(base[5, 2], [255, 0, 0, 255])
+    # Metade direita cortada (alpha = 0, cores = branco 255)
+    np.testing.assert_array_equal(base[5, 8], [255, 255, 255, 0])
+
+
+def test_blend_clip_rgb_sets_solid_white_outside_crop():
+    """Valida se blend_clip em RGB preenche com branco solido 255 fora da regiao de corte."""
+    from anicrop.blend import blend_clip
+    base_data = np.full((10, 10, 3), [255, 0, 0], dtype=np.uint8)
+    base = Image(base_data, ImageFormat.RGB)
+
+    clip_data = np.zeros((10, 10, 1), dtype=np.uint8)
+    clip_data[:, :5] = 255
+    clip_mask = Image(clip_data, ImageFormat.GRAY)
+
+    blend_clip(base, clip_mask)
+
+    # Metade esquerda preservada (vermelho)
+    np.testing.assert_array_equal(base[5, 2], [255, 0, 0])
+    # Metade direita cortada (branco solido)
+    np.testing.assert_array_equal(base[5, 8], [255, 255, 255])
+
+
+def test_blend_clip_gray_sets_solid_white_outside_crop():
+    """Valida se blend_clip em GRAY preenche com branco 255 fora do corte."""
+    from anicrop.blend import blend_clip
+    base_data = np.zeros((10, 10, 1), dtype=np.uint8)
+    base = Image(base_data, ImageFormat.GRAY)
+
+    clip_data = np.zeros((10, 10, 1), dtype=np.uint8)
+    clip_data[:, :5] = 255
+    clip_mask = Image(clip_data, ImageFormat.GRAY)
+
+    blend_clip(base, clip_mask)
+
+    # Metade esquerda preservada (preto)
+    assert base[5, 2, 0] == 0
+    # Metade direita cortada (branco 255)
+    assert base[5, 8, 0] == 255
