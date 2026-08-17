@@ -1,6 +1,6 @@
 from __future__ import annotations
 from abc import ABC
-from typing import Any, Callable, Iterable
+from typing import Any, Callable, Sequence
 
 
 import cv2
@@ -308,7 +308,7 @@ class SceneTraverser:
 
     def traverse(
         self,
-        container: Iterable[Layer | GroupLayer] | Container,
+        container: Sequence[BaseLayer] | Container,
         view_region: Region | None = None,
         local=False,
     ) -> list[tuple[BaseLayer, Image, Region]]:
@@ -326,14 +326,14 @@ class SceneTraverser:
                     buffer = Image.new(frame.dst_region.size, ImageFormat.RGBA)
                     group_image = blend_rendered_images(reversed(children_items), buffer)
                     group_image = apply_post_processing(group_image, item, frame, self.interp)
-                    rendered_items.append((item, group_image, frame.targ_region))
+                    rendered_items.append((item, group_image, frame.targ_region))  # type: ignore[arg-type]
                     if np.all(self.miniview == 255):
                         break
             else:
                 image = self.renderer.render_area(item, frame, self.interp)
 
                 if image:
-                    rendered_items.append((item, image, frame.targ_region))
+                    rendered_items.append((item, image, frame.targ_region))  # type: ignore[arg-type]
 
                     if item._opacity_mask is not None:
                         np.maximum(self.miniview, item._opacity_mask, out=self.miniview)
@@ -416,7 +416,7 @@ class BaseRenderer[FrameT: BaseFrame](ABC):
 
     def render_scene(
         self,
-        container: Iterable[Layer | GroupLayer] | Container,
+        container: Sequence[BaseLayer] | Container,
         surface: SurfaceProtocol,
         interp: InterpolationOption = InterpolationOption.LANCZOS,
     ) -> Image:
@@ -431,7 +431,7 @@ class BaseRenderer[FrameT: BaseFrame](ABC):
 
     def render_patch(
         self,
-        container: Iterable[Layer | GroupLayer] | Container,
+        container: Sequence[BaseLayer] | Container,
         surface: SurfaceProtocol,
         view_region: Region,
         interp: InterpolationOption = InterpolationOption.LANCZOS,
