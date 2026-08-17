@@ -481,6 +481,10 @@ def test_canvas_frame_view_region_has_priority_over_mask():
 def test_canvas_frame_expand_bounds_with_effects_padding():
     """Valida se CanvasFrame expande os bounds geométricos de acordo com o padding dos efeitos."""
     class DummyPaddingEffect:
+        def __init__(self, visible: bool = True):
+            self.visible = visible
+            self.matrix = np.identity(3, dtype=np.float32)
+
         def prepare(self, frame):
             pass
 
@@ -489,6 +493,9 @@ def test_canvas_frame_expand_bounds_with_effects_padding():
 
         def apply(self, image, matrix=None):
             return image
+
+        def merge(self, other, matrix):
+            return None
 
     canvas = Canvas.from_size(1000, 1000)
     layer = make_layer(w=100, h=100, x=200, y=200)

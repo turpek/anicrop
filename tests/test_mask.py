@@ -105,6 +105,10 @@ def test_mask_merge_with_another_mask_unifies_regions():
 def test_mask_merge_with_incompatible_effect_returns_none():
     """Valida se merge retorna None quando o efeito fornecido não for uma Mask."""
     class FakeEffect:
+        def __init__(self):
+            self.visible = True
+            self.matrix = np.identity(3, dtype=np.float32)
+
         def prepare(self, frame): pass
         def get_padding(self): return (0, 0, 0, 0)
         def apply(self, img, mat=None): return img
@@ -116,3 +120,35 @@ def test_mask_merge_with_incompatible_effect_returns_none():
     result = mask.merge(FakeEffect(), np.identity(3))
 
     assert result is None
+
+
+def test_mask_indexing_supports_slice_ellipsis_and_region():
+    """Valida se Mask.__getitem__ e __setitem__ operam com slices, Ellipsis e Region."""
+    mask_img = make_mask_image(20, 20, value=255)
+    mask = Mask(mask_img, Region.from_size(20, 20), np.identity(3))
+
+    # 1. Slicing convencional
+    mask[0:10, 0:10] = 0
+    assert mask[5, 5, 0] == 0
+    assert mask[15, 15, 0] == 255
+
+    # 2. Indexação com Region
+    sub_region = Region.from_rect(10, 10, 5, 5)
+    mask[sub_region] = 50
+    assert mask[12, 12, 0] == 50
+
+    # 3. Ellipsis
+    mask[...] = 100
+    np.testing.assert_array_equal(mask[...], 100)
+
+
+def test_mask_apply_when_invisible_returns_original_image():
+    """Valida se Mask.apply com visible=False retorna a imagem intacta sem modular."""
+    target = make_target_image(10, 10, alpha=255, fmt=ImageFormat.RGBA)
+    mask_img = make_mask_image(10, 10, value=0, fmt=ImageFormat.GRAY)
+    mask = Mask(mask_img, Region.from_size(10, 10), np.identity(3), visible=False)
+
+    result = mask.apply(target, np.identity(3))
+
+    assert result is target
+    np.testing.assert_array_equal(result[..., -1], 255)

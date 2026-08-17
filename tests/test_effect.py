@@ -14,8 +14,9 @@ from anicrop.spatial import Region
 class DummyEffect:
     """Implementação mock de efeito para teste de conformidade de protocolo."""
 
-    def __init__(self, matrix: np.ndarray | None = None):
+    def __init__(self, matrix: np.ndarray | None = None, visible: bool = True):
         self.matrix = matrix if matrix is not None else np.identity(3, dtype=np.float32)
+        self.visible = visible
 
     def prepare(self, frame) -> None:
         pass

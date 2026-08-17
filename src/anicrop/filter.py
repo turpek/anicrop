@@ -5,7 +5,7 @@ import cv2
 import numpy as np
 
 from anicrop.effect import Effect
-from anicrop.enums import BlurMode, ImageFormat
+from anicrop.enums import BlurMode
 from anicrop.image import Image
 
 if TYPE_CHECKING:
@@ -23,6 +23,7 @@ class BlurFilter(Effect):
         affect_alpha: bool = True,
         strength: float = 1.0,
         matrix: np.ndarray | None = None,
+        visible: bool = True,
         name: str = "BlurFilter",
     ):
         if isinstance(radius, (tuple, list)):
@@ -37,6 +38,7 @@ class BlurFilter(Effect):
         self.affect_alpha = affect_alpha
         self.strength = float(np.clip(strength, 0.0, 1.0))
         self.matrix = matrix if matrix is not None else np.identity(3, dtype=np.float32)
+        self.visible = visible
         self.name = name
 
     def prepare(self, frame: BaseFrame) -> None:
@@ -45,7 +47,7 @@ class BlurFilter(Effect):
 
     def get_padding(self) -> tuple[int, int, int, int]:
         """Calcula a margem de expansão (top, right, bottom, left) necessária para o desfoque."""
-        if not self.affect_alpha or self.strength <= 0.0:
+        if not self.visible or not self.affect_alpha or self.strength <= 0.0:
             return (0, 0, 0, 0)
 
         multiplier = 3.0 if self.mode == BlurMode.GAUSSIAN else 1.0
@@ -89,7 +91,7 @@ class BlurFilter(Effect):
 
     def apply(self, image: Image, matrix: np.ndarray) -> Image:
         """Processa e desfoca o buffer de imagem adaptando ângulo e escala a partir da matriz afim."""
-        if self.strength <= 0.0 or (self.radius_x <= 0.0 and self.radius_y <= 0.0):
+        if not self.visible or self.strength <= 0.0 or (self.radius_x <= 0.0 and self.radius_y <= 0.0):
             return image
 
         src_data = image[...]
@@ -108,29 +110,30 @@ class BlurFilter(Effect):
 
         effective_angle = (effective_angle + 180.0) % 360.0 - 180.0
 
-        if abs(effective_angle) > 1e-4 and self.mode in (BlurMode.GAUSSIAN, BlurMode.BOX):
-            processed = self._apply_directional(src_data, length=effective_rx, angle_deg=effective_angle)
-        elif self.mode == BlurMode.GAUSSIAN:
-            if effective_rx > 0 and effective_ry <= 1e-4:
-                kx = int(math.ceil(effective_rx * 3.0)) * 2 + 1
-                processed = cv2.GaussianBlur(
-                    src_data, (kx, 1), sigmaX=effective_rx, sigmaY=0, borderType=cv2.BORDER_REFLECT_101
-                )
-            elif effective_rx <= 1e-4 and effective_ry > 0:
-                ky = int(math.ceil(effective_ry * 3.0)) * 2 + 1
-                processed = cv2.GaussianBlur(
-                    src_data, (1, ky), sigmaX=0, sigmaY=effective_ry, borderType=cv2.BORDER_REFLECT_101
-                )
+        if abs(effective_rx - effective_ry) < 1e-4 and effective_rx > 0 and self.mode == BlurMode.GAUSSIAN and effective_angle == 0.0:
+            sigma = effective_rx
+            processed = cv2.GaussianBlur(src_data, (0, 0), sigmaX=sigma, sigmaY=sigma)
+        elif self.mode in (BlurMode.GAUSSIAN, BlurMode.BOX) and (effective_angle != 0.0 or abs(effective_rx - effective_ry) >= 1e-4):
+            if effective_angle != 0.0:
+                length = max(effective_rx, effective_ry)
+                processed = self._apply_directional(src_data, length, effective_angle)
             else:
-                kx = int(math.ceil(effective_rx * 3.0)) * 2 + 1
-                ky = int(math.ceil(effective_ry * 3.0)) * 2 + 1
-                processed = cv2.GaussianBlur(
-                    src_data, (kx, ky), sigmaX=effective_rx, sigmaY=effective_ry, borderType=cv2.BORDER_REFLECT_101
-                )
+                # Anisotrópico puro alinhado aos eixos cartesianos X e Y
+                if self.mode == BlurMode.GAUSSIAN:
+                    processed = src_data
+                    if effective_rx > 0:
+                        kx = max(3, int(math.ceil(effective_rx * 3.0))) | 1
+                        processed = cv2.GaussianBlur(processed, (kx, 1), sigmaX=effective_rx, sigmaY=0)
+                    if effective_ry > 0:
+                        ky = max(3, int(math.ceil(effective_ry * 3.0))) | 1
+                        processed = cv2.GaussianBlur(processed, (1, ky), sigmaX=0, sigmaY=effective_ry)
+                else:
+                    kx = max(1, int(round(effective_rx * 2.0 + 1.0))) | 1
+                    ky = max(1, int(round(effective_ry * 2.0 + 1.0))) | 1
+                    processed = cv2.blur(src_data, (kx, ky))
         elif self.mode == BlurMode.BOX:
-            kx = max(1, int(round(effective_rx * 2.0 + 1.0))) | 1 if effective_rx > 0 else 1
-            ky = max(1, int(round(effective_ry * 2.0 + 1.0))) | 1 if effective_ry > 0 else 1
-            processed = cv2.boxFilter(src_data, -1, (kx, ky), borderType=cv2.BORDER_REFLECT_101)
+            k = max(1, int(round(effective_rx * 2.0 + 1.0))) | 1
+            processed = cv2.blur(src_data, (k, k))
         elif self.mode == BlurMode.MEDIAN:
             k = max(1, int(round(effective_rx * 2.0 + 1.0))) | 1
             processed = cv2.medianBlur(src_data, k)
@@ -156,7 +159,7 @@ class BlurFilter(Effect):
         if self.mode != BlurMode.GAUSSIAN or other.mode != BlurMode.GAUSSIAN:
             return None
 
-        if self.affect_alpha != other.affect_alpha:
+        if self.affect_alpha != other.affect_alpha or self.visible != other.visible:
             return None
 
         # 1. Resolve matriz delta e parâmetros de self no espaço de renderização
@@ -221,5 +224,6 @@ class BlurFilter(Effect):
             affect_alpha=self.affect_alpha,
             strength=combined_strength,
             matrix=matrix,
+            visible=self.visible,
             name=self.name,
         )

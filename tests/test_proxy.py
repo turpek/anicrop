@@ -6,7 +6,8 @@ from anicrop.container import GroupLayer
 from anicrop.history import GlobalHistory
 from anicrop.image import Image, ImageFormat
 from anicrop.layer import Layer
-from anicrop.proxy import GroupProxy, ProxyLayer, is_property_with_setter
+from anicrop.proxy import GroupProxy, ProxyLayer, ProxyMask, is_property_with_setter
+from anicrop.spatial import Region
 
 
 def make_img(w=10, h=10):
@@ -244,3 +245,66 @@ def test_container_proxy_pop_returns_proxy_and_records_history():
     popped.name = "Mutated After Pop"
     assert raw_layer.name == "Mutated After Pop"
     assert not hist.undo_empty()
+
+
+def test_proxy_layer_mask_property_returns_proxy_mask():
+    """Garante que acessar proxy_layer.mask retorna uma instância de ProxyMask reativo."""
+    from anicrop.proxy import ProxyMask
+    hist = GlobalHistory()
+    raw_layer = Layer(make_img(50, 50), name="L1")
+    proxy = ProxyLayer(raw_layer, hist)
+
+    mask_img = Image(np.full((50, 50, 1), 255, dtype=np.uint8), ImageFormat.GRAY)
+    proxy.set_mask(mask_img, Region.from_size(50, 50))
+
+    assert isinstance(proxy.mask, ProxyMask)
+    assert proxy.mask._target is raw_layer.mask
+
+
+def test_proxy_mask_indexing_setitem_records_history_and_undo():
+    """Garante que escrita por slicing em proxy.mask registra micro-snapshot com Undo e Redo."""
+    hist = GlobalHistory()
+    raw_layer = Layer(make_img(50, 50), name="L1")
+    proxy = ProxyLayer(raw_layer, hist)
+
+    mask_img = Image(np.full((50, 50, 1), 255, dtype=np.uint8), ImageFormat.GRAY)
+    proxy.set_mask(mask_img, Region.from_size(50, 50))
+
+    # Modifica fatia da máscara via indexação
+    proxy.mask[10:20, 10:20] = 0
+    assert proxy.mask[15, 15, 0] == 0
+    assert raw_layer.mask[15, 15, 0] == 0
+
+    # Undo restaura os 255 originais na fatia
+    hist.undo()
+    assert proxy.mask[15, 15, 0] == 255
+    assert raw_layer.mask[15, 15, 0] == 255
+
+    # Redo reaplica os 0 na fatia
+    hist.redo()
+    assert proxy.mask[15, 15, 0] == 0
+
+
+def test_proxy_mask_visible_and_invert_undo_redo():
+    """Garante que modificações nas propriedades visibilidade e inversão da máscara suportam Undo e Redo."""
+    hist = GlobalHistory()
+    raw_layer = Layer(make_img(50, 50), name="L1")
+    proxy = ProxyLayer(raw_layer, hist)
+
+    mask_img = Image(np.full((50, 50, 1), 255, dtype=np.uint8), ImageFormat.GRAY)
+    proxy.set_mask(mask_img, Region.from_size(50, 50))
+
+    proxy.mask.visible = False
+    assert raw_layer.mask.visible is False
+
+    hist.undo()
+    assert raw_layer.mask.visible is True
+
+    hist.redo()
+    assert raw_layer.mask.visible is False
+
+    proxy.mask.invert = True
+    assert raw_layer.mask.invert is True
+
+    hist.undo()
+    assert raw_layer.mask.invert is False

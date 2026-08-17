@@ -1,8 +1,9 @@
 import weakref
 from typing import Any
 from anicrop.layer import Layer
+from anicrop.mask import Mask
 from anicrop.history import GlobalHistory
-from anicrop.command import BaseLayerCommand, LayerImageCommand, ReparentCommand
+from anicrop.command import BaseLayerCommand, LayerImageCommand, ReparentCommand, MaskCommand
 from anicrop.container import Container, LayerStack, GroupLayer, BaseLayer, NullContainer
 
 
@@ -38,6 +39,8 @@ class ProxyRegistry:
             proxy_cls = LayerStackProxy
         elif isinstance(target, Layer):
             proxy_cls = ProxyLayer
+        elif isinstance(target, Mask):
+            proxy_cls = ProxyMask
         else:
             proxy_cls = BaseHistoryProxy
 
@@ -99,6 +102,8 @@ class BaseHistoryProxy:
 
     def _extract_command_value(self, name: str, cmd_cls: type, target: Any, args: tuple) -> Any:
         """Hook para subclasses extraírem o parâmetro `value` do comando a partir dos argumentos do método."""
+        if name == "__setitem__" and args:
+            return args[0]
         return None
 
     def __dir__(self):
@@ -175,10 +180,15 @@ class BaseHistoryProxy:
                     return self
                 if hasattr(self, '_registry') and not isinstance(result, BaseHistoryProxy):
                     registry = object.__getattribute__(self, '_registry')
-                    if isinstance(result, (BaseLayer, Container)):
+                    if isinstance(result, (BaseLayer, Container, Mask)):
                         return registry.get_or_create(result)
                 return result
             return method_wrapper
+
+        if hasattr(self, '_registry') and not isinstance(attr, BaseHistoryProxy):
+            registry = object.__getattribute__(self, '_registry')
+            if isinstance(attr, (BaseLayer, Container, Mask)):
+                return registry.get_or_create(attr)
 
         return attr
 
@@ -207,6 +217,41 @@ class BaseHistoryProxy:
         else:
             setattr(target, name, value)
 
+    def __getitem__(self, item: Any) -> Any:
+        target = object.__getattribute__(self, '_target')
+        return target[item]
+
+    def __setitem__(self, item: Any, value: Any) -> None:
+        target = object.__getattribute__(self, '_target')
+        action_router = object.__getattribute__(self, '_ACTION_ROUTER')
+
+        if "__setitem__" in action_router:
+            history = object.__getattribute__(self, '_history')
+
+            if not history.is_active:
+                target[item] = value
+                return
+
+            cmd_cls = self._resolve_command("__setitem__")
+            value_arg = self._extract_command_value("__setitem__", cmd_cls, target, (item, value))
+            history.start_action(cmd_cls, "__setitem__", self, value_arg)
+
+            with history.disabled():
+                target[item] = value
+        else:
+            target[item] = value
+
+
+class ProxyMask(BaseHistoryProxy):
+    """Proxy reativo para a classe Mask."""
+
+    _ACTION_ROUTER = {
+        "__setitem__": MaskCommand,
+        "visible": MaskCommand,
+        "invert": MaskCommand,
+        "offset": MaskCommand,
+    }
+
 
 class ProxyLayer(BaseHistoryProxy):
     """Proxy dedicado à classe Layer."""
@@ -221,10 +266,9 @@ class ProxyLayer(BaseHistoryProxy):
         "y": BaseLayerCommand,
         "region": BaseLayerCommand,
         "layout": BaseLayerCommand,
-        "add_mask": BaseLayerCommand,
         "set_mask": BaseLayerCommand,
+        "remove_mask": BaseLayerCommand,
         "clear_mask": BaseLayerCommand,
-        "clear_masks": BaseLayerCommand,
         "add_effect": BaseLayerCommand,
         "clear_effects": BaseLayerCommand,
         "add_edit": LayerImageCommand,
@@ -255,6 +299,8 @@ class BaseContainerProxy(BaseHistoryProxy):
             elif name == "pop":
                 idx = args[0] if args else -1
                 return registry.get_or_create(target[idx])
+        elif name == "__setitem__" and args:
+            return args[0]
         return None
 
     def __iter__(self):
@@ -297,10 +343,9 @@ class GroupProxy(BaseContainerProxy):
         "transform": BaseLayerCommand,
         "region": BaseLayerCommand,
         "layout": BaseLayerCommand,
-        "add_mask": BaseLayerCommand,
         "set_mask": BaseLayerCommand,
+        "remove_mask": BaseLayerCommand,
         "clear_mask": BaseLayerCommand,
-        "clear_masks": BaseLayerCommand,
         "add_effect": BaseLayerCommand,
         "clear_effects": BaseLayerCommand,
     }
@@ -317,3 +362,4 @@ GroupLayer.register(GroupProxy)
 BaseLayer.register(GroupProxy)
 BaseLayer.register(ProxyLayer)
 Layer.register(ProxyLayer)
+Mask.register(ProxyMask)

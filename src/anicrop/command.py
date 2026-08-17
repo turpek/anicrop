@@ -1,5 +1,6 @@
 from __future__ import annotations
 from abc import ABC, abstractmethod
+import copy
 from anicrop.container import (
     Container,
     LayerStack,
@@ -9,6 +10,7 @@ from anicrop.container import (
 )
 from anicrop.geometry import GeometryController
 from anicrop.layer import Layer
+from anicrop.mask import Mask
 from collections import deque
 from typing import Any, Iterable
 
@@ -133,7 +135,7 @@ class BaseLayerSnapshot(StateSnapshot):
         self._visible = item.visible
         self._transform = item._transform.copy()
         self._control = GeometryControllerSnapshot(item.control)
-        self._masks = list(item._masks)
+        self._mask = copy.copy(item._mask) if item._mask is not None else None
         self._effects = list(item._effects)
         self._item = item
 
@@ -144,7 +146,7 @@ class BaseLayerSnapshot(StateSnapshot):
         self._item.visible = self._visible
         self._item._transform = self._transform.copy()
         self._control.restore()
-        self._item._masks = deque(self._masks)
+        self._item._mask = copy.copy(self._mask) if self._mask is not None else None
         self._item._effects = list(self._effects)
 
     def has_change(self, other: BaseLayerSnapshot) -> bool:
@@ -155,7 +157,7 @@ class BaseLayerSnapshot(StateSnapshot):
             self._visible != other._visible or
             self._transform != other._transform or
             self._control.has_change(other._control) or
-            self._masks != other._masks or
+            self._mask != other._mask or
             self._effects != other._effects
         )
 
@@ -330,6 +332,78 @@ class LayerImageCommand(Command):
     def seal(self) -> None:
         if not self._sealed:
             self._new_item = _create_snapshot(self.item, self.SNAPSHOT_REGISTRY)
+            self._sealed = True
+
+    def execute(self) -> None:
+        if not self._sealed:
+            return
+        self._new_item.restore()
+
+    def undo(self) -> None:
+        if not self._sealed:
+            self.seal()
+        self._old_item.restore()
+
+    def has_changes(self) -> bool:
+        if not self._sealed:
+            return True
+        return self._old_item.has_change(self._new_item)
+
+
+class MaskStateSnapshot(StateSnapshot):
+    """Snapshot para atributos escalares de estado da Máscara."""
+
+    def __init__(self, item: Mask, value: Any = None):
+        self._item = item
+        self._visible = item.visible
+        self._invert = item.invert
+        self._matrix = np.copy(item.matrix)
+
+    def restore(self) -> None:
+        self._item.visible = self._visible
+        self._item.invert = self._invert
+        self._item._matrix = np.copy(self._matrix)
+
+    def has_change(self, other: MaskStateSnapshot) -> bool:
+        return (
+            self._visible != other._visible or
+            self._invert != other._invert or
+            not np.array_equal(self._matrix, other._matrix)
+        )
+
+
+class MaskImageSnapshot(StateSnapshot):
+    """Snapshot atômico de pixels da Máscara (usa value como a chave/slice do ndarray)."""
+
+    def __init__(self, item: Mask, value: Any = None):
+        self._item = item
+        self._key = value
+        self._data = np.copy(item[value])
+
+    def restore(self) -> None:
+        self._item[self._key] = self._data
+
+    def has_change(self, other: MaskImageSnapshot) -> bool:
+        return not np.array_equal(self._data, other._data)
+
+
+class MaskCommand(Command):
+    """Gerencia mutações em instâncias de Mask (atributos e pixels)."""
+
+    SNAPSHOT_MAP = {
+        "__setitem__": MaskImageSnapshot,
+    }
+    DEFAULT_SNAPSHOT = MaskStateSnapshot
+
+    def __init__(self, name: str, item: Mask, value: Any = None):
+        super().__init__(name, item, value)
+        snapshot_cls = self.SNAPSHOT_MAP.get(name, self.DEFAULT_SNAPSHOT)
+        self._snapshot_cls = snapshot_cls
+        self._old_item = snapshot_cls(item, value)
+
+    def seal(self) -> None:
+        if not self._sealed:
+            self._new_item = self._snapshot_cls(self.item, self.value)
             self._sealed = True
 
     def execute(self) -> None:

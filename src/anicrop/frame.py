@@ -61,9 +61,10 @@ class BaseFrame(ABC):
         self._src_region = self._source_region(self.bounds, self.dst_region)
 
         for effect in base.effects:
-            effect.prepare(self)
-        for mask in base.masks:
-            mask.prepare(self)
+            if effect.visible:
+                effect.prepare(self)
+        if base.mask is not None and base.mask.visible:
+            base.mask.prepare(self)
 
     def _render_region(
         self, final_region: Region, view_region: Region | None,
@@ -95,7 +96,7 @@ class BaseFrame(ABC):
         self,
         surface_region: Region,
         view_region: Region | None,
-        masks: tuple[Mask, ...] | None,
+        mask: Mask | None,
         matrix: np.ndarray,
     ) -> Region | None:
         """Calcula a janela efetiva de visualização respeitando a prioridade de view_region, máscara e superfície."""
@@ -104,14 +105,10 @@ class BaseFrame(ABC):
                 return view_region & surface_region
             return None
 
-        if masks:
-            projected_boxes = [m.projected_region(matrix) for m in masks]
-            union_box = projected_boxes[0]
-            for b in projected_boxes[1:]:
-                union_box = union_box | b
-
-            if surface_region.overlaps(union_box):
-                return union_box & surface_region
+        if mask is not None and mask.visible:
+            projected_box = mask.projected_region(matrix)
+            if surface_region.overlaps(projected_box):
+                return projected_box & surface_region
             return None
 
         return surface_region
@@ -178,7 +175,7 @@ class ViewportFrame(BaseFrame):
         matrix = m_view if local else m_view @ mat_global(base)
 
         effective_view = self._effective_view(
-            viewport.region, view_region, base.masks, matrix
+            viewport.region, view_region, base.mask, matrix
         )
         bounds = rect_to_region(calculate_new_rect(matrix, base.region.size))
         bounds = self._expand_bounds(bounds, base)
@@ -200,7 +197,7 @@ class CanvasFrame(BaseFrame):
         if local:
             matrix = np.identity(3, dtype=np.float32)
             effective_view = self._effective_view(
-                canvas.region, view_region, base.masks, matrix
+                canvas.region, view_region, base.mask, matrix
             )
             if effective_view is not None:
                 inv_matrix = mat_inverse(m_global)
@@ -212,7 +209,7 @@ class CanvasFrame(BaseFrame):
         else:
             matrix = m_global
             view_target = self._effective_view(
-                canvas.region, view_region, base.masks, matrix
+                canvas.region, view_region, base.mask, matrix
             )
             bounds = base.global_region
 

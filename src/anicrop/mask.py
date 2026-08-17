@@ -1,5 +1,5 @@
 from __future__ import annotations
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 import cv2
 import numpy as np
 
@@ -23,10 +23,20 @@ class Mask(EditLayer, Effect):
         region: Region,
         matrix: np.ndarray,
         invert: bool = False,
+        visible: bool = True,
         name: str = "Mask",
     ):
         super().__init__(image, region, matrix, BlendMode.NORMAL, name)
         self.invert = invert
+        self.visible = visible
+
+    def __getitem__(self, item: Any) -> np.ndarray:
+        """Acesso direto à fatia do buffer de imagem da máscara."""
+        return self._image[item]
+
+    def __setitem__(self, item: Any, value: Any) -> None:
+        """Escrita direta na fatia do buffer de imagem da máscara."""
+        self._image[item] = value
 
     def projected_region(self, matrix: np.ndarray) -> Region:
         """Calcula a Region projetada da máscara combinando a matriz externa com a sua matriz local."""
@@ -79,11 +89,16 @@ class Mask(EditLayer, Effect):
 
     def apply(self, image: Image, matrix: np.ndarray) -> Image:
         """Aplica a modulação de máscara sobre a imagem recebendo a matriz de transformação."""
+        if not self.visible:
+            return image
         return self.apply_modulation(image, self.image)
 
     def merge(self, other: Effect, matrix: np.ndarray) -> Mask | None:
         """Combina duas máscaras na região de união utilizando a matriz fornecida."""
         if not isinstance(other, Mask):
+            return None
+
+        if self.visible != other.visible:
             return None
 
         union_region = self.region | other.region
@@ -97,4 +112,4 @@ class Mask(EditLayer, Effect):
             other_target = union_region.overlap_with(other.region)
             combined_img[other_target] = other.image[...]
 
-        return Mask(combined_img, union_region, matrix, invert=self.invert, name=self.name)
+        return Mask(combined_img, union_region, matrix, invert=self.invert, visible=self.visible, name=self.name)

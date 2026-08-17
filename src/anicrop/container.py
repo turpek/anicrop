@@ -160,7 +160,7 @@ class BaseLayer(ABC):
         self.blend_mode = blend_mode
         self.name = name
         self._effects: list[Effect] = []
-        self._masks: deque[Mask] = deque()
+        self._mask: Mask | None = None
 
         base = geometry_cls(self, region)
         layout = geometry_cls(self, region)
@@ -172,46 +172,30 @@ class BaseLayer(ABC):
         return self._effects
 
     @property
-    def masks(self) -> tuple[Mask, ...]:
-        """Fila não-destrutiva de máscaras que modulam a opacidade desta camada."""
-        return tuple(self._masks)
-
-    @property
     def mask(self) -> Mask | None:
-        """Retorna a última máscara ativa da camada ou None se a fila estiver vazia."""
-        return self._masks[-1] if self._masks else None
-
-    def add_mask(
-        self,
-        image: Image,
-        region: Region,
-        invert: bool = False,
-        name: str = "Mask",
-    ) -> Mask:
-        """Cria e adiciona uma máscara à fila não-destrutiva da camada."""
-        matrix = mat_inverse(mat_global(self))
-        mask = Mask(image, region, matrix, invert=invert, name=name)
-        self._masks.append(mask)
-        return mask
+        """Retorna a máscara da camada ou None se não houver."""
+        return self._mask
 
     def set_mask(
         self,
         image: Image,
         region: Region,
         invert: bool = False,
+        visible: bool = True,
         name: str = "Mask",
     ) -> Mask:
-        """Substitui todas as máscaras existentes por uma nova máscara."""
-        self._masks.clear()
-        return self.add_mask(image, region, invert=invert, name=name)
+        """Cria e atribui a máscara da camada, vinculando a matriz inversa."""
+        matrix = mat_inverse(mat_global(self))
+        self._mask = Mask(image, region, matrix, invert=invert, visible=visible, name=name)
+        return self._mask
 
-    def clear_masks(self) -> None:
-        """Remove todas as máscaras da camada."""
-        self._masks.clear()
+    def remove_mask(self) -> None:
+        """Remove a máscara da camada."""
+        self._mask = None
 
     def clear_mask(self) -> None:
-        """Alias para clear_masks."""
-        self.clear_masks()
+        """Alias para remove_mask."""
+        self.remove_mask()
 
     def add_effect(self, effect: Effect, mask: Mask | None = None) -> Effect:
         """Adiciona um efeito à camada, vinculando a matriz inversa da base para preservação da orientação."""
@@ -229,9 +213,11 @@ class BaseLayer(ABC):
         self._effects.clear()
 
     def get_effects_padding(self) -> tuple[int, int, int, int]:
-        """Calcula o padding total somado/máximo de todos os efeitos ativos."""
+        """Calcula o padding total somado/máximo de todos os efeitos ativos e visíveis."""
         top, right, bottom, left = 0, 0, 0, 0
         for effect in self._effects:
+            if not effect.visible:
+                continue
             pt, pr, pb, pl = effect.get_padding()
             top = max(top, pt)
             right = max(right, pr)
@@ -244,9 +230,9 @@ class BaseLayer(ABC):
         """Indica se a camada deve ser processada no pipeline de renderização."""
         if not (self.visible and self.opacity > 0.0):
             return False
-        if self._masks:
+        if self._mask is not None and self._mask.visible:
             m_global = mat_global(self)
-            if not any(self.global_region.overlaps(m.projected_region(m_global)) for m in self._masks):
+            if not self.global_region.overlaps(self._mask.projected_region(m_global)):
                 return False
         return True
 

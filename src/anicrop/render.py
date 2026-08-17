@@ -274,13 +274,14 @@ def apply_post_processing(
     image = target_image
 
     for effect in base.effects:
-        image = effect.apply(image, frame.matrix)
+        if effect.visible:
+            image = effect.apply(image, frame.matrix)
 
-    for mask in base.masks:
-        mask_result = render_edit(mask, frame, interp=interp)
+    if base.mask is not None and base.mask.visible:
+        mask_result = render_edit(base.mask, frame, interp=interp)
         if mask_result is not None:
             mask_image, dst_local = mask_result
-            mask.apply_modulation(image.view(dst_local), mask_image)
+            base.mask.apply_modulation(image.view(dst_local), mask_image)
 
     return image
 

@@ -120,20 +120,17 @@ def test_render_layer_mask_follows_layer_transform():
     np.testing.assert_array_equal(result[150:, :, -1], 0)
 
 
-def test_render_layer_with_multiple_sequential_masks():
-    """Valida se múltiplas máscaras adicionadas via add_mask modulam o canal alfa cumulativamente."""
+def test_render_layer_with_mask_direct_indexing():
+    """Valida se edições cumulativas na máscara via slicing modulam o canal alfa corretamente."""
     canvas = Canvas.from_size(100, 100)
     layer = make_solid_layer(100, 100, color=(255, 0, 0, 255))
 
-    # Máscara 1: apaga metade superior
-    mask_data1 = np.full((100, 100, 1), 255, dtype=np.uint8)
-    mask_data1[:50, :] = 0
-    layer.add_mask(Image(mask_data1, ImageFormat.GRAY), Region.from_size(100, 100))
+    mask_data = np.full((100, 100, 1), 255, dtype=np.uint8)
+    layer.set_mask(Image(mask_data, ImageFormat.GRAY), Region.from_size(100, 100))
 
-    # Máscara 2: apaga metade esquerda
-    mask_data2 = np.full((100, 100, 1), 255, dtype=np.uint8)
-    mask_data2[:, :50] = 0
-    layer.add_mask(Image(mask_data2, ImageFormat.GRAY), Region.from_size(100, 100))
+    # Apaga metade superior e metade esquerda na mesma máscara
+    layer.mask[:50, :] = 0
+    layer.mask[:, :50] = 0
 
     renderer = CanvasRender()
     result = renderer.render_scene([layer], canvas)
@@ -144,15 +141,15 @@ def test_render_layer_with_multiple_sequential_masks():
     np.testing.assert_array_equal(result[:, :50, -1], 0)
 
 
-def test_layer_is_renderable_with_multiple_masks():
-    """Valida se is_renderable avalia corretamente quando existem múltiplas máscaras na camada."""
+def test_layer_is_renderable_with_mask():
+    """Valida se is_renderable avalia corretamente o overlap da máscara na camada."""
     layer = make_solid_layer(100, 100)
 
     # Adiciona máscara sem overlap (em 200, 200)
     mask_data = np.full((50, 50, 1), 255, dtype=np.uint8)
-    layer.add_mask(Image(mask_data, ImageFormat.GRAY), Region.from_rect(200, 200, 50, 50))
+    layer.set_mask(Image(mask_data, ImageFormat.GRAY), Region.from_rect(200, 200, 50, 50))
     assert layer.is_renderable is False
 
-    # Adiciona segunda máscara com overlap (em 0, 0)
-    layer.add_mask(Image(mask_data, ImageFormat.GRAY), Region.from_rect(0, 0, 50, 50))
+    # Substitui por máscara com overlap (em 0, 0)
+    layer.set_mask(Image(mask_data, ImageFormat.GRAY), Region.from_rect(0, 0, 50, 50))
     assert layer.is_renderable is True
