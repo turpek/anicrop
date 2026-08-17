@@ -29,3 +29,37 @@ def test_crop_undo_single_step_restores_and_empties_history():
     assert doc.history.undo_empty()
     assert layer.global_region == initial_region
     assert len(layer._edits) == initial_edits_count
+
+
+def test_resize_undo_single_step_restores_and_empties_history():
+    """Valida se uma única chamada a doc.history.undo desfaz o resize completamente."""
+    doc = Document("TestResizeHistory", 200, 200, history=True)
+    data = np.full((50, 50, 4), 255, dtype=np.uint8)
+    layer = doc.add(Layer(Image(data, ImageFormat.RGBA), name="L1"))
+
+    doc.history._undo_stack.clear()
+    initial_region = layer.global_region
+
+    doc.content.resize(layer, 150, 120)
+    assert layer.global_region.size == (150, 120)
+
+    doc.history.undo()
+    assert doc.history.undo_empty()
+    assert layer.global_region == initial_region
+
+
+def test_fit_undo_single_step_restores_and_empties_history():
+    """Valida se uma única chamada a doc.history.undo desfaz o fit de forma atomica."""
+    doc = Document("TestFitHistory", 400, 400, history=True)
+    data = np.full((100, 200, 4), 255, dtype=np.uint8)
+    layer = doc.add(Layer(Image(data, ImageFormat.RGBA), name="L1"))
+
+    doc.history._undo_stack.clear()
+    initial_region = layer.global_region
+
+    doc.content.fit(layer, doc.canvas)
+    assert layer.global_region.size == (400, 200)
+
+    doc.history.undo()
+    assert doc.history.undo_empty()
+    assert layer.global_region == initial_region

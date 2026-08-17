@@ -351,11 +351,11 @@ class Composer(ABC):
         self._region = region
 
     @abstractmethod
-    def rotate(self, angle: float, px: float, py: float) -> Self:
+    def rotate(self, angle: float, px: float = 0.5, py: float = 0.5) -> Self:
         ...
 
     @abstractmethod
-    def scale(self, sx: float, sy: float, px: float, py: float) -> Self:
+    def scale(self, sx: float, sy: float, px: float = 0.5, py: float = 0.5) -> Self:
         ...
 
     def translate(self, x: int = 0, y: int = 0) -> Self:

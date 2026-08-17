@@ -113,3 +113,79 @@ def test_content_crop_via_document_facade():
     result = doc.render()
     np.testing.assert_array_equal(result[50, 50], [0, 255, 0, 255])
     np.testing.assert_array_equal(result[10, 10], [0, 0, 0, 0])
+
+
+def test_content_resize_scales_transform():
+    """Valida se Content.resize altera as dimensoes globais via transform."""
+    data = np.full((100, 100, 4), 255, dtype=np.uint8)
+    layer = Layer(Image(data, ImageFormat.RGBA))
+    content = Content()
+
+    result = content.resize(layer, 200, 150)
+    assert result is True
+    assert layer.global_region.size == (200, 150)
+
+
+def test_content_resize_same_size_returns_false():
+    """Valida se Content.resize retorna False caso o tamanho ja seja o desejado."""
+    data = np.full((100, 100, 4), 255, dtype=np.uint8)
+    layer = Layer(Image(data, ImageFormat.RGBA))
+    content = Content()
+
+    result = content.resize(layer, 100, 100)
+    assert result is False
+
+
+def test_content_resize_invalid_size_raises_value_error():
+    """Valida se Content.resize lanca ValueError para dimensoes nao positivas."""
+    data = np.full((100, 100, 4), 255, dtype=np.uint8)
+    layer = Layer(Image(data, ImageFormat.RGBA))
+    content = Content()
+
+    with pytest.raises(ValueError, match="Dimensões inválidas para resize"):
+        content.resize(layer, -50, 100)
+
+
+def test_content_fit_preserves_aspect_ratio_and_centers():
+    """Valida se Content.fit escala proporcionalmente mantendo proporcao e centralizando."""
+    # Camada 200x100 (aspect ratio 2:1)
+    data = np.full((100, 200, 4), 255, dtype=np.uint8)
+    layer = Layer(Image(data, ImageFormat.RGBA))
+    content = Content()
+
+    # Referencia 100x100 -> escala deve ser 0.5 (nova largura 100, nova altura 50)
+    ref_region = Region.from_rect(0, 0, 100, 100)
+    result = content.fit(layer, ref_region)
+
+    assert result is True
+    assert layer.global_region.size == (100, 50)
+    # Centralizado verticalmente em y=25
+    assert layer.global_region.y.start == 25
+    assert layer.global_region.x.start == 0
+
+
+def test_content_fit_with_canvas_reference():
+    """Valida Content.fit usando uma instancia de Canvas como referencia."""
+    canvas = Canvas.from_size(400, 400)
+    data = np.full((200, 100, 4), 255, dtype=np.uint8)  # 100x200 (1:2)
+    layer = Layer(Image(data, ImageFormat.RGBA))
+    content = Content()
+
+    result = content.fit(layer, canvas)
+    assert result is True
+    assert layer.global_region.size == (200, 400)
+    assert layer.global_region.x.start == 100
+    assert layer.global_region.y.start == 0
+
+
+def test_content_resize_and_fit_via_document_facade():
+    """Valida Content.resize e Content.fit atraves da fachada doc.content."""
+    doc = Document("DocContentTest", 200, 200, history=False)
+    data = np.full((50, 50, 4), 255, dtype=np.uint8)
+    layer = doc.add(Layer(Image(data, ImageFormat.RGBA), name="L1"))
+
+    doc.content.resize(layer, 100, 100)
+    assert layer.global_region.size == (100, 100)
+
+    doc.content.fit(layer, doc.canvas)
+    assert layer.global_region.size == (200, 200)
