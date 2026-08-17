@@ -2,6 +2,7 @@ import weakref
 from typing import Any
 from anicrop.layer import Layer
 from anicrop.mask import Mask
+from anicrop.content import Content
 from anicrop.history import GlobalHistory
 from anicrop.command import BaseLayerCommand, LayerImageCommand, ReparentCommand, MaskCommand
 from anicrop.container import Container, LayerStack, GroupLayer, BaseLayer, NullContainer
@@ -41,6 +42,8 @@ class ProxyRegistry:
             proxy_cls = ProxyLayer
         elif isinstance(target, Mask):
             proxy_cls = ProxyMask
+        elif isinstance(target, Content):
+            proxy_cls = ProxyContent
         else:
             proxy_cls = BaseHistoryProxy
 
@@ -358,6 +361,28 @@ class GroupProxy(BaseContainerProxy):
 
     def __repr__(self):
         return f'GroupProxy(name="{self.name}")'
+
+
+class ProxyContent(BaseHistoryProxy):
+    """Proxy reativo genérico para a classe Content."""
+
+    def __getattribute__(self, name: str) -> Any:
+        attr = super().__getattribute__(name)
+        if callable(attr) and not name.startswith("_"):
+            history = object.__getattribute__(self, "_history")
+
+            def method_wrapper(*args: Any, **kwargs: Any) -> Any:
+                if not history.is_active:
+                    return attr(*args, **kwargs)
+
+                with history.atomic(name):
+                    return attr(*args, **kwargs)
+
+            return method_wrapper
+        return attr
+
+    def __repr__(self) -> str:
+        return "ProxyContent()"
 
 
 Container.register(BaseContainerProxy)

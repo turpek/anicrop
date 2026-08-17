@@ -149,6 +149,7 @@ def test_GlobalHistory_commit_manualmente_com_undo_vazio(mocker, history):
 @pytest.mark.parametrize(
     'context_manager_name, expected_size', [
         ('transaction', 5),
+        ('atomic', 1),
         ('merge_continuous', 4),
         ('group_action', 3),
         ('disabled', 0)

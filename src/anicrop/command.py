@@ -424,3 +424,38 @@ class MaskCommand(Command):
         if not self._sealed:
             return True
         return self._old_item.has_change(self._new_item)
+
+
+class MacroCommand(Command):
+    """Comando composto que encapsula múltiplos sub-comandos como uma única unidade atômica."""
+
+    def __init__(self, name: str = "Macro", item: Any = None, value: Any = None):
+        super().__init__(name, item, value)
+        self._commands: list[Command] = []
+
+    def add_command(self, cmd: Command) -> None:
+        """Adiciona e sela o sub-comando anterior se houver."""
+        if self._commands and not self._commands[-1]._sealed:
+            self._commands[-1].seal()
+        self._commands.append(cmd)
+
+    def can_merge(self, name: str, target: Any) -> bool:
+        return not self._sealed
+
+    def seal(self) -> None:
+        for cmd in self._commands:
+            if not cmd._sealed:
+                cmd.seal()
+        self._commands = [c for c in self._commands if c.has_changes()]
+        self._sealed = True
+
+    def execute(self) -> None:
+        for cmd in self._commands:
+            cmd.execute()
+
+    def undo(self) -> None:
+        for cmd in reversed(self._commands):
+            cmd.undo()
+
+    def has_changes(self) -> bool:
+        return len(self._commands) > 0

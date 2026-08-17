@@ -11,7 +11,7 @@ from anicrop.history import GlobalHistory
 from anicrop.image import Image
 from anicrop.layer import Layer
 from anicrop.layout import Layout
-from anicrop.proxy import BaseHistoryProxy, GroupProxy, LayerStackProxy, ProxyLayer
+from anicrop.proxy import BaseHistoryProxy, GroupProxy, LayerStackProxy, ProxyContent, ProxyLayer
 from anicrop.render import CanvasRender, ViewportRender
 from anicrop.viewport import Viewport
 
@@ -25,6 +25,10 @@ class DocumentPolicy(ABC):
 
     @abstractmethod
     def process_layer(self, layer: LayerT, history: GlobalHistory | None) -> LayerT:
+        ...
+
+    @abstractmethod
+    def process_content(self, content: Content, history: GlobalHistory | None) -> Content:
         ...
 
 
@@ -44,6 +48,12 @@ class ReactiveDocumentPolicy(DocumentPolicy):
             return GroupProxy(layer, history)  # type: ignore[return-value]
         return ProxyLayer(layer, history)  # type: ignore[return-value]
 
+    def process_content(self, content: Content, history: GlobalHistory | None) -> Content:
+        if isinstance(content, BaseHistoryProxy):
+            return content
+        assert history is not None
+        return ProxyContent(content, history)  # type: ignore[return-value]
+
 
 class DirectDocumentPolicy(DocumentPolicy):
     """Política de alta performance sem Histórico e sem Proxies (modo direto)."""
@@ -53,6 +63,9 @@ class DirectDocumentPolicy(DocumentPolicy):
 
     def process_layer(self, layer: LayerT, history: GlobalHistory | None) -> LayerT:
         return getattr(layer, "_target", layer)
+
+    def process_content(self, content: Content, history: GlobalHistory | None) -> Content:
+        return getattr(content, "_target", content)
 
 
 class Document:
@@ -77,7 +90,7 @@ class Document:
         self._viewport_render = ViewportRender()
         self._canvas_render = CanvasRender()
         self._layout = Layout()
-        self._content = Content()
+        self._content = self._policy.process_content(Content(), self.history)
 
     @classmethod
     def open(cls, path: str | Path, name: str, history: bool = True) -> Document:

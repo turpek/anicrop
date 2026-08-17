@@ -1,18 +1,17 @@
 from __future__ import annotations
 from abc import ABC, abstractmethod
-from typing import Any, TYPE_CHECKING
+from typing import Any
 from collections import deque
 from contextlib import contextmanager
 
-if TYPE_CHECKING:
-    from anicrop.command import Command
+from anicrop.command import Command, MacroCommand
 
 
 class ActionPolicy(ABC):
     """Interface abstrata (Strategy/Policy) para os modos de ação do histórico."""
 
     @abstractmethod
-    def start_action(self, history: GlobalHistory, command_cls: type[Command], name: str, target: Any, value: Any = None) -> None:
+    def start_action(self, history: GlobalHistory, command_cls: type[Command], name: str, target: Any = None, value: Any = None) -> None:
         ...
 
     @abstractmethod
@@ -23,7 +22,7 @@ class ActionPolicy(ABC):
 class NormalPolicy(ActionPolicy):
     """Política padrão: cria um novo comando e sela o anterior."""
 
-    def start_action(self, history: GlobalHistory, command_cls: type[Command], name: str, target: Any, value: Any = None) -> None:
+    def start_action(self, history: GlobalHistory, command_cls: type[Command], name: str, target: Any = None, value: Any = None) -> None:
         history._clear_redo()
         history.commit()
         cmd = command_cls(name, target, value)
@@ -43,7 +42,7 @@ class NormalPolicy(ActionPolicy):
 class MergeContinuousPolicy(ActionPolicy):
     """Política de mesclagem contínua: mescla ações de mesmo nome e objeto."""
 
-    def start_action(self, history: GlobalHistory, command_cls: type[Command], name: str, target: Any, value: Any = None) -> None:
+    def start_action(self, history: GlobalHistory, command_cls: type[Command], name: str, target: Any = None, value: Any = None) -> None:
         if not history.undo_empty():
             last_cmd = history._undo_stack[-1]
             if type(last_cmd) is command_cls and last_cmd.can_merge(name, target):
@@ -61,7 +60,7 @@ class MergeContinuousPolicy(ActionPolicy):
 class GroupActionPolicy(ActionPolicy):
     """Política de agrupamento: ignora ações consecutivas da mesma classe de comando."""
 
-    def start_action(self, history: GlobalHistory, command_cls: type[Command], name: str, target: Any, value: Any = None) -> None:
+    def start_action(self, history: GlobalHistory, command_cls: type[Command], name: str, target: Any = None, value: Any = None) -> None:
         if not history.undo_empty():
             last_cmd = history._undo_stack[-1]
             if type(last_cmd) is command_cls:
@@ -79,8 +78,34 @@ class GroupActionPolicy(ActionPolicy):
 class DisabledPolicy(ActionPolicy):
     """Política silenciosa/desativada: ignora qualquer início de ação e commit."""
 
-    def start_action(self, history: GlobalHistory, command_cls: type[Command], name: str, target: Any, value: Any = None) -> None:
+    def start_action(self, history: GlobalHistory, command_cls: type[Command], name: str, target: Any = None, value: Any = None) -> None:
         pass
+
+    def commit(self, history: GlobalHistory) -> bool:
+        return False
+
+
+class AtomicPolicy(ActionPolicy):
+    """Política de transação atômica: mescla e acumula ações no MacroCommand ativo."""
+
+    def start_action(
+        self,
+        history: GlobalHistory,
+        command_cls: type[Command],
+        name: str,
+        target: Any = None,
+        value: Any = None,
+    ) -> None:
+        if not history.undo_empty():
+            last_cmd = history._undo_stack[-1]
+            if isinstance(last_cmd, MacroCommand) and last_cmd.can_merge(name, target):
+                last_cmd.add_command(command_cls(name, target, value))
+                return
+
+        history._clear_redo()
+        history.commit()
+        cmd = command_cls(name, target, value)
+        history._undo_stack.append(cmd)
 
     def commit(self, history: GlobalHistory) -> bool:
         return False
@@ -103,7 +128,7 @@ class GlobalHistory:
     def commit(self) -> bool:
         return self._policy.commit(self)
 
-    def start_action(self, command_cls: type[Command], name: str, target: Any, value: Any = None) -> None:
+    def start_action(self, command_cls: type[Command], name: str, target: Any = None, value: Any = None) -> None:
         """Abre uma nova transação usando a política ativa."""
         self._policy.start_action(self, command_cls, name, target, value)
 
@@ -143,6 +168,13 @@ class GlobalHistory:
     def transaction(self):
         """Contexto de transação padrão."""
         with self.use_policy(NormalPolicy()):
+            yield
+
+    @contextmanager
+    def atomic(self, name: str = "Atomic"):
+        """Contexto atômico que agrupa comandos em um MacroCommand usando AtomicPolicy."""
+        with self.use_policy(AtomicPolicy()):
+            self.start_action(MacroCommand, name)
             yield
 
     @contextmanager
