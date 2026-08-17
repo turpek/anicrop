@@ -4,7 +4,7 @@ from pathlib import Path
 from typing import Iterator, TypeVar
 
 from anicrop.canvas import Canvas
-from anicrop.container import BaseLayer, Container, GroupLayer, LayerStack
+from anicrop.container import BaseLayer, Container, GroupLayer, LayerStack, NullContainer
 from anicrop.enums import ImageFormat
 from anicrop.history import GlobalHistory
 from anicrop.image import Image
@@ -19,7 +19,7 @@ LayerT = TypeVar("LayerT", bound=BaseLayer)
 
 class DocumentPolicy(ABC):
     @abstractmethod
-    def setup(self) -> tuple[GlobalHistory | None, Container]:
+    def setup(self) -> tuple[GlobalHistory | None, LayerStack]:
         ...
 
     @abstractmethod
@@ -30,14 +30,15 @@ class DocumentPolicy(ABC):
 class ReactiveDocumentPolicy(DocumentPolicy):
     """Política com Histórico e Proxies ativados."""
 
-    def setup(self) -> tuple[GlobalHistory, LayerStackProxy]:
+    def setup(self) -> tuple[GlobalHistory, LayerStack]:
         history = GlobalHistory()
         stack = LayerStackProxy(LayerStack(), history)
-        return history, stack
+        return history, stack  # type: ignore[return-value]
 
     def process_layer(self, layer: LayerT, history: GlobalHistory | None) -> LayerT:
         if isinstance(layer, BaseHistoryProxy):
             return layer
+        assert history is not None
         if isinstance(layer, GroupLayer):
             return GroupProxy(layer, history)  # type: ignore[return-value]
         return ProxyLayer(layer, history)  # type: ignore[return-value]
@@ -106,8 +107,7 @@ class Document:
         for child in container:
             if child.name == name:
                 return child
-            raw_child = getattr(child, "_target", child)
-            if recursive and isinstance(raw_child, Container):
+            if recursive and isinstance(child, (GroupLayer, Container)):
                 found = self._find_in_container(child, name, recursive=True)
                 if found is not None:
                     return found
@@ -157,8 +157,10 @@ class Document:
         """
         Acesso polimórfico a camadas por índice inteiro, slice ou nome (string).
         """
-        if isinstance(key, (int, slice)):
+        if isinstance(key, int):
             return self.stack[key]
+        if isinstance(key, slice):
+            return list(self.stack)[key]
         if isinstance(key, str):
             layer = self.find(key, recursive=True)
             if layer is None:
@@ -181,8 +183,7 @@ class Document:
         if isinstance(key, int):
             self.stack.pop(key)
         elif isinstance(key, str):
-            layer = self[key]
-            self.remove(layer)
+            self.remove(key)
         else:
             raise TypeError(f"Invalid key type {type(key).__name__}. Expected int or str.")
 
@@ -191,7 +192,10 @@ class Document:
         Remove uma camada da pilha (aceita a instância da camada ou seu nome).
         """
         if isinstance(layer_or_name, str):
-            layer = self[layer_or_name]
+            found = self.find(layer_or_name, recursive=True)
+            if found is None:
+                raise KeyError(f"Layer named '{layer_or_name}' not found in document.")
+            layer = found
         else:
             layer = layer_or_name
 
@@ -199,9 +203,8 @@ class Document:
             self.stack.remove(layer)
             return
 
-        raw_target = getattr(layer, "_target", layer)
-        if hasattr(raw_target, "parent") and raw_target.parent is not None:
-            raw_target.parent.remove(layer)
+        if not isinstance(layer.parent, NullContainer):
+            layer.parent.remove(layer)
         else:
             raise ValueError(f"Layer {layer} not found in document hierarchy.")
 

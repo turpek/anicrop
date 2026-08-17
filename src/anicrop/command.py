@@ -364,7 +364,9 @@ class MaskStateSnapshot(StateSnapshot):
         self._item.invert = self._invert
         self._item._matrix = np.copy(self._matrix)
 
-    def has_change(self, other: MaskStateSnapshot) -> bool:
+    def has_change(self, other: Any) -> bool:
+        if not isinstance(other, MaskStateSnapshot):
+            return True
         return (
             self._visible != other._visible or
             self._invert != other._invert or
@@ -383,7 +385,9 @@ class MaskImageSnapshot(StateSnapshot):
     def restore(self) -> None:
         self._item[self._key] = self._data
 
-    def has_change(self, other: MaskImageSnapshot) -> bool:
+    def has_change(self, other: Any) -> bool:
+        if not isinstance(other, MaskImageSnapshot):
+            return True
         return not np.array_equal(self._data, other._data)
 
 

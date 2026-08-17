@@ -71,11 +71,9 @@ class BlurFilter(Effect):
         rot_mat = cv2.getRotationMatrix2D(center, -angle_deg, 1.0)
         rotated_kernel = cv2.warpAffine(kernel, rot_mat, (ksize, ksize))
 
-        k_sum = np.sum(rotated_kernel)
-        if k_sum > 0:
-            rotated_kernel /= k_sum
-
-        return cv2.filter2D(src_data, -1, rotated_kernel, borderType=cv2.BORDER_REFLECT_101)
+        k_sum = float(np.sum(rotated_kernel))
+        k_norm = np.asarray(rotated_kernel / k_sum if k_sum > 0 else rotated_kernel, dtype=np.float32)
+        return cv2.filter2D(src_data, -1, k_norm, borderType=cv2.BORDER_REFLECT_101)
 
     def apply(self, image: Image, matrix: np.ndarray) -> Image:
         """Processa e desfoca o buffer de imagem adaptando ângulo e escala a partir da matriz afim."""

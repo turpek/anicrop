@@ -1,23 +1,55 @@
 from __future__ import annotations
-
-from collections.abc import Iterator
-from functools import reduce
-from operator import or_
-from typing import Any, Sequence
-
-from anicrop.canvas import Canvas
-from anicrop.container import BaseLayer, Container, GroupLayer
-from anicrop.geometry import FitGeometry, FitGroupGeometry
-
 from anicrop.image import calculate_content_rect
-from anicrop.layer import Layer
-from anicrop.spatial import Region
 from anicrop.transform import (
     calculate_region_rect,
     mat_global,
     mat_inverse,
     transform_vector,
 )
+from anicrop.spatial import Region
+from anicrop.layer import Layer
+
+from collections.abc import Iterator
+from functools import reduce
+from operator import or_
+from typing import Any, Protocol, Sequence, runtime_checkable
+
+from anicrop.canvas import Canvas
+from anicrop.container import BaseLayer, Container, GroupLayer
+from anicrop.geometry import FitGeometry, FitGroupGeometry
+
+
+@runtime_checkable
+class LayoutStrategy(Protocol):
+    """Protocolo estrutural para estratégias de layout de elementos."""
+
+    @classmethod
+    def fit(cls, target: Any, ref_region: Region) -> bool:
+        ...
+
+    @classmethod
+    def align(
+        cls,
+        target: Any,
+        ref_region: Region,
+        anchor_x: float = 0.5,
+        anchor_y: float = 0.5,
+    ) -> bool:
+        ...
+
+    @classmethod
+    def resize_bounds(
+        cls,
+        target: Any,
+        ref_region: Region,
+        anchor_x: float = 0.5,
+        anchor_y: float = 0.5,
+    ) -> bool:
+        ...
+
+    @classmethod
+    def fit_content(cls, target: Any, *args: Any, **kwargs: Any) -> bool:
+        ...
 
 
 def resolve_region(
@@ -221,7 +253,7 @@ class GroupLayoutStrategy:
 
 class Layout:
 
-    def _resolve_strategy(self, target: Any) -> type:
+    def _resolve_strategy(self, target: Any) -> type[LayoutStrategy]:
         if isinstance(target, GroupLayer):
             return GroupLayoutStrategy
         if isinstance(target, Layer):

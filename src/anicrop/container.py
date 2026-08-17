@@ -25,6 +25,7 @@ import numpy as np
 
 if TYPE_CHECKING:
     from anicrop.layer import Layer
+    from anicrop.image import Image
 
 
 @runtime_checkable

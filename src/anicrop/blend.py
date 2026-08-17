@@ -24,7 +24,7 @@ def blend_rendered_images(
 
 
 try:
-    from anicrop.native.blend import (
+    from anicrop.native.blend import (  # type: ignore[import-untyped]
         blend_normal as _cy_blend_normal,
         blend_normal_linear as _cy_blend_normal_linear,
         hard_masking as _cy_hard_masking,
