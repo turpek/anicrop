@@ -7,7 +7,7 @@ try:
 except ImportError:
     USE_CYTHON = False
 
-extra_compile_args = ["-O3", "-mavx2"] if os.name != "nt" else ["/O2", "/arch:AVX2"]
+extra_compile_args = ["-O3"] if os.name != "nt" else ["/O2"]
 
 ext_modules = []
 

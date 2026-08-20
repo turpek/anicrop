@@ -145,12 +145,8 @@ class LayerLayoutStrategy:
 
     @classmethod
     def fit_content(cls, target: Layer, *args, **kwargs) -> bool:
-        content_roi = content_region(target)
-        if content_roi is None:
-            return False
-        parent_mat = target.parent.matrix
-        global_roi = Region.from_rect(*calculate_region_rect(parent_mat, content_roi))
-        if target.global_region == global_roi:
+        global_roi = global_content_region(target)
+        if global_roi is None or target.global_region == global_roi:
             return False
         return cls.fit(target, global_roi)
 

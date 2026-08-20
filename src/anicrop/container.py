@@ -259,7 +259,15 @@ class BaseLayer(ABC):
 
     @property
     def matrix(self) -> np.ndarray:
-        return self.control.base.matrix
+        return self.control.content_matrix
+
+    @property
+    def content_matrix(self) -> np.ndarray:
+        return self.control.content_matrix
+
+    @property
+    def layout_matrix(self) -> np.ndarray:
+        return self.control.layout_matrix
 
     @property
     def base(self) -> GeometryStrategy:

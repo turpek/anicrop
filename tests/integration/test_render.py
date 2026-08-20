@@ -5,6 +5,7 @@ import pytest
 
 from anicrop.canvas import Canvas
 from anicrop.container import GroupLayer
+from anicrop.document import Document
 from anicrop.enums import ImageFormat
 from anicrop.image import Image
 from anicrop.layer import Layer
@@ -449,3 +450,22 @@ def test_render_layer_multiplos_edits_formatos_mistos(canvas_render):
     np.testing.assert_array_equal(result[0, 0], [0, 0, 255])
     np.testing.assert_array_equal(result[15, 15], [255, 0, 0])
     np.testing.assert_array_equal(result[55, 55], [128, 128, 128])
+
+
+def test_render_crop_and_rotate_mariachi_scenario(canvas_render):
+    """Valida o cenário mariachi com crop de janela 400x400 e rotação de 45° sem corte em 90° e sem efeito pêndulo."""
+    doc = Document("Mariachi Test", 736, 1104, history=False)
+    cor_fundo = (10, 50, 200, 255)
+    img_data = np.full((1000, 1000, 4), cor_fundo, dtype=np.uint8)
+    img = Image(img_data, ImageFormat.RGBA)
+    layer = Layer(img, name="fundo")
+    doc.add(layer)
+
+    doc.content.crop(layer, (100, 50, 400, 400))
+    layer.transform.rotate(45)
+
+    result = doc.render()
+
+    np.testing.assert_array_equal(result[250, 300], cor_fundo)
+    assert result[50, 100, 3] == 0
+    assert result[5, 300, 3] == 255

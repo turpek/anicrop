@@ -127,7 +127,6 @@ def create_pivot_transform_abs(
     # 2. Matrizes de Ida e Volta
     T_neg = mat_translation(-px, -py)
     T_pos = mat_translation(px, py)
-    print('pivô: ', px, py)
 
     # 3. O Sanduíche
     return T_pos @ matrix_pure @ T_neg
@@ -183,15 +182,8 @@ def mat_pivot(transform: TransformState, size: tuple[int, int]) -> np.ndarray:
     return create_pivot_transform_rel(transform.matrix, *size, *transform.pivot)
 
 
-# def mat_global(layer: BaseLayer) -> np.ndarray:
-#     m_offset = mat_position(layer.control._offset)
-#     m_layout = layer.parent.matrix @ mat_position(layer.layout.region) @ layer.transform.matrix
-#     return m_layout @ m_offset
-
 def mat_global(layer: BaseLayer) -> np.ndarray:
-    # Pergunta pro layout ativo: "Como eu desenho os pixels físicos?"
-    # Ele passa o offset do controlador, e a estratégia decide se usa ou não!
-    return layer.layout.content_matrix(layer.control._offset)
+    return layer.matrix
 
 
 def mat_final(layer: Layer, x: float, y: float) -> np.ndarray:

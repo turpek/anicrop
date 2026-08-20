@@ -35,6 +35,21 @@ class GeometryController:
     def layout(self) -> GeometryStrategy:
         return self._layout
 
+    @property
+    def layout_matrix(self) -> ndarray:
+        """Matriz geométrica da moldura/janela ativa (sem offset físico)."""
+        return self._layout.matrix
+
+    @property
+    def content_matrix(self) -> ndarray:
+        """Matriz do conteúdo físico (a moldura + o deslocamento físico da foto)."""
+        return self._layout.matrix @ mat_position(self._offset)
+
+    @property
+    def matrix(self) -> ndarray:
+        """Alias para content_matrix."""
+        return self.content_matrix
+
     def sync(self, value: Region) -> None:
         self._layout._region = value
         self._base._region = value + self._offset
@@ -118,11 +133,6 @@ class GeometryStrategy(ABC):
     def global_region(self) -> Region:
         return self._resolve_global_region()
 
-    def content_matrix(self, offset: Region) -> ndarray:
-        # O FitGeometry já é perfeitamente alinhado com o conteúdo físico.
-        # Ele anula o offset de propósito para não arremessar a imagem para fora!
-        return self.matrix
-
 
 class LayerGeometry(GeometryStrategy):
 
@@ -141,10 +151,6 @@ class LayerGeometry(GeometryStrategy):
     def _compute_global_region(self) -> Region:
         rect = calculate_new_rect(self.matrix, self.region.size)
         return Region.from_rect(*rect)
-
-    def content_matrix(self, offset: Region) -> ndarray:
-        # A Janela + O Deslizamento Físico (Sua fórmula impecável do Mariachi)
-        return self.matrix @ mat_position(offset)
 
 
 class GroupGeometry(GeometryStrategy):
@@ -169,6 +175,8 @@ class GroupGeometry(GeometryStrategy):
         if len(base):
             return reduce(or_, [c.global_region for c in base])
         return self._region
+
+
 class FitGeometry(GeometryStrategy):
 
     def __init__(
@@ -179,22 +187,18 @@ class FitGeometry(GeometryStrategy):
         super().__init__()
         self._base = base
         parent_mat = base.parent.matrix
-        # _region é guardada como uma AABB já limpa no espaço do Parent
         rect = calculate_region_rect(mat_inverse(parent_mat), region)
         self._region = Region.from_rect(*rect)
 
     def _compute_matrix(self) -> ndarray:
-        # A Mágica: O Fit não tem posição própria, ele HERDA a posição da base física!
-        base_strat = self._base.control.base
-        return self._base.parent.matrix @ mat_position(base_strat.region) @ self._base.transform.matrix
+        base = self._base
+        return base.parent.matrix @ mat_position(self.region) @ base.transform.matrix
 
     def _compute_region(self) -> Region:
         return self._region
 
     def _compute_global_region(self) -> Region:
-        # Como o self._region já é uma AABB no espaço do pai, NÃO podemos girá-lo de novo.
-        # Levamos ele para o mundo global apenas com a matriz do pai.
-        rect = calculate_region_rect(self._base.parent.matrix, self._region)
+        rect = calculate_new_rect(self.matrix, self.region.size)
         return Region.from_rect(*rect)
 
 
