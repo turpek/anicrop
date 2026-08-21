@@ -1,6 +1,7 @@
 from __future__ import annotations
 from anicrop.image import calculate_content_rect
 from anicrop.transform import (
+    calculate_new_rect,
     calculate_region_rect,
     mat_global,
     mat_inverse,
@@ -8,6 +9,7 @@ from anicrop.transform import (
 )
 from anicrop.spatial import Region
 from anicrop.layer import Layer
+from anicrop.edit_layer import CropEditLayer
 
 from collections.abc import Iterator
 from functools import reduce
@@ -64,16 +66,38 @@ def resolve_region(
     return ref
 
 
-def content_region(target: Layer) -> Region | None:
-    """Calcula a ROI de conteúdo no espaço de coordenadas do Layer (somada com base.region.top_left)."""
+def _compute_layer_local_roi(target: Layer) -> Region | None:
     if not target._edits:
         return None
 
-    def roi(edit):
-        return calculate_content_rect(edit.image) + edit.region.top_left
+    accum_roi: Region | None = None
 
-    content_roi = reduce(or_, [roi(e) for e in target._edits])
-    return content_roi + target.base.region.top_left
+    for edit in target._edits:
+        if not edit.visible:
+            continue
+
+        edit_roi = calculate_content_rect(edit.image) + edit.region.top_left
+
+        if isinstance(edit, CropEditLayer):
+            if accum_roi is not None and accum_roi.overlaps(edit_roi):
+                accum_roi = accum_roi & edit_roi
+            else:
+                accum_roi = None
+        else:
+            if accum_roi is None:
+                accum_roi = edit_roi
+            else:
+                accum_roi = accum_roi | edit_roi
+
+    return accum_roi
+
+
+def content_region(target: Layer) -> Region | None:
+    """Calcula a ROI de conteúdo no espaço de coordenadas do Layer (somada com base.region.top_left)."""
+    local_roi = _compute_layer_local_roi(target)
+    if local_roi is None:
+        return None
+    return local_roi + target.base.region.top_left
 
 
 def global_content_region(
@@ -82,14 +106,10 @@ def global_content_region(
     """Calcula a Bounding Box de conteúdo de todos os elementos projetada no Espaço Global."""
     def _extract(item: Layer | Container | Sequence[Layer]) -> Iterator[Region]:
         if isinstance(item, Layer):
-            if not item._edits:
+            local_roi = _compute_layer_local_roi(item)
+            if local_roi is None:
                 return
-
-            def roi(edit):
-                return calculate_content_rect(edit.image) + edit.region.top_left
-
-            local_roi = reduce(or_, [roi(e) for e in item._edits])
-            rect = calculate_region_rect(mat_global(item), local_roi)
+            rect = calculate_region_rect(item.matrix, local_roi)
             yield Region.from_rect(*rect)
         else:
             for child in item:
@@ -104,13 +124,24 @@ def global_content_region(
     return reduce(or_, regions, first_region)
 
 
+def _resolve_target_fit_region(target: Layer, global_ref: Region) -> Region:
+    """
+    Calcula a região de enquadramento da camada no Canvas,
+    compensando a translação intrínseca induzida pela transformação da camada.
+    """
+    (drift_x, drift_y, *_) = calculate_new_rect(target.transform.matrix, global_ref.size)
+    return global_ref - (drift_x, drift_y)
+
+
 class LayerLayoutStrategy:
 
     @classmethod
     def fit(cls, target: Layer, ref_region: Region) -> bool:
         if target.global_region == ref_region:
             return False
-        fit_strategy = FitGeometry(target, ref_region)
+
+        target_fit_region = _resolve_target_fit_region(target, ref_region)
+        fit_strategy = FitGeometry(target, target_fit_region)
         target.layout = fit_strategy
         return True
 
@@ -145,9 +176,14 @@ class LayerLayoutStrategy:
 
     @classmethod
     def fit_content(cls, target: Layer, *args, **kwargs) -> bool:
+        for edit in target._edits:
+            if type(edit) is CropEditLayer:
+                edit.visible = False
+
         global_roi = global_content_region(target)
         if global_roi is None or target.global_region == global_roi:
             return False
+
         return cls.fit(target, global_roi)
 
 

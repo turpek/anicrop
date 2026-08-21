@@ -378,6 +378,11 @@ class Region:
         """Returns the top-left coordinates as an (x, y) tuple."""
         return (self.x.start, self.y.start)
 
+    @property
+    def bottom_right(self) -> tuple[int, int]:
+        """Returns the bottom-right coordinates as an (x, y) tuple."""
+        return (self.x.end, self.y.end)
+
     def expand(
         self,
         all: int | tuple[int, int] | None = None,

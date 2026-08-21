@@ -433,7 +433,7 @@ def test_fit_content_with_layer_transform_render_pipeline(mocker):
     assert rendered_image.size == plan.dst_region.size
 
     assert spy_view.call_count >= 1
-    view_region_arg = spy_view.call_args_list[-1][0][1]
+    view_region_arg = spy_view.call_args_list[0][0][1]
     assert view_region_arg == Region.from_rect(0, 0, 150, 150)
 
 

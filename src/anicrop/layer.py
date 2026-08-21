@@ -18,7 +18,7 @@ from typing import Optional
 
 import math
 import numpy as np
-from anicrop.edit_layer import EditLayer
+from anicrop.edit_layer import EditLayer, EDIT_LAYER_MAP
 
 
 class Layer(BaseLayer):
@@ -121,9 +121,14 @@ class Layer(BaseLayer):
         self,
         image: Image,
         region: Region,
-        blend_mode: BlendMode = BlendMode.NORMAL
-    ) -> None:
+        blend_mode: BlendMode = BlendMode.NORMAL,
+        name: str | None = None,
+        visible: bool = True,
+    ) -> EditLayer:
 
-        name = f'Edit-{len(self._edits) + 1}'
-        matrix = mat_inverse(mat_global(self))
-        self._edits.append(EditLayer(image, region, matrix, blend_mode, name))
+        matrix = mat_inverse(self.matrix)
+        edit_cls = EDIT_LAYER_MAP.get(blend_mode, EditLayer)
+        edit_name = name or blend_mode.default_name
+        edit = edit_cls(image, region, matrix, blend_mode, edit_name, visible)
+        self._edits.append(edit)
+        return edit

@@ -133,7 +133,7 @@ def test_Layer_add_edit_cria_e_adiciona_edit_layer(image):
     assert isinstance(edit, EditLayer)
     assert edit.image is edit_image
     assert edit.region == region
-    assert edit.name == "Edit-2"
+    assert edit.name == "EditLayer"
     # Verifica se a matriz foi calculada e armazenada
     assert isinstance(edit.matrix, np.ndarray)
 
@@ -165,15 +165,6 @@ def test_Layer_add_edit_usa_blend_mode_passado(image):
     layer = Layer(image)
     layer.add_edit(image, make_region(), blend_mode=BlendMode.MULTIPLY)
     assert layer._edits[1].blend_mode == BlendMode.MULTIPLY
-
-
-def test_Layer_add_edit_incrementa_nomes(image):
-    layer = Layer(image)
-    layer.add_edit(image, make_region())
-    layer.add_edit(image, make_region())
-
-    assert layer._edits[0].name == "Edit-1"
-    assert layer._edits[1].name == "Edit-2"
 
 
 # ############################# Testes de Invalidação de Cache (TDD) #####################################

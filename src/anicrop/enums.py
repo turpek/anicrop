@@ -11,6 +11,17 @@ class BlendMode(Enum):
     HARD_MASKING = 'hard_masking'
     CLIP = 'clip'
 
+    @property
+    def default_name(self) -> str:
+        """Retorna o nome padrao de edicao associado ao modo de mesclagem."""
+        return {
+            BlendMode.NORMAL: 'EditLayer',
+            BlendMode.NORMAL_LINEAR: 'EditLayer',
+            BlendMode.MULTIPLY: 'EditLayer',
+            BlendMode.HARD_MASKING: 'EditLayer',
+            BlendMode.CLIP: 'Crop',
+        }[self]
+
 
 class BlurMode(StrEnum):
     """Algoritmo de desfoque utilizado por filtros de desfoque."""

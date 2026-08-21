@@ -2,6 +2,7 @@ from __future__ import annotations
 import math
 import numpy as np
 
+from anicrop.blend import BLEND_MODE, blend_clip
 from anicrop.enums import BlendMode
 from anicrop.image import Image
 from anicrop.spatial import Region
@@ -28,12 +29,14 @@ class EditLayer:
         region: Region,
         matrix: np.ndarray,
         blend_mode: BlendMode = BlendMode.NORMAL,
-        name: str = 'Edit'
+        name: str = 'Edit',
+        visible: bool = True,
     ):
         self._image = image
         self._region = region
         self.blend_mode = blend_mode
         self.name = name
+        self.visible = visible
         self._matrix = matrix
         self._lod_cache: dict[int, Image] = {}
 
@@ -99,3 +102,40 @@ class EditLayer:
 
         lod_image = self._resize(lod_factor)
         return lod_image, m_local
+
+    def blend_into(self, layer_image: Image, edit_image: Image, dst_region: Region) -> None:
+        """Aplica a mesclagem padrão dos pixels da edição dentro do retângulo de destino."""
+        blend = BLEND_MODE[self.blend_mode]
+        blend(layer_image.view(dst_region), edit_image)
+
+
+class CropEditLayer(EditLayer):
+    """Edição de recorte que aplica BlendMode.CLIP e zera toda a área externa da camada."""
+
+    def __init__(
+        self,
+        image: Image,
+        region: Region,
+        matrix: np.ndarray,
+        blend_mode: BlendMode = BlendMode.CLIP,
+        name: str = 'Crop',
+        visible: bool = True,
+    ):
+        super().__init__(
+            image,
+            region,
+            matrix,
+            blend_mode=BlendMode.CLIP,
+            name=name,
+            visible=visible,
+        )
+
+    def blend_into(self, layer_image: Image, edit_image: Image, dst_region: Region) -> None:
+        """Aplica o recorte e zera qualquer pixel fora do retângulo de destino."""
+        blend_clip(layer_image.view(dst_region), edit_image)
+        layer_image.clear_rect(dst_region, invert=True)
+
+
+EDIT_LAYER_MAP: dict[BlendMode, type[EditLayer]] = {
+    BlendMode.CLIP: CropEditLayer,
+}

@@ -378,13 +378,15 @@ class BaseRenderer[FrameT: BaseFrame](ABC):
         interp: InterpolationOption,
     ) -> Image:
         for edit_layer in layer._edits:
+            if not edit_layer.visible:
+                continue
+
             scratch = self._get_scratch_buffer(*layer_image.size, edit_layer.image.format)
             result = render_edit(edit_layer, plan, interp=interp, dst=scratch)
             if result is None:
                 continue
             edit_image, dst_region = result
-            blend = BLEND_MODE[edit_layer.blend_mode]
-            blend(layer_image.view(dst_region), edit_image)
+            edit_layer.blend_into(layer_image, edit_image, dst_region)
 
         return layer_image
 

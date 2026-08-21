@@ -255,7 +255,7 @@ def test_freeze_geometry_congelamento_e_restauracao(mocker):
     group.append(layer1)
     group.append(layer2)
 
-    spy_calc = mocker.spy(layer1.base, "_compute_matrix")
+    spy_calc = mocker.spy(layer1.layout, "_compute_matrix")
 
     # Fora do contexto: acessos dinâmicos
     _ = layer1.matrix

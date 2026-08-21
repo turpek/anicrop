@@ -101,6 +101,42 @@ class Image:
         """
         self._data[self.__to_indexer(key)] = value
 
+    def clear_rect(
+        self,
+        region: Region,
+        fill_value: int | float | tuple[int, ...] | np.ndarray = 0,
+        invert: bool = False,
+    ) -> bool:
+        """Limpa ou preenche uma região retangular da imagem.
+
+        Args:
+            region: A região espacial retangular.
+            fill_value: O valor de preenchimento (padrão 0).
+            invert: Se False (padrão), preenche a área DENTRO da região.
+                    Se True, preenche a área FORA da região (inversão da seleção).
+
+        Returns:
+            True se os pixels foram alterados, False se a região não intersecta a imagem.
+        """
+        canvas_region = Region.from_size(self.width, self.height)
+        if not canvas_region.overlaps(region):
+            return False
+
+        clipped = canvas_region & region
+
+        if not invert:
+            self[clipped] = fill_value
+        else:
+            x1, y1 = clipped.top_left
+            x2, y2 = clipped.bottom_right
+
+            self._data[:y1, :] = fill_value
+            self._data[y2:, :] = fill_value
+            self._data[y1:y2, :x1] = fill_value
+            self._data[y1:y2, x2:] = fill_value
+
+        return True
+
     def _validate_format(self):
         channels = self.channels
         formt = self.format
