@@ -1,13 +1,14 @@
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, PropertyMock
 import numpy as np
 import pytest
 
 from anicrop.canvas import Canvas
 from anicrop.container import GroupLayer
+from anicrop.edit_layer import CropEditLayer
 from anicrop.geometry import FitGeometry
 from anicrop.image import Image
 from anicrop.layer import EditLayer, Layer
-from anicrop.layout import Layout, resolve_region, content_region
+from anicrop.layout import Layout, resolve_region, content_region, global_content_region
 from anicrop.spatial import Region
 from anicrop.transform import TransformRel
 
@@ -501,3 +502,44 @@ def test_group_layout_fit_content_already_fitted(mocker):
     result = layout.fit_content(group)
 
     assert result is False
+
+
+def test_global_content_region_mariachi_cropped_rotated_and_uncropped(mocker):
+    """Valida o calculo do global_content_region para camada com crop e rotacao de 45 graus, antes e depois do uncrop."""
+    layer = make_transformed_layer(x=68, y=302, w=736, h=1104)
+
+    cos45 = float(np.cos(np.radians(45)))
+    sin45 = float(np.sin(np.radians(45)))
+    matrix = np.array([
+        [cos45, -sin45, 368.0 - 300.0 * cos45 + 250.0 * sin45],
+        [sin45, cos45, 552.0 - 300.0 * sin45 - 250.0 * cos45],
+        [0.0, 0.0, 1.0],
+    ])
+    mocker.patch.object(Layer, "matrix", new_callable=PropertyMock, return_value=matrix)
+
+    mock_base_img = MagicMock(spec=Image)
+    mock_base_img.size = (736, 1104)
+    mock_base_img.is_zarr = False
+
+    mock_crop_img = MagicMock(spec=Image)
+    mock_crop_img.size = (400, 400)
+    mock_crop_img.is_zarr = False
+
+    base_edit = EditLayer(mock_base_img, Region.from_rect(0, 0, 736, 1104), np.identity(3))
+    crop_edit = CropEditLayer(mock_crop_img, Region.from_rect(100, 50, 400, 400), np.identity(3))
+
+    layer._edits.clear()
+    layer._edits.extend([base_edit, crop_edit])
+
+    def fake_calculate_content_rect(img):
+        return Region.from_size(400, 400) if img is mock_crop_img else Region.from_size(736, 1104)
+
+    mocker.patch("anicrop.layout.calculate_content_rect", side_effect=fake_calculate_content_rect)
+
+    roi_cropped = global_content_region(layer)
+
+    crop_edit.visible = False
+    roi_uncropped = global_content_region(layer)
+
+    assert roi_cropped == Region.from_rect(85, 269, 566, 566)
+    assert roi_uncropped == Region.from_rect(-449, 163, 1303, 1302)

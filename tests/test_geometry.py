@@ -315,3 +315,17 @@ def test_freeze_geometry_congelamento_region_e_global_region(mocker):
 
     assert group.layout._cached_region is None
     assert group.layout._cached_global_region is None
+
+
+def test_geometry_controller_sync_preserves_base_region_size():
+    """Valida se GeometryController.sync desloca a base preservando a largura e altura originais."""
+    layer_mock = make_layer_mock()
+    base_geom = LayerGeometry(layer_mock, Region.from_rect(0, 0, 736, 1104))
+    layout_geom = LayerGeometry(layer_mock, Region.from_rect(100, 50, 400, 400))
+
+    controller = GeometryController(base_geom, layout_geom)
+    controller.sync(Region.from_rect(168, 352, 400, 400))
+
+    assert controller.layout.region == Region.from_rect(168, 352, 400, 400)
+    assert controller.base.region == Region.from_rect(68, 302, 736, 1104)
+    assert controller.base.region.size == (736, 1104)

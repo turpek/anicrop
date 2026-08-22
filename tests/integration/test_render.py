@@ -469,3 +469,27 @@ def test_render_crop_and_rotate_mariachi_scenario(canvas_render):
     np.testing.assert_array_equal(result[250, 300], cor_fundo)
     assert result[50, 100, 3] == 0
     assert result[5, 300, 3] == 255
+
+
+def test_render_crop_rotate_align_and_fit_content_mariachi_scenario():
+    """Valida o ciclo completo mariachi de crop, rotacao 45, align ao canvas e fit_content sem corte do chapeu."""
+    doc = Document("Mariachi Full Test", 736, 1104, history=False)
+    cor_fundo = (10, 50, 200, 255)
+    img_data = np.full((1104, 736, 4), cor_fundo, dtype=np.uint8)
+    img = Image(img_data, ImageFormat.RGBA)
+    layer = Layer(img, name="fundo")
+    doc.add(layer)
+
+    doc.content.crop(layer, (100, 50, 400, 400))
+    layer.transform.rotate(45)
+    doc.layout.align(layer, doc.canvas)
+
+    assert layer.global_region == Region.from_rect(85, 269, 566, 566)
+
+    doc.layout.fit_content(layer)
+
+    assert layer.global_region == Region.from_rect(-449, 163, 1302, 1302)
+
+    result = doc.render()
+    assert result.size == (736, 1104)
+    assert result[552, 368, 3] == 255

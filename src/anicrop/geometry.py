@@ -52,7 +52,8 @@ class GeometryController:
 
     def sync(self, value: Region) -> None:
         self._layout._region = value
-        self._base._region = value + self._offset
+        x, y = (value + self._offset).top_left
+        self._base._region = self._base._region.replace(x=x, y=y)
 
     def set_x(self, value: int | Span) -> None:
         self.sync(self._layout.region.replace(x=value))
