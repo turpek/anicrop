@@ -151,7 +151,7 @@ def test_geometry_region(geometry_cls, make_mock, init_region, expected_bbox):
 
 def test_geometry_controller_sync_on_coordinate_mutation():
     """Valida se o GeometryController sincroniza as geometrias base e layout ao mutar coordenadas."""
-    mock_layer = MagicMock(spec=Layer)
+    mock_layer = make_layer_mock(transform_matrix=np.identity(3))
     base_geom = LayerGeometry(mock_layer, Region.from_rect(0, 0, 100, 100))
     layout_geom = LayerGeometry(mock_layer, Region.from_rect(5, 5, 100, 100))
 
@@ -319,7 +319,7 @@ def test_freeze_geometry_congelamento_region_e_global_region(mocker):
 
 def test_geometry_controller_sync_preserves_base_region_size():
     """Valida se GeometryController.sync desloca a base preservando a largura e altura originais."""
-    layer_mock = make_layer_mock()
+    layer_mock = make_layer_mock(transform_matrix=np.identity(3))
     base_geom = LayerGeometry(layer_mock, Region.from_rect(0, 0, 736, 1104))
     layout_geom = LayerGeometry(layer_mock, Region.from_rect(100, 50, 400, 400))
 

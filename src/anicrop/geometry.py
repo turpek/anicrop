@@ -50,9 +50,25 @@ class GeometryController:
         """Alias para content_matrix."""
         return self.content_matrix
 
+    def _resolve_base_position(self, value: Region) -> tuple[int, int]:
+        """Calcula a posição (x, y) da base compensando o offset pela rotação/escala da camada."""
+        if self._offset.top_left == (0, 0):
+            return value.x.start, value.y.start
+
+        ox, oy = self._offset.top_left
+        m = self._base.matrix
+
+        rx = m[0, 0] * ox + m[0, 1] * oy
+        ry = m[1, 0] * ox + m[1, 1] * oy
+
+        x = int(round(value.x.start + rx))
+        y = int(round(value.y.start + ry))
+
+        return x, y
+
     def sync(self, value: Region) -> None:
         self._layout._region = value
-        x, y = (value + self._offset).top_left
+        x, y = self._resolve_base_position(value)
         self._base._region = self._base._region.replace(x=x, y=y)
 
     def set_x(self, value: int | Span) -> None:

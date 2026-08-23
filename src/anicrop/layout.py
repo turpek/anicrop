@@ -79,7 +79,9 @@ def _compute_layer_local_roi(target: Layer) -> Region | None:
         edit_roi = calculate_content_rect(edit.image) + edit.region.top_left
 
         if isinstance(edit, CropEditLayer):
-            if accum_roi is not None and accum_roi.overlaps(edit_roi):
+            if accum_roi is None:
+                accum_roi = edit_roi
+            elif accum_roi.overlaps(edit_roi):
                 accum_roi = accum_roi & edit_roi
             else:
                 accum_roi = None
@@ -131,6 +133,22 @@ def _resolve_target_fit_region(target: Layer, global_ref: Region) -> Region:
     """
     (drift_x, drift_y, *_) = calculate_new_rect(target.transform.matrix, global_ref.size)
     return global_ref - (drift_x, drift_y)
+
+
+def _resolve_target_content_region(
+    target: Layer,
+    global_roi: Region,
+    ref_size: tuple[int, int],
+) -> Region:
+    """Calcula a região da moldura da camada no espaço do pai compensando o drift de rotação."""
+    parent_roi_rect = calculate_region_rect(
+        mat_inverse(target.parent.matrix),
+        global_roi,
+    )
+    (drift_x, drift_y, *_) = calculate_new_rect(target.transform.matrix, ref_size)
+    parent_x = parent_roi_rect[0] - drift_x
+    parent_y = parent_roi_rect[1] - drift_y
+    return Region.from_rect(parent_x, parent_y, *ref_size)
 
 
 class LayerLayoutStrategy:
@@ -185,19 +203,10 @@ class LayerLayoutStrategy:
             return False
 
         local_roi = _compute_layer_local_roi(target)
-        ref_size = local_roi.size if local_roi is not None else target.base.region.size
+        if local_roi is None:
+            return False
 
-        (drift_x, drift_y, *_) = calculate_new_rect(target.transform.matrix, ref_size)
-        x = global_roi.x.start - drift_x
-        y = global_roi.y.start - drift_y
-
-        rect = calculate_region_rect(
-            mat_inverse(target.parent.matrix),
-            Region.from_rect(x, y, *ref_size),
-        )
-        target_region = Region.from_rect(*rect)
-        if local_roi is None or local_roi.size == target.base.region.size:
-            target.base._region = target_region
+        target_region = _resolve_target_content_region(target, global_roi, local_roi.size)
         target.layout = LayerGeometry(target, target_region)
         return True
 

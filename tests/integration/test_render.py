@@ -497,8 +497,51 @@ def test_render_crop_rotate_align_and_fit_content_mariachi_scenario():
 
     doc.layout.fit_content(layer)
 
-    assert layer.control._offset.top_left == (0, 0)
+    assert layer.control._offset.top_left == (1, 0)
     assert layer.global_region == Region.from_rect(-449, 163, 1302, 1302)
+
+    img_uncropped = doc.render()
+    assert img_uncropped.size == (736, 1104)
+
+    mask_cropped = img_cropped[...][..., 3] == 255
+    diff = np.abs(img_cropped[...][mask_cropped].astype(int) - img_uncropped[...][mask_cropped].astype(int))
+    assert np.mean(diff) < 3.0
+
+
+def test_render_crop_rotate_align_and_fit_content_mariachi_scenario_com_borda_transparente_1px():
+    """Valida o ciclo completo mariachi de crop, rotacao 45, align e fit_content em imagem com borda transparente de 1px."""
+    doc = Document("Mariachi 1px Border Test", 736, 1104, history=False)
+
+    y_coords, x_coords = np.indices((1104, 736))
+    img_data = np.zeros((1104, 736, 4), dtype=np.uint8)
+    img_data[..., 0] = (x_coords % 256).astype(np.uint8)
+    img_data[..., 1] = (y_coords % 256).astype(np.uint8)
+    img_data[..., 2] = ((x_coords + y_coords) % 256).astype(np.uint8)
+    img_data[..., 3] = 255
+
+    # Aplica borda transparente de 1px nas 4 extremidades
+    img_data[0, :, 3] = 0
+    img_data[-1, :, 3] = 0
+    img_data[:, 0, 3] = 0
+    img_data[:, -1, 3] = 0
+
+    img = Image(img_data, ImageFormat.RGBA)
+    layer = Layer(img, name="fundo")
+    doc.add(layer)
+
+    doc.content.crop(layer, (100, 50, 400, 400))
+    layer.transform.rotate(45)
+    doc.layout.align(layer, doc.canvas)
+
+    assert layer.global_region == Region.from_rect(85, 269, 566, 566)
+    assert layer.control._offset.top_left == (-100, -50)
+
+    img_cropped = doc.render()
+
+    doc.layout.fit_content(layer)
+
+    assert layer.control._offset.top_left == (0, -1)
+    assert layer.global_region == Region.from_rect(-447, 164, 1300, 1299)
 
     img_uncropped = doc.render()
     assert img_uncropped.size == (736, 1104)

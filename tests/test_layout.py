@@ -8,7 +8,7 @@ from anicrop.edit_layer import CropEditLayer
 from anicrop.geometry import FitGeometry
 from anicrop.image import Image
 from anicrop.layer import EditLayer, Layer
-from anicrop.layout import Layout, resolve_region, content_region, global_content_region
+from anicrop.layout import Layout, resolve_region, content_region, global_content_region, _compute_layer_local_roi
 from anicrop.spatial import Region
 from anicrop.transform import TransformRel
 
@@ -543,3 +543,43 @@ def test_global_content_region_mariachi_cropped_rotated_and_uncropped(mocker):
 
     assert roi_cropped == Region.from_rect(85, 269, 566, 566)
     assert roi_uncropped == Region.from_rect(-449, 163, 1303, 1302)
+
+
+def test_layout_fit_content_com_edicao_desativada_retorna_false():
+    """Valida que fit_content retorna False e não altera o layout quando todas as edições estão desativadas."""
+    layer = make_transformed_layer(x=10, y=20, w=100, h=50)
+
+    mock_img = MagicMock(spec=Image)
+    mock_img.size = (40, 20)
+    edit = EditLayer(mock_img, Region.from_rect(10, 10, 40, 20), np.identity(3))
+    edit.visible = False
+    layer._edits.clear()
+    layer._edits.append(edit)
+
+    initial_region = layer.region
+    initial_global_region = layer.global_region
+
+    layout = Layout()
+    result = layout.fit_content(layer)
+
+    assert result is False
+    assert layer.region == initial_region
+    assert layer.global_region == initial_global_region
+
+
+def test_compute_layer_local_roi_com_crop_edit_layer_isolado(mocker):
+    """Valida o cálculo do local_roi quando um CropEditLayer é o único edit da camada."""
+    mock_layer = MagicMock(spec=Layer)
+    mock_crop_img = MagicMock(spec=Image)
+    mock_crop_img.size = (400, 400)
+
+    crop_edit = CropEditLayer(mock_crop_img, Region.from_rect(100, 50, 400, 400), np.identity(3))
+    mock_layer._edits = [crop_edit]
+
+    mocker.patch(
+        "anicrop.layout.calculate_content_rect",
+        return_value=Region.from_rect(0, 0, 400, 400),
+    )
+
+    roi = _compute_layer_local_roi(mock_layer)
+    assert roi == Region.from_rect(100, 50, 400, 400)
