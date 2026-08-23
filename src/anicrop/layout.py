@@ -18,7 +18,7 @@ from typing import Any, Protocol, Sequence, runtime_checkable
 
 from anicrop.canvas import Canvas
 from anicrop.container import BaseLayer, Container, GroupLayer
-from anicrop.geometry import FitGeometry, FitGroupGeometry
+from anicrop.geometry import LayerGeometry, FitGeometry, FitGroupGeometry
 
 
 @runtime_checkable
@@ -184,7 +184,22 @@ class LayerLayoutStrategy:
         if global_roi is None or target.global_region == global_roi:
             return False
 
-        return cls.fit(target, global_roi)
+        local_roi = _compute_layer_local_roi(target)
+        ref_size = local_roi.size if local_roi is not None else target.base.region.size
+
+        (drift_x, drift_y, *_) = calculate_new_rect(target.transform.matrix, ref_size)
+        x = global_roi.x.start - drift_x
+        y = global_roi.y.start - drift_y
+
+        rect = calculate_region_rect(
+            mat_inverse(target.parent.matrix),
+            Region.from_rect(x, y, *ref_size),
+        )
+        target_region = Region.from_rect(*rect)
+        if local_roi is None or local_roi.size == target.base.region.size:
+            target.base._region = target_region
+        target.layout = LayerGeometry(target, target_region)
+        return True
 
 
 class CanvasLayoutStrategy:

@@ -474,8 +474,14 @@ def test_render_crop_and_rotate_mariachi_scenario(canvas_render):
 def test_render_crop_rotate_align_and_fit_content_mariachi_scenario():
     """Valida o ciclo completo mariachi de crop, rotacao 45, align ao canvas e fit_content sem corte do chapeu."""
     doc = Document("Mariachi Full Test", 736, 1104, history=False)
-    cor_fundo = (10, 50, 200, 255)
-    img_data = np.full((1104, 736, 4), cor_fundo, dtype=np.uint8)
+
+    y_coords, x_coords = np.indices((1104, 736))
+    img_data = np.zeros((1104, 736, 4), dtype=np.uint8)
+    img_data[..., 0] = (x_coords % 256).astype(np.uint8)
+    img_data[..., 1] = (y_coords % 256).astype(np.uint8)
+    img_data[..., 2] = ((x_coords + y_coords) % 256).astype(np.uint8)
+    img_data[..., 3] = 255
+
     img = Image(img_data, ImageFormat.RGBA)
     layer = Layer(img, name="fundo")
     doc.add(layer)
@@ -485,11 +491,18 @@ def test_render_crop_rotate_align_and_fit_content_mariachi_scenario():
     doc.layout.align(layer, doc.canvas)
 
     assert layer.global_region == Region.from_rect(85, 269, 566, 566)
+    assert layer.control._offset.top_left == (-100, -50)
+
+    img_cropped = doc.render()
 
     doc.layout.fit_content(layer)
 
+    assert layer.control._offset.top_left == (0, 0)
     assert layer.global_region == Region.from_rect(-449, 163, 1302, 1302)
 
-    result = doc.render()
-    assert result.size == (736, 1104)
-    assert result[552, 368, 3] == 255
+    img_uncropped = doc.render()
+    assert img_uncropped.size == (736, 1104)
+
+    mask_cropped = img_cropped[...][..., 3] == 255
+    diff = np.abs(img_cropped[...][mask_cropped].astype(int) - img_uncropped[...][mask_cropped].astype(int))
+    assert np.mean(diff) < 3.0
