@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from anicrop import content
 from anicrop.canvas import Canvas
 from anicrop.container import _NULL_CONTAINER, BaseLayer
 from anicrop.enums import BlendMode, RenderFlags, WarpMode
@@ -86,6 +87,11 @@ class Layer(BaseLayer):
     @property
     def canvas_size(self) -> tuple[int, int]:
         return self._canvas.size if self._canvas else self.base.region.size
+
+    @property
+    def content(self) -> content.LayerContent:
+        """Gerenciador de manipulação, transformação e ajuste de conteúdo/pixels."""
+        return content.LayerContent(self)
 
     @property
     def region(self) -> Region:

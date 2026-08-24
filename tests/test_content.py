@@ -3,7 +3,7 @@ import pytest
 
 from anicrop.canvas import Canvas
 from anicrop.container import GroupLayer
-from anicrop.content import Content, FitContext
+from anicrop.content import Content, FitContext, LayerContent
 from anicrop.enums import ImageFormat
 from anicrop.image import Image
 from anicrop.layer import Layer
@@ -266,3 +266,31 @@ def test_content_flip_y_applies_scale_matrix():
     assert result is True
     assert layer.matrix[1, 1] == -1.0
     assert layer.global_region == Region.from_size(100, 100)
+
+
+def test_layer_content_bound_methods():
+    """Valida a execução de crop, resize, fit, flip_x e flip_y diretamente via layer.content."""
+    data = np.full((100, 100, 4), 255, dtype=np.uint8)
+    layer = Layer(Image(data, ImageFormat.RGBA))
+
+    assert isinstance(layer.content, LayerContent)
+
+    # 1. Resize via layer.content
+    assert layer.content.resize(200, 200) is True
+    assert layer.global_region.size == (200, 200)
+
+    # 2. Fit via layer.content
+    assert layer.content.fit(Region.from_rect(10, 10, 100, 50)) is True
+    assert layer.global_region == Region.from_rect(10, 10, 100, 50)
+
+    # 3. Flip_x e Flip_y via layer.content
+    assert layer.content.flip_x() is True
+    assert layer.matrix[0, 0] < 0
+    assert layer.content.flip_y() is True
+    assert layer.matrix[1, 1] < 0
+
+    # 4. Crop via layer.content
+    layer_fresh = Layer(Image(data, ImageFormat.RGBA))
+    assert layer_fresh.content.crop((10, 10, 50, 50)) is True
+    assert len(layer_fresh._edits) == 2
+    assert layer_fresh.global_region == Region.from_rect(10, 10, 50, 50)

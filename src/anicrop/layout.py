@@ -7,18 +7,20 @@ from anicrop.transform import (
     mat_inverse,
     transform_vector,
 )
+from anicrop import layer
 from anicrop.spatial import Region
-from anicrop.layer import Layer
 from anicrop.edit_layer import CropEditLayer
-
 from collections.abc import Iterator
 from functools import reduce
 from operator import or_
-from typing import Any, Protocol, Sequence, runtime_checkable
+from typing import Any, Protocol, Sequence, runtime_checkable, TYPE_CHECKING
 
 from anicrop.canvas import Canvas
 from anicrop.container import BaseLayer, Container, GroupLayer
 from anicrop.geometry import LayerGeometry, FitGeometry, FitGroupGeometry
+
+if TYPE_CHECKING:
+    from anicrop.layer import Layer
 
 
 @runtime_checkable
@@ -106,8 +108,8 @@ def global_content_region(
     container: Layer | Container | Sequence[Layer],
 ) -> Region | None:
     """Calcula a Bounding Box de conteúdo de todos os elementos projetada no Espaço Global."""
-    def _extract(item: Layer | Container | Sequence[Layer]) -> Iterator[Region]:
-        if isinstance(item, Layer):
+    def _extract(item: layer.Layer | Container | Sequence[layer.Layer]) -> Iterator[Region]:
+        if isinstance(item, layer.Layer):
             local_roi = _compute_layer_local_roi(item)
             if local_roi is None:
                 return
@@ -312,7 +314,7 @@ class Layout:
     def _resolve_strategy(self, target: Any) -> type[LayoutStrategy]:
         if isinstance(target, GroupLayer):
             return GroupLayoutStrategy
-        if isinstance(target, Layer):
+        if isinstance(target, layer.Layer):
             return LayerLayoutStrategy
         if isinstance(target, Canvas):
             return CanvasLayoutStrategy

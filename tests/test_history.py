@@ -56,6 +56,12 @@ class FakeTranslateCommand(FakeCommand):
     pass
 
 
+class FakeNoChangeCommand(FakeCommand):
+
+    def has_changes(self) -> bool:
+        return False
+
+
 @fixture
 def history():
     return GlobalHistory()
@@ -194,3 +200,21 @@ def test_GlobalHistory_context_modes(history, context_manager_name, expected_siz
 
     assert len(history._undo_stack) == expected_size
     assert isinstance(history._policy, NormalPolicy)
+
+
+def test_undo_discards_unmutated_command_at_top_of_stack(history):
+    """Valida se undo() descarta comando sem alteração no topo e desfaz a ação real anterior."""
+    class Target:
+        state = 0
+
+    target = Target()
+    history.start_action(FakeCommand, 'real_action', target, value=10)
+    target.state = 10
+    history.commit()
+
+    history.start_action(FakeNoChangeCommand, 'read_action', target)
+    assert len(history._undo_stack) == 2
+
+    history.undo()
+    assert history.undo_empty()
+    assert target.state == 0

@@ -29,7 +29,7 @@ class NormalPolicy(ActionPolicy):
         history._undo_stack.append(cmd)
 
     def commit(self, history: GlobalHistory) -> bool:
-        if not history.undo_empty():
+        if len(history._undo_stack) > 0:
             last_cmd = history._undo_stack[-1]
             if not last_cmd._sealed:
                 last_cmd.seal()
@@ -43,7 +43,7 @@ class MergeContinuousPolicy(ActionPolicy):
     """Política de mesclagem contínua: mescla ações de mesmo nome e objeto."""
 
     def start_action(self, history: GlobalHistory, command_cls: type[Command], name: str, target: Any = None, value: Any = None) -> None:
-        if not history.undo_empty():
+        if len(history._undo_stack) > 0:
             last_cmd = history._undo_stack[-1]
             if type(last_cmd) is command_cls and last_cmd.can_merge(name, target):
                 return
@@ -61,7 +61,7 @@ class GroupActionPolicy(ActionPolicy):
     """Política de agrupamento: ignora ações consecutivas da mesma classe de comando."""
 
     def start_action(self, history: GlobalHistory, command_cls: type[Command], name: str, target: Any = None, value: Any = None) -> None:
-        if not history.undo_empty():
+        if len(history._undo_stack) > 0:
             last_cmd = history._undo_stack[-1]
             if type(last_cmd) is command_cls:
                 return
@@ -96,7 +96,7 @@ class AtomicPolicy(ActionPolicy):
         target: Any = None,
         value: Any = None,
     ) -> None:
-        if not history.undo_empty():
+        if len(history._undo_stack) > 0:
             last_cmd = history._undo_stack[-1]
             if isinstance(last_cmd, MacroCommand) and last_cmd.can_merge(name, target):
                 last_cmd.add_command(command_cls(name, target, value))
@@ -133,6 +133,7 @@ class GlobalHistory:
         self._policy.start_action(self, command_cls, name, target, value)
 
     def undo(self) -> None:
+        self.commit()
         if self.undo_empty():
             raise IndexError("Undo stack is empty")
 
@@ -141,6 +142,7 @@ class GlobalHistory:
         self._redo_stack.append(cmd)
 
     def redo(self) -> None:
+        self.commit()
         if self.redo_empty():
             raise IndexError("Redo stack is empty")
 
@@ -149,6 +151,7 @@ class GlobalHistory:
         self._undo_stack.append(cmd)
 
     def undo_empty(self) -> bool:
+        self.commit()
         return len(self._undo_stack) == 0
 
     def redo_empty(self) -> bool:

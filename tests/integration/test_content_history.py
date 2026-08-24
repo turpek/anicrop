@@ -113,3 +113,24 @@ def test_flip_y_undo_single_step_restores_and_empties_history():
     doc.history.undo()
     assert doc.history.undo_empty()
     assert layer.matrix[1, 1] == 1.0
+
+
+def test_bound_layer_content_crop_undo_single_step():
+    """Valida se layer.content.crop diretamente no ProxyLayer executa atomicamente com 1 único Undo."""
+    doc = Document("TestBoundLayerContentCrop", 100, 100, history=True)
+    data = np.full((100, 100, 4), 255, dtype=np.uint8)
+    layer = doc.add(Layer(Image(data, ImageFormat.RGBA), name="L1"))
+
+    doc.history._undo_stack.clear()
+    initial_region = layer.global_region
+    initial_edits_count = len(layer._edits)
+
+    layer.content.crop((20, 20, 40, 40))
+
+    assert len(doc.history._undo_stack) == 1
+    assert layer.global_region == Region.from_rect(20, 20, 40, 40)
+
+    doc.history.undo()
+    assert doc.history.undo_empty()
+    assert layer.global_region == initial_region
+    assert len(layer._edits) == initial_edits_count
