@@ -377,7 +377,7 @@ class BaseRenderer[FrameT: BaseFrame](ABC):
         plan: BaseFrame,
         interp: InterpolationOption,
     ) -> Image:
-        for edit_layer in layer._edits:
+        for edit_layer in layer.edits:
             if not edit_layer.visible:
                 continue
 

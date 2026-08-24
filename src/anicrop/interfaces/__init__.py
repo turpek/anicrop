@@ -1,5 +1,15 @@
-from anicrop.interfaces.layout import LayoutStrategy
+from anicrop.interfaces.canvas import AbstractCanvas
+from anicrop.interfaces.container import AbstractContainer, AbstractGroupLayer
 from anicrop.interfaces.content import ContentStrategy
-from anicrop.interfaces.layer import LayerProtocol
+from anicrop.interfaces.layer import AbstractBaseLayer, AbstractLayer
+from anicrop.interfaces.layout import LayoutStrategy
 
-__all__ = ["LayoutStrategy", "ContentStrategy", "LayerProtocol"]
+__all__ = [
+    "AbstractBaseLayer",
+    "AbstractCanvas",
+    "AbstractContainer",
+    "AbstractGroupLayer",
+    "AbstractLayer",
+    "ContentStrategy",
+    "LayoutStrategy",
+]

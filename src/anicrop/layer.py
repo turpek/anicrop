@@ -1,273 +1,32 @@
 from __future__ import annotations
 from collections import deque
-from typing import Any, Optional, TYPE_CHECKING
+from typing import Optional, TYPE_CHECKING
 
 from anicrop.container import (
     _NULL_CONTAINER,
     BaseLayer,
-    _compute_layer_local_roi,
-    global_content_region,
 )
-from anicrop.enums import BlendMode, RenderFlags, WarpMode, ImageFormat
-from anicrop.geometry import LayerGeometry, FitGeometry
+from anicrop.content import LayerContent
+from anicrop.interfaces.layer import AbstractLayer
+from anicrop.layout import LayerLayoutStrategy
+from anicrop.enums import BlendMode, RenderFlags, WarpMode
+from anicrop.geometry import LayerGeometry
 from anicrop.image import Image
 from anicrop.spatial import Region, Span
 from anicrop.type import Id
 from anicrop.transform import (
-    calculate_new_rect,
-    calculate_region_rect,
     mat_global,
     mat_inverse,
-    transform_vector,
 )
 
 import numpy as np
-from anicrop.edit_layer import EditLayer, EDIT_LAYER_MAP, CropEditLayer
+from anicrop.edit_layer import EditLayer, EDIT_LAYER_MAP
 
 if TYPE_CHECKING:
     from anicrop.canvas import Canvas
 
 
-def _resolve_target_fit_region(target: Layer, global_ref: Region) -> Region:
-    """
-    Calcula a região de enquadramento da camada no Canvas,
-    compensando a translação intrínseca induzida pela transformação da camada.
-    """
-    (drift_x, drift_y, *_) = calculate_new_rect(target.transform.matrix, global_ref.size)
-    return global_ref - (drift_x, drift_y)
-
-
-def _resolve_target_content_region(
-    target: Layer,
-    global_roi: Region,
-    ref_size: tuple[int, int],
-) -> Region:
-    """Calcula a região da moldura da camada no espaço do pai compensando o drift de rotação."""
-    parent_roi_rect = calculate_region_rect(
-        mat_inverse(target.parent.matrix),
-        global_roi,
-    )
-    (drift_x, drift_y, *_) = calculate_new_rect(target.transform.matrix, ref_size)
-    parent_x = parent_roi_rect[0] - drift_x
-    parent_y = parent_roi_rect[1] - drift_y
-    return Region.from_rect(parent_x, parent_y, *ref_size)
-
-
-class LayerLayoutStrategy:
-    """Estratégia de layout para a moldura de uma camada individual (Layer)."""
-
-    def __init__(self, target: Layer) -> None:
-        self.target = target
-
-    def fit(
-        self,
-        ref: tuple[int, int, int, int] | Region | Canvas | BaseLayer,
-    ) -> bool:
-        return self._fit(self.target, self._resolve_region(ref))
-
-    def align(
-        self,
-        ref: tuple[int, int, int, int] | Region | Canvas | BaseLayer,
-        anchor_x: float = 0.5,
-        anchor_y: float = 0.5,
-    ) -> bool:
-        return self._align(self.target, self._resolve_region(ref), anchor_x, anchor_y)
-
-    def resize_bounds(
-        self,
-        new_width: int,
-        new_height: int,
-        anchor_x: float = 0.5,
-        anchor_y: float = 0.5,
-    ) -> bool:
-        ref_region = Region.from_size(new_width, new_height)
-        return self._resize_bounds(self.target, ref_region, anchor_x, anchor_y)
-
-    def fit_content(self, *args: Any, **kwargs: Any) -> bool:
-        return self._fit_content(self.target, *args, **kwargs)
-
-    @classmethod
-    def _fit(cls, target: Layer, ref_region: Region) -> bool:
-        if target.global_region == ref_region:
-            return False
-
-        target_fit_region = _resolve_target_fit_region(target, ref_region)
-        fit_strategy = FitGeometry(target, target_fit_region)
-        target.frame = fit_strategy
-        return True
-
-    @classmethod
-    def _align(
-        cls,
-        target: Layer,
-        ref_region: Region,
-        anchor_x: float = 0.5,
-        anchor_y: float = 0.5,
-    ) -> bool:
-        new_global_region = target.global_region.align(ref_region, anchor_x, anchor_y)
-        if target.global_region == new_global_region:
-            return False
-
-        dx, dy = transform_vector(
-            mat_inverse(target.parent.matrix), target.global_region, new_global_region
-        )
-        target.region += (dx, dy)
-        return True
-
-    @classmethod
-    def _resize_bounds(
-        cls,
-        target: Layer,
-        ref_region: Region,
-        anchor_x: float = 0.5,
-        anchor_y: float = 0.5,
-    ) -> bool:
-        aligned_ref = ref_region.align(target.global_region, anchor_x, anchor_y)
-        return cls._fit(target, aligned_ref)
-
-    @classmethod
-    def _fit_content(cls, target: Layer, *args: Any, **kwargs: Any) -> bool:
-        for edit in target._edits:
-            if type(edit) is CropEditLayer:
-                edit.visible = False
-
-        global_roi = global_content_region(target)
-        if global_roi is None or target.global_region == global_roi:
-            return False
-
-        local_roi = _compute_layer_local_roi(target)
-        if local_roi is None:
-            return False
-
-        target_region = _resolve_target_content_region(target, global_roi, local_roi.size)
-        target.frame = LayerGeometry(target, target_region)
-        return True
-
-    @staticmethod
-    def _resolve_region(ref: Any) -> Region:
-        if isinstance(ref, tuple):
-            return Region.from_rect(*ref)
-        elif isinstance(ref, Region):
-            return ref
-        elif isinstance(ref, BaseLayer):
-            return ref.global_region
-        elif hasattr(ref, "region"):
-            return ref.region
-        return ref
-
-
-class LayerContent:
-    """Gerenciador de manipulação, transformação e ajuste de conteúdo/pixels em uma camada específica."""
-
-    def __init__(self, target: Layer) -> None:
-        self.target = target
-
-    def crop(
-        self,
-        ref: tuple[int, int, int, int] | Region | Canvas | BaseLayer,
-    ) -> bool:
-        return self._crop(self.target, ref)
-
-    def resize(
-        self,
-        width: int,
-        height: int,
-    ) -> bool:
-        return self._resize(self.target, width, height)
-
-    def fit(
-        self,
-        ref: tuple | Region | Canvas | BaseLayer,
-    ) -> bool:
-        return self._fit(self.target, ref)
-
-    def flip_x(self) -> bool:
-        return self._flip_x(self.target)
-
-    def flip_y(self) -> bool:
-        return self._flip_y(self.target)
-
-    @classmethod
-    def _crop(
-        cls,
-        target: Layer,
-        ref: tuple[int, int, int, int] | Region | Canvas | BaseLayer,
-    ) -> bool:
-        crop_region = LayerLayoutStrategy._resolve_region(ref)
-
-        if not LayerLayoutStrategy._fit(target, crop_region):
-            return False
-
-        mask_region = target.global_region
-        mask_image = Image.new(mask_region.size, ImageFormat.GRAY, color=255)
-        target.add_edit(mask_image, mask_region, blend_mode=BlendMode.CLIP)
-        return True
-
-    @classmethod
-    def _resize(
-        cls,
-        target: Layer,
-        width: int,
-        height: int,
-    ) -> bool:
-        if width <= 0 or height <= 0:
-            raise ValueError(f"Dimensões inválidas para resize: ({width}, {height}). Devem ser positivas.")
-
-        cur_w, cur_h = target.global_region.size
-        if (cur_w, cur_h) == (width, height):
-            return False
-
-        scale_x = width / cur_w
-        scale_y = height / cur_h
-
-        target.transform.scale(scale_x, scale_y)
-        return True
-
-    @classmethod
-    def _fit(
-        cls,
-        target: Layer,
-        ref: tuple | Region | Canvas | BaseLayer,
-    ) -> bool:
-        if isinstance(ref, tuple) and len(ref) == 2 and isinstance(ref[1], Region):
-            ref_region = ref[1]
-        else:
-            ref_region = LayerLayoutStrategy._resolve_region(ref)
-
-        cur_region = target.global_region
-
-        if cur_region == ref_region:
-            return False
-
-        scale_x = ref_region.width / cur_region.width
-        scale_y = ref_region.height / cur_region.height
-
-        if scale_x <= 0 or scale_y <= 0:
-            return False
-
-        target.transform.scale(scale_x, scale_y)
-
-        new_global_region = target.global_region.align(ref_region, 0.0, 0.0)
-        dx, dy = transform_vector(
-            mat_inverse(target.parent.matrix),
-            target.global_region,
-            new_global_region,
-        )
-        target.transform.translate(dx, dy)
-        return True
-
-    @classmethod
-    def _flip_x(cls, target: Layer) -> bool:
-        target.transform.scale(-1, 1)
-        return True
-
-    @classmethod
-    def _flip_y(cls, target: Layer) -> bool:
-        target.transform.scale(1, -1)
-        return True
-
-
-class Layer(BaseLayer):
+class Layer(BaseLayer, AbstractLayer):
 
     def __init__(
         self,
@@ -374,6 +133,11 @@ class Layer(BaseLayer):
     @property
     def image(self) -> Image:
         return self._image.image
+
+    @property
+    def edits(self) -> tuple[EditLayer, ...]:
+        """Coleção de edições e patches locais da camada."""
+        return tuple(self._edits)
 
     def add_edit(
         self,

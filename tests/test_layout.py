@@ -3,17 +3,18 @@ import numpy as np
 import pytest
 
 from anicrop.canvas import Canvas
-from anicrop.container import (
-    GroupLayer,
-    _compute_layer_local_roi,
-    content_region,
-    global_content_region,
-)
+from anicrop.container import GroupLayer
 from anicrop.edit_layer import CropEditLayer
 from anicrop.geometry import FitGeometry, FitGroupGeometry
 from anicrop.image import Image, ImageFormat
 from anicrop.layer import EditLayer, Layer
-from anicrop.layout import Layout, resolve_region
+from anicrop.layout import (
+    Layout,
+    resolve_region,
+    _compute_layer_local_roi,
+    content_region,
+    global_content_region,
+)
 from anicrop.spatial import Region
 from anicrop.transform import TransformRel
 
@@ -224,7 +225,7 @@ def test_layout_fit_content(mocker, edits_rect, expect_global_rect):
         target._edits.clear()
         target._edits.append(edit_layer)
         mocker.patch(
-            'anicrop.container.calculate_content_rect',
+            'anicrop.layout.calculate_content_rect',
             return_value=Region.from_rect(0, 0, edits_rect[2], edits_rect[3]),
         )
     else:
@@ -255,7 +256,7 @@ def test_layout_fit_content_apos_fit_preserva_tamanho_das_edicoes(mocker):
     layout.fit(layer, (0, 0, 200, 200))
 
     mocker.patch(
-        'anicrop.container.calculate_content_rect',
+        'anicrop.layout.calculate_content_rect',
         return_value=Region.from_rect(0, 0, 100, 100),
     )
 
@@ -272,7 +273,7 @@ def test_layout_fit_content_em_camada_dentro_de_group_layer_transformado(mocker)
     group.append(layer)
 
     mocker.patch(
-        "anicrop.container.calculate_content_rect",
+        "anicrop.layout.calculate_content_rect",
         return_value=Region.from_rect(25, 25, 150, 150),
     )
 
@@ -421,7 +422,7 @@ def test_group_layout_fit_content(mocker):
             return Region.from_rect(0, 0, 40, 20)
         return Region.from_rect(0, 0, 80, 40)
 
-    mocker.patch("anicrop.container.calculate_content_rect", side_effect=fake_content_rect)
+    mocker.patch("anicrop.layout.calculate_content_rect", side_effect=fake_content_rect)
 
     layout = Layout()
     result = layout.fit_content(group)
@@ -446,7 +447,7 @@ def test_group_layout_fit_content_com_camada_filha_rotacionada(mocker):
     group.append(layer)
 
     mocker.patch(
-        "anicrop.container.calculate_content_rect",
+        "anicrop.layout.calculate_content_rect",
         return_value=Region.from_rect(0, 0, 40, 20),
     )
 
@@ -470,7 +471,7 @@ def test_canvas_fit_content_com_group_layer_aninhado(mocker):
     group.append(layer)
 
     mocker.patch(
-        "anicrop.container.calculate_content_rect",
+        "anicrop.layout.calculate_content_rect",
         return_value=Region.from_rect(0, 0, 40, 20),
     )
 
@@ -499,7 +500,7 @@ def test_group_layout_fit_content_already_fitted(mocker):
     group.append(layer)
 
     mocker.patch(
-        "anicrop.container.calculate_content_rect",
+        "anicrop.layout.calculate_content_rect",
         return_value=Region.from_rect(0, 0, 100, 50),
     )
 
@@ -539,7 +540,7 @@ def test_global_content_region_mariachi_cropped_rotated_and_uncropped(mocker):
     def fake_calculate_content_rect(img):
         return Region.from_size(400, 400) if img is mock_crop_img else Region.from_size(736, 1104)
 
-    mocker.patch("anicrop.container.calculate_content_rect", side_effect=fake_calculate_content_rect)
+    mocker.patch("anicrop.layout.calculate_content_rect", side_effect=fake_calculate_content_rect)
 
     roi_cropped = global_content_region(layer)
 
@@ -579,10 +580,10 @@ def test_compute_layer_local_roi_com_crop_edit_layer_isolado(mocker):
     mock_crop_img.size = (400, 400)
 
     crop_edit = CropEditLayer(mock_crop_img, Region.from_rect(100, 50, 400, 400), np.identity(3))
-    mock_layer._edits = [crop_edit]
+    type(mock_layer).edits = PropertyMock(return_value=(crop_edit,))
 
     mocker.patch(
-        "anicrop.container.calculate_content_rect",
+        "anicrop.layout.calculate_content_rect",
         return_value=Region.from_rect(0, 0, 400, 400),
     )
 
@@ -610,7 +611,7 @@ def test_group_layout_fit_content_enquadra_conteudo_global_sem_alterar_filhos(mo
         return Region.from_size(50, 50) if img is mock_edit_img else Region.from_size(100, 100)
 
     mocker.patch(
-        "anicrop.container.calculate_content_rect",
+        "anicrop.layout.calculate_content_rect",
         side_effect=fake_calculate_content_rect,
     )
 

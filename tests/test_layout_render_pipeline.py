@@ -334,7 +334,7 @@ def test_fit_content_geometry_render_pipeline(mocker):
 
     # Imagem base de 200x200 cujo conteúdo visível fica entre (25, 25) e (175, 175) -> Region(25, 25, 150, 150)
     mocker.patch(
-        "anicrop.container.calculate_content_rect",
+        "anicrop.layout.calculate_content_rect",
         return_value=Region.from_rect(25, 25, 150, 150),
     )
 
@@ -369,7 +369,7 @@ def test_fit_content_and_align_geometry_render_pipeline(mocker):
 
     mocker.patch("anicrop.render.warp_patch", side_effect=fake_render_patch)
     mocker.patch(
-        "anicrop.container.calculate_content_rect",
+        "anicrop.layout.calculate_content_rect",
         return_value=Region.from_rect(25, 25, 150, 150),
     )
 
@@ -408,7 +408,7 @@ def test_fit_content_with_layer_transform_render_pipeline(mocker):
 
     mocker.patch("anicrop.render.warp_patch", side_effect=fake_render_patch)
     mocker.patch(
-        "anicrop.container.calculate_content_rect",
+        "anicrop.layout.calculate_content_rect",
         return_value=Region.from_rect(25, 25, 150, 150),
     )
 
@@ -442,7 +442,7 @@ def test_fit_content_in_parent_group_render_pipeline(mocker):
 
     mocker.patch("anicrop.render.warp_patch", side_effect=fake_render_patch)
     mocker.patch(
-        "anicrop.container.calculate_content_rect",
+        "anicrop.layout.calculate_content_rect",
         return_value=Region.from_rect(25, 25, 150, 150),
     )
 
@@ -605,7 +605,7 @@ def test_group_layout_fit_content_render_pipeline(mocker):
             return Region.from_rect(0, 0, 40, 20)
         return Region.from_rect(0, 0, 80, 40)
 
-    mocker.patch("anicrop.container.calculate_content_rect", side_effect=fake_content_rect)
+    mocker.patch("anicrop.layout.calculate_content_rect", side_effect=fake_content_rect)
 
     layout = Layout()
     layout.fit_content(group)
@@ -703,7 +703,7 @@ def test_canvas_layout_fit_content_render_pipeline(mocker):
     layer._edits.append(edit)
 
     mocker.patch(
-        "anicrop.container.calculate_content_rect",
+        "anicrop.layout.calculate_content_rect",
         return_value=Region.from_rect(0, 0, 100, 80),
     )
 

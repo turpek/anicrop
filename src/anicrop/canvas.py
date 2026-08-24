@@ -1,104 +1,11 @@
 from __future__ import annotations
-from typing import Any, Self, Sequence, TYPE_CHECKING
+from typing import Self
+from anicrop.interfaces.canvas import AbstractCanvas
 from anicrop.spatial import Region
-from anicrop.container import global_content_region
-
-if TYPE_CHECKING:
-    from anicrop.layer import Layer
-    from anicrop.container import Container
+from anicrop.layout import CanvasLayoutStrategy
 
 
-class CanvasLayoutStrategy:
-    """Estratégia de layout para a moldura do Canvas."""
-
-    def __init__(self, target: Canvas) -> None:
-        self.target = target
-
-    def fit(self, ref: tuple[int, int, int, int] | Region | Canvas | Any) -> bool:
-        return self._fit(self.target, self._resolve_region(ref))
-
-    def align(
-        self,
-        ref: tuple[int, int, int, int] | Region | Canvas | Any,
-        anchor_x: float = 0.5,
-        anchor_y: float = 0.5,
-    ) -> bool:
-        return self._align(self.target, self._resolve_region(ref), anchor_x, anchor_y)
-
-    def resize_bounds(
-        self,
-        new_width: int,
-        new_height: int,
-        anchor_x: float = 0.5,
-        anchor_y: float = 0.5,
-    ) -> bool:
-        ref_region = Region.from_size(new_width, new_height)
-        return self._resize_bounds(self.target, ref_region, anchor_x, anchor_y)
-
-    def fit_content(
-        self,
-        container: Container | Sequence[Layer],
-    ) -> bool:
-        return self._fit_content(self.target, container=container)
-
-    @classmethod
-    def _fit(cls, target: Canvas, ref_region: Region) -> bool:
-        if not ref_region.overlaps(target.region) or target.region == ref_region:
-            return False
-
-        target.region = ref_region
-        return True
-
-    @classmethod
-    def _align(
-        cls,
-        target: Canvas,
-        ref_region: Region,
-        anchor_x: float = 0.5,
-        anchor_y: float = 0.5,
-    ) -> bool:
-        new_region = target.region.align(ref_region, anchor_x, anchor_y)
-        if target.region == new_region:
-            return False
-        target.region = new_region
-        return True
-
-    @classmethod
-    def _resize_bounds(
-        cls,
-        target: Canvas,
-        ref_region: Region,
-        anchor_x: float = 0.5,
-        anchor_y: float = 0.5,
-    ) -> bool:
-        ref_region = ref_region.align(target.region, anchor_x, anchor_y)
-        return cls._fit(target, ref_region)
-
-    @classmethod
-    def _fit_content(
-        cls,
-        target: Canvas,
-        container: Container | Sequence[Layer],
-    ) -> bool:
-        new_region = global_content_region(container)
-        if new_region is None or new_region == target.region:
-            return False
-
-        target.region = new_region
-        return True
-
-    @staticmethod
-    def _resolve_region(ref: Any) -> Region:
-        if isinstance(ref, tuple):
-            return Region.from_rect(*ref)
-        elif hasattr(ref, "global_region"):
-            return ref.global_region
-        elif hasattr(ref, "region"):
-            return ref.region
-        return ref
-
-
-class Canvas:
+class Canvas(AbstractCanvas):
     def __init__(self, region: Region, bg_color: tuple[int, int, int, int] = (0, 0, 0, 0)):
         self._region = region
         self.bg_color = bg_color

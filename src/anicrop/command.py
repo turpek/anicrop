@@ -293,7 +293,7 @@ class BaseLayerCommand(Command):
 class LayerImageSnapshot(StateSnapshot):
 
     def __init__(self, item: Layer):
-        self._edits = list(item._edits)
+        self._edits = list(item.edits)
         self._opacity_mask = np.copy(
             item._opacity_mask) if item._opacity_mask is not None else None
         self._item = item

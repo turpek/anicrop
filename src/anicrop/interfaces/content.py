@@ -1,27 +1,57 @@
 from __future__ import annotations
-from typing import Any, Protocol, runtime_checkable
+from abc import ABC, abstractmethod
+from typing import Any
 
 
-@runtime_checkable
-class ContentStrategy(Protocol):
-    """Protocolo estrutural para estratégias de manipulação de conteúdo/pixels."""
+class ContentStrategy(ABC):
+    """Classe base abstrata para manipulação, transformação e ajuste de pixels/conteúdo."""
+
+    @abstractmethod
+    def crop(self, ref: Any) -> bool:
+        """Recorta o conteúdo para a região de referência via máscara de corte."""
+        ...
+
+    @abstractmethod
+    def resize(self, width: int, height: int) -> bool:
+        """Redimensiona o conteúdo por fator de escala."""
+        ...
+
+    @abstractmethod
+    def fit(self, ref: Any) -> bool:
+        """Ajusta o conteúdo à região de referência."""
+        ...
+
+    @abstractmethod
+    def flip_x(self) -> bool:
+        """Espelha o conteúdo horizontalmente."""
+        ...
+
+    @abstractmethod
+    def flip_y(self) -> bool:
+        """Espelha o conteúdo verticalmente."""
+        ...
 
     @classmethod
+    @abstractmethod
     def _crop(cls, target: Any, ref: Any) -> bool:
         ...
 
     @classmethod
+    @abstractmethod
     def _resize(cls, target: Any, width: int, height: int) -> bool:
         ...
 
     @classmethod
+    @abstractmethod
     def _fit(cls, target: Any, ref: Any) -> bool:
         ...
 
     @classmethod
+    @abstractmethod
     def _flip_x(cls, target: Any) -> bool:
         ...
 
     @classmethod
+    @abstractmethod
     def _flip_y(cls, target: Any) -> bool:
         ...
