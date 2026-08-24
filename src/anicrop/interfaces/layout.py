@@ -1,7 +1,6 @@
 from __future__ import annotations
 from abc import ABC, abstractmethod
 from typing import Any
-from anicrop.spatial import Region
 
 
 class LayoutStrategy(ABC):
@@ -36,36 +35,4 @@ class LayoutStrategy(ABC):
     @abstractmethod
     def fit_content(self, *args: Any, **kwargs: Any) -> bool:
         """Ajusta a moldura aos limites do conteúdo visível."""
-        ...
-
-    @classmethod
-    @abstractmethod
-    def _fit(cls, target: Any, ref_region: Region) -> bool:
-        ...
-
-    @classmethod
-    @abstractmethod
-    def _align(
-        cls,
-        target: Any,
-        ref_region: Region,
-        anchor_x: float = 0.5,
-        anchor_y: float = 0.5,
-    ) -> bool:
-        ...
-
-    @classmethod
-    @abstractmethod
-    def _resize_bounds(
-        cls,
-        target: Any,
-        ref_region: Region,
-        anchor_x: float = 0.5,
-        anchor_y: float = 0.5,
-    ) -> bool:
-        ...
-
-    @classmethod
-    @abstractmethod
-    def _fit_content(cls, target: Any, *args: Any, **kwargs: Any) -> bool:
         ...

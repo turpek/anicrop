@@ -7,7 +7,7 @@ from anicrop.interfaces.canvas import AbstractCanvas
 from anicrop.interfaces.container import AbstractBaseLayer
 from anicrop.interfaces.content import ContentStrategy
 from anicrop.interfaces.layer import AbstractLayer
-from anicrop.layout import LayerLayoutStrategy, resolve_region
+from anicrop.layout import resolve_region
 from anicrop.spatial import Region
 from anicrop.transform import mat_inverse, transform_vector
 
@@ -29,67 +29,36 @@ class LayerContent(ContentStrategy):
         self,
         ref: tuple[int, int, int, int] | Region | AbstractCanvas | AbstractBaseLayer,
     ) -> bool:
-        return self._crop(self.target, ref)
+        crop_region = resolve_region(ref)
+
+        if not self.target.layout.fit(crop_region):
+            return False
+
+        mask_region = self.target.global_region
+        mask_image = Image.new(mask_region.size, ImageFormat.GRAY, color=255)
+        self.target.add_edit(mask_image, mask_region, blend_mode=BlendMode.CLIP)
+        return True
 
     def resize(
         self,
         width: int,
         height: int,
     ) -> bool:
-        return self._resize(self.target, width, height)
-
-    def fit(
-        self,
-        ref: tuple | Region | AbstractCanvas | AbstractBaseLayer,
-    ) -> bool:
-        return self._fit(self.target, ref)
-
-    def flip_x(self) -> bool:
-        return self._flip_x(self.target)
-
-    def flip_y(self) -> bool:
-        return self._flip_y(self.target)
-
-    @classmethod
-    def _crop(
-        cls,
-        target: AbstractLayer,
-        ref: tuple[int, int, int, int] | Region | AbstractCanvas | AbstractBaseLayer,
-    ) -> bool:
-        crop_region = resolve_region(ref)
-
-        if not LayerLayoutStrategy._fit(target, crop_region):  # type: ignore[arg-type]
-            return False
-
-        mask_region = target.global_region
-        mask_image = Image.new(mask_region.size, ImageFormat.GRAY, color=255)
-        target.add_edit(mask_image, mask_region, blend_mode=BlendMode.CLIP)
-        return True
-
-    @classmethod
-    def _resize(
-        cls,
-        target: AbstractLayer,
-        width: int,
-        height: int,
-    ) -> bool:
         if width <= 0 or height <= 0:
             raise ValueError(f"Dimensões inválidas para resize: ({width}, {height}). Devem ser positivas.")
 
-        cur_w, cur_h = target.global_region.size
+        cur_w, cur_h = self.target.global_region.size
         if (cur_w, cur_h) == (width, height):
             return False
 
         scale_x = width / cur_w
         scale_y = height / cur_h
 
-        target.transform.scale(scale_x, scale_y)
+        self.target.transform.scale(scale_x, scale_y)
         return True
 
-    @classmethod
-    def _fit(
-        cls,
-        target: AbstractLayer,
+    def fit(
+        self,
         ref: tuple | Region | AbstractCanvas | AbstractBaseLayer,
     ) -> bool:
         if isinstance(ref, tuple) and len(ref) == 2 and isinstance(ref[1], Region):
@@ -97,7 +66,7 @@ class LayerContent(ContentStrategy):
         else:
             ref_region = resolve_region(ref)  # type: ignore[arg-type]
 
-        cur_region = target.global_region
+        cur_region = self.target.global_region
 
         if cur_region == ref_region:
             return False
@@ -108,25 +77,23 @@ class LayerContent(ContentStrategy):
         if scale_x <= 0 or scale_y <= 0:
             return False
 
-        target.transform.scale(scale_x, scale_y)
+        self.target.transform.scale(scale_x, scale_y)
 
-        new_global_region = target.global_region.align(ref_region, 0.0, 0.0)
+        new_global_region = self.target.global_region.align(ref_region, 0.0, 0.0)
         dx, dy = transform_vector(
-            mat_inverse(target.parent.matrix),
-            target.global_region,
+            mat_inverse(self.target.parent.matrix),
+            self.target.global_region,
             new_global_region,
         )
-        target.transform.translate(dx, dy)
+        self.target.transform.translate(dx, dy)
         return True
 
-    @classmethod
-    def _flip_x(cls, target: AbstractLayer) -> bool:
-        target.transform.scale(-1, 1)
+    def flip_x(self) -> bool:
+        self.target.transform.scale(-1, 1)
         return True
 
-    @classmethod
-    def _flip_y(cls, target: AbstractLayer) -> bool:
-        target.transform.scale(1, -1)
+    def flip_y(self) -> bool:
+        self.target.transform.scale(1, -1)
         return True
 
 

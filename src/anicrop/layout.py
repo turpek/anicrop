@@ -134,7 +134,14 @@ class LayerLayoutStrategy(LayoutStrategy):
         self,
         ref: tuple[int, int, int, int] | Region | AbstractCanvas | AbstractBaseLayer,
     ) -> bool:
-        return self._fit(self.target, resolve_region(ref))
+        ref_region = resolve_region(ref)
+        if self.target.global_region == ref_region:
+            return False
+
+        target_fit_region = _resolve_target_fit_region(self.target, ref_region)
+        fit_strategy = FitGeometry(self.target, target_fit_region)
+        self.target.frame = fit_strategy
+        return True
 
     def align(
         self,
@@ -142,7 +149,16 @@ class LayerLayoutStrategy(LayoutStrategy):
         anchor_x: float = 0.5,
         anchor_y: float = 0.5,
     ) -> bool:
-        return self._align(self.target, resolve_region(ref), anchor_x, anchor_y)
+        ref_region = resolve_region(ref)
+        new_global_region = self.target.global_region.align(ref_region, anchor_x, anchor_y)
+        if self.target.global_region == new_global_region:
+            return False
+
+        dx, dy = transform_vector(
+            mat_inverse(self.target.parent.matrix), self.target.global_region, new_global_region
+        )
+        self.target.region += (dx, dy)
+        return True
 
     def resize_bounds(
         self,
@@ -152,66 +168,24 @@ class LayerLayoutStrategy(LayoutStrategy):
         anchor_y: float = 0.5,
     ) -> bool:
         ref_region = Region.from_size(new_width, new_height)
-        return self._resize_bounds(self.target, ref_region, anchor_x, anchor_y)
+        aligned_ref = ref_region.align(self.target.global_region, anchor_x, anchor_y)
+        return self.fit(aligned_ref)
 
     def fit_content(self, *args: Any, **kwargs: Any) -> bool:
-        return self._fit_content(self.target, *args, **kwargs)
-
-    @classmethod
-    def _fit(cls, target: Layer, ref_region: Region) -> bool:
-        if target.global_region == ref_region:
-            return False
-
-        target_fit_region = _resolve_target_fit_region(target, ref_region)
-        fit_strategy = FitGeometry(target, target_fit_region)
-        target.frame = fit_strategy
-        return True
-
-    @classmethod
-    def _align(
-        cls,
-        target: Layer,
-        ref_region: Region,
-        anchor_x: float = 0.5,
-        anchor_y: float = 0.5,
-    ) -> bool:
-        new_global_region = target.global_region.align(ref_region, anchor_x, anchor_y)
-        if target.global_region == new_global_region:
-            return False
-
-        dx, dy = transform_vector(
-            mat_inverse(target.parent.matrix), target.global_region, new_global_region
-        )
-        target.region += (dx, dy)
-        return True
-
-    @classmethod
-    def _resize_bounds(
-        cls,
-        target: Layer,
-        ref_region: Region,
-        anchor_x: float = 0.5,
-        anchor_y: float = 0.5,
-    ) -> bool:
-        aligned_ref = ref_region.align(target.global_region, anchor_x, anchor_y)
-        return cls._fit(target, aligned_ref)
-
-    @classmethod
-    def _fit_content(cls, target: Layer, *args: Any, **kwargs: Any) -> bool:
-        for edit in target.edits:
+        for edit in self.target.edits:
             if type(edit) is CropEditLayer:
                 edit.visible = False
 
-        global_roi = global_content_region(target)
-        if global_roi is None or target.global_region == global_roi:
+        global_roi = global_content_region(self.target)
+        if global_roi is None or self.target.global_region == global_roi:
             return False
 
-        local_roi = _compute_layer_local_roi(target)
+        local_roi = _compute_layer_local_roi(self.target)
         if local_roi is None:
             return False
 
-        target_region = _resolve_target_content_region(target, global_roi, local_roi.size)
-        target.frame = LayerGeometry(target, target_region)
+        target_region = _resolve_target_content_region(self.target, global_roi, local_roi.size)
+        self.target.frame = LayerGeometry(self.target, target_region)
         return True
 
 
@@ -222,7 +196,12 @@ class GroupLayoutStrategy(LayoutStrategy):
         self.target = target
 
     def fit(self, ref: tuple[int, int, int, int] | Region | AbstractCanvas | AbstractBaseLayer) -> bool:
-        return self._fit(self.target, resolve_region(ref))
+        ref_region = resolve_region(ref)
+        if self.target.global_region == ref_region:
+            return False
+        fit_strategy = FitGroupGeometry(self.target, ref_region)
+        self.target.frame = fit_strategy
+        return True
 
     def align(
         self,
@@ -230,7 +209,16 @@ class GroupLayoutStrategy(LayoutStrategy):
         anchor_x: float = 0.5,
         anchor_y: float = 0.5,
     ) -> bool:
-        return self._align(self.target, resolve_region(ref), anchor_x, anchor_y)
+        ref_region = resolve_region(ref)
+        new_global_region = self.target.global_region.align(ref_region, anchor_x, anchor_y)
+        if self.target.global_region == new_global_region:
+            return False
+
+        dx, dy = transform_vector(
+            mat_inverse(self.target.parent.matrix), self.target.global_region, new_global_region
+        )
+        self.target.transform.translate(dx, dy)
+        return True
 
     def resize_bounds(
         self,
@@ -240,54 +228,14 @@ class GroupLayoutStrategy(LayoutStrategy):
         anchor_y: float = 0.5,
     ) -> bool:
         ref_region = Region.from_size(new_width, new_height)
-        return self._resize_bounds(self.target, ref_region, anchor_x, anchor_y)
+        aligned_ref = ref_region.align(self.target.global_region, anchor_x, anchor_y)
+        return self.fit(aligned_ref)
 
     def fit_content(self, *args: Any, **kwargs: Any) -> bool:
-        return self._fit_content(self.target, *args, **kwargs)
-
-    @classmethod
-    def _fit(cls, target: GroupLayer, ref_region: Region) -> bool:
-        if target.global_region == ref_region:
+        global_roi = global_content_region(self.target)
+        if global_roi is None or self.target.global_region == global_roi:
             return False
-        fit_strategy = FitGroupGeometry(target, ref_region)
-        target.frame = fit_strategy
-        return True
-
-    @classmethod
-    def _align(
-        cls,
-        target: GroupLayer,
-        ref_region: Region,
-        anchor_x: float = 0.5,
-        anchor_y: float = 0.5,
-    ) -> bool:
-        new_global_region = target.global_region.align(ref_region, anchor_x, anchor_y)
-        if target.global_region == new_global_region:
-            return False
-
-        dx, dy = transform_vector(
-            mat_inverse(target.parent.matrix), target.global_region, new_global_region
-        )
-        target.transform.translate(dx, dy)
-        return True
-
-    @classmethod
-    def _resize_bounds(
-        cls,
-        target: GroupLayer,
-        ref_region: Region,
-        anchor_x: float = 0.5,
-        anchor_y: float = 0.5,
-    ) -> bool:
-        aligned_ref = ref_region.align(target.global_region, anchor_x, anchor_y)
-        return cls._fit(target, aligned_ref)
-
-    @classmethod
-    def _fit_content(cls, target: GroupLayer, *args: Any, **kwargs: Any) -> bool:
-        global_roi = global_content_region(target)
-        if global_roi is None or target.global_region == global_roi:
-            return False
-        return cls._fit(target, global_roi)
+        return self.fit(global_roi)
 
 
 class CanvasLayoutStrategy(LayoutStrategy):
@@ -297,7 +245,12 @@ class CanvasLayoutStrategy(LayoutStrategy):
         self.target = target
 
     def fit(self, ref: tuple[int, int, int, int] | Region | AbstractCanvas | AbstractBaseLayer) -> bool:
-        return self._fit(self.target, resolve_region(ref))
+        ref_region = resolve_region(ref)
+        if not ref_region.overlaps(self.target.region) or self.target.region == ref_region:
+            return False
+
+        self.target.region = ref_region
+        return True
 
     def align(
         self,
@@ -305,7 +258,12 @@ class CanvasLayoutStrategy(LayoutStrategy):
         anchor_x: float = 0.5,
         anchor_y: float = 0.5,
     ) -> bool:
-        return self._align(self.target, resolve_region(ref), anchor_x, anchor_y)
+        ref_region = resolve_region(ref)
+        new_region = self.target.region.align(ref_region, anchor_x, anchor_y)
+        if self.target.region == new_region:
+            return False
+        self.target.region = new_region
+        return True
 
     def resize_bounds(
         self,
@@ -315,109 +273,58 @@ class CanvasLayoutStrategy(LayoutStrategy):
         anchor_y: float = 0.5,
     ) -> bool:
         ref_region = Region.from_size(new_width, new_height)
-        return self._resize_bounds(self.target, ref_region, anchor_x, anchor_y)
+        aligned_ref = ref_region.align(self.target.region, anchor_x, anchor_y)
+        return self.fit(aligned_ref)
 
     def fit_content(
         self,
-        container: Container | Sequence[Layer],
-    ) -> bool:
-        return self._fit_content(self.target, container=container)
-
-    @classmethod
-    def _fit(cls, target: Canvas, ref_region: Region) -> bool:
-        if not ref_region.overlaps(target.region) or target.region == ref_region:
-            return False
-
-        target.region = ref_region
-        return True
-
-    @classmethod
-    def _align(
-        cls,
-        target: Canvas,
-        ref_region: Region,
-        anchor_x: float = 0.5,
-        anchor_y: float = 0.5,
-    ) -> bool:
-        new_region = target.region.align(ref_region, anchor_x, anchor_y)
-        if target.region == new_region:
-            return False
-
-        target.region = new_region
-        return True
-
-    @classmethod
-    def _resize_bounds(
-        cls,
-        target: Canvas,
-        ref_region: Region,
-        anchor_x: float = 0.5,
-        anchor_y: float = 0.5,
-    ) -> bool:
-        aligned_ref = ref_region.align(target.region, anchor_x, anchor_y)
-        return cls._fit(target, aligned_ref)
-
-    @classmethod
-    def _fit_content(
-        cls,
-        target: Canvas,
         container: Container | Sequence[Layer] | None = None,
     ) -> bool:
         if container is None:
             raise ValueError("Canvas.fit_content requires a container or sequence of layers.")
 
         roi = global_content_region(container)
-        if roi is None or not roi.overlaps(target.region) or target.region == roi:
+        if roi is None or not roi.overlaps(self.target.region) or self.target.region == roi:
             return False
 
-        target.region = roi
+        self.target.region = roi
         return True
 
 
 class Layout:
-
-    def _resolve_strategy(self, target: Any) -> type[LayoutStrategy]:
-        if hasattr(target, "layout"):
-            return type(target.layout)
-        raise TypeError(f"Unsupported target type: {type(target).__name__}")
+    """Motor central de operações de layout e enquadramento espacial."""
 
     def fit(
         self,
-        target: Canvas | AbstractBaseLayer,
-        ref: tuple[int, int, int, int] | Region | Canvas | AbstractBaseLayer,
+        target: AbstractCanvas | AbstractBaseLayer,
+        ref: tuple[int, int, int, int] | Region | AbstractCanvas | AbstractBaseLayer,
     ) -> bool:
-        ref_region = resolve_region(ref)
-        strategy_class = self._resolve_strategy(target)
-        return strategy_class._fit(target, ref_region)
+        return target.layout.fit(ref)
 
     def align(
         self,
-        target: Canvas | AbstractBaseLayer,
-        ref: tuple[int, int, int, int] | Region | Canvas | AbstractBaseLayer,
+        target: AbstractCanvas | AbstractBaseLayer,
+        ref: tuple[int, int, int, int] | Region | AbstractCanvas | AbstractBaseLayer,
         anchor_x: float = 0.5,
         anchor_y: float = 0.5,
     ) -> bool:
-        ref_region = resolve_region(ref)
-        strategy_class = self._resolve_strategy(target)
-        return strategy_class._align(target, ref_region, anchor_x, anchor_y)
+        return target.layout.align(ref, anchor_x, anchor_y)
 
     def resize_bounds(
         self,
-        target: Layer | Canvas | GroupLayer,
+        target: AbstractCanvas | AbstractBaseLayer,
         new_width: int,
         new_height: int,
         anchor_x: float = 0.5,
         anchor_y: float = 0.5,
     ) -> bool:
-        ref_region = Region.from_size(new_width, new_height)
-        strategy_class = self._resolve_strategy(target)
-        return strategy_class._resize_bounds(target, ref_region, anchor_x, anchor_y)
+        return target.layout.resize_bounds(new_width, new_height, anchor_x, anchor_y)
 
     def fit_content(
         self,
-        target: Layer | GroupLayer | Canvas,
-        container: Container | Sequence[Layer] | None = None,
+        target: AbstractCanvas | AbstractBaseLayer,
+        *args: Any,
+        **kwargs: Any,
     ) -> bool:
-        """Fits the frame or boundary of the target to the visible content limits."""
-        strategy_class = self._resolve_strategy(target)
-        return strategy_class._fit_content(target, container=container)
+        """Ajusta a moldura do alvo aos limites do conteúdo visível."""
+        return target.layout.fit_content(*args, **kwargs)

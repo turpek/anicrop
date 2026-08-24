@@ -30,28 +30,3 @@ class ContentStrategy(ABC):
     def flip_y(self) -> bool:
         """Espelha o conteúdo verticalmente."""
         ...
-
-    @classmethod
-    @abstractmethod
-    def _crop(cls, target: Any, ref: Any) -> bool:
-        ...
-
-    @classmethod
-    @abstractmethod
-    def _resize(cls, target: Any, width: int, height: int) -> bool:
-        ...
-
-    @classmethod
-    @abstractmethod
-    def _fit(cls, target: Any, ref: Any) -> bool:
-        ...
-
-    @classmethod
-    @abstractmethod
-    def _flip_x(cls, target: Any) -> bool:
-        ...
-
-    @classmethod
-    @abstractmethod
-    def _flip_y(cls, target: Any) -> bool:
-        ...

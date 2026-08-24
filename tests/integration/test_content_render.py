@@ -7,7 +7,6 @@ from anicrop.edit_layer import CropEditLayer
 from anicrop.enums import ImageFormat
 from anicrop.image import Image
 from anicrop.layer import Layer
-from anicrop.layout import LayerLayoutStrategy
 from anicrop.render import CanvasRender
 
 
@@ -80,7 +79,7 @@ def test_crop_visibility_toggle_restores_base_image():
 
     crop_edit = layer._edits[-1]
     crop_edit.visible = False
-    LayerLayoutStrategy._fit(layer, layer.base.region)
+    layer.layout.fit(layer.base.region)
 
     renderer = CanvasRender()
     rendered = renderer.render_scene([layer], canvas)
@@ -101,7 +100,7 @@ def test_crop_followed_by_fit_content_restores_base_image_automatically():
     content.crop(layer, (30, 30, 40, 40))
     assert layer.global_region.size == (40, 40)
 
-    success = LayerLayoutStrategy._fit_content(layer)
+    success = layer.layout.fit_content()
     assert success is True
     assert layer._edits[-1].visible is False
     assert layer.global_region.size == (100, 100)
