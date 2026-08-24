@@ -164,8 +164,8 @@ class BaseLayer(ABC):
         self._mask: Mask | None = None
 
         base = geometry_cls(self, region)
-        layout = geometry_cls(self, region)
-        self.control = GeometryController(base, layout)
+        frame = geometry_cls(self, region)
+        self.control = GeometryController(base, frame)
 
     @property
     def effects(self) -> tuple[Effect, ...]:
@@ -251,11 +251,11 @@ class BaseLayer(ABC):
 
     @property
     def region(self) -> Region:
-        return self.control.layout.region
+        return self.control.frame.region
 
     @property
     def global_region(self) -> Region:
-        return self.control.layout.global_region
+        return self.control.frame.global_region
 
     @property
     def matrix(self) -> np.ndarray:
@@ -266,19 +266,19 @@ class BaseLayer(ABC):
         return self.control.content_matrix
 
     @property
-    def layout_matrix(self) -> np.ndarray:
-        return self.control.layout_matrix
+    def frame_matrix(self) -> np.ndarray:
+        return self.control.frame_matrix
 
     @property
     def base(self) -> GeometryStrategy:
         return self.control.base
 
     @property
-    def layout(self) -> GeometryStrategy:
-        return self.control.layout
+    def frame(self) -> GeometryStrategy:
+        return self.control.frame
 
-    @layout.setter
-    def layout(self, strategy: GeometryStrategy) -> None:
+    @frame.setter
+    def frame(self, strategy: GeometryStrategy) -> None:
         self.control.set_strategy(strategy)
 
     @property
@@ -356,7 +356,7 @@ def freeze_geometry(container: Container | Iterable[BaseLayer]) -> Generator[Non
     """Congela temporariamente o cálculo de matrizes e regiões com snapshot sob demanda para todos os nós."""
     def _toggle_freeze(enable: bool) -> None:
         for node in walk_nodes(container):
-            for strategy in (node.control.base, node.control.layout):
+            for strategy in (node.control.base, node.control.frame):
                 strategy._cached_matrix = None
                 strategy._cached_region = None
                 strategy._cached_global_region = None

@@ -47,7 +47,7 @@ def make_layer_mock(
     # Arbitrary mock for global_region to test union behavior
     geom_mock.global_region = Region.from_rect(x * 2, y * 2, w * 2, h * 2)
 
-    layer_mock.layout = geom_mock
+    layer_mock.frame = geom_mock
     layer_mock.base = geom_mock
     layer_mock.region = geom_mock.region
     layer_mock.global_region = geom_mock.global_region
@@ -81,9 +81,9 @@ def make_group_mock() -> MagicMock:
     sub_group.__len__.return_value = 1
 
     sub_geom_mock = MagicMock()
-    sub_geom_mock.region = layer2.layout.region
-    sub_geom_mock.global_region = layer2.layout.global_region
-    sub_group.layout = sub_geom_mock
+    sub_geom_mock.region = layer2.frame.region
+    sub_geom_mock.global_region = layer2.frame.global_region
+    sub_group.frame = sub_geom_mock
     sub_group.base = sub_geom_mock
     sub_group.region = sub_geom_mock.region
     sub_group.global_region = sub_geom_mock.global_region
@@ -150,19 +150,19 @@ def test_geometry_region(geometry_cls, make_mock, init_region, expected_bbox):
 
 
 def test_geometry_controller_sync_on_coordinate_mutation():
-    """Valida se o GeometryController sincroniza as geometrias base e layout ao mutar coordenadas."""
+    """Valida se o GeometryController sincroniza as geometrias base e frame ao mutar coordenadas."""
     mock_layer = make_layer_mock(transform_matrix=np.identity(3))
     base_geom = LayerGeometry(mock_layer, Region.from_rect(0, 0, 100, 100))
-    layout_geom = LayerGeometry(mock_layer, Region.from_rect(5, 5, 100, 100))
+    frame_geom = LayerGeometry(mock_layer, Region.from_rect(5, 5, 100, 100))
 
-    controller = GeometryController(base_geom, layout_geom)
+    controller = GeometryController(base_geom, frame_geom)
 
-    # Mutação de coordenadas da região de layout via controller.sync
-    new_layout_region = Region.from_rect(10, 0, 100, 100)
-    controller.sync(new_layout_region)
+    # Mutação de coordenadas da região de frame via controller.sync
+    new_frame_region = Region.from_rect(10, 0, 100, 100)
+    controller.sync(new_frame_region)
 
-    # Verifica se ambas as estratégias (layout e base) foram sincronizadas proporcionalmente
-    assert controller.layout.region == Region.from_rect(10, 0, 100, 100)
+    # Verifica se ambas as estratégias (frame e base) foram sincronizadas proporcionalmente
+    assert controller.frame.region == Region.from_rect(10, 0, 100, 100)
     assert controller.base.region == Region.from_rect(5, -5, 100, 100)
 
 
@@ -255,7 +255,7 @@ def test_freeze_geometry_congelamento_e_restauracao(mocker):
     group.append(layer1)
     group.append(layer2)
 
-    spy_calc = mocker.spy(layer1.layout, "_compute_matrix")
+    spy_calc = mocker.spy(layer1.frame, "_compute_matrix")
 
     # Fora do contexto: acessos dinâmicos
     _ = layer1.matrix
@@ -302,8 +302,8 @@ def test_freeze_geometry_congelamento_region_e_global_region(mocker):
     layer = Layer(mock_img)
     group.append(layer)
 
-    spy_region = mocker.spy(group.layout, "_compute_region")
-    spy_global = mocker.spy(group.layout, "_compute_global_region")
+    spy_region = mocker.spy(group.frame, "_compute_region")
+    spy_global = mocker.spy(group.frame, "_compute_global_region")
 
     with freeze_geometry(group):
         for _ in range(5):
@@ -313,19 +313,19 @@ def test_freeze_geometry_congelamento_region_e_global_region(mocker):
         assert spy_region.call_count == 1
         assert spy_global.call_count == 1
 
-    assert group.layout._cached_region is None
-    assert group.layout._cached_global_region is None
+    assert group.frame._cached_region is None
+    assert group.frame._cached_global_region is None
 
 
 def test_geometry_controller_sync_preserves_base_region_size():
     """Valida se GeometryController.sync desloca a base preservando a largura e altura originais."""
     layer_mock = make_layer_mock(transform_matrix=np.identity(3))
     base_geom = LayerGeometry(layer_mock, Region.from_rect(0, 0, 736, 1104))
-    layout_geom = LayerGeometry(layer_mock, Region.from_rect(100, 50, 400, 400))
+    frame_geom = LayerGeometry(layer_mock, Region.from_rect(100, 50, 400, 400))
 
-    controller = GeometryController(base_geom, layout_geom)
+    controller = GeometryController(base_geom, frame_geom)
     controller.sync(Region.from_rect(168, 352, 400, 400))
 
-    assert controller.layout.region == Region.from_rect(168, 352, 400, 400)
+    assert controller.frame.region == Region.from_rect(168, 352, 400, 400)
     assert controller.base.region == Region.from_rect(68, 302, 736, 1104)
     assert controller.base.region.size == (736, 1104)

@@ -12,8 +12,8 @@ def test_geometry_controller_offset_com_rotacao():
     img = Image.new((736, 1104), ImageFormat.RGBA)
     layer = Layer(img)
 
-    # 1. Base em (0, 0, 736, 1104) e Layout em (100, 50, 400, 400) -> offset (-100, -50)
-    layer.layout = LayerGeometry(layer, Region.from_rect(100, 50, 400, 400))
+    # 1. Base em (0, 0, 736, 1104) e Frame em (100, 50, 400, 400) -> offset (-100, -50)
+    layer.frame = LayerGeometry(layer, Region.from_rect(100, 50, 400, 400))
     assert layer.control._offset.top_left == (-100, -50)
 
     # 2. Aplica a rotação de 45 graus

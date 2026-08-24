@@ -160,7 +160,7 @@ class LayerLayoutStrategy:
 
         target_fit_region = _resolve_target_fit_region(target, ref_region)
         fit_strategy = FitGeometry(target, target_fit_region)
-        target.layout = fit_strategy
+        target.frame = fit_strategy
         return True
 
     @classmethod
@@ -207,7 +207,7 @@ class LayerLayoutStrategy:
             return False
 
         target_region = _resolve_target_content_region(target, global_roi, local_roi.size)
-        target.layout = LayerGeometry(target, target_region)
+        target.frame = LayerGeometry(target, target_region)
         return True
 
 
@@ -267,7 +267,7 @@ class GroupLayoutStrategy:
         if target.global_region == ref_region:
             return False
         fit_strategy = FitGroupGeometry(target, ref_region)
-        target.layout = fit_strategy
+        target.frame = fit_strategy
         return True
 
     @classmethod

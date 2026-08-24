@@ -51,18 +51,18 @@ def test_layout_fit_proxy_layer_undo_redo(make_doc_with_layer):
 
     assert len(doc.history._undo_stack) == initial_stack_size + 1
     assert layer_proxy.region == Region.from_size(500, 500)
-    assert isinstance(layer_proxy.layout, FitGeometry)
+    assert isinstance(layer_proxy.frame, FitGeometry)
 
     doc.history.undo()
 
     assert layer_proxy.region == Region.from_size(200, 200)
-    assert isinstance(layer_proxy.layout, LayerGeometry)
+    assert isinstance(layer_proxy.frame, LayerGeometry)
     assert len(doc.history._redo_stack) == 1
 
     doc.history.redo()
 
     assert layer_proxy.region == Region.from_size(500, 500)
-    assert isinstance(layer_proxy.layout, FitGeometry)
+    assert isinstance(layer_proxy.frame, FitGeometry)
     assert len(doc.history._redo_stack) == 0
 
 
@@ -119,18 +119,18 @@ def test_layout_fit_group_proxy_undo_redo(make_doc_with_group):
 
     assert len(doc.history._undo_stack) == initial_stack_size + 1
     assert group_proxy.global_region == Region.from_size(800, 800)
-    assert isinstance(group_proxy.layout, FitGroupGeometry)
+    assert isinstance(group_proxy.frame, FitGroupGeometry)
 
     doc.history.undo()
 
     assert group_proxy.global_region == Region.from_rect(0, 0, 400, 400)
-    assert isinstance(group_proxy.layout, GroupGeometry)
+    assert isinstance(group_proxy.frame, GroupGeometry)
     assert len(doc.history._redo_stack) == 1
 
     doc.history.redo()
 
     assert group_proxy.global_region == Region.from_size(800, 800)
-    assert isinstance(group_proxy.layout, FitGroupGeometry)
+    assert isinstance(group_proxy.frame, FitGroupGeometry)
 
 
 def test_layout_align_group_proxy_undo_redo(make_doc_with_group):
@@ -205,9 +205,9 @@ def test_group_read_properties_preserves_undo_empty_and_redo_empty():
     # Leituras passivas no GroupProxy
     _ = group_proxy.region
     _ = group_proxy.global_region
-    _ = group_proxy.layout
+    _ = group_proxy.frame
     _ = group_proxy.matrix
-    _ = group_proxy.control.layout.region
+    _ = group_proxy.control.frame.region
 
     # Garante ausência de efeitos colaterais
     assert history.undo_empty()
@@ -244,9 +244,9 @@ def test_read_properties_preserves_undo_empty_and_redo_empty():
     # Leituras passivas de propriedades
     _ = layer_proxy.region
     _ = layer_proxy.global_region
-    _ = layer_proxy.layout
+    _ = layer_proxy.frame
     _ = layer_proxy.matrix
-    _ = layer_proxy.control.layout.region
+    _ = layer_proxy.control.frame.region
     _ = layer_proxy.x
     _ = layer_proxy.y
 
@@ -274,9 +274,9 @@ def test_read_properties_does_not_clear_redo_stack(make_doc_with_layer):
     # Leituras passivas
     _ = layer_proxy.region
     _ = layer_proxy.global_region
-    _ = layer_proxy.layout
+    _ = layer_proxy.frame
     _ = layer_proxy.matrix
-    _ = layer_proxy.control.layout.region
+    _ = layer_proxy.control.frame.region
 
     # Garante que o redo_stack continua intacto após leituras
     assert len(doc.history._redo_stack) == 1

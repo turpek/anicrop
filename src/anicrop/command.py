@@ -99,24 +99,24 @@ class NullContainerSnapshot(StateSnapshot):
 class GeometryControllerSnapshot(StateSnapshot):
 
     def __init__(self, controller: GeometryController):
-        self._layout_region = controller.layout.region
-        self._layout_strategy = controller.layout
+        self._frame_region = controller.frame.region
+        self._frame_strategy = controller.frame
         self._offset = controller._offset
         self._controller = controller
 
     def restore(self) -> None:
-        self._controller._layout = self._layout_strategy
+        self._controller._frame = self._frame_strategy
         self._controller._offset = self._offset
-        self._controller.sync(self._layout_region)
+        self._controller.sync(self._frame_region)
 
     def _region_changed(self, other: GeometryControllerSnapshot) -> bool:
-        return self._layout_region != other._layout_region
+        return self._frame_region != other._frame_region
 
     def _instance_changed(self, other: GeometryControllerSnapshot) -> bool:
-        return self._layout_strategy is not other._layout_strategy
+        return self._frame_strategy is not other._frame_strategy
 
     def _type_changed(self, other: GeometryControllerSnapshot) -> bool:
-        return type(self._layout_strategy) is not type(other._layout_strategy)
+        return type(self._frame_strategy) is not type(other._frame_strategy)
 
     def has_change(self, other: GeometryControllerSnapshot) -> bool:
         return (

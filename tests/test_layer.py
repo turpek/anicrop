@@ -1,6 +1,7 @@
 from anicrop.container import GroupLayer
 from anicrop.image import Image, ImageFormat
 from anicrop.layer import BlendMode, EditLayer, Layer
+from anicrop.layout import Layout
 from anicrop.spatial import Region
 from anicrop.enums import RenderFlags, WarpMode
 from anicrop.transform import mat_global, TransformRel
@@ -355,11 +356,10 @@ def test_layer_snapshot_completeness(image):
 def test_layer_transform_rotate_pivot_respects_layout_fit_region():
     """
     Valida se o cálculo do pivô relativo (0.5, 0.5) do Composer no Layer
-    utiliza a moldura ativa do Layout (layout.region) em vez da base.region original.
+    utiliza a moldura ativa do Layout (frame.region) em vez da base.region original.
     Se a base.region (40x40) fosse usada, a rotação de 90° de um quadrado ajustado
     para (0, 0, 100, 100) calcularia o pivô em (20, 20), deslocando a global_region incorretamente.
     """
-    from anicrop.layout import Layout
     img = Image(np.zeros((40, 40, 4), dtype=np.uint8), ImageFormat.RGBA)
     layer = Layer(img)
 

@@ -75,7 +75,7 @@ def test_layout_fit(ref, expect_global_rect):
         assert result is False
     else:
         assert result is True
-        assert isinstance(target.layout, FitGeometry)
+        assert isinstance(target.frame, FitGeometry)
         assert target.global_region == Region.from_rect(*expect_global_rect)
         assert target.base.region == original_base_region
 
@@ -616,7 +616,7 @@ def test_group_layout_fit_content_enquadra_conteudo_global_sem_alterar_filhos(mo
     result = layout.fit_content(group)
     assert result is True
     assert group.global_region == Region.from_rect(20, 20, 50, 50)
-    assert isinstance(group.layout, FitGroupGeometry)
+    assert isinstance(group.frame, FitGroupGeometry)
 
     # 2. O filho individual permanece intacto
     assert layer.region == Region.from_rect(0, 0, 100, 100)

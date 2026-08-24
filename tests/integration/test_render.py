@@ -248,7 +248,7 @@ def test_canvas_render_scene_group_layer_scenarios(mocker, group_trans, group_fr
     group.append(child)
 
     mocker.patch.object(
-        type(group.control.layout),
+        type(group.control.frame),
         "global_region",
         new_callable=mocker.PropertyMock,
         return_value=Region.from_rect(*group_frame_rect),
@@ -285,14 +285,14 @@ def test_canvas_render_scene_nested_group_layers(mocker, monkeypatch):
     sub_group.transform.translate(30, 30)
 
     def mock_global_region(self):
-        if self is sub_group.control.layout:
+        if self is sub_group.control.frame:
             return Region.from_rect(80, 80, 80, 80)
-        elif self is root_group.control.layout:
+        elif self is root_group.control.frame:
             return Region.from_rect(50, 50, 150, 150)
         return self._calculate_region('global_region')
 
     monkeypatch.setattr(
-        type(root_group.control.layout),
+        type(root_group.control.frame),
         "global_region",
         property(mock_global_region),
     )

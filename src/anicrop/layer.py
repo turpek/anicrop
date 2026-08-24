@@ -89,7 +89,7 @@ class Layer(BaseLayer):
 
     @property
     def region(self) -> Region:
-        return self.control.layout.region
+        return self.control.frame.region
 
     @region.setter
     def region(self, other: Region) -> None:

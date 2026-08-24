@@ -19,31 +19,31 @@ class GeometryController:
     """Controls and synchronizes geometry strategies for a layer.
 
     Acts as an intermediary controller managing state transitions between
-    the underlying base geometry and active layout strategies.
+    the underlying base geometry and active frame strategies.
     """
 
-    def __init__(self, base: GeometryStrategy, layout: GeometryStrategy):
+    def __init__(self, base: GeometryStrategy, frame: GeometryStrategy):
         self._base: GeometryStrategy = base
-        self._layout: GeometryStrategy = layout
-        self._offset = base.region - layout.region
+        self._frame: GeometryStrategy = frame
+        self._offset = base.region - frame.region
 
     @property
     def base(self) -> GeometryStrategy:
         return self._base
 
     @property
-    def layout(self) -> GeometryStrategy:
-        return self._layout
+    def frame(self) -> GeometryStrategy:
+        return self._frame
 
     @property
-    def layout_matrix(self) -> ndarray:
+    def frame_matrix(self) -> ndarray:
         """Matriz geométrica da moldura/janela ativa (sem offset físico)."""
-        return self._layout.matrix
+        return self._frame.matrix
 
     @property
     def content_matrix(self) -> ndarray:
         """Matriz do conteúdo físico (a moldura + o deslocamento físico da foto)."""
-        return self._layout.matrix @ mat_position(self._offset)
+        return self._frame.matrix @ mat_position(self._offset)
 
     @property
     def matrix(self) -> ndarray:
@@ -67,19 +67,19 @@ class GeometryController:
         return x, y
 
     def sync(self, value: Region) -> None:
-        self._layout._region = value
+        self._frame._region = value
         x, y = self._resolve_base_position(value)
         self._base._region = self._base._region.replace(x=x, y=y)
 
     def set_x(self, value: int | Span) -> None:
-        self.sync(self._layout.region.replace(x=value))
+        self.sync(self._frame.region.replace(x=value))
 
     def set_y(self, value: int | Span) -> None:
-        self.sync(self._layout.region.replace(y=value))
+        self.sync(self._frame.region.replace(y=value))
 
-    def set_strategy(self, layout_strategy: GeometryStrategy) -> None:
-        self._layout = layout_strategy
-        self._offset = self._base.region - self._layout.region
+    def set_strategy(self, frame_strategy: GeometryStrategy) -> None:
+        self._frame = frame_strategy
+        self._offset = self._base.region - self._frame.region
 
 
 class GeometryStrategy(ABC):

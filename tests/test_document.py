@@ -7,6 +7,7 @@ from anicrop.enums import ImageFormat
 from anicrop.history import GlobalHistory
 from anicrop.image import Image
 from anicrop.layer import Layer
+from anicrop.layout import Layout
 from anicrop.proxy import GroupProxy, LayerStackProxy, ProxyLayer
 from anicrop.spatial import Region
 
@@ -210,7 +211,6 @@ def test_document_export_saves_file(tmp_path):
 
 def test_document_layout_property_integration():
     """Valida operações de layout diretamente através da propriedade doc.layout."""
-    from anicrop.layout import Layout
     doc = Document("TestDoc", 1000, 1000)
     l1 = doc.add(Layer(make_img(200, 200), name="l1"))
 
