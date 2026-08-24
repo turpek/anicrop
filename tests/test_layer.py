@@ -328,6 +328,8 @@ def test_layer_snapshot_completeness(image):
         'parent',
         '_parent_inverse',
         '_reference',
+        '_content',
+        '_layout',
     }
 
     base_snapshot = BaseLayerSnapshot(layer)
@@ -372,3 +374,21 @@ def test_layer_transform_rotate_pivot_respects_layout_fit_region():
 
     # A global_region deve permanecer perfeitamente em (0, 0, 100, 100)
     assert layer.global_region == Region.from_rect(0, 0, 100, 100)
+
+
+def test_layer_layout_bound_api():
+    """Valida as operações de layout diretamente vinculadas à instância via layer.layout."""
+    img = Image(np.zeros((40, 40, 4), dtype=np.uint8), ImageFormat.RGBA)
+    layer = Layer(img)
+
+    result_fit = layer.layout.fit(Region.from_rect(0, 0, 80, 80))
+    assert result_fit is True
+    assert layer.global_region == Region.from_rect(0, 0, 80, 80)
+
+    result_align = layer.layout.align(Region.from_rect(0, 0, 200, 200), anchor_x=1.0, anchor_y=1.0)
+    assert result_align is True
+    assert layer.global_region == Region.from_rect(120, 120, 80, 80)
+
+    result_resize = layer.layout.resize_bounds(100, 100)
+    assert result_resize is True
+    assert layer.global_region == Region.from_rect(110, 110, 100, 100)

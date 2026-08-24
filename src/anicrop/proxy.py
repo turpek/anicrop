@@ -1,11 +1,18 @@
 import weakref
 from typing import Any, cast
-from anicrop.layer import Layer, LayerContent
+from anicrop.layer import Layer, LayerContent, LayerLayoutStrategy
 from anicrop.mask import Mask
 from anicrop.content import Content
 from anicrop.history import GlobalHistory
 from anicrop.command import BaseLayerCommand, LayerImageCommand, ReparentCommand, MaskCommand
-from anicrop.container import Container, LayerStack, GroupLayer, BaseLayer, NullContainer
+from anicrop.container import (
+    Container,
+    LayerStack,
+    GroupLayer,
+    GroupLayoutStrategy,
+    BaseLayer,
+    NullContainer,
+)
 
 
 def is_property_with_setter(cls: type, name: str) -> bool:
@@ -183,18 +190,26 @@ class BaseHistoryProxy:
                     return self
                 if hasattr(self, '_registry') and not isinstance(result, BaseHistoryProxy):
                     registry = object.__getattribute__(self, '_registry')
-                    if isinstance(result, (BaseLayer, Container, Mask, Content, LayerContent)):
+                    if isinstance(result, (BaseLayer, Container, Mask, Content, LayerContent, LayerLayoutStrategy, GroupLayoutStrategy)):
                         if isinstance(result, LayerContent):
                             return registry.get_or_create(LayerContent(cast(Any, self)))
+                        if isinstance(result, LayerLayoutStrategy):
+                            return LayerLayoutStrategy(cast(Any, self))
+                        if isinstance(result, GroupLayoutStrategy):
+                            return GroupLayoutStrategy(cast(Any, self))
                         return registry.get_or_create(result)
                 return result
             return method_wrapper
 
         if hasattr(self, '_registry') and not isinstance(attr, BaseHistoryProxy):
             registry = object.__getattribute__(self, '_registry')
-            if isinstance(attr, (BaseLayer, Container, Mask, Content, LayerContent)):
+            if isinstance(attr, (BaseLayer, Container, Mask, Content, LayerContent, LayerLayoutStrategy, GroupLayoutStrategy)):
                 if isinstance(attr, LayerContent):
                     return registry.get_or_create(LayerContent(cast(Any, self)))
+                if isinstance(attr, LayerLayoutStrategy):
+                    return LayerLayoutStrategy(cast(Any, self))
+                if isinstance(attr, GroupLayoutStrategy):
+                    return GroupLayoutStrategy(cast(Any, self))
                 return registry.get_or_create(attr)
 
         return attr

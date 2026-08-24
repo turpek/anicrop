@@ -102,6 +102,7 @@ class Canvas:
     def __init__(self, region: Region, bg_color: tuple[int, int, int, int] = (0, 0, 0, 0)):
         self._region = region
         self.bg_color = bg_color
+        self._layout = CanvasLayoutStrategy(self)
 
     @classmethod
     def from_size(
@@ -149,4 +150,5 @@ class Canvas:
 
     @property
     def layout(self) -> CanvasLayoutStrategy:
-        return CanvasLayoutStrategy(self)
+        """Estratégia de layout para a moldura do Canvas."""
+        return self._layout

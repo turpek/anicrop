@@ -467,6 +467,7 @@ class GroupLayer(Container, BaseLayer):
         BaseLayer.__init__(
             self, self.parent, GroupGeometry, region, opacity, blend_mode, name,
         )
+        self._layout = GroupLayoutStrategy(self)
 
     def __repr__(self):
         return f'GroupLayer(name="{self.name}")'
@@ -494,7 +495,7 @@ class GroupLayer(Container, BaseLayer):
     @property
     def layout(self) -> GroupLayoutStrategy:
         """Estratégia de layout da moldura do grupo."""
-        return GroupLayoutStrategy(self)
+        return self._layout
 
 
 def walk_nodes(root: BaseLayer | Container | Iterable[BaseLayer]) -> Generator[BaseLayer, None, None]:
