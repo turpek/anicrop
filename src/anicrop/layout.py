@@ -355,6 +355,20 @@ class Layout:
         target: Layer | GroupLayer | Canvas,
         container: Container | Sequence[Layer] | None = None,
     ) -> bool:
+        """Fits the frame or boundary of the target to the visible content limits.
 
+        Target behavior:
+        - Layer: Fits the layer frame to its visible pixels and active edits.
+        - GroupLayer: Frames the group bounding box to the combined content of its children.
+        - Canvas: Adjusts the canvas dimensions to the bounding box of the layers passed
+          in `container` (required when `target` is Canvas).
+
+        Args:
+            target: The Layer, GroupLayer, or Canvas to fit.
+            container: Reference collection or sequence of layers (required for Canvas).
+
+        Returns:
+            True if the geometry or dimensions changed, False otherwise.
+        """
         strategy_class = self._resolve_strategy(target)
         return strategy_class.fit_content(target, container=container)
