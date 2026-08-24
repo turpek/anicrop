@@ -13,7 +13,6 @@ from anicrop.image import Image
 from anicrop.layer import Layer
 
 from anicrop.spatial import Region
-from anicrop.transform import mat_translation
 
 
 def make_layer_mock(

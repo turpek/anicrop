@@ -1,5 +1,4 @@
 import numpy as np
-import pytest
 
 from anicrop.content import FitContext
 from anicrop.document import Document

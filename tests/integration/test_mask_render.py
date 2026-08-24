@@ -1,5 +1,4 @@
 import numpy as np
-import pytest
 
 from anicrop.canvas import Canvas
 from anicrop.container import GroupLayer

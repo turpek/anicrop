@@ -1,12 +1,12 @@
 from __future__ import annotations
 from abc import ABC
-from typing import Any, Callable, Sequence
+from typing import Callable, Sequence
 
 
 import cv2
 import numpy as np
 
-from anicrop.blend import blend_rendered_images, BLEND_MODE
+from anicrop.blend import blend_rendered_images
 from anicrop.canvas import Canvas
 from anicrop.container import BaseLayer, Container, GroupLayer, freeze_geometry
 from anicrop.enums import BlendMode, InterpolationOption, WarpMode

@@ -21,10 +21,9 @@ from anicrop.render import (
     render_image,
     warp_affine,
     warp_patch,
-    warp_perspective,
 )
 
-from anicrop.spatial import Region, Span
+from anicrop.spatial import Region
 from anicrop.transform import TransformRel
 from anicrop.viewport import Viewport
 
@@ -167,7 +166,6 @@ def test_generate_opacity_mask_spatial_mapping():
 )
 def test_render_scene_culling_por_oclusao(mocker, layer_configs, expected_rendered_count):
     """Valida se o SceneTraverser realiza early-exit conservador ao atingir 100% de oclusão."""
-    mocker.patch("anicrop.render.BLEND_MODE")
     viewport = Viewport((800, 600), 1.0)
     vr = ViewportRender()
 
@@ -450,8 +448,6 @@ def test_render_image_rotacao_nao_ativa_fast_path(mocker):
 def test_canvas_render_area_translacao_pura_com_mock_blend(mocker):
     """Valida se CanvasRender.render_area executa o fast-path sem invocar warp_patch nem onerar blend."""
     spy_patch = mocker.spy(anicrop.render, "warp_patch")
-    mocker.patch.dict("anicrop.render.BLEND_MODE", {
-                      BlendMode.NORMAL: mocker.MagicMock()})
 
     layer = make_layer(w=100, h=100, x=10, y=10)
     canvas = Canvas.from_size(200, 200)

@@ -1,5 +1,3 @@
-import numpy as np
-import pytest
 from anicrop.document import Document
 from anicrop.geometry import LayerGeometry
 from anicrop.image import Image, ImageFormat

@@ -1,5 +1,5 @@
 import pytest
-from anicrop.canvas import Canvas
+from anicrop.canvas import Canvas, CanvasLayoutStrategy
 from anicrop.spatial import Region, SpanError
 
 
@@ -62,3 +62,19 @@ def test_canvas_region_shift_addition():
     canvas = Canvas.from_size(800, 600)
     canvas.region += (50, 100)
     assert canvas.region == Region.from_rect(50, 100, 800, 600)
+
+
+def test_canvas_layout_bound_api():
+    """Valida as operações de layout diretamente via canvas.layout."""
+    canvas = Canvas.from_size(800, 600)
+    assert isinstance(canvas.layout, CanvasLayoutStrategy)
+
+    assert canvas.layout.fit((100, 100, 400, 300)) is True
+    assert canvas.region == Region.from_rect(100, 100, 400, 300)
+
+    target_ref = Region.from_rect(0, 0, 1000, 1000)
+    assert canvas.layout.align(target_ref, 0.5, 0.5) is True
+    assert canvas.region == Region.from_rect(300, 350, 400, 300)
+
+    assert canvas.layout.resize_bounds(500, 500, 0.5, 0.5) is True
+    assert canvas.size == (500, 500)

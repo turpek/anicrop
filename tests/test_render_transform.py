@@ -1,8 +1,6 @@
 import pytest
-import numpy as np
 from anicrop.image import Image, ImageFormat
 from anicrop.layer import Layer
-from anicrop.spatial import Region, Span
 
 
 def make_canvas(w=100, h=100, color=(255, 0, 0, 255)):

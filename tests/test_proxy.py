@@ -6,7 +6,7 @@ from anicrop.container import GroupLayer
 from anicrop.history import GlobalHistory
 from anicrop.image import Image, ImageFormat
 from anicrop.layer import Layer
-from anicrop.proxy import GroupProxy, ProxyLayer, ProxyMask, is_property_with_setter
+from anicrop.proxy import GroupProxy, ProxyLayer, is_property_with_setter
 from anicrop.spatial import Region
 
 

@@ -15,7 +15,7 @@ from anicrop.spatial import Region, Span
 
 
 # Importando as intenções para teste direto
-from anicrop.transform import TRotate, TScale, TTranslate
+from anicrop.transform import TRotate, TTranslate
 
 # Tolerância padrão para float32
 ATOL = 1e-4

@@ -11,7 +11,7 @@ from anicrop.history import GlobalHistory
 from anicrop.image import Image
 from anicrop.layer import Layer
 from anicrop.layout import Layout
-from anicrop.proxy import BaseHistoryProxy, GroupProxy, LayerStackProxy, ProxyContent, ProxyLayer
+from anicrop.proxy import BaseHistoryProxy, GroupProxy, LayerStackProxy, ProxyLayer
 from anicrop.render import CanvasRender, ViewportRender
 from anicrop.viewport import Viewport
 

@@ -1,7 +1,5 @@
 import pytest
 import numpy as np
-import cv2
-from unittest.mock import patch, MagicMock
 from anicrop.image import Image, ImageFormat
 from anicrop.spatial import Region, Span
 from anicrop.layer import EditLayer

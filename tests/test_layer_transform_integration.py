@@ -3,7 +3,7 @@ import pytest
 from anicrop.canvas import Canvas
 from anicrop.image import Image, ImageFormat
 from anicrop.layer import Layer
-from anicrop.transform import TransformRel, TransformAbs, ComposerRel, ComposerAbs, mat_global
+from anicrop.transform import TransformRel, TransformAbs, ComposerRel, ComposerAbs
 from anicrop.spatial import Region, Span
 
 

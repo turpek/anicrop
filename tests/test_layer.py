@@ -312,7 +312,7 @@ def test_layer_snapshot_completeness(image):
     Se um novo atributo for adicionado ao Layer, ele aparecerá no 'missing_attributes'
     forçando o desenvolvedor a tomar uma decisão arquitetural (salvar ou ignorar).
     """
-    from anicrop.command import BaseLayerSnapshot, LayerImageSnapshot
+    from anicrop.command import BaseLayerSnapshot
     layer = Layer(image)
 
     layer_attributes = set(vars(layer).keys())

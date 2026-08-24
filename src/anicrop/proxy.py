@@ -1,8 +1,8 @@
 import weakref
 from typing import Any, cast
-from anicrop.layer import Layer
+from anicrop.layer import Layer, LayerContent
 from anicrop.mask import Mask
-from anicrop.content import Content, LayerContent
+from anicrop.content import Content
 from anicrop.history import GlobalHistory
 from anicrop.command import BaseLayerCommand, LayerImageCommand, ReparentCommand, MaskCommand
 from anicrop.container import Container, LayerStack, GroupLayer, BaseLayer, NullContainer

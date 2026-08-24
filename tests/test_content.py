@@ -3,10 +3,10 @@ import pytest
 
 from anicrop.canvas import Canvas
 from anicrop.container import GroupLayer
-from anicrop.content import Content, FitContext, LayerContent
+from anicrop.content import Content, FitContext
 from anicrop.enums import ImageFormat
 from anicrop.image import Image
-from anicrop.layer import Layer
+from anicrop.layer import Layer, LayerContent
 from anicrop.render import CanvasRender
 from anicrop.spatial import Region
 

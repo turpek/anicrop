@@ -3,7 +3,7 @@ import numpy as np
 import pytest
 
 from anicrop.canvas import Canvas
-from anicrop.container import Container, GroupLayer, LayerStack, _NULL_CONTAINER, walk_nodes
+from anicrop.container import Container, GroupLayer, GroupLayoutStrategy, LayerStack, _NULL_CONTAINER, walk_nodes
 from anicrop.image import Image
 from anicrop.layout import Layout
 from anicrop.layer import Layer
@@ -490,3 +490,24 @@ def test_walk_nodes_com_camadas_e_grupos_aninhados():
     result = list(walk_nodes(root))
 
     assert result == [root, child_layer1, child_group, sub_child_layer]
+
+
+def test_group_layer_layout_bound_api():
+    """Valida as operações de layout diretamente via group.layout."""
+    group = GroupLayer(name="test_group")
+    mock_img = MagicMock(spec=Image)
+    mock_img.size = (100, 100)
+    child = Layer(mock_img)
+    group.append(child)
+
+    assert isinstance(group.layout, GroupLayoutStrategy)
+
+    assert group.layout.fit(Region.from_rect(10, 10, 200, 200)) is True
+    assert group.global_region == Region.from_rect(10, 10, 200, 200)
+
+    target_ref = Region.from_rect(0, 0, 1000, 1000)
+    assert group.layout.align(target_ref, 0.5, 0.5) is True
+    assert group.global_region == Region.from_rect(400, 400, 200, 200)
+
+    assert group.layout.resize_bounds(300, 300, 0.5, 0.5) is True
+    assert group.global_region.size == (300, 300)

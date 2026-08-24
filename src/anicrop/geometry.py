@@ -6,7 +6,7 @@ from operator import or_
 from typing import TYPE_CHECKING
 
 from anicrop.spatial import Region, Span
-from anicrop.transform import calculate_new_rect, calculate_region_rect, mat_inverse, mat_position, mat_global
+from anicrop.transform import calculate_new_rect, calculate_region_rect, mat_inverse, mat_position
 
 import numpy as np
 

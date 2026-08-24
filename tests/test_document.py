@@ -1,8 +1,7 @@
-from pathlib import Path
 import numpy as np
 import pytest
 
-from anicrop.document import DirectDocumentPolicy, Document, ReactiveDocumentPolicy
+from anicrop.document import Document
 from anicrop.enums import ImageFormat
 from anicrop.history import GlobalHistory
 from anicrop.image import Image

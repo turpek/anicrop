@@ -3,7 +3,7 @@ import numpy as np
 import pytest
 
 from anicrop.canvas import Canvas
-from anicrop.effect import Effect, MaskedEffect
+from anicrop.effect import Effect
 from anicrop.enums import BlurMode, ImageFormat
 from anicrop.filter import BlurFilter
 from anicrop.image import Image

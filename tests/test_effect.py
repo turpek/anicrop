@@ -1,8 +1,5 @@
-from typing import Protocol, runtime_checkable
 import numpy as np
-import pytest
 
-from anicrop.canvas import Canvas
 from anicrop.effect import Effect, BoundEffect
 from anicrop.enums import ImageFormat
 from anicrop.image import Image

@@ -1,6 +1,5 @@
 from __future__ import annotations
 import numpy as np
-import pytest
 
 from anicrop.canvas import Canvas
 from anicrop.content import Content
@@ -81,7 +80,7 @@ def test_crop_visibility_toggle_restores_base_image():
 
     crop_edit = layer._edits[-1]
     crop_edit.visible = False
-    LayerLayoutStrategy.fit(layer, layer.base.region)
+    LayerLayoutStrategy._fit(layer, layer.base.region)
 
     renderer = CanvasRender()
     rendered = renderer.render_scene([layer], canvas)
@@ -102,7 +101,7 @@ def test_crop_followed_by_fit_content_restores_base_image_automatically():
     content.crop(layer, (30, 30, 40, 40))
     assert layer.global_region.size == (40, 40)
 
-    success = LayerLayoutStrategy.fit_content(layer)
+    success = LayerLayoutStrategy._fit_content(layer)
     assert success is True
     assert layer._edits[-1].visible is False
     assert layer.global_region.size == (100, 100)

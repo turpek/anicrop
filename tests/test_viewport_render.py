@@ -7,7 +7,6 @@ from anicrop.container import GroupLayer
 from anicrop.spatial import Region
 from anicrop.image import Image, ImageFormat
 from anicrop.viewport import Viewport
-from anicrop.enums import BlendMode
 from anicrop.type import Scale
 
 
