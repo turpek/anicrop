@@ -1,12 +1,13 @@
 from __future__ import annotations
-from typing import Any
+from typing import Any, Callable
+from ovld import ovld
 
 from anicrop.canvas import Canvas
 from anicrop.container import BaseLayer
 from anicrop.enums import BlendMode, ImageFormat
 from anicrop.image import Image
 from anicrop.layer import Layer
-from anicrop.layout import LayerLayoutStrategy, resolve_region
+from anicrop.layout import LayerLayoutStrategy, resolve_region, mat_inverse, transform_vector
 from anicrop.spatial import Region
 
 
@@ -15,6 +16,46 @@ def resolve_crop_region(
 ) -> Region:
     """Converte tupla, Region, Canvas ou BaseLayer para uma instância de Region."""
     return resolve_region(ref)
+
+
+class FitContext:
+    """Encapsula o par (target, ref) e os fatores de alinhamento para cálculo proporcional."""
+
+    def __init__(
+        self,
+        target: Layer,
+        ref: tuple | Region | Canvas | BaseLayer,
+        x_factor: float = 0.5,
+        y_factor: float = 0.5,
+    ):
+        self.target = target
+        self.ref_region = resolve_crop_region(ref)
+        self.x_factor = x_factor
+        self.y_factor = y_factor
+
+    @property
+    def fit_contain(self) -> tuple[Layer, Region]:
+        """Calcula o enquadramento proporcional 'contain' e retorna (target, ref_resolvida)."""
+        resolved = self.target.global_region.fit_contain(self.ref_region, self.x_factor, self.y_factor)
+        return self.target, resolved
+
+    @property
+    def fit_cover(self) -> tuple[Layer, Region]:
+        """Calcula o enquadramento proporcional 'cover' e retorna (target, ref_resolvida)."""
+        resolved = self.target.global_region.fit_cover(self.ref_region, self.x_factor, self.y_factor)
+        return self.target, resolved
+
+    @property
+    def scale_width(self) -> tuple[Layer, Region]:
+        """Calcula a escala proporcional ajustando à largura de ref e retorna (target, ref_resolvida)."""
+        resolved = self.target.global_region.scale_width(self.ref_region.width)
+        return self.target, resolved
+
+    @property
+    def scale_height(self) -> tuple[Layer, Region]:
+        """Calcula a escala proporcional ajustando à altura de ref e retorna (target, ref_resolvida)."""
+        resolved = self.target.global_region.scale_height(self.ref_region.height)
+        return self.target, resolved
 
 
 class Content:
@@ -62,39 +103,57 @@ class Content:
         target.transform.scale(scale_x, scale_y)
         return True
 
+    @ovld
     def fit(
         self,
         target: Layer,
-        ref: tuple[int, int, int, int] | Region | Canvas | BaseLayer,
+        ref: tuple | Region | Canvas | BaseLayer,
     ) -> bool:
         """
-        Ajusta e centraliza o conteúdo da camada para caber dentro da referência `ref`,
-        preservando a proporção de aspecto (aspect ratio) original de forma não-destrutiva.
+        Ajusta o conteúdo da camada para preencher e se posicionar exatamente na referência `ref`.
         """
         ref_region = resolve_region(ref)
         cur_region = target.global_region
 
-        if cur_region.size == (0, 0) or ref_region.size == (0, 0):
+        if cur_region == ref_region:
             return False
 
-        scale = min(
-            ref_region.width / cur_region.width,
-            ref_region.height / cur_region.height,
+        scale_x = ref_region.width / cur_region.width
+        scale_y = ref_region.height / cur_region.height
+
+        if scale_x <= 0 or scale_y <= 0:
+            return False
+
+        target.transform.scale(scale_x, scale_y)
+
+        new_global_region = target.global_region.align(ref_region, 0.0, 0.0)
+        dx, dy = transform_vector(
+            mat_inverse(target.parent.matrix),
+            target.global_region,
+            new_global_region,
         )
-
-        if scale <= 0:
-            return False
-
-        target.transform.scale(scale, scale)
-
-        updated_region = target.global_region
-        ref_cx = (ref_region.x.start + ref_region.x.end) / 2.0
-        ref_cy = (ref_region.y.start + ref_region.y.end) / 2.0
-        cur_cx = (updated_region.x.start + updated_region.x.end) / 2.0
-        cur_cy = (updated_region.y.start + updated_region.y.end) / 2.0
-
-        dx = int(round(ref_cx - cur_cx))
-        dy = int(round(ref_cy - cur_cy))
-
         target.transform.translate(dx, dy)
+        return True
+
+    @ovld  # type: ignore[no-redef]
+    def fit(  # noqa: F811
+        self,
+        payload: tuple,
+    ) -> bool:
+        """Ajusta o conteúdo da camada a partir de uma tupla (target, ref_resolvida)."""
+        target, ref = payload
+        return self.fit(target, ref)
+
+    def flip_x(self, target: Layer) -> bool:
+        """
+        Espelha o conteúdo da camada horizontalmente em torno do centro.
+        """
+        target.transform.scale(-1, 1)
+        return True
+
+    def flip_y(self, target: Layer) -> bool:
+        """
+        Espelha o conteúdo da camada verticalmente em torno do centro.
+        """
+        target.transform.scale(1, -1)
         return True

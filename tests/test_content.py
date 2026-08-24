@@ -2,8 +2,8 @@ import numpy as np
 import pytest
 
 from anicrop.canvas import Canvas
-from anicrop.content import Content
-from anicrop.document import Document
+from anicrop.container import GroupLayer
+from anicrop.content import Content, FitContext
 from anicrop.enums import ImageFormat
 from anicrop.image import Image
 from anicrop.layer import Layer
@@ -101,20 +101,6 @@ def test_content_crop_render_pipeline_rgb():
     np.testing.assert_array_equal(rendered[10, 10], [0, 0, 0, 0])
 
 
-def test_content_crop_via_document_facade():
-    """Valida o uso do crop diretamente atraves da propriedade doc.content."""
-    doc = Document("TestCrop", 100, 100, history=False)
-    data = np.full((100, 100, 4), [0, 255, 0, 255], dtype=np.uint8)
-    layer = doc.add(Layer(Image(data, ImageFormat.RGBA), name="verde"))
-
-    success = doc.content.crop(layer, (30, 30, 40, 40))
-    assert success is True
-
-    result = doc.render()
-    np.testing.assert_array_equal(result[50, 50], [0, 255, 0, 255])
-    np.testing.assert_array_equal(result[10, 10], [0, 0, 0, 0])
-
-
 def test_content_resize_scales_transform():
     """Valida se Content.resize altera as dimensoes globais via transform."""
     data = np.full((100, 100, 4), 255, dtype=np.uint8)
@@ -146,46 +132,137 @@ def test_content_resize_invalid_size_raises_value_error():
         content.resize(layer, -50, 100)
 
 
-def test_content_fit_preserves_aspect_ratio_and_centers():
-    """Valida se Content.fit escala proporcionalmente mantendo proporcao e centralizando."""
-    # Camada 200x100 (aspect ratio 2:1)
+def test_content_fit_scales_and_aligns_to_exact_reference():
+    """Valida se Content.fit escala e posiciona o conteudo exatamente sobre a regiao de referencia."""
     data = np.full((100, 200, 4), 255, dtype=np.uint8)
     layer = Layer(Image(data, ImageFormat.RGBA))
     content = Content()
 
-    # Referencia 100x100 -> escala deve ser 0.5 (nova largura 100, nova altura 50)
-    ref_region = Region.from_rect(0, 0, 100, 100)
+    ref_region = Region.from_rect(20, 30, 300, 150)
     result = content.fit(layer, ref_region)
 
     assert result is True
-    assert layer.global_region.size == (100, 50)
-    # Centralizado verticalmente em y=25
-    assert layer.global_region.y.start == 25
-    assert layer.global_region.x.start == 0
+    assert layer.global_region == Region.from_rect(20, 30, 300, 150)
+
+
+def test_content_fit_same_region_returns_false():
+    """Valida se Content.fit retorna False caso a camada ja coincida exatamente com a referencia."""
+    data = np.full((100, 100, 4), 255, dtype=np.uint8)
+    layer = Layer(Image(data, ImageFormat.RGBA))
+    content = Content()
+
+    result = content.fit(layer, Region.from_size(100, 100))
+    assert result is False
 
 
 def test_content_fit_with_canvas_reference():
-    """Valida Content.fit usando uma instancia de Canvas como referencia."""
-    canvas = Canvas.from_size(400, 400)
-    data = np.full((200, 100, 4), 255, dtype=np.uint8)  # 100x200 (1:2)
+    """Valida Content.fit ajustando o conteudo exatamente a uma instancia de Canvas como referencia."""
+    canvas = Canvas.from_rect(10, 20, 400, 300)
+    data = np.full((200, 100, 4), 255, dtype=np.uint8)
     layer = Layer(Image(data, ImageFormat.RGBA))
     content = Content()
 
     result = content.fit(layer, canvas)
     assert result is True
-    assert layer.global_region.size == (200, 400)
-    assert layer.global_region.x.start == 100
-    assert layer.global_region.y.start == 0
+    assert layer.global_region == Region.from_rect(10, 20, 400, 300)
 
 
-def test_content_resize_and_fit_via_document_facade():
-    """Valida Content.resize e Content.fit atraves da fachada doc.content."""
-    doc = Document("DocContentTest", 200, 200, history=False)
-    data = np.full((50, 50, 4), 255, dtype=np.uint8)
-    layer = doc.add(Layer(Image(data, ImageFormat.RGBA), name="L1"))
+def test_content_fit_inside_translated_group():
+    """Valida se Content.fit projeta a escala e translação corretamente para camada dentro de GroupLayer."""
+    group = GroupLayer()
+    group.transform.translate(50, 50)
 
-    doc.content.resize(layer, 100, 100)
-    assert layer.global_region.size == (100, 100)
+    data = np.full((100, 100, 4), 255, dtype=np.uint8)
+    layer = Layer(Image(data, ImageFormat.RGBA))
+    group.append(layer)
 
-    doc.content.fit(layer, doc.canvas)
-    assert layer.global_region.size == (200, 200)
+    content = Content()
+    ref_region = Region.from_rect(100, 100, 200, 200)
+    result = content.fit(layer, ref_region)
+
+    assert result is True
+    assert layer.global_region == Region.from_rect(100, 100, 200, 200)
+
+
+def test_content_fit_helper_contain_dispatch():
+    """Valida o uso de FitContext.fit_contain com dispatch automatico via @ovld no Content.fit."""
+    data = np.full((100, 200, 4), 255, dtype=np.uint8)  # 200x100 (2:1)
+    layer = Layer(Image(data, ImageFormat.RGBA))
+    canvas = Canvas.from_size(100, 100)
+    content = Content()
+
+    # Contain 200x100 em 100x100 -> 100x50 centralizado em (0, 25)
+    cf = FitContext(layer, canvas)
+    result = content.fit(cf.fit_contain)
+
+    assert result is True
+    assert layer.global_region == Region.from_rect(0, 25, 100, 50)
+
+
+def test_content_fit_helper_cover_dispatch():
+    """Valida o uso de FitContext.fit_cover com dispatch automatico via @ovld no Content.fit."""
+    data = np.full((100, 200, 4), 255, dtype=np.uint8)  # 200x100 (2:1)
+    layer = Layer(Image(data, ImageFormat.RGBA))
+    canvas = Canvas.from_size(100, 100)
+    content = Content()
+
+    # Cover 200x100 em 100x100 -> 200x100 centralizado em (-50, 0)
+    cf = FitContext(layer, canvas)
+    result = content.fit(cf.fit_cover)
+
+    assert result is True
+    assert layer.global_region == Region.from_rect(-50, 0, 200, 100)
+
+
+def test_content_fit_helper_scale_width_and_height():
+    """Valida o uso de FitContext.scale_width e scale_height com Content.fit."""
+    data = np.full((100, 200, 4), 255, dtype=np.uint8)  # 200x100 (2:1)
+    layer = Layer(Image(data, ImageFormat.RGBA))
+    content = Content()
+
+    cf_w = FitContext(layer, (0, 0, 400, 100))
+    content.fit(cf_w.scale_width)
+    assert layer.global_region == Region.from_rect(0, 0, 400, 200)
+
+    cf_h = FitContext(layer, (0, 0, 100, 100))
+    content.fit(cf_h.scale_height)
+    assert layer.global_region == Region.from_rect(0, 0, 200, 100)
+
+
+def test_content_fit_helper_with_custom_factors():
+    """Valida FitContext com fatores de alinhamento customizados passados no construtor."""
+    data = np.full((100, 200, 4), 255, dtype=np.uint8)  # 200x100 (2:1)
+    layer = Layer(Image(data, ImageFormat.RGBA))
+    canvas = Canvas.from_size(100, 100)
+    content = Content()
+
+    # Alinhamento no canto superior esquerdo (0.0, 0.0)
+    cf = FitContext(layer, canvas, x_factor=0.0, y_factor=0.0)
+    content.fit(cf.fit_contain)
+    assert layer.global_region == Region.from_rect(0, 0, 100, 50)
+
+
+def test_content_flip_x_applies_scale_matrix():
+    """Valida se flip_x aplica a escala de espelhamento horizontal preservando a regiao global."""
+    data = np.full((100, 100, 4), 255, dtype=np.uint8)
+    layer = Layer(Image(data, ImageFormat.RGBA))
+    content = Content()
+
+    result = content.flip_x(layer)
+
+    assert result is True
+    assert layer.matrix[0, 0] == -1.0
+    assert layer.global_region == Region.from_size(100, 100)
+
+
+def test_content_flip_y_applies_scale_matrix():
+    """Valida se flip_y aplica a escala de espelhamento vertical preservando a regiao global."""
+    data = np.full((100, 100, 4), 255, dtype=np.uint8)
+    layer = Layer(Image(data, ImageFormat.RGBA))
+    content = Content()
+
+    result = content.flip_y(layer)
+
+    assert result is True
+    assert layer.matrix[1, 1] == -1.0
+    assert layer.global_region == Region.from_size(100, 100)

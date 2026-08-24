@@ -453,3 +453,78 @@ def test_Region_align():
 def test_Region_replace(value, expect):
     region = Region.from_size(10, 10)
     assert region.replace(**value) == Region.from_rect(*expect)
+
+
+@pytest.mark.parametrize(
+    'source, bounds, x_factor, y_factor, expected',
+    [
+        pytest.param((0, 0, 200, 100), (0, 0, 100, 100), 0.5, 0.5, (0, 25, 100, 50), id='contain_wider_center'),
+        pytest.param((0, 0, 100, 200), (0, 0, 100, 100), 0.5, 0.5, (25, 0, 50, 100), id='contain_taller_center'),
+        pytest.param((0, 0, 200, 100), (10, 20, 100, 100), 0.0, 0.0, (10, 20, 100, 50), id='contain_top_left'),
+        pytest.param((0, 0, 200, 100), (10, 20, 100, 100), 1.0, 1.0, (10, 70, 100, 50), id='contain_bottom_right'),
+    ],
+)
+def test_region_fit_contain(source, bounds, x_factor, y_factor, expected):
+    """Valida que fit_contain escala proporcionalmente para caber nos limites e alinha com os fatores."""
+    src_region = Region.from_rect(*source)
+    ref_region = Region.from_rect(*bounds)
+    result = src_region.fit_contain(ref_region, x_factor, y_factor)
+    assert result == Region.from_rect(*expected)
+
+
+@pytest.mark.parametrize(
+    'source, bounds, x_factor, y_factor, expected',
+    [
+        pytest.param((0, 0, 200, 100), (0, 0, 100, 100), 0.5, 0.5, (-50, 0, 200, 100), id='cover_wider_center'),
+        pytest.param((0, 0, 100, 200), (0, 0, 100, 100), 0.5, 0.5, (0, -50, 100, 200), id='cover_taller_center'),
+        pytest.param((0, 0, 200, 100), (10, 20, 100, 100), 0.0, 0.0, (10, 20, 200, 100), id='cover_top_left'),
+    ],
+)
+def test_region_fit_cover(source, bounds, x_factor, y_factor, expected):
+    """Valida que fit_cover escala proporcionalmente para cobrir os limites e alinha com os fatores."""
+    src_region = Region.from_rect(*source)
+    ref_region = Region.from_rect(*bounds)
+    result = src_region.fit_cover(ref_region, x_factor, y_factor)
+    assert result == Region.from_rect(*expected)
+
+
+@pytest.mark.parametrize(
+    'source, target_width, expected',
+    [
+        pytest.param((10, 20, 200, 100), 400, (10, 20, 400, 200), id='expand_width'),
+        pytest.param((10, 20, 200, 100), 100, (10, 20, 100, 50), id='shrink_width'),
+    ],
+)
+def test_region_scale_width(source, target_width, expected):
+    """Valida que scale_width ajusta a largura e calcula a altura proporcional mantendo a posicao."""
+    src_region = Region.from_rect(*source)
+    result = src_region.scale_width(target_width)
+    assert result == Region.from_rect(*expected)
+
+
+@pytest.mark.parametrize(
+    'source, target_height, expected',
+    [
+        pytest.param((10, 20, 100, 200), 400, (10, 20, 200, 400), id='expand_height'),
+        pytest.param((10, 20, 100, 200), 100, (10, 20, 50, 100), id='shrink_height'),
+    ],
+)
+def test_region_scale_height(source, target_height, expected):
+    """Valida que scale_height ajusta a altura e calcula a largura proporcional mantendo a posicao."""
+    src_region = Region.from_rect(*source)
+    result = src_region.scale_height(target_height)
+    assert result == Region.from_rect(*expected)
+
+
+def test_region_scale_width_invalid_raises_value_error():
+    """Valida que scale_width lanca ValueError para largura nao positiva."""
+    region = Region.from_size(100, 100)
+    with pytest.raises(ValueError, match="Width must be positive"):
+        region.scale_width(0)
+
+
+def test_region_scale_height_invalid_raises_value_error():
+    """Valida que scale_height lanca ValueError para altura nao positiva."""
+    region = Region.from_size(100, 100)
+    with pytest.raises(ValueError, match="Height must be positive"):
+        region.scale_height(-10)

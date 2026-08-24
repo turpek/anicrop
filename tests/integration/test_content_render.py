@@ -113,3 +113,41 @@ def test_crop_followed_by_fit_content_restores_base_image_automatically():
     np.testing.assert_array_equal(rendered[10, 10], [255, 0, 0, 255])
     np.testing.assert_array_equal(rendered[50, 50], [255, 0, 0, 255])
     np.testing.assert_array_equal(rendered[90, 90], [255, 0, 0, 255])
+
+
+def test_content_flip_x_render_pipeline():
+    """Valida a renderização de camada espelhada horizontalmente via flip_x."""
+    canvas = Canvas.from_size(100, 100)
+    data = np.zeros((100, 100, 4), dtype=np.uint8)
+    data[:, :50] = [255, 0, 0, 255]  # Esquerda: vermelho
+    data[:, 50:] = [0, 0, 255, 255]  # Direita: azul
+    layer = Layer(Image(data, ImageFormat.RGBA))
+
+    content = Content()
+    content.flip_x(layer)
+
+    renderer = CanvasRender()
+    rendered = renderer.render_scene([layer], canvas)
+
+    # Apos flip_x, esquerda deve ser azul e direita vermelha
+    np.testing.assert_array_equal(rendered[50, 25], [0, 0, 255, 255])
+    np.testing.assert_array_equal(rendered[50, 75], [255, 0, 0, 255])
+
+
+def test_content_flip_y_render_pipeline():
+    """Valida a renderização de camada espelhada verticalmente via flip_y."""
+    canvas = Canvas.from_size(100, 100)
+    data = np.zeros((100, 100, 4), dtype=np.uint8)
+    data[:50, :] = [0, 255, 0, 255]    # Topo: verde
+    data[50:, :] = [255, 255, 0, 255]  # Base: amarelo
+    layer = Layer(Image(data, ImageFormat.RGBA))
+
+    content = Content()
+    content.flip_y(layer)
+
+    renderer = CanvasRender()
+    rendered = renderer.render_scene([layer], canvas)
+
+    # Apos flip_y, topo deve ser amarelo e base verde
+    np.testing.assert_array_equal(rendered[25, 50], [255, 255, 0, 255])
+    np.testing.assert_array_equal(rendered[75, 50], [0, 255, 0, 255])

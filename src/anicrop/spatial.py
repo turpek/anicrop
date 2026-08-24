@@ -483,6 +483,78 @@ class Region:
         """
         return Region(self.x.replace(x), self.y.replace(y))
 
+    def fit_contain(
+        self,
+        ref: Region,
+        x_factor: float = 0.5,
+        y_factor: float = 0.5,
+    ) -> Region:
+        """Scales this region proportionally to fit completely inside the reference region and aligns it.
+
+        Args:
+            ref: The reference Region boundaries.
+            x_factor: Alignment factor for horizontal axis (0.0=left, 0.5=center, 1.0=right).
+            y_factor: Alignment factor for vertical axis (0.0=top, 0.5=center, 1.0=bottom).
+
+        Returns:
+            A new Region scaled and aligned inside ref.
+        """
+        scale = min(ref.width / self.width, ref.height / self.height)
+        new_w = int(round(self.width * scale))
+        new_h = int(round(self.height * scale))
+        scaled_region = Region.from_rect(self.x.start, self.y.start, new_w, new_h)
+        return scaled_region.align(ref, x_factor, y_factor)
+
+    def fit_cover(
+        self,
+        ref: Region,
+        x_factor: float = 0.5,
+        y_factor: float = 0.5,
+    ) -> Region:
+        """Scales this region proportionally to cover the entire reference region and aligns it.
+
+        Args:
+            ref: The reference Region boundaries.
+            x_factor: Alignment factor for horizontal axis (0.0=left, 0.5=center, 1.0=right).
+            y_factor: Alignment factor for vertical axis (0.0=top, 0.5=center, 1.0=bottom).
+
+        Returns:
+            A new Region scaled and aligned covering ref.
+        """
+        scale = max(ref.width / self.width, ref.height / self.height)
+        new_w = int(round(self.width * scale))
+        new_h = int(round(self.height * scale))
+        scaled_region = Region.from_rect(self.x.start, self.y.start, new_w, new_h)
+        return scaled_region.align(ref, x_factor, y_factor)
+
+    def scale_width(self, width: int) -> Region:
+        """Scales this region to a specific width, calculating proportional height and keeping position.
+
+        Args:
+            width: Target positive width.
+
+        Returns:
+            A new Region with the new width and proportional height.
+        """
+        if width <= 0:
+            raise ValueError(f"Width must be positive, got {width}")
+        height = int(round(self.height * (width / self.width)))
+        return Region.from_rect(self.x.start, self.y.start, width, height)
+
+    def scale_height(self, height: int) -> Region:
+        """Scales this region to a specific height, calculating proportional width and keeping position.
+
+        Args:
+            height: Target positive height.
+
+        Returns:
+            A new Region with the new height and proportional width.
+        """
+        if height <= 0:
+            raise ValueError(f"Height must be positive, got {height}")
+        width = int(round(self.width * (height / self.height)))
+        return Region.from_rect(self.x.start, self.y.start, width, height)
+
 
 def rect_to_region(rect: tuple[int, int, int, int]):
     x, y, w, h = rect
