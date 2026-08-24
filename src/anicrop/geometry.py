@@ -228,6 +228,8 @@ class FitGroupGeometry(GeometryStrategy):
     ):
         super().__init__()
         self._base = base
+        self._ref_region = region
+        self._initial_matrix = np.copy(base.matrix)
         rect = calculate_region_rect(mat_inverse(base.matrix), region)
         self._region = Region.from_rect(*rect)
 
@@ -238,5 +240,8 @@ class FitGroupGeometry(GeometryStrategy):
         return self._region
 
     def _compute_global_region(self) -> Region:
-        rect = calculate_region_rect(self.matrix, self._region)
+        if np.allclose(self._base.matrix, self._initial_matrix):
+            return self._ref_region
+        delta_m = self._base.matrix @ mat_inverse(self._initial_matrix)
+        rect = calculate_region_rect(delta_m, self._ref_region)
         return Region.from_rect(*rect)

@@ -5,8 +5,8 @@ import pytest
 from anicrop.canvas import Canvas
 from anicrop.container import GroupLayer
 from anicrop.edit_layer import CropEditLayer
-from anicrop.geometry import FitGeometry
-from anicrop.image import Image
+from anicrop.geometry import FitGeometry, FitGroupGeometry
+from anicrop.image import Image, ImageFormat
 from anicrop.layer import EditLayer, Layer
 from anicrop.layout import Layout, resolve_region, content_region, global_content_region, _compute_layer_local_roi
 from anicrop.spatial import Region
@@ -583,3 +583,57 @@ def test_compute_layer_local_roi_com_crop_edit_layer_isolado(mocker):
 
     roi = _compute_layer_local_roi(mock_layer)
     assert roi == Region.from_rect(100, 50, 400, 400)
+
+
+def test_group_layout_fit_content_enquadra_conteudo_global_sem_alterar_filhos(mocker):
+    """Valida que fit_content em GroupLayer enquadra a moldura do grupo no ROI de conteúdo dos filhos."""
+    group = GroupLayer()
+    img_data = np.full((100, 100, 4), 255, dtype=np.uint8)
+    img = Image(img_data, ImageFormat.RGBA)
+    layer = Layer(img)
+    layer.region = Region.from_rect(0, 0, 100, 100)
+    group.append(layer)
+
+    # Adiciona um edit de recorte no filho (50x50 em 20, 20)
+    mock_edit_img = MagicMock(spec=Image)
+    mock_edit_img.size = (50, 50)
+    mock_edit_img.has_alpha = False
+    edit = CropEditLayer(mock_edit_img, Region.from_rect(20, 20, 50, 50), np.identity(3))
+    layer._edits.append(edit)
+
+    def fake_calculate_content_rect(img):
+        return Region.from_size(50, 50) if img is mock_edit_img else Region.from_size(100, 100)
+
+    mocker.patch(
+        "anicrop.layout.calculate_content_rect",
+        side_effect=fake_calculate_content_rect,
+    )
+
+    layout = Layout()
+    assert group.global_region == Region.from_rect(0, 0, 100, 100)
+
+    # 1. Executa fit_content no grupo (deve ajustar a moldura do grupo para 20, 20, 50, 50)
+    result = layout.fit_content(group)
+    assert result is True
+    assert group.global_region == Region.from_rect(20, 20, 50, 50)
+    assert isinstance(group.layout, FitGroupGeometry)
+
+    # 2. O filho individual permanece intacto
+    assert layer.region == Region.from_rect(0, 0, 100, 100)
+
+
+def test_fit_group_geometry_rotacionado_mantem_global_region_solicitada():
+    """Valida que fit em GroupLayer rotacionado projeta exatamente a moldura solicitada no Canvas sem dupla inflação de AABB."""
+    group = GroupLayer()
+    img = Image.new((100, 100), ImageFormat.RGBA)
+    layer = Layer(img)
+    group.append(layer)
+
+    group.transform.rotate(45)
+
+    layout = Layout()
+    ref_frame = Region.from_rect(100, 100, 200, 200)
+    layout.fit(group, ref_frame)
+
+    # A moldura global no Canvas deve ser exatamente o ref_frame solicitado
+    assert group.global_region == ref_frame
