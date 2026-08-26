@@ -66,12 +66,6 @@ class AbstractBaseLayer(ABC):
 
     @property
     @abstractmethod
-    def canvas_size(self) -> tuple[int, int]:
-        """Tamanho de canvas/moldura de referência."""
-        ...
-
-    @property
-    @abstractmethod
     def mask(self) -> Any:
         """Máscara ativa da camada."""
         ...
@@ -121,12 +115,6 @@ class AbstractLayer(AbstractBaseLayer):
     @abstractmethod
     def content(self) -> ContentStrategy:
         """Gerenciador de manipulação, transformação e ajuste de pixels/conteúdo."""
-        ...
-
-    @property
-    @abstractmethod
-    def image(self) -> Any:
-        """Imagem base da camada."""
         ...
 
     @property

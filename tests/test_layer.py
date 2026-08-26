@@ -74,7 +74,7 @@ def test_Layer_inicializando_com_valores_padroes(image):
     assert layer.opacity == 1.0
     assert layer.blend_mode == BlendMode.NORMAL
     assert layer.region == Region.from_size(10, 10)
-    assert np.array_equal(layer.image[...], image[...])
+    assert np.array_equal(layer.edits[0].image[...], image[...])
 
 
 def test_Layer_inicializando_com_parametros(image):
@@ -83,7 +83,7 @@ def test_Layer_inicializando_com_parametros(image):
     assert layer.opacity == 0.8
     assert layer.blend_mode == BlendMode.MULTIPLY
     assert layer.region == Region.from_size(10, 10)
-    assert np.array_equal(layer.image[...], image[...])
+    assert np.array_equal(layer.edits[0].image[...], image[...])
 
 
 def test_Layer_opacity_mudanca_valor(image):
@@ -291,21 +291,6 @@ def test_layer_warp_mode_perspective_triggered_by_z_line(mocker, image):
     assert layer._warp_mode == WarpMode.PERSPECTIVE
 
 
-def test_layer_canvas_size_without_canvas(image):
-    """Cenário 1: canvas_size sem passar image deve ser o tamanho da imagem."""
-    layer = Layer(image)  # image fixture size is (10, 10)
-    assert layer.canvas_size == (10, 10)
-
-
-def test_layer_canvas_size_with_canvas(mocker, image):
-    """Cenário 2: canvas_size passando o image deve ser o tamanho do image."""
-    mock_canvas = mocker.MagicMock()
-    mock_canvas.size = (1920, 1080)
-
-    layer = Layer(image, canvas=mock_canvas)
-    assert layer.canvas_size == (1920, 1080)
-
-
 def test_layer_snapshot_completeness(image):
     """
     Garante que o Memento (BaseLayerSnapshot e LayerImageSnapshot) estão rastreando todos os estados do Layer.
@@ -320,11 +305,9 @@ def test_layer_snapshot_completeness(image):
     # Atributos estáticos, de infraestrutura ou de cache que não representam estado de edição
     IGNORED_ATTRIBUTES = {
         '_id',
-        '_image',
         '_old_matrix',
         '_render_flags',
         '_warp_mode',
-        '_canvas',
         'parent',
         '_parent_inverse',
         '_reference',

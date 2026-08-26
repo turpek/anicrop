@@ -23,7 +23,7 @@ import numpy as np
 from anicrop.edit_layer import EditLayer, EDIT_LAYER_MAP
 
 if TYPE_CHECKING:
-    from anicrop.canvas import Canvas
+    pass
 
 
 class Layer(BaseLayer, AbstractLayer):
@@ -34,7 +34,6 @@ class Layer(BaseLayer, AbstractLayer):
         opacity: float = 1.0,
         blend_mode: BlendMode = BlendMode.NORMAL,
         name: str = 'Layer',
-        canvas: Optional[Canvas] = None,
     ):
 
         self.parent = _NULL_CONTAINER
@@ -45,10 +44,8 @@ class Layer(BaseLayer, AbstractLayer):
         self._edits: deque[EditLayer] = deque()
         self._opacity_mask: Optional[np.ndarray] = None
         self._parent_inverse = np.identity(3, dtype=np.float32)
-        self._canvas = canvas
 
         self.add_edit(image, region, blend_mode)
-        self._image = self._edits[0]
         self._old_matrix = np.zeros((3, 3))
         self._render_flags = RenderFlags.ALL_DIRTY
         self._warp_mode = WarpMode.AFFINE
@@ -56,7 +53,7 @@ class Layer(BaseLayer, AbstractLayer):
         self._layout = LayerLayoutStrategy(self)
 
     def __repr__(self) -> str:
-        return f"Layer(x={self.x.start}, y={self.y.start}, size={self.image.size})"
+        return f"Layer(x={self.x.start}, y={self.y.start}, size={self.region.size})"
 
     def __eq__(self, other):
         return isinstance(other, Layer) and self._id == other._id
@@ -88,11 +85,7 @@ class Layer(BaseLayer, AbstractLayer):
 
     @property
     def format(self):
-        return self.image.format
-
-    @property
-    def canvas_size(self) -> tuple[int, int]:
-        return self._canvas.size if self._canvas else self.base.region.size
+        return self._edits[0].image.format
 
     @property
     def content(self) -> LayerContent:
@@ -129,10 +122,6 @@ class Layer(BaseLayer, AbstractLayer):
     @y.setter
     def y(self, value: int | Span):
         self.control.set_y(value)
-
-    @property
-    def image(self) -> Image:
-        return self._image.image
 
     @property
     def edits(self) -> tuple[EditLayer, ...]:

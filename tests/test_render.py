@@ -7,7 +7,7 @@ from anicrop.canvas import Canvas
 from anicrop.container import GroupLayer, LayerStack
 
 
-from anicrop.enums import BlendMode, ImageFormat, InterpolationOption, WarpMode
+from anicrop.enums import BlendMode, ImageFormat, InterpMode, WarpMode
 from anicrop.frame import CanvasFrame, ViewportFrame
 from anicrop.image import Image
 from anicrop.layer import Layer
@@ -216,7 +216,7 @@ def test_render_edit_canvas_frame_projecoes_e_recortes(canvas_rect, is_local, ex
     canvas = Canvas.from_rect(*canvas_rect)
     frame = CanvasFrame(layer, canvas, local=is_local)
 
-    result = render_edit(layer._edits[1], plan=frame, interp=InterpolationOption.NEAREST)
+    result = render_edit(layer._edits[1], plan=frame, interp=InterpMode.NEAREST)
     assert result is not None
 
     warped_image, dest_region = result
@@ -236,7 +236,7 @@ def test_render_edit_com_viewport_frame():
     viewport = Viewport((800, 600), 1.0)
     frame = ViewportFrame(layer, viewport)
 
-    result = render_edit(layer._edits[1], plan=frame, interp=InterpolationOption.NEAREST)
+    result = render_edit(layer._edits[1], plan=frame, interp=InterpMode.NEAREST)
     assert result is not None
 
     warped_image, dest_region = result
@@ -251,7 +251,7 @@ def test_render_image_direto():
     frame = CanvasFrame(layer, canvas)
     m_local = np.identity(3, dtype=np.float32)
 
-    result = render_image(img, frame, m_local, interp=InterpolationOption.NEAREST)
+    result = render_image(img, frame, m_local, interp=InterpMode.NEAREST)
     assert result is not None
 
     warped_image, dest_region = result

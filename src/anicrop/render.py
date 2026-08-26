@@ -9,7 +9,7 @@ import numpy as np
 from anicrop.blend import blend_rendered_images
 from anicrop.canvas import Canvas
 from anicrop.container import BaseLayer, Container, GroupLayer, freeze_geometry
-from anicrop.enums import BlendMode, InterpolationOption, WarpMode
+from anicrop.enums import BlendMode, InterpMode, WarpMode
 from anicrop.frame import (
     BaseFrame,
     CanvasFrame,
@@ -32,7 +32,7 @@ def warp_affine(
     src_data: np.ndarray,
     m_cv2: np.ndarray,
     dest_size: tuple[int, int],
-    interp: InterpolationOption = InterpolationOption.LINEAR,
+    interp: InterpMode = InterpMode.LINEAR,
     dst: np.ndarray | None = None,
 ) -> np.ndarray:
     M_affine = m_cv2[:2, :].astype(np.float64)
@@ -54,7 +54,7 @@ def warp_perspective(
     src_data: np.ndarray,
     m_cv2: np.ndarray,
     dest_size: tuple[int, int],
-    interp: InterpolationOption = InterpolationOption.LINEAR,
+    interp: InterpMode = InterpMode.LINEAR,
     dst: np.ndarray | None = None,
 ) -> np.ndarray:
     return cv2.warpPerspective(
@@ -77,7 +77,7 @@ def warp_patch(
     matrix_global: np.ndarray,
     dest_region: Region,
     warp_mode: WarpMode = WarpMode.AFFINE,
-    interp: InterpolationOption = InterpolationOption.LANCZOS,
+    interp: InterpMode = InterpMode.LANCZOS,
     dst: np.ndarray | None = None,
 ) -> np.ndarray | None:
 
@@ -200,7 +200,7 @@ def render_image(
     plan: BaseFrame,
     m_local: np.ndarray,
     warp_mode: WarpMode = WarpMode.AFFINE,
-    interp: InterpolationOption = InterpolationOption.LANCZOS,
+    interp: InterpMode = InterpMode.LANCZOS,
     dst: Image | None = None,
 ) -> tuple[Image, Region] | None:
     """Núcleo atômico: renderiza cirurgicamente qualquer Image usando o plano/frame e a matriz local m_local."""
@@ -235,7 +235,7 @@ def render_edit(
     edit_layer: EditLayer,
     plan: BaseFrame,
     warp_mode: WarpMode = WarpMode.AFFINE,
-    interp: InterpolationOption = InterpolationOption.LANCZOS,
+    interp: InterpMode = InterpMode.LANCZOS,
     dst: Image | None = None,
 ) -> tuple[Image, Region] | None:
     """Renderiza cirurgicamente um EditLayer ajustando o LOD automaticamente através do frame."""
@@ -257,7 +257,7 @@ def render_viewport_edit(
     plan: BaseFrame,
     scale_factor: float = 1.0,
     warp_mode: WarpMode = WarpMode.AFFINE,
-    interp: InterpolationOption = InterpolationOption.LANCZOS,
+    interp: InterpMode = InterpMode.LANCZOS,
     dst: Image | None = None,
 ) -> tuple[Image, Region] | None:
     """Auxiliar da Viewport: repassa para render_edit (o frame calcula a escala)."""
@@ -268,7 +268,7 @@ def apply_post_processing(
     target_image: Image,
     base: BaseLayer,
     frame: BaseFrame,
-    interp: InterpolationOption = InterpolationOption.LANCZOS,
+    interp: InterpMode = InterpMode.LANCZOS,
 ) -> Image:
     """Aplica a fila de efeitos e a modulação de máscara sobre a imagem rasterizada de uma camada ou grupo."""
     image = target_image
@@ -296,7 +296,7 @@ class SceneTraverser:
         renderer: BaseRenderer,
         surface: SurfaceProtocol,
         frame_cls: Callable[..., BaseFrame],
-        interp: InterpolationOption = InterpolationOption.LANCZOS,
+        interp: InterpMode = InterpMode.LANCZOS,
         target_size: tuple[int, int] = (32, 32),
     ):
         self.renderer = renderer
@@ -375,7 +375,7 @@ class BaseRenderer[FrameT: BaseFrame](ABC):
         layer: Layer,
         layer_image: Image,
         plan: BaseFrame,
-        interp: InterpolationOption,
+        interp: InterpMode,
     ) -> Image:
         for edit_layer in layer.edits:
             if not edit_layer.visible:
@@ -394,7 +394,7 @@ class BaseRenderer[FrameT: BaseFrame](ABC):
         self,
         layer: Layer,
         frame: FrameT,
-        interp: InterpolationOption = InterpolationOption.LANCZOS,
+        interp: InterpMode = InterpMode.LANCZOS,
     ) -> Image | None:
 
         dst_region = frame.dst_region
@@ -420,7 +420,7 @@ class BaseRenderer[FrameT: BaseFrame](ABC):
         self,
         container: Sequence[BaseLayer] | Container,
         surface: SurfaceProtocol,
-        interp: InterpolationOption = InterpolationOption.LANCZOS,
+        interp: InterpMode = InterpMode.LANCZOS,
     ) -> Image:
         with freeze_geometry(container):
             traverser = SceneTraverser(
@@ -436,7 +436,7 @@ class BaseRenderer[FrameT: BaseFrame](ABC):
         container: Sequence[BaseLayer] | Container,
         surface: SurfaceProtocol,
         view_region: Region,
-        interp: InterpolationOption = InterpolationOption.LANCZOS,
+        interp: InterpMode = InterpMode.LANCZOS,
     ) -> Image | None:
         if not surface.region.overlaps(view_region):
             return None
@@ -460,7 +460,7 @@ class CanvasRender(BaseRenderer[CanvasFrame]):
     def render_layer(
         self,
         layer: Layer,
-        interp: InterpolationOption = InterpolationOption.LANCZOS,
+        interp: InterpMode = InterpMode.LANCZOS,
         local: bool = False,
     ) -> Image | None:
         frame = CanvasFrame(layer, Canvas(layer.global_region), local=local)

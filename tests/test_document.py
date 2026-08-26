@@ -2,13 +2,14 @@ import numpy as np
 import pytest
 
 from anicrop.document import Document
-from anicrop.enums import ImageFormat
+from anicrop.enums import BlendMode, ImageFormat, InterpMode
 from anicrop.history import GlobalHistory
 from anicrop.image import Image
 from anicrop.layer import Layer
 from anicrop.layout import Layout
 from anicrop.proxy import GroupProxy, LayerStackProxy, ProxyLayer
 from anicrop.spatial import Region
+from anicrop.viewport import Viewport
 
 
 def make_img(w: int = 10, h: int = 10) -> Image:
@@ -291,3 +292,101 @@ def test_document_reactive_set_mask_undo_redo():
 
     doc.history.undo()
     assert layer.mask is not None
+
+
+@pytest.mark.parametrize(
+    "format_option, expected_format",
+    [
+        (ImageFormat.RGB, ImageFormat.RGB),
+        (ImageFormat.GRAY, ImageFormat.GRAY),
+        (ImageFormat.RGBA, ImageFormat.RGBA),
+    ],
+    ids=["rgb", "gray", "rgba"],
+)
+def test_document_load_layer_with_format(tmp_path, format_option, expected_format):
+    """Valida se load_layer carrega imagens respeitando o ImageFormat fornecido."""
+    file_path = tmp_path / "sample.png"
+    make_solid((200, 100, 50, 255), 20, 20).save(file_path)
+
+    doc = Document("Doc", 50, 50)
+    layer = doc.load_layer(file_path, name="L1", format=format_option)
+
+    assert layer.format == expected_format
+
+
+def test_document_load_layer_with_blend_mode(tmp_path):
+    """Valida se load_layer define o blend_mode e opacidade corretamente na camada criada."""
+    file_path = tmp_path / "sample.png"
+    make_solid((200, 100, 50, 255), 20, 20).save(file_path)
+
+    doc = Document("Doc", 50, 50)
+    layer = doc.load_layer(file_path, name="L1", opacity=0.75, blend_mode=BlendMode.MULTIPLY)
+
+    assert layer.blend_mode == BlendMode.MULTIPLY
+    assert layer.opacity == 0.75
+
+
+def test_document_open_with_format(tmp_path):
+    """Valida se Document.open inicializa o documento com o formato de imagem especificado."""
+    file_path = tmp_path / "sample.png"
+    make_solid((200, 100, 50, 255), 30, 40).save(file_path)
+
+    doc = Document.open(file_path, name="OpenedDoc", format=ImageFormat.RGB)
+
+    assert doc.canvas.size == (30, 40)
+    assert doc[0].format == ImageFormat.RGB
+
+
+def test_document_open_with_blend_mode(tmp_path):
+    """Valida se Document.open inicializa a camada raiz com o blend_mode e opacidade informados."""
+    file_path = tmp_path / "sample.png"
+    make_solid((200, 100, 50, 255), 30, 40).save(file_path)
+
+    doc = Document.open(file_path, name="OpenedDoc", opacity=0.5, blend_mode=BlendMode.HARD_MASKING)
+
+    assert doc[0].blend_mode == BlendMode.HARD_MASKING
+    assert doc[0].opacity == 0.5
+
+
+@pytest.mark.parametrize(
+    "interp_mode",
+    [
+        InterpMode.NEAREST,
+        InterpMode.LINEAR,
+        InterpMode.CUBIC,
+        InterpMode.LANCZOS,
+    ],
+    ids=["nearest", "linear", "cubic", "lanczos"],
+)
+def test_document_render_with_interp_mode(interp_mode):
+    """Valida se doc.render aceita diferentes modos de interpolação."""
+    doc = Document("Doc", 50, 50)
+    doc.add(Layer(make_solid((255, 0, 0, 255), 50, 50), name="L1"))
+
+    rendered = doc.render(interp=interp_mode)
+
+    assert isinstance(rendered, Image)
+    assert rendered.size == (50, 50)
+
+
+def test_document_preview_with_interp_mode():
+    """Valida se doc.preview aceita o parâmetro interp com InterpMode."""
+    doc = Document("Doc", 100, 100)
+    doc.add(Layer(make_solid((0, 255, 0, 255), 100, 100), name="L1"))
+
+    viewport = Viewport((50, 50), 1.0)
+    preview_img = doc.preview(viewport, interp=InterpMode.NEAREST)
+
+    assert isinstance(preview_img, Image)
+    assert preview_img.size == (50, 50)
+
+
+def test_document_export_with_interp_mode(tmp_path):
+    """Valida se doc.export salva o arquivo no disco aceitando o parâmetro interp."""
+    doc = Document("Doc", 50, 50)
+    doc.add(Layer(make_solid((0, 0, 255, 255), 50, 50), name="L1"))
+
+    out_file = tmp_path / "exported.png"
+    doc.export(out_file, interp=InterpMode.LINEAR)
+
+    assert out_file.exists()

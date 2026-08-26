@@ -30,7 +30,7 @@ class BlurMode(StrEnum):
     MEDIAN = "median"
 
 
-class InterpolationOption(Enum):
+class InterpMode(Enum):
     """Opções de interpolação do OpenCV para o motor de renderização."""
 
     NEAREST = cv2.INTER_NEAREST
@@ -48,12 +48,15 @@ class InterpolationOption(Enum):
 
         # Mapeamento baseado no tamanho do Kernel de cada algoritmo
         return {
-            InterpolationOption.NEAREST: 0,
-            InterpolationOption.LINEAR: 1,   # Kernel 2x2 (precisa de 1 de margem)
-            InterpolationOption.CUBIC: 2,    # Kernel 4x4 (precisa de 2 de margem)
-            InterpolationOption.AREA: 1,
-            InterpolationOption.LANCZOS: 4   # Kernel 8x8 (precisa de 4 de margem)
-        }.get(self, 2)                       # Padrão seguro de 2 pixels
+            InterpMode.NEAREST: 0,
+            InterpMode.LINEAR: 1,   # Kernel 2x2 (precisa de 1 de margem)
+            InterpMode.CUBIC: 2,    # Kernel 4x4 (precisa de 2 de margem)
+            InterpMode.AREA: 1,
+            InterpMode.LANCZOS: 4   # Kernel 8x8 (precisa de 4 de margem)
+        }.get(self, 2)              # Padrão seguro de 2 pixels
+
+
+InterpolationOption = InterpMode
 
 
 class ImageFormat(StrEnum):

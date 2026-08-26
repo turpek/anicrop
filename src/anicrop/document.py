@@ -6,7 +6,7 @@ from typing import Iterator, TypeVar
 from anicrop.canvas import Canvas
 from anicrop.container import BaseLayer, Container, GroupLayer, LayerStack, NullContainer
 from anicrop.content import Content
-from anicrop.enums import ImageFormat
+from anicrop.enums import BlendMode, ImageFormat, InterpMode
 from anicrop.history import GlobalHistory
 from anicrop.image import Image
 from anicrop.layer import Layer
@@ -80,17 +80,24 @@ class Document:
         self._content = Content()
 
     @classmethod
-    def open(cls, path: str | Path, name: str, history: bool = True) -> Document:
+    def open(
+        cls,
+        path: str | Path,
+        name: str,
+        opacity: float = 1.0,
+        blend_mode: BlendMode = BlendMode.NORMAL,
+        history: bool = True,
+        format: ImageFormat = ImageFormat.RGBA,
+    ) -> Document:
         """
         Abre uma imagem do disco e cria um Documento baseado no seu tamanho,
         inserindo a imagem como primeira camada.
         """
-        img = Image.open(str(path), ImageFormat.RGBA)
-        layer = Layer(image=img, name=name)
-        w, h = layer.canvas_size
+        img = Image.open(str(path), format)
+        layer = Layer(image=img, opacity=opacity, blend_mode=blend_mode, name=name)
+        w, h = layer.region.size
 
         doc = cls(name=name, width=w, height=h, history=history)
-        layer._canvas = doc.canvas
         doc.add(layer)
         return doc
 
@@ -138,12 +145,19 @@ class Document:
         group = GroupLayer(name=name)
         return self.add(group)  # type: ignore[return-value]
 
-    def load_layer(self, path: str | Path, name: str, opacity: float = 1.0) -> Layer:
+    def load_layer(
+        self,
+        path: str | Path,
+        name: str,
+        opacity: float = 1.0,
+        blend_mode: BlendMode = BlendMode.NORMAL,
+        format: ImageFormat = ImageFormat.RGBA,
+    ) -> Layer:
         """
         Carrega uma imagem do disco e adiciona como camada na pilha do documento com nome obrigatório.
         """
-        img = Image.open(str(path), ImageFormat.RGBA)
-        layer = Layer(image=img, opacity=opacity, name=name, canvas=self.canvas)
+        img = Image.open(str(path), format)
+        layer = Layer(image=img, opacity=opacity, blend_mode=blend_mode, name=name)
         return self.add(layer)  # type: ignore[return-value]
 
     def find(self, name: str, recursive: bool = True) -> BaseLayer | None:
@@ -215,20 +229,20 @@ class Document:
         else:
             raise ValueError(f"Layer {layer} not found in document hierarchy.")
 
-    def render(self) -> Image:
+    def render(self, interp: InterpMode = InterpMode.LANCZOS) -> Image:
         """
-        Renderiza a composição final em alta resolução no Canvas e retorna o objeto Image (RGBA).
+        Renderiza a composição final em alta resolução no Canvas e retorna o objeto Image.
         """
-        return self._canvas_render.render_scene(self.stack, self.canvas)
+        return self._canvas_render.render_scene(self.stack, self.canvas, interp=interp)
 
-    def preview(self, viewport: Viewport) -> Image:
+    def preview(self, viewport: Viewport, interp: InterpMode = InterpMode.LANCZOS) -> Image:
         """
         Gera o Preview para renderizar na interface de usuário via Viewport e retorna um objeto Image.
         """
-        return self._viewport_render.render_scene(self.stack, viewport)
+        return self._viewport_render.render_scene(self.stack, viewport, interp=interp)
 
-    def export(self, path: str | Path) -> None:
+    def export(self, path: str | Path, interp: InterpMode = InterpMode.LANCZOS) -> None:
         """
         Renderiza a composição final em alta resolução e salva no disco.
         """
-        self.render().save(path)
+        self.render(interp=interp).save(path)

@@ -50,7 +50,7 @@ def test_canvas_render_identidade_sem_transformacao(canvas_render):
     rendered_image = canvas_render.render_layer(original_layer)
 
     assert rendered_image.size == (50, 50)
-    np.testing.assert_array_equal(rendered_image[...], original_layer.image[...])
+    np.testing.assert_array_equal(rendered_image[...], original_layer.edits[0].image[...])
 
 
 def test_canvas_render_rotacao_expansao_segura(canvas_render):

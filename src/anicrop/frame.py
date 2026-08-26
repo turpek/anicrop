@@ -165,7 +165,7 @@ class ViewportFrame(BaseFrame):
         self.viewport = viewport
         self.local = local
 
-        m_view = viewport.roi_matrix @ viewport.fit_matrix(base.canvas_size)
+        m_view = viewport.roi_matrix @ viewport.fit_matrix(base.region.size)
         matrix = m_view if local else m_view @ mat_global(base)
 
         effective_view = self._effective_view(

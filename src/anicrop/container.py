@@ -248,10 +248,6 @@ class BaseLayer(AbstractBaseLayer):
         return True
 
     @property
-    def canvas_size(self) -> tuple[int, int]:
-        return self.region.size
-
-    @property
     def region(self) -> Region:
         return self.control.frame.region
 
