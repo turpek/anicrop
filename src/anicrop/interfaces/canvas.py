@@ -1,6 +1,7 @@
 from __future__ import annotations
 from abc import ABC, abstractmethod
 from typing import TYPE_CHECKING
+from anicrop.enums import ImageFormat
 from anicrop.spatial import Region
 
 if TYPE_CHECKING:
@@ -10,7 +11,12 @@ if TYPE_CHECKING:
 class AbstractCanvas(ABC):
     """Classe base abstrata para superfícies de composição Canvas."""
 
-    bg_color: tuple[int, int, int, int]
+    bg_color: tuple[int, ...]
+
+    @property
+    @abstractmethod
+    def format(self) -> ImageFormat:
+        ...
 
     @property
     @abstractmethod

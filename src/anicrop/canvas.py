@@ -1,14 +1,24 @@
 from __future__ import annotations
 from typing import Self
+from anicrop.enums import ImageFormat
 from anicrop.interfaces.canvas import AbstractCanvas
 from anicrop.spatial import Region
 from anicrop.layout import CanvasLayoutStrategy
 
 
 class Canvas(AbstractCanvas):
-    def __init__(self, region: Region, bg_color: tuple[int, int, int, int] = (0, 0, 0, 0)):
+    def __init__(
+        self,
+        region: Region,
+        bg_color: tuple[int, ...] | None = None,
+        format: ImageFormat = ImageFormat.RGBA,
+    ):
         self._region = region
-        self.bg_color = bg_color
+        self._format = format
+        if bg_color is None:
+            self.bg_color = (0,) * format.channels
+        else:
+            self.bg_color = bg_color
         self._layout = CanvasLayoutStrategy(self)
 
     @classmethod
@@ -16,10 +26,10 @@ class Canvas(AbstractCanvas):
         cls,
         width: int,
         height: int,
-        bg_color: tuple[int, int, int, int] = (0, 0, 0, 0),
+        bg_color: tuple[int, ...] | None = None,
+        format: ImageFormat = ImageFormat.RGBA,
     ) -> Self:
-
-        return cls(Region.from_size(width, height), bg_color=bg_color)
+        return cls(Region.from_size(width, height), bg_color=bg_color, format=format)
 
     @classmethod
     def from_rect(
@@ -28,10 +38,14 @@ class Canvas(AbstractCanvas):
         y: int,
         width: int,
         height: int,
-        bg_color: tuple[int, int, int, int] = (0, 0, 0, 0),
+        bg_color: tuple[int, ...] | None = None,
+        format: ImageFormat = ImageFormat.RGBA,
     ) -> Self:
+        return cls(Region.from_rect(x, y, width, height), bg_color=bg_color, format=format)
 
-        return cls(Region.from_rect(x, y, width, height), bg_color=bg_color)
+    @property
+    def format(self) -> ImageFormat:
+        return self._format
 
     @property
     def size(self) -> tuple[int, int]:

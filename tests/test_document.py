@@ -390,3 +390,25 @@ def test_document_export_with_interp_mode(tmp_path):
     doc.export(out_file, interp=InterpMode.LINEAR)
 
     assert out_file.exists()
+
+
+@pytest.mark.parametrize(
+    "fmt, num_channels",
+    [
+        (ImageFormat.RGB, 3),
+        (ImageFormat.RGBA, 4),
+        (ImageFormat.GRAY, 1),
+    ],
+    ids=["rgb", "rgba", "gray"],
+)
+def test_document_format_render_pipeline(fmt, num_channels):
+    """Valida se o Document renderiza cena no formato configurado para o canvas."""
+    doc = Document("FormatDoc", 50, 50, format=fmt)
+    assert doc.canvas.format == fmt
+
+    raw_data = np.full((50, 50, num_channels), 180, dtype=np.uint8)
+    doc.add(Layer(Image(raw_data, fmt), name="Layer1"))
+
+    rendered = doc.render()
+    assert rendered.format == fmt
+    assert rendered.shape == (50, 50, num_channels)

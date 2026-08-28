@@ -1,4 +1,6 @@
 import numpy as np
+import pytest
+from anicrop.enums import ImageFormat
 from anicrop.viewport import Viewport
 from anicrop.spatial import Region
 from anicrop.type import Scale
@@ -148,3 +150,20 @@ def test_viewport_roi_stress():
 
     assert roi.size == (1600, 1200)
     assert roi.top_left == (-500, -350)
+
+
+@pytest.mark.parametrize(
+    "fmt, bg_expected",
+    [
+        (ImageFormat.RGBA, (204, 204, 204, 255)),
+        (ImageFormat.RGB, (204, 204, 204)),
+        (ImageFormat.GRAY, (204,)),
+        (ImageFormat.GRAY_ALPHA, (204, 255)),
+    ],
+    ids=["rgba", "rgb", "gray", "gray_alpha"],
+)
+def test_viewport_format_support(fmt, bg_expected):
+    """Valida se a Viewport instancia corretamente com formatos variados e cores de fundo proporcionais."""
+    viewport = Viewport(size=(400, 300), format=fmt)
+    assert viewport.format == fmt
+    assert viewport.bg_color == bg_expected

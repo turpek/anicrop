@@ -428,7 +428,7 @@ class BaseRenderer[FrameT: BaseFrame](ABC):
             )
             images = traverser.traverse(container)
 
-            composition = Image.new(surface.size, ImageFormat.RGBA, color=surface.bg_color)
+            composition = Image.new(surface.size, surface.format, color=surface.bg_color)
             return blend_rendered_images(reversed(images), composition)
 
     def render_patch(
@@ -448,7 +448,7 @@ class BaseRenderer[FrameT: BaseFrame](ABC):
             )
             images = traverser.traverse(container, effective_region)
 
-            composition = Image.new(effective_region.size, ImageFormat.RGBA, color=surface.bg_color)
+            composition = Image.new(effective_region.size, surface.format, color=surface.bg_color)
             return blend_rendered_images(reversed(images), composition)
 
 

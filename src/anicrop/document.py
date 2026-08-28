@@ -66,9 +66,17 @@ class Document:
         False: DirectDocumentPolicy(),
     }
 
-    def __init__(self, name: str, width: int, height: int, history: bool = True):
+    def __init__(
+        self,
+        name: str,
+        width: int,
+        height: int,
+        format: ImageFormat = ImageFormat.RGBA,
+        history: bool = True,
+        bg_color: tuple[int, ...] | None = None,
+    ):
         self.name = name
-        self.canvas = Canvas.from_size(width, height)
+        self.canvas = Canvas.from_size(width, height, bg_color=bg_color, format=format)
         self.history_enabled = history
 
         self._policy = self._POLICIES[history]
@@ -88,6 +96,7 @@ class Document:
         blend_mode: BlendMode = BlendMode.NORMAL,
         history: bool = True,
         format: ImageFormat = ImageFormat.RGBA,
+        bg_color: tuple[int, ...] | None = None,
     ) -> Document:
         """
         Abre uma imagem do disco e cria um Documento baseado no seu tamanho,
@@ -97,7 +106,7 @@ class Document:
         layer = Layer(image=img, opacity=opacity, blend_mode=blend_mode, name=name)
         w, h = layer.region.size
 
-        doc = cls(name=name, width=w, height=h, history=history)
+        doc = cls(name=name, width=w, height=h, format=format, history=history, bg_color=bg_color)
         doc.add(layer)
         return doc
 

@@ -4,6 +4,7 @@ from typing import Protocol, runtime_checkable, TYPE_CHECKING
 import numpy as np
 
 from anicrop.canvas import Canvas
+from anicrop.enums import ImageFormat
 from anicrop.spatial import Region, rect_to_region
 
 from anicrop.transform import (
@@ -23,7 +24,11 @@ if TYPE_CHECKING:
 
 @runtime_checkable
 class SurfaceProtocol(Protocol):
-    bg_color: tuple[int, int, int, int]
+    bg_color: tuple[int, ...]
+
+    @property
+    def format(self) -> ImageFormat:
+        ...
 
     @property
     def region(self) -> Region:

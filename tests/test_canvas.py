@@ -1,5 +1,6 @@
 import pytest
 from anicrop.canvas import Canvas, CanvasLayoutStrategy
+from anicrop.enums import ImageFormat
 from anicrop.spatial import Region, SpanError
 
 
@@ -78,3 +79,20 @@ def test_canvas_layout_bound_api():
 
     assert canvas.layout.resize_bounds(500, 500, 0.5, 0.5) is True
     assert canvas.size == (500, 500)
+
+
+@pytest.mark.parametrize(
+    "fmt, bg_expected",
+    [
+        (ImageFormat.RGBA, (0, 0, 0, 0)),
+        (ImageFormat.RGB, (0, 0, 0)),
+        (ImageFormat.GRAY, (0,)),
+        (ImageFormat.GRAY_ALPHA, (0, 0)),
+    ],
+    ids=["rgba", "rgb", "gray", "gray_alpha"],
+)
+def test_canvas_format_support(fmt, bg_expected):
+    """Valida se o Canvas instancia corretamente com formatos variados e cores de fundo proporcionais."""
+    canvas = Canvas.from_size(400, 300, format=fmt)
+    assert canvas.format == fmt
+    assert canvas.bg_color == bg_expected
