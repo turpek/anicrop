@@ -10,7 +10,7 @@ from anicrop.container import GroupLayer, LayerStack
 from anicrop.enums import BlendMode, ImageFormat, InterpMode, WarpMode
 from anicrop.frame import CanvasFrame, ViewportFrame
 from anicrop.image import Image
-from anicrop.layer import Layer
+from anicrop.layer import Layer, EditLayer
 import anicrop.render
 from anicrop.render import (
     CanvasRender,
@@ -580,3 +580,70 @@ def test_renderer_scratch_buffer_reutiliza_memoria_e_expande_conforme_necessidad
     buf3 = renderer._get_scratch_buffer(300, 300, ImageFormat.RGBA)
     assert buf3.size == (300, 300)
     assert buf3._data.base is not buf1._data.base
+
+
+def test_render_single_edit_full_frame_returns_direct_image():
+    """Valida se _render_single_edit retorna a imagem diretamente quando cobre 100% da área do frame."""
+    layer = make_layer(w=100, h=80, color=(255, 0, 0, 255))
+    renderer = CanvasRender()
+    frame = CanvasFrame(layer, Canvas.from_size(100, 80))
+
+    result = renderer._render_single_edit(layer.edits[0], layer.format, frame, InterpMode.LANCZOS)
+
+    assert result is not None
+    assert result.size == (100, 80)
+    assert np.all(result[...][:, :, 0] == 255)
+
+
+def test_render_single_edit_partial_patch_blends_into_layer_image():
+    """Valida se _render_single_edit compõe no layer_image quando o patch do edit é menor que a camada."""
+    layer = make_layer(w=100, h=100, color=(0, 0, 0, 0))
+    patch_img = Image(np.full((40, 40, 4), (0, 255, 0, 255), dtype=np.uint8), ImageFormat.RGBA)
+    patch_edit = EditLayer(patch_img, Region.from_rect(30, 30, 40, 40), np.identity(3, dtype=np.float32))
+
+    renderer = CanvasRender()
+    frame = CanvasFrame(layer, Canvas.from_size(100, 100))
+
+    result = renderer._render_single_edit(patch_edit, layer.format, frame, InterpMode.LANCZOS)
+
+    assert result is not None
+    assert result.size == (100, 100)
+    assert np.all(result[30:70, 30:70, 1] == 255)
+    assert np.all(result[0:30, 0:30, 3] == 0)
+
+
+def test_render_single_edit_out_of_bounds_returns_none():
+    """Valida se _render_single_edit retorna None quando o edit está fora da área visível do frame."""
+    layer = make_layer(w=100, h=100, color=(255, 0, 0, 255))
+    layer.transform.translate(500, 500)
+
+    renderer = CanvasRender()
+    canvas = Canvas.from_size(100, 100)
+    frame = CanvasFrame(layer, canvas)
+
+    result = renderer._render_single_edit(layer.edits[0], layer.format, frame, InterpMode.LANCZOS)
+
+    assert result is None
+
+
+@pytest.mark.parametrize(
+    "fmt, color",
+    [
+        pytest.param(ImageFormat.RGB, (200, 100, 50), id="format_rgb"),
+        pytest.param(ImageFormat.RGBA, (10, 20, 30, 255), id="format_rgba"),
+        pytest.param(ImageFormat.GRAY, (128,), id="format_gray"),
+    ],
+)
+def test_render_single_edit_preserves_image_format(fmt, color):
+    """Valida se _render_single_edit preserva o formato de cor correto da camada."""
+    data = np.zeros((40, 60, len(color)), dtype=np.uint8)
+    data[:] = color
+    layer = Layer(Image(data, fmt))
+    renderer = CanvasRender()
+    frame = CanvasFrame(layer, Canvas.from_size(60, 40))
+
+    result = renderer._render_single_edit(layer.edits[0], layer.format, frame, InterpMode.LANCZOS)
+
+    assert result is not None
+    assert result.format == fmt
+    assert result.size == (60, 40)

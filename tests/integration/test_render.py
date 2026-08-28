@@ -549,3 +549,35 @@ def test_render_crop_rotate_align_and_fit_content_mariachi_scenario_com_borda_tr
     mask_cropped = img_cropped[...][..., 3] == 255
     diff = np.abs(img_cropped[...][mask_cropped].astype(int) - img_uncropped[...][mask_cropped].astype(int))
     assert np.mean(diff) < 3.0
+
+
+def test_render_scene_with_single_edit_layers_and_opacity(canvas_render):
+    """Valida se CanvasRender compõe corretamente múltiplas camadas simples com opacidade no Canvas."""
+    bg_layer = make_layer(w=100, h=100, color=(255, 0, 0, 255))
+    fg_layer = make_layer(w=100, h=100, color=(0, 0, 255, 255))
+    fg_layer.opacity = 0.5
+
+    canvas = Canvas.from_size(100, 100)
+    result = canvas_render.render_scene([bg_layer, fg_layer], canvas)
+
+    assert result.size == (100, 100)
+    pixel = result[50, 50]
+    assert pixel[0] == 127
+    assert pixel[1] == 0
+    assert pixel[2] == 128
+    assert pixel[3] == 255
+
+
+def test_render_scene_mixed_single_and_multi_edit_layers(canvas_render):
+    """Valida se CanvasRender compõe cena com camadas de edit único (Fast-Path) e multi-edits."""
+    base_layer = make_layer(w=100, h=100, color=(255, 0, 0, 255))
+
+    multi_layer = make_layer(w=100, h=100, color=(0, 0, 255, 255))
+    multi_layer.add_edit(Image(np.full((50, 50, 4), (0, 255, 0, 255), dtype=np.uint8), ImageFormat.RGBA), Region.from_rect(0, 0, 50, 50))
+
+    canvas = Canvas.from_size(100, 100)
+    result = canvas_render.render_scene([base_layer, multi_layer], canvas)
+
+    assert result.size == (100, 100)
+    np.testing.assert_array_equal(result[25, 25], [0, 255, 0, 255])
+    np.testing.assert_array_equal(result[75, 75], [0, 0, 255, 255])

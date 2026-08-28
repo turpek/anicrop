@@ -14,9 +14,10 @@ from anicrop.transform import TransformRel
 
 
 def make_test_layer(top_left: tuple[int, int], transform: TransformRel) -> Layer:
-    """Cria uma camada de teste de 100x50 com Image real e aplica a transformação."""
+    """Cria uma camada de teste de 100x50 com múltiplos edits para exercitar o _flatten_edits."""
     img = Image.new((100, 50), ImageFormat.RGBA)
     layer = Layer(img)
+    layer.add_edit(Image.new((100, 50), ImageFormat.RGBA), Region.from_size(100, 50))
     layer.region += top_left
     layer.set_transform(transform)
     return layer
@@ -340,6 +341,7 @@ def test_fit_content_geometry_render_pipeline(mocker):
 
     img = Image.new((200, 200), ImageFormat.RGBA)
     layer = Layer(img)
+    layer.add_edit(Image.new((200, 200), ImageFormat.RGBA), Region.from_size(200, 200))
 
     layout = Layout()
     layout.fit_content(layer)
@@ -375,6 +377,7 @@ def test_fit_content_and_align_geometry_render_pipeline(mocker):
 
     img = Image.new((200, 200), ImageFormat.RGBA)
     layer = Layer(img)
+    layer.add_edit(Image.new((200, 200), ImageFormat.RGBA), Region.from_size(200, 200))
     canvas = Canvas.from_size(200, 200)
     layout = Layout()
 
@@ -414,6 +417,7 @@ def test_fit_content_with_layer_transform_render_pipeline(mocker):
 
     img = Image.new((200, 200), ImageFormat.RGBA)
     layer = Layer(img)
+    layer.add_edit(Image.new((200, 200), ImageFormat.RGBA), Region.from_size(200, 200))
     layer.set_transform(TransformRel().rotate(90))
 
     layout = Layout()
@@ -451,6 +455,7 @@ def test_fit_content_in_parent_group_render_pipeline(mocker):
 
     img = Image.new((200, 200), ImageFormat.RGBA)
     layer = Layer(img)
+    layer.add_edit(Image.new((200, 200), ImageFormat.RGBA), Region.from_size(200, 200))
     layer.region += (10, 10)
     group.append(layer)
 

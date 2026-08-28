@@ -196,7 +196,7 @@ def without_distortion(
     if target_dst is not None:
         np.copyto(target_dst, image[src_view])
         return Image(target_dst, image.format), dst_local
-    return image.crop(src_view), dst_local
+    return image.view(src_view), dst_local
 
 
 def render_image(
@@ -374,17 +374,39 @@ class BaseRenderer[FrameT: BaseFrame](ABC):
 
         return self._scratch_image.view(Region.from_size(width, height))
 
+    def _render_single_edit(
+        self,
+        edit_layer: EditLayer,
+        layer_format: ImageFormat,
+        plan: BaseFrame,
+        interp: InterpMode,
+    ) -> Image | None:
+        """Renderiza um único edit exatamente 1 vez: retorna direto se cobrir o frame ou compõe no layer_image se for parcial."""
+        result = render_edit(edit_layer, plan, interp=interp, dst=None)
+        if result is None:
+            return None
+
+        edit_image, dst_region = result
+
+        # 1. Fast-Path: Cobre 100% da área da camada -> Zero-Copy direto!
+        if dst_region.size == plan.dst_region.size:  # type: ignore[union-attr]
+            return edit_image
+
+        # 2. Patch parcial: Mescla o resultado já obtido dentro de layer_image
+        layer_image = Image.new(plan.dst_region.size, layer_format)  # type: ignore[union-attr]
+        edit_layer.blend_into(layer_image, edit_image, dst_region)
+        return layer_image
+
     def _flatten_edits(
         self,
-        layer: Layer,
-        layer_image: Image,
+        visible_edits: Sequence[EditLayer],
+        layer_format: ImageFormat,
         plan: BaseFrame,
         interp: InterpMode,
     ) -> Image:
-        for edit_layer in layer.edits:
-            if not edit_layer.visible:
-                continue
-
+        """Compõe múltiplos edits dentro do buffer alocado da camada usando scratch."""
+        layer_image = Image.new(plan.dst_region.size, layer_format)  # type: ignore[union-attr]
+        for edit_layer in visible_edits:
             scratch = self._get_scratch_buffer(*layer_image.size, edit_layer.image.format)
             result = render_edit(edit_layer, plan, interp=interp, dst=scratch)
             if result is None:
@@ -402,23 +424,31 @@ class BaseRenderer[FrameT: BaseFrame](ABC):
     ) -> Image | None:
 
         dst_region = frame.dst_region
-        if dst_region is not None:
-            layer_image = Image.new(dst_region.size, layer.format)
-            image = self._flatten_edits(layer, layer_image, frame, interp)
-            image = apply_post_processing(image, layer, frame, interp)
+        if dst_region is None:
+            return None
 
-            layer._opacity_mask = generate_opacity_mask(
-                image,
-                dst_region,
-                frame.surface_size,
-                self._target_size,
-                opacity=layer.opacity,
-                blend_mode=layer.blend_mode,
-            )
+        visible_edits = [edit for edit in layer.edits if edit.visible]
 
-            return image
+        # Roteamento limpo: 1 edit vs múltiplos edits
+        if len(visible_edits) == 1:
+            image = self._render_single_edit(visible_edits[0], layer.format, frame, interp)
+            if image is None:
+                image = Image.new(dst_region.size, layer.format)
+        else:
+            image = self._flatten_edits(visible_edits, layer.format, frame, interp)
 
-        return None
+        image = apply_post_processing(image, layer, frame, interp)
+
+        layer._opacity_mask = generate_opacity_mask(
+            image,
+            dst_region,
+            frame.surface_size,
+            self._target_size,
+            opacity=layer.opacity,
+            blend_mode=layer.blend_mode,
+        )
+
+        return image
 
     def render_scene(
         self,
