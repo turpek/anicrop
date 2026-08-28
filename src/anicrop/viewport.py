@@ -1,4 +1,3 @@
-from anicrop.enums import ImageFormat
 from anicrop.spatial import Region, rect_to_region
 from anicrop.type import Scale
 from anicrop.transform import calculate_new_rect, mat_inverse, mat_pivot, mat_translation
@@ -13,48 +12,14 @@ class Viewport:
         size: tuple[int, int],
         fit_scale: float = 1.0,
         bg_color: tuple[int, ...] | None = None,
-        format: ImageFormat = ImageFormat.RGBA,
     ):
         self._region = Region.from_size(*size)
         self._scale = Scale(1, 1)
         self._fit = Scale(fit_scale, fit_scale)
-        self._format = format
-        if bg_color is None:
-            if format == ImageFormat.RGBA:
-                self.bg_color = (204, 204, 204, 255)
-            elif format == ImageFormat.RGB:
-                self.bg_color = (204, 204, 204)
-            elif format == ImageFormat.GRAY:
-                self.bg_color = (204,)
-            elif format == ImageFormat.GRAY_ALPHA:
-                self.bg_color = (204, 255)
-            else:
-                self.bg_color = (204,) * format.channels
-        else:
-            self.bg_color = bg_color
+        self.bg_color = bg_color if bg_color is not None else (204, 204, 204)
 
     def __repr__(self) -> str:
-        return f'Viewport(region={self.region}, scale={self.scale}, format={self.format})'
-
-    @property
-    def format(self) -> ImageFormat:
-        return self._format
-
-    @format.setter
-    def format(self, value: ImageFormat) -> None:
-        if not isinstance(value, ImageFormat):
-            raise TypeError(f"Expected ImageFormat, got {type(value).__name__}")
-        self._format = value
-        if value == ImageFormat.RGBA:
-            self.bg_color = (204, 204, 204, 255)
-        elif value == ImageFormat.RGB:
-            self.bg_color = (204, 204, 204)
-        elif value == ImageFormat.GRAY:
-            self.bg_color = (204,)
-        elif value == ImageFormat.GRAY_ALPHA:
-            self.bg_color = (204, 255)
-        else:
-            self.bg_color = (204,) * value.channels
+        return f'Viewport(region={self.region}, scale={self.scale})'
 
     @property
     def size(self) -> tuple[int, int]:

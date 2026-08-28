@@ -402,13 +402,12 @@ def test_document_export_with_interp_mode(tmp_path):
     ids=["rgb", "rgba", "gray"],
 )
 def test_document_format_render_pipeline(fmt, num_channels):
-    """Valida se o Document renderiza cena no formato configurado para o canvas."""
-    doc = Document("FormatDoc", 50, 50, format=fmt)
-    assert doc.canvas.format == fmt
+    """Valida se o Document renderiza cena no formato explicitado no render."""
+    doc = Document("FormatDoc", 50, 50)
 
     raw_data = np.full((50, 50, num_channels), 180, dtype=np.uint8)
     doc.add(Layer(Image(raw_data, fmt), name="Layer1"))
 
-    rendered = doc.render()
+    rendered = doc.render(format=fmt)
     assert rendered.format == fmt
     assert rendered.shape == (50, 50, num_channels)

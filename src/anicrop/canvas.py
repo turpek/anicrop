@@ -1,6 +1,5 @@
 from __future__ import annotations
 from typing import Self
-from anicrop.enums import ImageFormat
 from anicrop.interfaces.canvas import AbstractCanvas
 from anicrop.spatial import Region
 from anicrop.layout import CanvasLayoutStrategy
@@ -11,14 +10,9 @@ class Canvas(AbstractCanvas):
         self,
         region: Region,
         bg_color: tuple[int, ...] | None = None,
-        format: ImageFormat = ImageFormat.RGBA,
     ):
         self._region = region
-        self._format = format
-        if bg_color is None:
-            self.bg_color = (0,) * format.channels
-        else:
-            self.bg_color = bg_color
+        self.bg_color = bg_color if bg_color is not None else (0, 0, 0, 0)
         self._layout = CanvasLayoutStrategy(self)
 
     @classmethod
@@ -27,9 +21,8 @@ class Canvas(AbstractCanvas):
         width: int,
         height: int,
         bg_color: tuple[int, ...] | None = None,
-        format: ImageFormat = ImageFormat.RGBA,
     ) -> Self:
-        return cls(Region.from_size(width, height), bg_color=bg_color, format=format)
+        return cls(Region.from_size(width, height), bg_color=bg_color)
 
     @classmethod
     def from_rect(
@@ -39,21 +32,8 @@ class Canvas(AbstractCanvas):
         width: int,
         height: int,
         bg_color: tuple[int, ...] | None = None,
-        format: ImageFormat = ImageFormat.RGBA,
     ) -> Self:
-        return cls(Region.from_rect(x, y, width, height), bg_color=bg_color, format=format)
-
-    @property
-    def format(self) -> ImageFormat:
-        return self._format
-
-    @format.setter
-    def format(self, value: ImageFormat) -> None:
-        if not isinstance(value, ImageFormat):
-            raise TypeError(f"Expected ImageFormat, got {type(value).__name__}")
-        self._format = value
-        if self.bg_color is None or len(self.bg_color) != value.channels:
-            self.bg_color = (0,) * value.channels
+        return cls(Region.from_rect(x, y, width, height), bg_color=bg_color)
 
     @property
     def size(self) -> tuple[int, int]:

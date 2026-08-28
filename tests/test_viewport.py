@@ -1,6 +1,4 @@
 import numpy as np
-import pytest
-from anicrop.enums import ImageFormat
 from anicrop.viewport import Viewport
 from anicrop.spatial import Region
 from anicrop.type import Scale
@@ -152,33 +150,10 @@ def test_viewport_roi_stress():
     assert roi.top_left == (-500, -350)
 
 
-@pytest.mark.parametrize(
-    "fmt, bg_expected",
-    [
-        (ImageFormat.RGBA, (204, 204, 204, 255)),
-        (ImageFormat.RGB, (204, 204, 204)),
-        (ImageFormat.GRAY, (204,)),
-        (ImageFormat.GRAY_ALPHA, (204, 255)),
-    ],
-    ids=["rgba", "rgb", "gray", "gray_alpha"],
-)
-def test_viewport_format_support(fmt, bg_expected):
-    """Valida se a Viewport instancia corretamente com formatos variados e cores de fundo proporcionais."""
-    viewport = Viewport(size=(400, 300), format=fmt)
-    assert viewport.format == fmt
-    assert viewport.bg_color == bg_expected
+def test_viewport_bg_color_initialization():
+    """Valida a inicialização da cor de fundo padrão e customizada da Viewport."""
+    viewport_default = Viewport(size=(400, 300))
+    assert viewport_default.bg_color == (204, 204, 204)
 
-
-def test_viewport_format_setter():
-    """Valida se o setter de format atualiza o formato e ajusta a cor de fundo proporcional."""
-    viewport = Viewport(size=(400, 300), format=ImageFormat.RGBA)
-    viewport.format = ImageFormat.RGB
-    assert viewport.format == ImageFormat.RGB
-    assert viewport.bg_color == (204, 204, 204)
-
-    viewport.format = ImageFormat.GRAY
-    assert viewport.format == ImageFormat.GRAY
-    assert viewport.bg_color == (204,)
-
-    with pytest.raises(TypeError):
-        viewport.format = "invalid"  # type: ignore[assignment]
+    viewport_custom = Viewport(size=(400, 300), bg_color=(100, 100, 100))
+    assert viewport_custom.bg_color == (100, 100, 100)

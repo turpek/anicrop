@@ -1,6 +1,5 @@
 import pytest
 from anicrop.canvas import Canvas, CanvasLayoutStrategy
-from anicrop.enums import ImageFormat
 from anicrop.spatial import Region, SpanError
 
 
@@ -81,33 +80,10 @@ def test_canvas_layout_bound_api():
     assert canvas.size == (500, 500)
 
 
-@pytest.mark.parametrize(
-    "fmt, bg_expected",
-    [
-        (ImageFormat.RGBA, (0, 0, 0, 0)),
-        (ImageFormat.RGB, (0, 0, 0)),
-        (ImageFormat.GRAY, (0,)),
-        (ImageFormat.GRAY_ALPHA, (0, 0)),
-    ],
-    ids=["rgba", "rgb", "gray", "gray_alpha"],
-)
-def test_canvas_format_support(fmt, bg_expected):
-    """Valida se o Canvas instancia corretamente com formatos variados e cores de fundo proporcionais."""
-    canvas = Canvas.from_size(400, 300, format=fmt)
-    assert canvas.format == fmt
-    assert canvas.bg_color == bg_expected
+def test_canvas_bg_color_initialization():
+    """Valida a inicialização da cor de fundo padrão e customizada do Canvas."""
+    canvas_default = Canvas.from_size(400, 300)
+    assert canvas_default.bg_color == (0, 0, 0, 0)
 
-
-def test_canvas_format_setter():
-    """Valida se o setter de format atualiza o formato e ajusta a cor de fundo proporcional."""
-    canvas = Canvas.from_size(400, 300, format=ImageFormat.RGBA)
-    canvas.format = ImageFormat.RGB
-    assert canvas.format == ImageFormat.RGB
-    assert canvas.bg_color == (0, 0, 0)
-
-    canvas.format = ImageFormat.GRAY
-    assert canvas.format == ImageFormat.GRAY
-    assert canvas.bg_color == (0,)
-
-    with pytest.raises(TypeError):
-        canvas.format = "invalid"  # type: ignore[assignment]
+    canvas_custom = Canvas.from_size(400, 300, bg_color=(255, 0, 0, 255))
+    assert canvas_custom.bg_color == (255, 0, 0, 255)

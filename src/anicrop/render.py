@@ -348,6 +348,7 @@ class SceneTraverser:
 
 
 class BaseRenderer[FrameT: BaseFrame](ABC):
+    frame_cls: type[FrameT]
 
     def __init__(
             self, frame_cls: type[FrameT], target_size: tuple[int, int] = (32, 32),
@@ -399,12 +400,12 @@ class BaseRenderer[FrameT: BaseFrame](ABC):
 
     def _flatten_edits(
         self,
-        visible_edits: Sequence[EditLayer],
+        visible_edits: list[EditLayer],
         layer_format: ImageFormat,
         plan: BaseFrame,
         interp: InterpMode,
     ) -> Image:
-        """Compõe múltiplos edits dentro do buffer alocado da camada usando scratch."""
+        """Renderiza múltiplos edits compondo sequencialmente no buffer da camada com scratch buffer."""
         layer_image = Image.new(plan.dst_region.size, layer_format)  # type: ignore[union-attr]
         for edit_layer in visible_edits:
             scratch = self._get_scratch_buffer(*layer_image.size, edit_layer.image.format)
@@ -454,6 +455,7 @@ class BaseRenderer[FrameT: BaseFrame](ABC):
         self,
         container: Sequence[BaseLayer] | Container,
         surface: SurfaceProtocol,
+        format: ImageFormat = ImageFormat.RGBA,
         interp: InterpMode = InterpMode.LANCZOS,
     ) -> Image:
         with freeze_geometry(container):
@@ -462,7 +464,7 @@ class BaseRenderer[FrameT: BaseFrame](ABC):
             )
             images = traverser.traverse(container)
 
-            composition = Image.new(surface.size, surface.format, color=surface.bg_color)
+            composition = Image.new(surface.size, format, color=surface.bg_color)
             return blend_rendered_images(reversed(images), composition)
 
     def render_patch(
@@ -470,6 +472,7 @@ class BaseRenderer[FrameT: BaseFrame](ABC):
         container: Sequence[BaseLayer] | Container,
         surface: SurfaceProtocol,
         view_region: Region,
+        format: ImageFormat = ImageFormat.RGBA,
         interp: InterpMode = InterpMode.LANCZOS,
     ) -> Image | None:
         if not surface.region.overlaps(view_region):
@@ -482,7 +485,7 @@ class BaseRenderer[FrameT: BaseFrame](ABC):
             )
             images = traverser.traverse(container, effective_region)
 
-            composition = Image.new(effective_region.size, surface.format, color=surface.bg_color)
+            composition = Image.new(effective_region.size, format, color=surface.bg_color)
             return blend_rendered_images(reversed(images), composition)
 
 

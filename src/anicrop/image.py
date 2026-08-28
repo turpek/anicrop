@@ -218,6 +218,11 @@ class Image:
         if color == 0 or (isinstance(color, (tuple, list)) and not any(color)):
             buffer = np.zeros(shape, dtype=np.uint8)
         else:
+            if isinstance(color, (tuple, list)) and len(color) != channels:
+                if len(color) < channels:
+                    color = tuple(color) + (255,) * (channels - len(color))
+                else:
+                    color = tuple(color[:channels])
             buffer = np.full(shape, color, dtype=np.uint8)
         return cls(buffer, fmt)
 

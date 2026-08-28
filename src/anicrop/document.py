@@ -71,12 +71,11 @@ class Document:
         name: str,
         width: int,
         height: int,
-        format: ImageFormat = ImageFormat.RGBA,
         history: bool = True,
         bg_color: tuple[int, ...] | None = None,
     ):
         self.name = name
-        self.canvas = Canvas.from_size(width, height, bg_color=bg_color, format=format)
+        self.canvas = Canvas.from_size(width, height, bg_color=bg_color)
         self.history_enabled = history
 
         self._policy = self._POLICIES[history]
@@ -106,7 +105,7 @@ class Document:
         layer = Layer(image=img, opacity=opacity, blend_mode=blend_mode, name=name)
         w, h = layer.region.size
 
-        doc = cls(name=name, width=w, height=h, format=format, history=history, bg_color=bg_color)
+        doc = cls(name=name, width=w, height=h, history=history, bg_color=bg_color)
         doc.add(layer)
         return doc
 
@@ -238,20 +237,34 @@ class Document:
         else:
             raise ValueError(f"Layer {layer} not found in document hierarchy.")
 
-    def render(self, interp: InterpMode = InterpMode.LANCZOS) -> Image:
+    def render(
+        self,
+        format: ImageFormat = ImageFormat.RGBA,
+        interp: InterpMode = InterpMode.LANCZOS,
+    ) -> Image:
         """
-        Renderiza a composição final em alta resolução no Canvas e retorna o objeto Image.
+        Renderiza a composição final no formato especificado e retorna o objeto Image.
         """
-        return self._canvas_render.render_scene(self.stack, self.canvas, interp=interp)
+        return self._canvas_render.render_scene(self.stack, self.canvas, format=format, interp=interp)
 
-    def preview(self, viewport: Viewport, interp: InterpMode = InterpMode.LANCZOS) -> Image:
+    def preview(
+        self,
+        viewport: Viewport,
+        format: ImageFormat = ImageFormat.RGBA,
+        interp: InterpMode = InterpMode.LANCZOS,
+    ) -> Image:
         """
         Gera o Preview para renderizar na interface de usuário via Viewport e retorna um objeto Image.
         """
-        return self._viewport_render.render_scene(self.stack, viewport, interp=interp)
+        return self._viewport_render.render_scene(self.stack, viewport, format=format, interp=interp)
 
-    def export(self, path: str | Path, interp: InterpMode = InterpMode.LANCZOS) -> None:
+    def export(
+        self,
+        path: str | Path,
+        format: ImageFormat = ImageFormat.RGBA,
+        interp: InterpMode = InterpMode.LANCZOS,
+    ) -> None:
         """
-        Renderiza a composição final em alta resolução e salva no disco.
+        Renderiza a composição final no formato especificado e salva no disco.
         """
-        self.render(interp=interp).save(path)
+        self.render(format=format, interp=interp).save(path)
