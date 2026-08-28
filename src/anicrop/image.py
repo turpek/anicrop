@@ -215,7 +215,10 @@ class Image:
                 z_arr[...] = color
             return cls(z_arr, fmt)
 
-        buffer = np.full(shape, color, dtype=np.uint8)
+        if color == 0 or (isinstance(color, (tuple, list)) and not any(color)):
+            buffer = np.zeros(shape, dtype=np.uint8)
+        else:
+            buffer = np.full(shape, color, dtype=np.uint8)
         return cls(buffer, fmt)
 
     def resize(self, target_size: tuple[int, int]) -> Image:
@@ -382,13 +385,19 @@ def calculate_content_rect(image: Image) -> Region:
         return Region.from_size(image.width, image.height)
 
     alpha = image[..., -1]
-    if not np.any(alpha):
+    rows = np.any(alpha > 0, axis=1)
+    if not np.any(rows):
         raise ValueError(
             "EditLayer cannot be created from a fully transparent image.")
-    axis_y, axis_x = np.where(alpha > 0)
 
-    start_x, end_x = int(axis_x.min()), int(axis_x.max())
-    start_y, end_y = int(axis_y.min()), int(axis_y.max())
+    cols = np.any(alpha > 0, axis=0)
+
+    row_indices = np.where(rows)[0]
+    col_indices = np.where(cols)[0]
+
+    start_y, end_y = int(row_indices[0]), int(row_indices[-1])
+    start_x, end_x = int(col_indices[0]), int(col_indices[-1])
+
     width = end_x - start_x + 1
     height = end_y - start_y + 1
     return Region(Span(start_x, width), Span(start_y, height))

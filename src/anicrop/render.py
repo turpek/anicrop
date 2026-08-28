@@ -27,6 +27,11 @@ from anicrop.transform import (
     mat_translation,
 )
 
+try:
+    from anicrop.native.blend import min_pool_alpha as _cy_min_pool_alpha  # type: ignore[import-untyped]
+except ImportError:
+    _cy_min_pool_alpha = None
+
 
 def warp_affine(
     src_data: np.ndarray,
@@ -141,17 +146,16 @@ def generate_opacity_mask(
     th_img = max(1, int(image.height * scale_y))
 
     if image.has_alpha:
-        w, h = image.size
-        alpha_origin = image[..., -1:]
-
-        kernel_h = max(1, h // th_img)
-        kernel_w = max(1, w // tw_img)
-        kernel = np.ones((kernel_h, kernel_w), dtype=np.uint8)
-
-        # A erosão propaga os pixels de menor opacidade (mais escuros)
-        eroded = cv2.erode(alpha_origin, kernel)
-        mini_mask = cv2.resize(eroded, (tw_img, th_img),
-                               interpolation=cv2.INTER_NEAREST)
+        mini_mask = np.zeros((th_img, tw_img), dtype=np.uint8)
+        if _cy_min_pool_alpha is not None:
+            _cy_min_pool_alpha(image[...], mini_mask)
+        else:
+            alpha_origin = image[..., -1]
+            kernel_h = max(1, image.height // th_img)
+            kernel_w = max(1, image.width // tw_img)
+            kernel = np.ones((kernel_h, kernel_w), dtype=np.uint8)
+            eroded = cv2.erode(alpha_origin, kernel)
+            mini_mask = cv2.resize(eroded, (tw_img, th_img), interpolation=cv2.INTER_NEAREST).astype(np.uint8)
     else:
         mini_mask = np.full((th_img, tw_img), 255, dtype=np.uint8)
 
