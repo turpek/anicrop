@@ -96,3 +96,18 @@ def test_canvas_format_support(fmt, bg_expected):
     canvas = Canvas.from_size(400, 300, format=fmt)
     assert canvas.format == fmt
     assert canvas.bg_color == bg_expected
+
+
+def test_canvas_format_setter():
+    """Valida se o setter de format atualiza o formato e ajusta a cor de fundo proporcional."""
+    canvas = Canvas.from_size(400, 300, format=ImageFormat.RGBA)
+    canvas.format = ImageFormat.RGB
+    assert canvas.format == ImageFormat.RGB
+    assert canvas.bg_color == (0, 0, 0)
+
+    canvas.format = ImageFormat.GRAY
+    assert canvas.format == ImageFormat.GRAY
+    assert canvas.bg_color == (0,)
+
+    with pytest.raises(TypeError):
+        canvas.format = "invalid"  # type: ignore[assignment]

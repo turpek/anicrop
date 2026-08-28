@@ -47,6 +47,14 @@ class Canvas(AbstractCanvas):
     def format(self) -> ImageFormat:
         return self._format
 
+    @format.setter
+    def format(self, value: ImageFormat) -> None:
+        if not isinstance(value, ImageFormat):
+            raise TypeError(f"Expected ImageFormat, got {type(value).__name__}")
+        self._format = value
+        if self.bg_color is None or len(self.bg_color) != value.channels:
+            self.bg_color = (0,) * value.channels
+
     @property
     def size(self) -> tuple[int, int]:
         return self._region.size

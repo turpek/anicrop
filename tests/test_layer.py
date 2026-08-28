@@ -375,3 +375,28 @@ def test_layer_layout_bound_api():
     result_resize = layer.layout.resize_bounds(100, 100)
     assert result_resize is True
     assert layer.global_region == Region.from_rect(110, 110, 100, 100)
+
+
+def test_layer_format_setter():
+    """Valida se o setter de format atualiza o formato no BaseLayer e Layer."""
+    img = Image(np.zeros((40, 40, 4), dtype=np.uint8), ImageFormat.RGBA)
+    layer = Layer(img)
+    assert layer.format == ImageFormat.RGBA
+
+    layer.format = ImageFormat.RGB
+    assert layer.format == ImageFormat.RGB
+
+    with pytest.raises(TypeError):
+        layer.format = 123  # type: ignore[assignment]
+
+
+def test_group_layer_format_setter():
+    """Valida se o setter de format atualiza o formato no GroupLayer."""
+    group = GroupLayer(format=ImageFormat.RGBA)
+    assert group.format == ImageFormat.RGBA
+
+    group.format = ImageFormat.GRAY
+    assert group.format == ImageFormat.GRAY
+
+    with pytest.raises(TypeError):
+        group.format = None  # type: ignore[assignment]

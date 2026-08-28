@@ -18,6 +18,11 @@ class AbstractCanvas(ABC):
     def format(self) -> ImageFormat:
         ...
 
+    @format.setter
+    @abstractmethod
+    def format(self, value: ImageFormat) -> None:
+        ...
+
     @property
     @abstractmethod
     def size(self) -> tuple[int, int]:

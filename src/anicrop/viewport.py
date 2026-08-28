@@ -40,6 +40,22 @@ class Viewport:
     def format(self) -> ImageFormat:
         return self._format
 
+    @format.setter
+    def format(self, value: ImageFormat) -> None:
+        if not isinstance(value, ImageFormat):
+            raise TypeError(f"Expected ImageFormat, got {type(value).__name__}")
+        self._format = value
+        if value == ImageFormat.RGBA:
+            self.bg_color = (204, 204, 204, 255)
+        elif value == ImageFormat.RGB:
+            self.bg_color = (204, 204, 204)
+        elif value == ImageFormat.GRAY:
+            self.bg_color = (204,)
+        elif value == ImageFormat.GRAY_ALPHA:
+            self.bg_color = (204, 255)
+        else:
+            self.bg_color = (204,) * value.channels
+
     @property
     def size(self) -> tuple[int, int]:
         return self._region.size

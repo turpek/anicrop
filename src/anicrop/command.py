@@ -133,6 +133,7 @@ class BaseLayerSnapshot(StateSnapshot):
         self._opacity = item.opacity
         self._blend_mode = item.blend_mode
         self._visible = item.visible
+        self._format = item.format
         self._transform = item._transform.copy()
         self._control = GeometryControllerSnapshot(item.control)
         self._mask = copy.copy(item._mask) if item._mask is not None else None
@@ -144,6 +145,7 @@ class BaseLayerSnapshot(StateSnapshot):
         self._item.opacity = self._opacity
         self._item.blend_mode = self._blend_mode
         self._item.visible = self._visible
+        self._item.format = self._format
         self._item._transform = self._transform.copy()
         self._control.restore()
         self._item._mask = copy.copy(self._mask) if self._mask is not None else None
@@ -155,6 +157,7 @@ class BaseLayerSnapshot(StateSnapshot):
             self._opacity != other._opacity or
             self._blend_mode != other._blend_mode or
             self._visible != other._visible or
+            self._format != other._format or
             self._transform != other._transform or
             self._control.has_change(other._control) or
             self._mask != other._mask or

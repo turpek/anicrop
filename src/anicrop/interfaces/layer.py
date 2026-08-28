@@ -120,7 +120,13 @@ class AbstractLayer(AbstractBaseLayer):
     @property
     @abstractmethod
     def format(self) -> Any:
-        """Formato de cor da imagem base."""
+        """Formato de cor da camada."""
+        ...
+
+    @format.setter
+    @abstractmethod
+    def format(self, value: Any) -> None:
+        """Define o formato de cor da camada."""
         ...
 
     @abstractmethod

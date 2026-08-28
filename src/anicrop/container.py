@@ -8,7 +8,7 @@ from anicrop.interfaces.container import AbstractContainer, AbstractGroupLayer
 from anicrop.interfaces.layer import AbstractBaseLayer
 from anicrop.layout import GroupLayoutStrategy
 from anicrop.effect import Effect, BoundEffect
-from anicrop.enums import BlendMode
+from anicrop.enums import BlendMode, ImageFormat
 from anicrop.geometry import GeometryStrategy, GroupGeometry, GeometryController
 from anicrop.mask import Mask
 from anicrop.spatial import Region
@@ -153,6 +153,7 @@ class BaseLayer(AbstractBaseLayer):
         opacity: float = 1.0,
         blend_mode: BlendMode = BlendMode.NORMAL,
         name: str = 'BaseLayer',
+        format: ImageFormat = ImageFormat.RGBA,
     ):
         self.parent = parent
         self._transform: Composer = ComposerRel(region.size)
@@ -162,12 +163,24 @@ class BaseLayer(AbstractBaseLayer):
         self.visible = True
         self.blend_mode = blend_mode
         self.name = name
+        self._format = format
         self._effects: list[Effect] = []
         self._mask: Mask | None = None
 
         base = geometry_cls(self, region)
         frame = geometry_cls(self, region)
         self.control = GeometryController(base, frame)
+
+    @property
+    def format(self) -> ImageFormat:
+        """Formato de cor da camada."""
+        return self._format
+
+    @format.setter
+    def format(self, value: ImageFormat) -> None:
+        if not isinstance(value, ImageFormat):
+            raise TypeError(f"Expected ImageFormat, got {type(value).__name__}")
+        self._format = value
 
     @property
     def effects(self) -> tuple[Effect, ...]:
@@ -308,11 +321,12 @@ class GroupLayer(Container, BaseLayer, AbstractGroupLayer):
         opacity: float = 1.0,
         blend_mode: BlendMode = BlendMode.NORMAL,
         name: str = 'BaseLayer',
+        format: ImageFormat = ImageFormat.RGBA,
     ):
         region = Region.from_size(1, 1)
         Container.__init__(self)
         BaseLayer.__init__(
-            self, self.parent, GroupGeometry, region, opacity, blend_mode, name,
+            self, self.parent, GroupGeometry, region, opacity, blend_mode, name, format=format,
         )
         self._layout = GroupLayoutStrategy(self)
 

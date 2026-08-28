@@ -167,3 +167,18 @@ def test_viewport_format_support(fmt, bg_expected):
     viewport = Viewport(size=(400, 300), format=fmt)
     assert viewport.format == fmt
     assert viewport.bg_color == bg_expected
+
+
+def test_viewport_format_setter():
+    """Valida se o setter de format atualiza o formato e ajusta a cor de fundo proporcional."""
+    viewport = Viewport(size=(400, 300), format=ImageFormat.RGBA)
+    viewport.format = ImageFormat.RGB
+    assert viewport.format == ImageFormat.RGB
+    assert viewport.bg_color == (204, 204, 204)
+
+    viewport.format = ImageFormat.GRAY
+    assert viewport.format == ImageFormat.GRAY
+    assert viewport.bg_color == (204,)
+
+    with pytest.raises(TypeError):
+        viewport.format = "invalid"  # type: ignore[assignment]

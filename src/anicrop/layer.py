@@ -38,7 +38,9 @@ class Layer(BaseLayer, AbstractLayer):
 
         self.parent = _NULL_CONTAINER
         region = Region.from_size(*image.size)
-        super().__init__(self.parent, LayerGeometry, region, opacity, blend_mode, name)
+        super().__init__(
+            self.parent, LayerGeometry, region, opacity, blend_mode, name, format=image.format
+        )
 
         self._id = Id()
         self._edits: deque[EditLayer] = deque()
@@ -82,10 +84,6 @@ class Layer(BaseLayer, AbstractLayer):
     def _commit_render_state(self):
         self._old_matrix = mat_global(self)
         self._render_flags = RenderFlags.NONE
-
-    @property
-    def format(self):
-        return self._edits[0].image.format
 
     @property
     def content(self) -> LayerContent:
