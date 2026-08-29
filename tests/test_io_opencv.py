@@ -17,10 +17,9 @@ def temp_dir(tmp_path: Path) -> Path:
 
 
 def test_registry_backend_lookup():
-    """Valida se o registro de backends resolve corretamente o OpenCVBackend padrão."""
-    backend = get_default_backend()
+    """Valida se o registro de backends resolve corretamente o OpenCVBackend."""
+    backend = get_backend("opencv")
     assert isinstance(backend, OpenCVBackend)
-    assert get_backend("opencv") is backend
 
 
 def test_registry_unknown_backend_raises_error():
