@@ -2,10 +2,20 @@ from __future__ import annotations
 from pathlib import Path
 from typing import TYPE_CHECKING
 
+import os
 import numpy as np
 
+os.environ.setdefault("VIPS_WARNING", "0")
+
 try:
-    import pyvips  # type: ignore[import-untyped]
+    _stderr_fd = os.dup(2)
+    with open(os.devnull, "w") as _devnull:
+        os.dup2(_devnull.fileno(), 2)
+        try:
+            import pyvips  # type: ignore[import-untyped]
+        finally:
+            os.dup2(_stderr_fd, 2)
+            os.close(_stderr_fd)
 except Exception:
     pyvips = None
 
