@@ -653,3 +653,64 @@ def test_render_single_edit_preserves_image_format(fmt, color):
     assert result is not None
     assert result.format == fmt
     assert result.size == (60, 40)
+
+
+def test_render_container_combina_camadas_lado_a_lado():
+    """Valida se render_container calcula o Canvas automaticamente pela uniao das global_regions."""
+    l1 = make_layer(w=50, h=50, color=(255, 0, 0, 255))
+    l2 = make_layer(w=50, h=50, color=(0, 0, 255, 255))
+    l2.transform.translate(50, 0)
+
+    renderer = CanvasRender()
+    result = renderer.render_container([l1, l2], format=ImageFormat.RGBA)
+
+    assert result is not None
+    assert result.size == (100, 50)
+    assert np.array_equal(result[0, 0], [255, 0, 0, 255])
+    assert np.array_equal(result[0, 50], [0, 0, 255, 255])
+
+
+def test_render_container_respeita_ordem_de_sobreposicao():
+    """Valida se a ordem da lista determina qual camada fica no topo na composicao."""
+    l1 = make_layer(w=50, h=50, color=(255, 0, 0, 255))
+    l2 = make_layer(w=50, h=50, color=(0, 255, 0, 255))
+
+    renderer = CanvasRender()
+    result_over = renderer.render_container([l1, l2], format=ImageFormat.RGBA)
+    result_under = renderer.render_container([l2, l1], format=ImageFormat.RGBA)
+
+    assert result_over is not None and result_under is not None
+    assert np.array_equal(result_over[0, 0], [0, 255, 0, 255])
+    assert np.array_equal(result_under[0, 0], [255, 0, 0, 255])
+
+
+def test_render_container_com_sequencia_vazia_retorna_none():
+    """Valida se render_container retorna None quando recebe uma sequencia sem camadas."""
+    renderer = CanvasRender()
+    result = renderer.render_container([])
+
+    assert result is None
+
+
+def test_render_container_com_camada_invisivel_retorna_none():
+    """Valida se render_container retorna None quando todas as camadas sao invisiveis."""
+    l1 = make_layer(w=50, h=50)
+    l1.visible = False
+
+    renderer = CanvasRender()
+    result = renderer.render_container([l1])
+
+    assert result is None
+
+
+def test_render_container_com_bg_color():
+    """Valida se render_container aplica o bg_color no canvas gerado automaticamente."""
+    l1 = make_layer(w=50, h=50, color=(255, 0, 0, 255))
+    l1.transform.translate(50, 50)
+
+    renderer = CanvasRender()
+    result = renderer.render_container([l1], format=ImageFormat.RGBA, bg_color=(0, 255, 0, 255))
+
+    assert result is not None
+    assert result.size == (50, 50)
+    assert np.array_equal(result[0, 0], [255, 0, 0, 255])

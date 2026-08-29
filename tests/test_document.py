@@ -8,6 +8,7 @@ from anicrop.image import Image
 from anicrop.layer import Layer
 from anicrop.layout import Layout
 from anicrop.proxy import GroupProxy, LayerStackProxy, ProxyLayer
+from anicrop.render import CanvasRender, ViewportRender
 from anicrop.spatial import Region
 from anicrop.viewport import Viewport
 
@@ -411,3 +412,11 @@ def test_document_format_render_pipeline(fmt, num_channels):
     rendered = doc.render(format=fmt)
     assert rendered.format == fmt
     assert rendered.shape == (50, 50, num_channels)
+
+
+def test_document_render_properties():
+    """Valida se Document expoem as properties canvas_render e viewport_render."""
+    doc = Document("TestDoc", 100, 100)
+
+    assert isinstance(doc.canvas_render, CanvasRender)
+    assert isinstance(doc.viewport_render, ViewportRender)

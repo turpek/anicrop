@@ -72,6 +72,12 @@ class AbstractBaseLayer(ABC):
 
     @property
     @abstractmethod
+    def is_renderable(self) -> bool:
+        """Indica se o nó (camada ou grupo) deve ser processado no pipeline de renderização."""
+        ...
+
+    @property
+    @abstractmethod
     def effects(self) -> tuple[Any, ...]:
         """Fila de efeitos de pós-processamento da camada."""
         ...

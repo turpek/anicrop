@@ -119,6 +119,16 @@ class Document:
         """Instância do motor de manipulação de conteúdo/pixels do documento."""
         return self._content
 
+    @property
+    def canvas_render(self) -> CanvasRender:
+        """Instância do renderizador de cena CanvasRender configurado no documento."""
+        return self._canvas_render
+
+    @property
+    def viewport_render(self) -> ViewportRender:
+        """Instância do renderizador de viewport ViewportRender configurado no documento."""
+        return self._viewport_render
+
     def _validate_unique_name(self, name: str) -> None:
         """Verifica se já existe alguma camada ou grupo com este nome no documento."""
         if self._find_in_container(self.stack, name, recursive=True) is not None:

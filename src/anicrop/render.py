@@ -1,5 +1,7 @@
 from __future__ import annotations
 from abc import ABC
+from functools import reduce
+from operator import or_
 from typing import Callable, Sequence
 
 
@@ -491,6 +493,24 @@ class CanvasRender(BaseRenderer[CanvasFrame]):
     ) -> Image | None:
         frame = CanvasFrame(layer, Canvas(layer.global_region), local=local)
         return self.render_area(layer, frame, interp=interp)
+
+    def render_container(
+        self,
+        container: Sequence[BaseLayer] | Container,
+        format: ImageFormat = ImageFormat.RGBA,
+        interp: InterpMode = InterpMode.LANCZOS,
+        bg_color: tuple[int, ...] | None = None,
+    ) -> Image | None:
+        """Renderiza um contêiner ou sequência de nós (camadas ou grupos) instanciando automaticamente um Canvas
+        ajustado à união das regiões globais (global_region) de todos os nós renderizáveis.
+        """
+        regions = [layer.global_region for layer in container if layer.is_renderable]
+        if not regions:
+            return None
+
+        roi = reduce(or_, regions)
+        canvas = Canvas(roi, bg_color=bg_color)
+        return self.render_scene(container, canvas, format=format, interp=interp)
 
 
 class ViewportRender(BaseRenderer[ViewportFrame]):
