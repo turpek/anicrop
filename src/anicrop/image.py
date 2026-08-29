@@ -11,9 +11,11 @@ import numpy as np
 import zarr
 import cv2
 import uuid
-from PIL import Image as PILImage
 from pathlib import Path
+from PIL import Image as PILImage
 from anicrop.persistence.manager import manager_global
+from anicrop.interfaces.io import AbstractImageIO, SaveOptions
+from anicrop.io.registry import get_backend
 
 
 class Image:
@@ -261,67 +263,40 @@ class Image:
             return frame[..., 0] if frame.ndim == 3 else frame
         return frame
 
-    def save(self, file_path: str | Path) -> None:
+    def save(
+        self,
+        file_path: str | Path,
+        options: SaveOptions | None = None,
+        backend: AbstractImageIO | str | None = None,
+    ) -> None:
         """Salva a imagem no disco no caminho especificado."""
-        cv2.imwrite(str(file_path), self.bgr())
+        io_backend = get_backend(backend)
+        io_backend.write(file_path, self._data, self.format, options=options)
 
     @classmethod
-    def open(cls, file_path: str | Path, image_format: ImageFormat) -> Image:
-        file_path = str(file_path)
-        with PILImage.open(file_path) as pil_img:
-            width, height = pil_img.size
+    def open(
+        cls,
+        file_path: str | Path,
+        image_format: ImageFormat | None = None,
+        backend: AbstractImageIO | str | None = None,
+        shrink: int = 1,
+        roi: Region | None = None,
+    ) -> Image:
+        file_path_str = str(file_path)
+        io_backend = get_backend(backend)
 
+        width, height = io_backend.get_size(file_path_str)
         if width >= 8192 or height >= 8192:
-            return cls._open_with_pillow_zarr(file_path, image_format)
-        return cls._open_with_opencv(file_path, image_format)
+            resolved_fmt = image_format or ImageFormat.RGBA
+            return cls._open_with_pillow_zarr(file_path_str, resolved_fmt)
 
-    @classmethod
-    def _open_with_opencv(cls, file_path: str, image_format: ImageFormat) -> Image:
-        raw_data = cv2.imread(file_path, cv2.IMREAD_UNCHANGED)
-        if raw_data is None:
-            raise FileNotFoundError(f"Could not load image at {file_path}")
-
-        data: np.ndarray = raw_data
-        if data.ndim == 2:
-
-            loaded_channels = 1
-        else:
-            loaded_channels = data.shape[2]
-
-        if loaded_channels == 1:
-            if image_format == ImageFormat.GRAY:
-                pass
-            elif image_format == ImageFormat.GRAY_ALPHA:
-                alpha = np.full(data.shape, 255, dtype=np.uint8)
-                data = np.dstack([data, alpha])
-            elif image_format == ImageFormat.RGB:
-                data = cv2.cvtColor(data, cv2.COLOR_GRAY2RGB)
-            elif image_format in (ImageFormat.RGBA, ImageFormat.CMYK):
-                data = cv2.cvtColor(data, cv2.COLOR_GRAY2RGBA)
-        elif loaded_channels == 3:
-            if image_format == ImageFormat.GRAY:
-                data = cv2.cvtColor(data, cv2.COLOR_BGR2GRAY)
-            elif image_format == ImageFormat.GRAY_ALPHA:
-                gray = cv2.cvtColor(data, cv2.COLOR_BGR2GRAY)
-                alpha_chan = np.full(gray.shape, 255, dtype=np.uint8)
-                data = np.dstack([gray, alpha_chan])
-            elif image_format == ImageFormat.RGB:
-                data = cv2.cvtColor(data, cv2.COLOR_BGR2RGB)
-            elif image_format == ImageFormat.RGBA:
-                data = cv2.cvtColor(data, cv2.COLOR_BGR2RGBA)
-        elif loaded_channels == 4:
-            if image_format == ImageFormat.GRAY:
-                data = cv2.cvtColor(data, cv2.COLOR_BGRA2GRAY)
-            elif image_format == ImageFormat.GRAY_ALPHA:
-                gray = cv2.cvtColor(data, cv2.COLOR_BGRA2GRAY)
-                alpha_chan = data[..., 3]
-                data = np.dstack([gray, alpha_chan])
-            elif image_format == ImageFormat.RGB:
-                data = cv2.cvtColor(data, cv2.COLOR_BGRA2RGB)
-            elif image_format == ImageFormat.RGBA:
-                data = cv2.cvtColor(data, cv2.COLOR_BGRA2RGBA)
-
-        return cls(data, image_format)
+        data, resolved_fmt, _ = io_backend.read(
+            file_path_str,
+            format=image_format,
+            shrink=shrink,
+            roi=roi,
+        )
+        return cls(data, resolved_fmt)
 
     @classmethod
     def _open_with_pillow_zarr(cls, file_path: str, image_format: ImageFormat) -> Image:

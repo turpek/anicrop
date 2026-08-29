@@ -9,6 +9,7 @@ from anicrop.content import Content
 from anicrop.enums import BlendMode, ImageFormat, InterpMode
 from anicrop.history import GlobalHistory
 from anicrop.image import Image
+from anicrop.interfaces.io import AbstractImageIO, SaveOptions
 from anicrop.layer import Layer
 from anicrop.layout import Layout
 from anicrop.proxy import BaseHistoryProxy, GroupProxy, LayerStackProxy, ProxyLayer
@@ -96,12 +97,13 @@ class Document:
         history: bool = True,
         format: ImageFormat = ImageFormat.RGBA,
         bg_color: tuple[int, ...] | None = None,
+        backend: AbstractImageIO | str | None = None,
     ) -> Document:
         """
         Abre uma imagem do disco e cria um Documento baseado no seu tamanho,
         inserindo a imagem como primeira camada.
         """
-        img = Image.open(str(path), format)
+        img = Image.open(str(path), format, backend=backend)
         layer = Layer(image=img, opacity=opacity, blend_mode=blend_mode, name=name)
         w, h = layer.region.size
 
@@ -170,11 +172,12 @@ class Document:
         opacity: float = 1.0,
         blend_mode: BlendMode = BlendMode.NORMAL,
         format: ImageFormat = ImageFormat.RGBA,
+        backend: AbstractImageIO | str | None = None,
     ) -> Layer:
         """
         Carrega uma imagem do disco e adiciona como camada na pilha do documento com nome obrigatório.
         """
-        img = Image.open(str(path), format)
+        img = Image.open(str(path), format, backend=backend)
         layer = Layer(image=img, opacity=opacity, blend_mode=blend_mode, name=name)
         return self.add(layer)  # type: ignore[return-value]
 
@@ -273,8 +276,10 @@ class Document:
         path: str | Path,
         format: ImageFormat = ImageFormat.RGBA,
         interp: InterpMode = InterpMode.LANCZOS,
+        options: SaveOptions | None = None,
+        backend: AbstractImageIO | str | None = None,
     ) -> None:
         """
         Renderiza a composição final no formato especificado e salva no disco.
         """
-        self.render(format=format, interp=interp).save(path)
+        self.render(format=format, interp=interp).save(path, options=options, backend=backend)

@@ -233,54 +233,35 @@ def test_image_zarr_grayscale_is_always_3d():
     assert np.all(roi == 255)
 
 
-def test_image_open_routes_to_opencv(mocker):
-    # Mock do Pillow para simular uma imagem 1000x1000 (normal)
-    mock_img = mocker.MagicMock()
-    mock_img.size = (1000, 1000)
-    mocker.patch(
-        "anicrop.image.PILImage.open"
-    ).return_value.__enter__.return_value = mock_img
+def test_image_open_routes_to_backend(mocker):
+    """Valida se Image.open roteia leitura padrao para o backend de IO."""
+    mock_backend = mocker.MagicMock()
+    mock_backend.get_size.return_value = (1000, 1000)
+    mock_backend.read.return_value = (np.zeros((1000, 1000, 3), dtype=np.uint8), ImageFormat.RGB, (1000, 1000))
 
-    mock_cv2 = mocker.patch(
-        "anicrop.image.Image._open_with_opencv",
-        return_value=mocker.MagicMock(spec=Image),
-    )
     mock_zarr = mocker.patch("anicrop.image.Image._open_with_pillow_zarr")
 
-    Image.open("dummy.png", ImageFormat.RGB)
+    img = Image.open("dummy.png", ImageFormat.RGB, backend=mock_backend)
 
-    mock_cv2.assert_called_once_with("dummy.png", ImageFormat.RGB)
+    mock_backend.read.assert_called_once_with("dummy.png", format=ImageFormat.RGB, shrink=1, roi=None)
     mock_zarr.assert_not_called()
+    assert img.size == (1000, 1000)
 
 
 def test_image_open_routes_to_zarr(mocker):
-    # Mock do Pillow para simular uma imagem 8192x8192 (limiar gigante)
-    mock_img = mocker.MagicMock()
-    mock_img.size = (8192, 8192)
-    mocker.patch(
-        "anicrop.image.PILImage.open"
-    ).return_value.__enter__.return_value = mock_img
+    """Valida se Image.open chaveia para Zarr quando o tamanho atinge o limiar gigante."""
+    mock_backend = mocker.MagicMock()
+    mock_backend.get_size.return_value = (8192, 8192)
 
-    mock_cv2 = mocker.patch("anicrop.image.Image._open_with_opencv")
     mock_zarr = mocker.patch(
         "anicrop.image.Image._open_with_pillow_zarr",
         return_value=mocker.MagicMock(spec=Image),
     )
 
-    Image.open("giant.png", ImageFormat.RGB)
+    Image.open("giant.png", ImageFormat.RGB, backend=mock_backend)
 
     mock_zarr.assert_called_once_with("giant.png", ImageFormat.RGB)
-    mock_cv2.assert_not_called()
-
-
-def test_open_with_opencv_loads_array(mocker):
-    mock_data = np.zeros((100, 100, 3), dtype=np.uint8)
-    mocker.patch("anicrop.image.cv2.imread", return_value=mock_data)
-
-    img = Image._open_with_opencv("dummy.png", ImageFormat.RGB)
-    assert img.shape == (100, 100, 3)
-    assert img.channels == 3
-    assert img.format == ImageFormat.RGB
+    mock_backend.read.assert_not_called()
 
 
 def test_open_with_pillow_zarr_creates_3d_zarr(tmp_path):
