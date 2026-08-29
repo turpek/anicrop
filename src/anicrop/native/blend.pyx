@@ -6,7 +6,7 @@
 
 from libc.stdint cimport uint8_t, uint16_t, uint32_t, uint64_t
 from libc.math cimport powf, roundf
-from libc.string cimport memcpy
+from libc.string cimport memcpy, memset
 from cython.parallel cimport prange
 
 
@@ -717,17 +717,38 @@ def min_pool_alpha(
     cdef int dy, dx, sy, sx
     cdef int y_start, y_end, x_start, x_end
     cdef uint8_t min_v, val
-    cdef const uint8_t* src_row
+    cdef const uint8_t* src_alpha_base = &src[0, 0, alpha_idx]
+    cdef const uint8_t* row_ptr
+    cdef int stride_y = src.strides[0]
+    cdef int stride_x = ch
+
+    # Tabelas pré-computadas de limites (Zero divisões no loop 2D)
+    cdef int x_start_lut[1024]
+    cdef int x_end_lut[1024]
+    cdef int y_start_lut[1024]
+    cdef int y_end_lut[1024]
+
+    cdef const uint8_t* p
+    cdef const uint8_t* p_end
 
     with nogil:
-        for dy in range(dst_h):
-            y_start = (dy * src_h) // dst_h
-            y_end = ((dy + 1) * src_h) // dst_h
-            if y_end <= y_start:
-                y_end = y_start + 1
-            if y_end > src_h:
-                y_end = src_h
+        # Fast-Path: Formatos sem canal Alfa (RGB / Grayscale) são 100% opacos por definição
+        if ch == 1 or ch == 3:
+            for dy in range(dst_h):
+                memset(&dst[dy, 0], 255, dst_w)
+        else:
+            # Precomputa limites verticais (Y)
+            for dy in range(dst_h):
+                y_start = (dy * src_h) // dst_h
+                y_end = ((dy + 1) * src_h) // dst_h
+                if y_end <= y_start:
+                    y_end = y_start + 1
+                if y_end > src_h:
+                    y_end = src_h
+                y_start_lut[dy] = y_start
+                y_end_lut[dy] = y_end
 
+            # Precomputa limites horizontais (X)
             for dx in range(dst_w):
                 x_start = (dx * src_w) // dst_w
                 x_end = ((dx + 1) * src_w) // dst_w
@@ -735,16 +756,30 @@ def min_pool_alpha(
                     x_end = x_start + 1
                 if x_end > src_w:
                     x_end = src_w
+                x_start_lut[dx] = x_start
+                x_end_lut[dx] = x_end
 
-                min_v = 255
-                for sy in range(y_start, y_end):
-                    for sx in range(x_start, x_end):
-                        val = src[sy, sx, alpha_idx]
-                        if val < min_v:
-                            min_v = val
-                            if min_v == 0:
-                                break
-                    if min_v == 0:
-                        break
+            # Varredura 2D com ponteiros diretos e Early-Exit
+            for dy in range(dst_h):
+                y_start = y_start_lut[dy]
+                y_end = y_end_lut[dy]
 
-                dst[dy, dx] = min_v
+                for dx in range(dst_w):
+                    x_start = x_start_lut[dx]
+                    x_end = x_end_lut[dx]
+
+                    min_v = 255
+                    for sy in range(y_start, y_end):
+                        row_ptr = src_alpha_base + sy * stride_y
+                        p = row_ptr + x_start * stride_x
+                        p_end = row_ptr + x_end * stride_x
+                        while p < p_end:
+                            if p[0] < min_v:
+                                min_v = p[0]
+                                if min_v == 0:
+                                    break
+                            p += stride_x
+                        if min_v == 0:
+                            break
+
+                    dst[dy, dx] = min_v
