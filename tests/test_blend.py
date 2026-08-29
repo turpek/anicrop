@@ -228,7 +228,8 @@ def test_blend_normal_sets_base_alpha_to_opaque():
     ],
 )
 def test_blend_normal_fast_path_copyto(mocker, base_fmt, edit_fmt, edit_alpha, opacity, expected_copyto):
-    """Valida se o fast-path de np.copyto é ativado exclusivamente para camadas sólidas com opacidade 1.0."""
+    """Valida se o fast-path de np.copyto é ativado exclusivamente para camadas sólidas com opacidade 1.0 no fallback NumPy."""
+    mocker.patch("anicrop.blend._HAS_CY_BLEND", False)
     spy_copyto = mocker.spy(np, "copyto")
     base_channels = 4 if base_fmt == ImageFormat.RGBA else 3
     edit_channels = 4 if edit_fmt == ImageFormat.RGBA else 3

@@ -253,7 +253,6 @@ cdef void _blend_normal_u8(
                         continue
 
                     rcp_out_a = RCP_Q16[out_a]
-
                     if b_colors == 3:
                         b_row[b_idx + 0] = <uint8_t>(((er * ae + b_row[b_idx + 0] * term_b) * rcp_out_a + 32768) >> 16)
                         b_row[b_idx + 1] = <uint8_t>(((eg * ae + b_row[b_idx + 1] * term_b) * rcp_out_a + 32768) >> 16)
@@ -262,15 +261,14 @@ cdef void _blend_normal_u8(
                         b_row[b_idx + 0] = <uint8_t>(((er * ae + b_row[b_idx + 0] * term_b) * rcp_out_a + 32768) >> 16)
 
                     b_row[b_idx + b_ch - 1] = <uint8_t>out_a
-
                 else:
                     inv_ae = 255 - ae
                     if b_colors == 3:
-                        b_row[b_idx + 0] = <uint8_t>(div255(er * ae + b_row[b_idx + 0] * inv_ae))
-                        b_row[b_idx + 1] = <uint8_t>(div255(eg * ae + b_row[b_idx + 1] * inv_ae))
-                        b_row[b_idx + 2] = <uint8_t>(div255(eb * ae + b_row[b_idx + 2] * inv_ae))
+                        b_row[b_idx + 0] = <uint8_t>div255(er * ae + b_row[b_idx + 0] * inv_ae)
+                        b_row[b_idx + 1] = <uint8_t>div255(eg * ae + b_row[b_idx + 1] * inv_ae)
+                        b_row[b_idx + 2] = <uint8_t>div255(eb * ae + b_row[b_idx + 2] * inv_ae)
                     else:
-                        b_row[b_idx + 0] = <uint8_t>(div255(er * ae + b_row[b_idx + 0] * inv_ae))
+                        b_row[b_idx + 0] = <uint8_t>div255(er * ae + b_row[b_idx + 0] * inv_ae)
 
 
 cdef void _blend_normal_u16(
@@ -722,7 +720,7 @@ def min_pool_alpha(
     cdef const uint8_t* src_row
 
     with nogil:
-        for dy in prange(dst_h, schedule='static'):
+        for dy in range(dst_h):
             y_start = (dy * src_h) // dst_h
             y_end = ((dy + 1) * src_h) // dst_h
             if y_end <= y_start:
@@ -740,9 +738,8 @@ def min_pool_alpha(
 
                 min_v = 255
                 for sy in range(y_start, y_end):
-                    src_row = &src[sy, 0, 0]
                     for sx in range(x_start, x_end):
-                        val = src_row[sx * ch + alpha_idx]
+                        val = src[sy, sx, alpha_idx]
                         if val < min_v:
                             min_v = val
                             if min_v == 0:

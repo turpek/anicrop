@@ -208,8 +208,12 @@ def blend_normal(base: Image, edit: Image, opacity: float = 1.0) -> None:
 
     base_arr = base[...]
     edit_arr = edit[...]
-    h, w = min(base_arr.shape[0], edit_arr.shape[0]), min(base_arr.shape[1], edit_arr.shape[1])
 
+    if _HAS_CY_BLEND and _cy_blend_normal is not None:
+        _cy_blend_normal(base_arr, edit_arr, opacity)
+        return
+
+    h, w = min(base_arr.shape[0], edit_arr.shape[0]), min(base_arr.shape[1], edit_arr.shape[1])
     b_view = base_arr[:h, :w]
     e_view = edit_arr[:h, :w]
     e_has_alpha = e_view.shape[-1] in (2, 4)
@@ -234,10 +238,6 @@ def blend_normal(base: Image, edit: Image, opacity: float = 1.0) -> None:
             np.copyto(b_view[..., :1], e_view)
             b_view[..., 1] = 255
             return
-
-    if _HAS_CY_BLEND and _cy_blend_normal is not None:
-        _cy_blend_normal(b_view, e_view, opacity)
-        return
 
     _blend_normal_numpy(b_view, e_view, opacity)
 

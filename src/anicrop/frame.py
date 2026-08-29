@@ -1,5 +1,6 @@
 from __future__ import annotations
 from abc import ABC
+import math
 from typing import Protocol, runtime_checkable, TYPE_CHECKING
 import numpy as np
 
@@ -79,12 +80,14 @@ class BaseFrame(ABC):
         m_edit_local = edit_layer.local_matrix
         m_total = self.matrix @ m_edit_local
 
-        # SVD na submatriz 2x2 para extrair a escala real na tela
-        submatrix_2x2 = m_total[:2, :2]
-        _, s, _ = np.linalg.svd(submatrix_2x2)
+        a, b = float(m_total[0, 0]), float(m_total[0, 1])
+        c, d = float(m_total[1, 0]), float(m_total[1, 1])
 
-        # Retorna a escala final exata combinada de tudo!
-        return float(s[0])
+        p = a * a + b * b
+        q = c * c + d * d
+        r = a * c + b * d
+
+        return math.sqrt(0.5 * (p + q + math.sqrt((p - q) ** 2 + 4.0 * r * r)))
 
     def _effective_view(
         self,
