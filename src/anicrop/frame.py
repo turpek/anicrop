@@ -109,7 +109,11 @@ class BaseFrame(ABC):
 
     def _expand_bounds(self, bounds: Region, base: BaseLayer) -> Region:
         """Expande os limites geométricos da camada de acordo com o padding dos efeitos ativos."""
+        if not base.effects:
+            return bounds
         pad_t, pad_r, pad_b, pad_l = base.get_effects_padding()
+        if (pad_t | pad_r | pad_b | pad_l) == 0:
+            return bounds
         return bounds.expand(
             top=max(0, pad_t),
             right=max(0, pad_r),
