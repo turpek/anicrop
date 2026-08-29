@@ -300,7 +300,7 @@ def test_canvas_render_scene_nested_group_layers(mocker, monkeypatch):
     canvas = Canvas.from_size(300, 300)
     spy_view = mocker.spy(Image, "view")
     renderer = CanvasRender()
-    result_image = renderer.render_scene([root_group], canvas)
+    _ = renderer.render_scene([root_group], canvas)
 
     assert spy_view.call_count == 3
     assert spy_view.call_args_list[0][0][1] == Region.from_rect(20, 20, 40, 40)

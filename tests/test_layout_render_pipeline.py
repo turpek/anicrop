@@ -1,4 +1,3 @@
-from anicrop.render import CanvasRender
 import numpy as np
 import pytest
 

@@ -568,18 +568,24 @@ def test_renderer_scratch_buffer_reutiliza_memoria_e_expande_conforme_necessidad
     renderer = CanvasRender()
 
     # 1. Primeira alocação (100x100)
-    buf1 = renderer._get_scratch_buffer(100, 100, ImageFormat.RGBA)
-    assert buf1.size == (100, 100)
+    renderer._scratch_buffer.configure((100, 100), ImageFormat.RGBA)
+    _ = renderer._scratch_buffer[Region.from_size(100, 100)]
+    buf1 = renderer._scratch_buffer._image
+    assert buf1 is not None
+    assert buf1.width >= 100
+    assert buf1.height >= 100
 
     # 2. Segunda requisição menor (50x50) deve reutilizar o mesmo array base
-    buf2 = renderer._get_scratch_buffer(50, 50, ImageFormat.RGBA)
-    assert buf2.size == (50, 50)
-    assert buf2._data.base is buf1._data.base
+    renderer._scratch_buffer.configure((50, 50), ImageFormat.RGBA)
+    _ = renderer._scratch_buffer[Region.from_size(50, 50)]
+    buf2 = renderer._scratch_buffer._image
+    assert buf2 is buf1
 
     # 3. Terceira requisição maior (300x300) deve expandir o buffer
-    buf3 = renderer._get_scratch_buffer(300, 300, ImageFormat.RGBA)
-    assert buf3.size == (300, 300)
-    assert buf3._data.base is not buf1._data.base
+    renderer._scratch_buffer.configure((300, 300), ImageFormat.RGBA)
+    _ = renderer._scratch_buffer[Region.from_size(300, 300)]
+    buf3 = renderer._scratch_buffer._image
+    assert buf3 is not buf1
 
 
 def test_render_single_edit_full_frame_returns_direct_image():
@@ -612,8 +618,8 @@ def test_render_single_edit_partial_patch_blends_into_layer_image():
     assert np.all(result[0:30, 0:30, 3] == 0)
 
 
-def test_render_single_edit_out_of_bounds_returns_none():
-    """Valida se _render_single_edit retorna None quando o edit está fora da área visível do frame."""
+def test_render_area_out_of_bounds_returns_none():
+    """Valida se render_area retorna None quando o layer está fora da área visível do frame."""
     layer = make_layer(w=100, h=100, color=(255, 0, 0, 255))
     layer.transform.translate(500, 500)
 
@@ -621,7 +627,7 @@ def test_render_single_edit_out_of_bounds_returns_none():
     canvas = Canvas.from_size(100, 100)
     frame = CanvasFrame(layer, canvas)
 
-    result = renderer._render_single_edit(layer.edits[0], layer.format, frame, InterpMode.LANCZOS)
+    result = renderer.render_area(layer, frame, InterpMode.LANCZOS)
 
     assert result is None
 

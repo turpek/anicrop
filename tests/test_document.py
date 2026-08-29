@@ -141,8 +141,8 @@ def test_document_find_layer_recursive():
 def test_document_delitem_by_name_and_index():
     """Valida remoção de camadas via del doc[name] e del doc[index]."""
     doc = Document("TestDoc", 100, 100)
-    l1 = doc.add(Layer(make_img(), name="l1"))
-    l2 = doc.add(Layer(make_img(), name="l2"))
+    doc.add(Layer(make_img(), name="l1"))
+    doc.add(Layer(make_img(), name="l2"))
     l3 = doc.add(Layer(make_img(), name="l3"))
 
     del doc["l2"]
@@ -157,7 +157,7 @@ def test_document_delitem_by_name_and_index():
 def test_document_remove_by_name_and_instance():
     """Valida método remove aceitando nome da camada ou instância do objeto."""
     doc = Document("TestDoc", 100, 100)
-    l1 = doc.add(Layer(make_img(), name="l1"))
+    doc.add(Layer(make_img(), name="l1"))
     l2 = doc.add(Layer(make_img(), name="l2"))
 
     doc.remove("l1")

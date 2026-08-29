@@ -7,7 +7,9 @@ import cv2
 import numpy as np
 
 from anicrop.blend import blend_rendered_images
+from anicrop.buffer import ScratchBuffer
 from anicrop.canvas import Canvas
+from anicrop.interfaces.buffer import AbstractScratchBuffer
 from anicrop.container import BaseLayer, Container, GroupLayer, freeze_geometry
 from anicrop.enums import BlendMode, InterpMode, WarpMode
 from anicrop.frame import (
@@ -205,7 +207,7 @@ def render_image(
     m_local: np.ndarray,
     warp_mode: WarpMode = WarpMode.AFFINE,
     interp: InterpMode = InterpMode.LANCZOS,
-    dst: Image | None = None,
+    dst: AbstractScratchBuffer | Image | None = None,
 ) -> tuple[Image, Region] | None:
     """Núcleo atômico: renderiza cirurgicamente qualquer Image usando o plano/frame e a matriz local m_local."""
     dst_frame = plan.dst_region
@@ -220,9 +222,12 @@ def render_image(
 
     dst_patch = edit_bbox & dst_frame
     dst_local = dst_patch - dst_frame
-    target_dst = dst[dst_local] if dst else None
 
-    if not has_distortion(m_render):
+    is_distorted = has_distortion(m_render)
+    needs_buffer = is_distorted or (dst_local.size != dst_frame.size)
+    target_dst = dst[dst_local] if (dst and needs_buffer) else None
+
+    if not is_distorted:
         return without_distortion(image, edit_bbox, dst_frame, dst_local, target_dst)
 
     # Executa o warp da imagem para a dest_region no espaço de destino
@@ -240,7 +245,7 @@ def render_edit(
     plan: BaseFrame,
     warp_mode: WarpMode = WarpMode.AFFINE,
     interp: InterpMode = InterpMode.LANCZOS,
-    dst: Image | None = None,
+    dst: AbstractScratchBuffer | Image | None = None,
 ) -> tuple[Image, Region] | None:
     """Renderiza cirurgicamente um EditLayer ajustando o LOD automaticamente através do frame."""
     scale = plan.screen_scale(edit_layer)
@@ -262,7 +267,7 @@ def render_viewport_edit(
     scale_factor: float = 1.0,
     warp_mode: WarpMode = WarpMode.AFFINE,
     interp: InterpMode = InterpMode.LANCZOS,
-    dst: Image | None = None,
+    dst: AbstractScratchBuffer | Image | None = None,
 ) -> tuple[Image, Region] | None:
     """Auxiliar da Viewport: repassa para render_edit (o frame calcula a escala)."""
     return render_edit(edit_layer, plan, warp_mode=warp_mode, interp=interp, dst=dst)
@@ -356,24 +361,7 @@ class BaseRenderer[FrameT: BaseFrame](ABC):
 
         self.frame_cls = frame_cls
         self._target_size = target_size
-        self._scratch_image: Image | None = None
-
-    def _get_scratch_buffer(
-        self, width: int, height: int, fmt: ImageFormat = ImageFormat.RGBA
-    ) -> Image:
-        if (
-            self._scratch_image is None or
-            self._scratch_image.height < height or
-            self._scratch_image.width < width or
-            self._scratch_image.format != fmt
-        ):
-            current_h = self._scratch_image.height if self._scratch_image is not None else 0
-            current_w = self._scratch_image.width if self._scratch_image is not None else 0
-            new_h = max(height, int(current_h * 1.5))
-            new_w = max(width, int(current_w * 1.5))
-            self._scratch_image = Image.new((new_w, new_h), fmt)
-
-        return self._scratch_image.view(Region.from_size(width, height))
+        self._scratch_buffer = ScratchBuffer()
 
     def _render_single_edit(
         self,
@@ -382,8 +370,9 @@ class BaseRenderer[FrameT: BaseFrame](ABC):
         plan: BaseFrame,
         interp: InterpMode,
     ) -> Image | None:
-        """Renderiza um único edit exatamente 1 vez: retorna direto se cobrir o frame ou compõe no layer_image se for parcial."""
-        result = render_edit(edit_layer, plan, interp=interp, dst=None)
+        """Renderiza um único edit exatamente 1 vez com reciclagem de buffer e fast-path zero-copy."""
+        dst = self._scratch_buffer.configure(plan.dst_region.size, edit_layer.image.format)  # type: ignore[union-attr]
+        result = render_edit(edit_layer, plan, interp=interp, dst=dst)
         if result is None:
             return None
 
@@ -408,7 +397,7 @@ class BaseRenderer[FrameT: BaseFrame](ABC):
         """Renderiza múltiplos edits compondo sequencialmente no buffer da camada com scratch buffer."""
         layer_image = Image.new(plan.dst_region.size, layer_format)  # type: ignore[union-attr]
         for edit_layer in visible_edits:
-            scratch = self._get_scratch_buffer(*layer_image.size, edit_layer.image.format)
+            scratch = self._scratch_buffer.configure(layer_image.size, edit_layer.image.format)
             result = render_edit(edit_layer, plan, interp=interp, dst=scratch)
             if result is None:
                 continue

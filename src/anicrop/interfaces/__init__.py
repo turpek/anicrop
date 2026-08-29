@@ -1,3 +1,4 @@
+from anicrop.interfaces.buffer import AbstractScratchBuffer
 from anicrop.interfaces.canvas import AbstractCanvas
 from anicrop.interfaces.container import AbstractContainer, AbstractGroupLayer
 from anicrop.interfaces.content import ContentStrategy
@@ -10,6 +11,7 @@ __all__ = [
     "AbstractContainer",
     "AbstractGroupLayer",
     "AbstractLayer",
+    "AbstractScratchBuffer",
     "ContentStrategy",
     "LayoutStrategy",
 ]

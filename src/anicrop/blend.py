@@ -212,8 +212,6 @@ def blend_normal(base: Image, edit: Image, opacity: float = 1.0) -> None:
 
     b_view = base_arr[:h, :w]
     e_view = edit_arr[:h, :w]
-
-    b_has_alpha = b_view.shape[-1] in (2, 4)
     e_has_alpha = e_view.shape[-1] in (2, 4)
 
     # Fast-Path: Cópia direta para imagens 100% sólidas com opacidade total (1.0)
