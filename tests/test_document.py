@@ -1,6 +1,7 @@
 import numpy as np
 import pytest
 
+from anicrop.container import GroupLayer
 from anicrop.document import Document
 from anicrop.enums import BlendMode, ImageFormat, InterpMode
 from anicrop.history import GlobalHistory
@@ -90,7 +91,7 @@ def test_document_add_group_mandatory_name_and_duplicate_error():
     doc = Document("TestDoc", 100, 100)
     g1 = doc.add_group("grupo1")
 
-    assert isinstance(g1, GroupProxy)
+    assert isinstance(g1, GroupLayer)
     assert g1.name == "grupo1"
 
     with pytest.raises(ValueError, match="A layer named 'grupo1' already exists"):
@@ -212,7 +213,7 @@ def test_document_export_saves_file(tmp_path):
 
 def test_document_layout_property_integration():
     """Valida operações de layout diretamente através da propriedade doc.layout."""
-    doc = Document("TestDoc", 1000, 1000)
+    doc = Document("TestDoc", 1000, 1000, history=True)
     l1 = doc.add(Layer(make_img(200, 200), name="l1"))
 
     assert isinstance(doc.layout, Layout)

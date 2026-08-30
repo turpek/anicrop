@@ -73,9 +73,21 @@ class Document:
         name: str,
         width: int,
         height: int,
-        history: bool = True,
+        history: bool = False,
         bg_color: tuple[int, ...] | None = None,
     ):
+        """
+        Inicializa um novo Documento 2D.
+
+        Args:
+            name: Nome identificador do documento.
+            width: Largura do canvas em pixels.
+            height: Altura do canvas em pixels.
+            history: Habilita o rastreamento de histórico (Undo/Redo) via proxies reativos.
+                Nota: Funcionalidade experimental sob refatoração; operações avançadas
+                de árvore (como Combine) ainda não gravam passos no histórico. Padrão: False.
+            bg_color: Cor de fundo opcional do canvas.
+        """
         self.name = name
         self.canvas = Canvas.from_size(width, height, bg_color=bg_color)
         self.history_enabled = history
@@ -96,7 +108,7 @@ class Document:
         name: str,
         opacity: float = 1.0,
         blend_mode: BlendMode = BlendMode.NORMAL,
-        history: bool = True,
+        history: bool = False,
         format: ImageFormat = ImageFormat.RGBA,
         bg_color: tuple[int, ...] | None = None,
         backend: AbstractImageIO | str | None = None,
@@ -104,6 +116,16 @@ class Document:
         """
         Abre uma imagem do disco e cria um Documento baseado no seu tamanho,
         inserindo a imagem como primeira camada.
+
+        Args:
+            path: Caminho do arquivo de imagem.
+            name: Nome da camada e do documento.
+            opacity: Opacidade inicial da camada (0.0 a 1.0).
+            blend_mode: Modo de mesclagem da camada.
+            history: Habilita o histórico experimental (padrão: False).
+            format: Formato de cor da imagem.
+            bg_color: Cor de fundo opcional do canvas.
+            backend: Backend de I/O a ser utilizado.
         """
         img = Image.open(str(path), format, backend=backend)
         layer = Layer(image=img, opacity=opacity, blend_mode=blend_mode, name=name)
