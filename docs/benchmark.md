@@ -89,13 +89,48 @@ Este documento consolida as métricas oficiais de desempenho do motor gráfico `
 
 ---
 
-## 4. Como Reproduzir os Benchmarks
+---
 
-Para executar localmente a suíte de benchmarks de estresse, matrizes e I/O:
+## 4. Benchmark de Formatos de Cor e Mesclagem (`PRGBA` e `RGBX`)
+
+- **Script:** [`scripts/benchmark_color_blend_formats.py`](file:///home/gui/python/anicrop/scripts/benchmark_color_blend_formats.py)
+- **Metodologia:** Avaliação comparativa de latência média por operação de mesclagem (`blend_normal` com opacidade 0.9) entre formatos com alfa (*Straight* `RGBA`, *Premultiplied* `PRGBA` e `RGBX` opaco de 32 bits), e latência de conversões bidirecionais via `anicrop.color`.
+
+### 4.1. Mesclagem Normal (`blend_normal`):
+
+| Resolução | `RGBA -> RGBA` *(Cython C)* | `PRGBA -> PRGBA` *(NumPy Puro)* | `PRGBA -> RGBX` *(NumPy Puro)* |
+| :--- | :---: | :---: | :---: |
+| **256x256** (Retalho Pequeno) | **0.06 ms** | 7.31 ms | 7.34 ms |
+| **512x512** (Camada Padrão) | **2.43 ms** | 33.91 ms | 30.42 ms |
+| **1280x720** (720p HD) | **10.91 ms** | 108.44 ms | 84.57 ms |
+| **1920x1080** (1080p FHD) | **4.97 ms** | 213.39 ms | 191.75 ms |
+| **3840x2160** (4K UHD) | **6.67 ms** | 995.88 ms | 807.89 ms |
+
+> [!NOTE]
+> O formato `RGBA` utiliza o kernel compilado nativo em C (`_cy_blend_normal` via Cython com OpenMP), enquanto os formatos `PRGBA` e `RGBX` utilizam o fallback interpretado em Python/NumPy até a compilação de seus respectivos kernels dedicados em Cython.
+
+### 4.2. Velocidade de Conversão de Formatos ([`anicrop.color`](file:///home/gui/python/anicrop/src/anicrop/color.py)):
+
+| Resolução | `RGBA -> PRGBA` | `PRGBA -> RGBA` | `RGB -> RGBX` | `RGBX -> RGB` |
+| :--- | :---: | :---: | :---: | :---: |
+| **256x256** (Retalho Pequeno) | 1.39 ms | 4.01 ms | 394.2 µs | 384.2 µs |
+| **512x512** (Camada Padrão) | 6.19 ms | 15.14 ms | 1.45 ms | 1.37 ms |
+| **1280x720** (720p HD) | 19.31 ms | 53.32 ms | 5.44 ms | 5.10 ms |
+| **1920x1080** (1080p FHD) | 50.65 ms | 149.34 ms | 12.03 ms | 10.92 ms |
+| **3840x2160** (4K UHD) | 245.53 ms | 648.03 ms | 52.54 ms | 45.67 ms |
+
+---
+
+## 5. Como Reproduzir os Benchmarks
+
+Para executar localmente a suíte de benchmarks de estresse, matrizes, I/O e formatos:
 
 ```bash
 # Benchmark de I/O de imagens (JPEG, PNG, WebP)
 uv run python scripts/benchmark_image_io.py
+
+# Benchmark de formatos de cor e mesclagem (RGBA, PRGBA, RGBX)
+uv run python scripts/benchmark_color_blend_formats.py
 
 # Benchmark de estresse de renderização (CanvasRender Full HD vs Patch)
 uv run python scripts/benchmark_canvas_render_stress.py
