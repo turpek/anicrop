@@ -1,13 +1,14 @@
-import pytest
 import numpy as np
-from anicrop.canvas import Canvas
+import pytest
 
-from anicrop.frame import CanvasFrame, ViewportFrame
-from anicrop.layer import Layer
-from anicrop.spatial import Region, Span
+from anicrop.canvas import Canvas
+from anicrop.frame import CanvasFrame, ViewportFrame, calculate_mask_rect
 from anicrop.image import Image, ImageFormat
+from anicrop.layer import Layer
+from anicrop.mask import Mask
+from anicrop.spatial import Region, Span
+from anicrop.transform import TransformRel, mat_translation
 from anicrop.viewport import Viewport
-from anicrop.transform import TransformRel
 
 
 def make_layer(w=100, h=100, x=0, y=0, color=(255, 0, 0, 255)):
@@ -452,10 +453,6 @@ def test_frame_targ_region_sem_view_region_retorna_dst_region_integral():
 
 def test_calculate_mask_rect_combines_matrices():
     """Valida se calculate_mask_rect combina corretamente a matriz da máscara com a matriz espacial."""
-    from anicrop.frame import calculate_mask_rect
-    from anicrop.mask import Mask
-    from anicrop.transform import mat_translation
-
     mask_img = Image(np.zeros((50, 60, 1), dtype=np.uint8), ImageFormat.GRAY)
     mask = Mask(mask_img, Region.from_size(50, 60), np.identity(3, dtype=np.float32))
 

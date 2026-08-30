@@ -1,20 +1,22 @@
 from __future__ import annotations
-from abc import ABC, abstractmethod
+
 import copy
-from anicrop.container import (
-    Container,
-    LayerStack,
-    NodeContainerProtocol,
-    NullContainer,
-    BaseLayer,
-)
-from anicrop.geometry import GeometryController
-from anicrop.layer import Layer
-from anicrop.mask import Mask
+from abc import ABC, abstractmethod
 from collections import deque
 from typing import Any, Iterable
 
 import numpy as np
+
+from anicrop.container import (
+    BaseLayer,
+    Container,
+    LayerStack,
+    NodeContainerProtocol,
+    NullContainer,
+)
+from anicrop.geometry import GeometryController
+from anicrop.layer import Layer
+from anicrop.mask import Mask
 
 
 def _create_snapshot(

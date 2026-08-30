@@ -1,23 +1,24 @@
 import weakref
 from typing import Any, cast
-from anicrop.layer import Layer, LayerContent, LayerLayoutStrategy
-from anicrop.mask import Mask
-from anicrop.content import Content
-from anicrop.history import GlobalHistory
+
 from anicrop.command import (
     BaseLayerCommand,
     LayerImageCommand,
-    ReparentCommand,
     MaskCommand,
+    ReparentCommand,
 )
 from anicrop.container import (
+    BaseLayer,
     Container,
-    LayerStack,
     GroupLayer,
     GroupLayoutStrategy,
-    BaseLayer,
+    LayerStack,
     NullContainer,
 )
+from anicrop.content import Content, GroupContentStrategy, LayerContentStrategy
+from anicrop.history import GlobalHistory
+from anicrop.layer import Layer, LayerLayoutStrategy
+from anicrop.mask import Mask
 
 
 def is_property_with_setter(cls: type, name: str) -> bool:
@@ -54,7 +55,7 @@ class ProxyRegistry:
             proxy_cls = ProxyLayer
         elif isinstance(target, Mask):
             proxy_cls = ProxyMask
-        elif isinstance(target, (Content, LayerContent)):
+        elif isinstance(target, (Content, LayerContentStrategy, GroupContentStrategy)):
             proxy_cls = ProxyContent
         else:
             proxy_cls = BaseHistoryProxy
@@ -215,13 +216,20 @@ class BaseHistoryProxy:
                             Container,
                             Mask,
                             Content,
-                            LayerContent,
+                            LayerContentStrategy,
+                            GroupContentStrategy,
                             LayerLayoutStrategy,
                             GroupLayoutStrategy,
                         ),
                     ):
-                        if isinstance(result, LayerContent):
-                            return registry.get_or_create(LayerContent(cast(Any, self)))
+                        if isinstance(result, LayerContentStrategy):
+                            return registry.get_or_create(
+                                LayerContentStrategy(cast(Any, self))
+                            )
+                        if isinstance(result, GroupContentStrategy):
+                            return registry.get_or_create(
+                                GroupContentStrategy(cast(Any, self))
+                            )
                         if isinstance(result, LayerLayoutStrategy):
                             return LayerLayoutStrategy(cast(Any, self))
                         if isinstance(result, GroupLayoutStrategy):
@@ -240,13 +248,16 @@ class BaseHistoryProxy:
                     Container,
                     Mask,
                     Content,
-                    LayerContent,
+                    LayerContentStrategy,
+                    GroupContentStrategy,
                     LayerLayoutStrategy,
                     GroupLayoutStrategy,
                 ),
             ):
-                if isinstance(attr, LayerContent):
-                    return registry.get_or_create(LayerContent(cast(Any, self)))
+                if isinstance(attr, LayerContentStrategy):
+                    return registry.get_or_create(LayerContentStrategy(cast(Any, self)))
+                if isinstance(attr, GroupContentStrategy):
+                    return registry.get_or_create(GroupContentStrategy(cast(Any, self)))
                 if isinstance(attr, LayerLayoutStrategy):
                     return LayerLayoutStrategy(cast(Any, self))
                 if isinstance(attr, GroupLayoutStrategy):

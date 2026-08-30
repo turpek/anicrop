@@ -1,7 +1,9 @@
-from anicrop.type import Rotation, Vector, Scale
 from operator import add, sub
+
 import numpy as np
 import pytest
+
+from anicrop.type import Rotation, Scale, Vector
 
 # Apenas add e sub são suportados pela nova implementação de Rotation e Scale
 OPS = [

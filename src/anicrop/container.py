@@ -1,31 +1,31 @@
 from __future__ import annotations
-from collections.abc import Generator, Iterable
-from contextlib import contextmanager
-from typing import Any, Callable, Optional, Protocol, runtime_checkable, TYPE_CHECKING
 
-
-from anicrop.interfaces.container import AbstractContainer, AbstractGroupLayer
-from anicrop.interfaces.layer import AbstractBaseLayer
-from anicrop.layout import GroupLayoutStrategy
-from anicrop.effect import Effect, BoundEffect
-from anicrop.enums import BlendMode, ImageFormat
-from anicrop.geometry import GeometryStrategy, GroupGeometry, GeometryController
-from anicrop.mask import Mask
-from anicrop.spatial import Region
-from anicrop.transform import (
-    mat_global,
-    mat_inverse,
-    Composer,
-    ComposerRel,
-    Transform,
-)
+from typing import TYPE_CHECKING, Any, Callable, Optional, Protocol, runtime_checkable
 
 import numpy as np
 
+from anicrop.content import GroupContentStrategy
+from anicrop.effect import BoundEffect, Effect
+from anicrop.enums import BlendMode, ImageFormat
+from anicrop.geometry import GeometryController, GeometryStrategy, GroupGeometry
+from anicrop.interfaces.container import AbstractContainer, AbstractGroupLayer
+from anicrop.interfaces.layer import AbstractBaseLayer
+from anicrop.layout import GroupLayoutStrategy
+from anicrop.mask import Mask
+from anicrop.spatial import Region
+from anicrop.transform import (
+    Composer,
+    ComposerRel,
+    Transform,
+    mat_global,
+    mat_inverse,
+)
+from anicrop.utils import freeze_geometry, walk_nodes
+
 if TYPE_CHECKING:
     from anicrop.canvas import Canvas
-    from anicrop.layer import Layer
     from anicrop.image import Image
+    from anicrop.layer import Layer
 
 
 @runtime_checkable
@@ -384,6 +384,7 @@ class GroupLayer(Container, BaseLayer, AbstractGroupLayer):
             format=format,
         )
         self._layout = GroupLayoutStrategy(self)
+        self._content = GroupContentStrategy(self)
 
     def __repr__(self):
         return f'GroupLayer(name="{self.name}")'
@@ -413,45 +414,21 @@ class GroupLayer(Container, BaseLayer, AbstractGroupLayer):
         """Estratégia de layout da moldura do grupo."""
         return self._layout
 
-
-def walk_nodes(
-    root: BaseLayer | Container | Iterable[BaseLayer],
-) -> Generator[BaseLayer, None, None]:
-    """Gera uma travessia preguiçosa de todos os nós a partir de uma raiz ou coleção (DFS)."""
-    if isinstance(root, BaseLayer):
-        yield root
-
-    if isinstance(root, (Container, Iterable)) and not isinstance(root, (str, bytes)):
-        for child in root:
-            yield from walk_nodes(child)
+    @property
+    def content(self) -> GroupContentStrategy:
+        """Estratégia de manipulação de conteúdo do grupo."""
+        return self._content
 
 
-@contextmanager
-def freeze_geometry(
-    container: Container | Iterable[BaseLayer],
-) -> Generator[None, None, None]:
-    """Congela temporariamente o cálculo de matrizes e regiões com snapshot sob demanda para todos os nós."""
-
-    def _toggle_freeze(enable: bool) -> None:
-        for node in walk_nodes(container):
-            for strategy in (node.control.base, node.control.frame):
-                strategy._cached_matrix = None
-                strategy._cached_region = None
-                strategy._cached_global_region = None
-                strategy._resolve_matrix = (
-                    strategy._lazy_matrix if enable else strategy._direct_matrix
-                )
-                strategy._resolve_region = (
-                    strategy._lazy_region if enable else strategy._direct_region
-                )
-                strategy._resolve_global_region = (
-                    strategy._lazy_global_region
-                    if enable
-                    else strategy._direct_global_region
-                )
-
-    _toggle_freeze(True)
-    try:
-        yield
-    finally:
-        _toggle_freeze(False)
+__all__ = [
+    "AbstractContainer",
+    "AbstractGroupLayer",
+    "BaseLayer",
+    "Container",
+    "GroupLayer",
+    "LayerStack",
+    "NodeContainerProtocol",
+    "NullContainer",
+    "freeze_geometry",
+    "walk_nodes",
+]

@@ -1,12 +1,13 @@
 import numpy as np
-from anicrop.image import Image
-from anicrop.enums import ImageFormat
-from anicrop.layer import Layer
+
 from anicrop.container import GroupLayer
-from anicrop.render import ViewportRender, SceneTraverser
+from anicrop.enums import ImageFormat
 from anicrop.frame import ViewportFrame
-from anicrop.viewport import Viewport
+from anicrop.image import Image
+from anicrop.layer import Layer
+from anicrop.render import SceneTraverser, ViewportRender
 from anicrop.transform import mat_global
+from anicrop.viewport import Viewport
 
 
 def test_group_layer_integration_transforms():

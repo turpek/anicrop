@@ -6,7 +6,7 @@ from anicrop.container import GroupLayer
 from anicrop.history import GlobalHistory
 from anicrop.image import Image, ImageFormat
 from anicrop.layer import Layer
-from anicrop.proxy import GroupProxy, ProxyLayer, is_property_with_setter
+from anicrop.proxy import GroupProxy, ProxyLayer, ProxyMask, is_property_with_setter
 from anicrop.spatial import Region
 
 
@@ -253,8 +253,6 @@ def test_container_proxy_pop_returns_proxy_and_records_history():
 
 def test_proxy_layer_mask_property_returns_proxy_mask():
     """Garante que acessar proxy_layer.mask retorna uma instância de ProxyMask reativo."""
-    from anicrop.proxy import ProxyMask
-
     hist = GlobalHistory()
     raw_layer = Layer(make_img(50, 50), name="L1")
     proxy = ProxyLayer(raw_layer, hist)

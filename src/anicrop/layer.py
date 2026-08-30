@@ -1,27 +1,28 @@
 from __future__ import annotations
+
 from collections import deque
-from typing import Any, Optional, TYPE_CHECKING, overload
+from typing import TYPE_CHECKING, Any, Optional, overload
+
+import numpy as np
+from ovld import ovld
 
 from anicrop.container import (
     _NULL_CONTAINER,
     BaseLayer,
 )
-from anicrop.content import LayerContent
-from anicrop.interfaces.layer import AbstractLayer
-from anicrop.layout import LayerLayoutStrategy
+from anicrop.content import LayerContentStrategy
+from anicrop.edit_layer import EDIT_LAYER_MAP, EditLayer
 from anicrop.enums import BlendMode, ImageFormat, RenderFlags, WarpMode
 from anicrop.geometry import LayerGeometry
 from anicrop.image import Image
+from anicrop.interfaces.layer import AbstractLayer
+from anicrop.layout import LayerLayoutStrategy
 from anicrop.spatial import Region, Span
-from anicrop.type import Id
 from anicrop.transform import (
     mat_global,
     mat_inverse,
 )
-
-import numpy as np
-from ovld import ovld
-from anicrop.edit_layer import EditLayer, EDIT_LAYER_MAP
+from anicrop.type import Id
 
 
 class Layer(BaseLayer, AbstractLayer):
@@ -44,7 +45,7 @@ class Layer(BaseLayer, AbstractLayer):
         self._old_matrix = np.zeros((3, 3))
         self._render_flags = RenderFlags.ALL_DIRTY
         self._warp_mode = WarpMode.AFFINE
-        self._content = LayerContent(self)
+        self._content = LayerContentStrategy(self)
         self._layout = LayerLayoutStrategy(self)
 
     if TYPE_CHECKING:
@@ -158,7 +159,7 @@ class Layer(BaseLayer, AbstractLayer):
         self._render_flags = RenderFlags.NONE
 
     @property
-    def content(self) -> LayerContent:
+    def content(self) -> LayerContentStrategy:
         """Gerenciador de manipulação, transformação e ajuste de conteúdo/pixels."""
         return self._content
 

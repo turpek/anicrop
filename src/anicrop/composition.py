@@ -1,15 +1,16 @@
 from __future__ import annotations
+
 from functools import reduce
 from operator import or_
 from typing import TYPE_CHECKING, Sequence
 
 from anicrop.container import (
+    _NULL_CONTAINER,
     BaseLayer,
     Container,
     GroupLayer,
-    _NULL_CONTAINER,
 )
-from anicrop.edit_layer import EditLayer, EDIT_LAYER_MAP
+from anicrop.edit_layer import EDIT_LAYER_MAP, EditLayer
 from anicrop.effect import BoundEffect
 from anicrop.enums import ImageFormat, InterpMode
 from anicrop.image import Image

@@ -1,11 +1,12 @@
 from __future__ import annotations
+
 from abc import ABC, abstractmethod
 from pathlib import Path
 from typing import Iterator, TypeVar, overload
 
 from anicrop.canvas import Canvas
-from anicrop.container import BaseLayer, Container, GroupLayer, LayerStack, NullContainer
 from anicrop.composition import Combine
+from anicrop.container import BaseLayer, Container, GroupLayer, LayerStack, NullContainer
 from anicrop.content import Content
 from anicrop.enums import BlendMode, ImageFormat, InterpMode
 from anicrop.history import GlobalHistory

@@ -1,6 +1,8 @@
-import pytest
-import numpy as np
 from unittest.mock import patch
+
+import numpy as np
+import pytest
+
 from anicrop.persistence.manager import ScratchDiskManager
 from anicrop.persistence.token import NdarrayToken
 

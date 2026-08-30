@@ -1,6 +1,8 @@
 from __future__ import annotations
+
 from functools import reduce
 from operator import or_
+
 import numpy as np
 import pytest
 

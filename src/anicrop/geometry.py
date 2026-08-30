@@ -1,9 +1,12 @@
 from __future__ import annotations
+
 from abc import ABC, abstractmethod
 from functools import reduce
-from numpy import ndarray
 from operator import or_
 from typing import TYPE_CHECKING
+
+import numpy as np
+from numpy import ndarray
 
 from anicrop.spatial import Region, Span
 from anicrop.transform import (
@@ -12,8 +15,6 @@ from anicrop.transform import (
     mat_inverse,
     mat_position,
 )
-
-import numpy as np
 
 if TYPE_CHECKING:
     from anicrop.container import BaseLayer, GroupLayer

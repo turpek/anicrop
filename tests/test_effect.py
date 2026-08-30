@@ -1,6 +1,6 @@
 import numpy as np
 
-from anicrop.effect import Effect, BoundEffect
+from anicrop.effect import BoundEffect, Effect
 from anicrop.enums import ImageFormat
 from anicrop.image import Image
 from anicrop.layer import Layer

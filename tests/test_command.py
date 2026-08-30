@@ -1,12 +1,13 @@
 import numpy as np
 import pytest
+
 from anicrop.command import (
     BaseLayerCommand,
+    GeometryControllerSnapshot,
     LayerImageCommand,
     ReparentCommand,
-    GeometryControllerSnapshot,
 )
-from anicrop.container import GroupLayer, LayerStack, _NULL_CONTAINER
+from anicrop.container import _NULL_CONTAINER, GroupLayer, LayerStack
 from anicrop.enums import BlendMode
 from anicrop.geometry import GeometryController, LayerGeometry
 from anicrop.history import GlobalHistory

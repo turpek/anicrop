@@ -1,8 +1,10 @@
 from __future__ import annotations
+
 from typing import Self
+
 from anicrop.interfaces.canvas import AbstractCanvas
-from anicrop.spatial import Region
 from anicrop.layout import CanvasLayoutStrategy
+from anicrop.spatial import Region
 
 
 class Canvas(AbstractCanvas):

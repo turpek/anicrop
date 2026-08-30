@@ -1,10 +1,12 @@
-import pytest
-import numpy as np
+from unittest.mock import MagicMock, patch
+
 import cv2
-from unittest.mock import patch, MagicMock
+import numpy as np
+import pytest
+
 from anicrop.image import Image, ImageFormat
-from anicrop.spatial import Region, Span
 from anicrop.layer import EditLayer
+from anicrop.spatial import Region, Span
 
 
 def make_edit_layer(

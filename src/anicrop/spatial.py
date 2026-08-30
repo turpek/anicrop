@@ -1,8 +1,10 @@
 from __future__ import annotations
+
 from dataclasses import dataclass
 from operator import add, sub
-from ovld import ovld
 from typing import Callable, Optional
+
+from ovld import ovld
 
 
 class SpanError(Exception):

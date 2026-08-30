@@ -1,13 +1,15 @@
+import numpy as np
+import pytest
+from pytest import raises
+
+from anicrop.command import BaseLayerSnapshot
 from anicrop.container import GroupLayer
+from anicrop.enums import RenderFlags, WarpMode
 from anicrop.image import Image, ImageFormat
 from anicrop.layer import BlendMode, EditLayer, Layer
 from anicrop.layout import Layout
 from anicrop.spatial import Region
-from anicrop.enums import RenderFlags, WarpMode
-from anicrop.transform import mat_global, TransformRel
-from pytest import raises
-import numpy as np
-import pytest
+from anicrop.transform import TransformRel, mat_global
 
 W = H = 10  # Tamanhos padrão do image
 
@@ -315,8 +317,6 @@ def test_layer_snapshot_completeness(image):
     Se um novo atributo for adicionado ao Layer, ele aparecerá no 'missing_attributes'
     forçando o desenvolvedor a tomar uma decisão arquitetural (salvar ou ignorar).
     """
-    from anicrop.command import BaseLayerSnapshot
-
     layer = Layer(image)
 
     layer_attributes = set(vars(layer).keys())

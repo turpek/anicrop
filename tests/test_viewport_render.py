@@ -1,13 +1,15 @@
-import pytest
 import numpy as np
-from anicrop.render import ViewportRender
-from anicrop.frame import ViewportFrame
-from anicrop.layer import Layer
+import pytest
+
+import anicrop.render
 from anicrop.container import GroupLayer
-from anicrop.spatial import Region
+from anicrop.frame import ViewportFrame
 from anicrop.image import Image, ImageFormat
-from anicrop.viewport import Viewport
+from anicrop.layer import Layer
+from anicrop.render import ViewportRender
+from anicrop.spatial import Region
 from anicrop.type import Scale
+from anicrop.viewport import Viewport
 
 
 def make_layer(
@@ -70,8 +72,6 @@ def test_viewport_render_zoom_and_centering():
 
 def test_viewport_render_culling_camada_fora_da_tela(mocker):
     """Valida se ViewportRender descarta camadas totalmente fora do campo de visão da Viewport."""
-    import anicrop.render
-
     spy_warp = mocker.spy(anicrop.render, "warp_patch")
     layer = make_layer(100, 100, (255, 0, 0, 255), x=5000, y=5000)
     viewport = Viewport(size=(200, 200), fit_scale=1.0)

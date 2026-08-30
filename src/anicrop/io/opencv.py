@@ -1,4 +1,5 @@
 from __future__ import annotations
+
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -11,6 +12,7 @@ from anicrop.interfaces.io import AbstractImageIO, SaveOptions
 
 if TYPE_CHECKING:
     import zarr
+
     from anicrop.spatial import Region
 
 

@@ -1,12 +1,13 @@
 from __future__ import annotations
-from abc import ABC
+
 import math
-from typing import Protocol, runtime_checkable, TYPE_CHECKING
+from abc import ABC
+from typing import TYPE_CHECKING, Protocol, runtime_checkable
+
 import numpy as np
 
 from anicrop.canvas import Canvas
 from anicrop.spatial import Region, rect_to_region
-
 from anicrop.transform import (
     calculate_new_rect,
     calculate_region_rect,
@@ -14,12 +15,11 @@ from anicrop.transform import (
     mat_inverse,
 )
 
-
 if TYPE_CHECKING:
-    from anicrop.layer import EditLayer
-    from anicrop.viewport import Viewport
     from anicrop.container import BaseLayer
+    from anicrop.layer import EditLayer
     from anicrop.mask import Mask
+    from anicrop.viewport import Viewport
 
 
 @runtime_checkable

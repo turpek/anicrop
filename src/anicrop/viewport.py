@@ -1,7 +1,8 @@
-from anicrop.spatial import Region, rect_to_region
-from anicrop.type import Scale
-from anicrop.transform import calculate_new_rect, mat_inverse, mat_pivot, mat_translation
 from numpy import ndarray
+
+from anicrop.spatial import Region, rect_to_region
+from anicrop.transform import calculate_new_rect, mat_inverse, mat_pivot, mat_translation
+from anicrop.type import Scale
 
 
 class Viewport:

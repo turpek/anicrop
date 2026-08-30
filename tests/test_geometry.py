@@ -1,18 +1,18 @@
 from unittest.mock import MagicMock
+
 import numpy as np
 import pytest
 
 from anicrop.container import GroupLayer, freeze_geometry
+from anicrop.enums import ImageFormat
 from anicrop.geometry import (
     FitGroupGeometry,
     GeometryController,
     GroupGeometry,
     LayerGeometry,
 )
-from anicrop.enums import ImageFormat
 from anicrop.image import Image
 from anicrop.layer import Layer
-
 from anicrop.spatial import Region
 
 

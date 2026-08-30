@@ -1,8 +1,9 @@
-import pytest
 import numpy as np
+import pytest
+
 from anicrop.image import Image, ImageFormat
-from anicrop.spatial import Region, Span
 from anicrop.layer import EditLayer
+from anicrop.spatial import Region, Span
 
 
 def test_image_new_creates_zarr_when_exceeding_threshold():

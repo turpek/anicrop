@@ -1,5 +1,7 @@
 from __future__ import annotations
-from typing import Protocol, runtime_checkable, TYPE_CHECKING
+
+from typing import TYPE_CHECKING, Protocol, runtime_checkable
+
 import numpy as np
 
 if TYPE_CHECKING:

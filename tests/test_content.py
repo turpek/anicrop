@@ -3,10 +3,10 @@ import pytest
 
 from anicrop.canvas import Canvas
 from anicrop.container import GroupLayer
-from anicrop.content import Content, FitContext
+from anicrop.content import Content, FitContext, LayerContentStrategy
 from anicrop.enums import ImageFormat
 from anicrop.image import Image
-from anicrop.layer import Layer, LayerContent
+from anicrop.layer import Layer
 from anicrop.render import CanvasRender
 from anicrop.spatial import Region
 
@@ -275,7 +275,7 @@ def test_layer_content_bound_methods():
     data = np.full((100, 100, 4), 255, dtype=np.uint8)
     layer = Layer(Image(data, ImageFormat.RGBA))
 
-    assert isinstance(layer.content, LayerContent)
+    assert isinstance(layer.content, LayerContentStrategy)
 
     # 1. Resize via layer.content
     assert layer.content.resize(200, 200) is True

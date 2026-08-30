@@ -1,8 +1,9 @@
-from anicrop.spatial import Span, SpanError, Region
-
-from pytest import raises
-import pytest
 import re
+
+import pytest
+from pytest import raises
+
+from anicrop.spatial import Region, Span, SpanError
 
 
 def test_Span_com_start_padrao():

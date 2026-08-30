@@ -1,4 +1,5 @@
 import pytest
+
 from anicrop.canvas import Canvas, CanvasLayoutStrategy
 from anicrop.spatial import Region, SpanError
 

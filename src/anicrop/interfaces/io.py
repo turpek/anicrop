@@ -1,4 +1,5 @@
 from __future__ import annotations
+
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from pathlib import Path
@@ -8,6 +9,7 @@ import numpy as np
 
 if TYPE_CHECKING:
     import zarr
+
     from anicrop.enums import ImageFormat
     from anicrop.spatial import Region
 

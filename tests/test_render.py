@@ -3,15 +3,13 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
+import anicrop.render
 from anicrop.canvas import Canvas
 from anicrop.container import GroupLayer, LayerStack
-
-
 from anicrop.enums import BlendMode, ImageFormat, InterpMode, WarpMode
 from anicrop.frame import CanvasFrame, ViewportFrame
 from anicrop.image import Image
-from anicrop.layer import Layer, EditLayer
-import anicrop.render
+from anicrop.layer import EditLayer, Layer
 from anicrop.render import (
     CanvasRender,
     SceneTraverser,
@@ -22,7 +20,6 @@ from anicrop.render import (
     warp_affine,
     warp_patch,
 )
-
 from anicrop.spatial import Region
 from anicrop.transform import TransformRel
 from anicrop.viewport import Viewport

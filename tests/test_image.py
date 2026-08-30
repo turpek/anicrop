@@ -1,10 +1,11 @@
-from anicrop.image import Image, ImageFormat
-from anicrop.spatial import Region, Span
-from pytest import raises
 import numpy as np
 import pytest
 import zarr
 from PIL import Image as PILImage
+from pytest import raises
+
+from anicrop.image import Image, ImageFormat
+from anicrop.spatial import Region, Span
 
 
 def region_(size=3, offset=0):
