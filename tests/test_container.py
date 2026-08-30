@@ -641,3 +641,75 @@ def test_container_swap_item_inexistente_lanca_erro(container_cls):
 
     with pytest.raises(ValueError):
         container.swap(l_fora, l0)
+
+
+@pytest.mark.parametrize("container_cls", [LayerStack, GroupLayer])
+def test_container_reverse_shallow(container_cls):
+    """Valida inversao de ordem de filhos no nivel atual com recursive=False."""
+    container = container_cls()
+    l0 = Layer(make_mock_image(), name="L0")
+    l1 = Layer(make_mock_image(), name="L1")
+    l2 = Layer(make_mock_image(), name="L2")
+    for l in (l0, l1, l2):
+        container.append(l)
+
+    container.reverse()
+
+    assert container._children == [l2, l1, l0]
+
+
+@pytest.mark.parametrize("container_cls", [LayerStack, GroupLayer])
+def test_container_reverse_shallow_preserves_subgroup_order(container_cls):
+    """Valida que reverse com recursive=False nao altera a ordem interna dos subgrupos."""
+    container = container_cls()
+    l0 = Layer(make_mock_image(), name="L0")
+    sub0 = Layer(make_mock_image(), name="Sub0")
+    sub1 = Layer(make_mock_image(), name="Sub1")
+    group = GroupLayer(name="Group")
+    group.append(sub0)
+    group.append(sub1)
+    l2 = Layer(make_mock_image(), name="L2")
+
+    container.append(l0)
+    container.append(group)
+    container.append(l2)
+
+    container.reverse(recursive=False)
+
+    assert container._children == [l2, group, l0]
+    assert group._children == [sub0, sub1]
+
+
+@pytest.mark.parametrize("container_cls", [LayerStack, GroupLayer])
+def test_container_reverse_recursive(container_cls):
+    """Valida inversao profunda com recursive=True descendo para subgrupos."""
+    container = container_cls()
+    l0 = Layer(make_mock_image(), name="L0")
+    sub0 = Layer(make_mock_image(), name="Sub0")
+    sub1 = Layer(make_mock_image(), name="Sub1")
+    group = GroupLayer(name="Group")
+    group.append(sub0)
+    group.append(sub1)
+    l2 = Layer(make_mock_image(), name="L2")
+
+    container.append(l0)
+    container.append(group)
+    container.append(l2)
+
+    container.reverse(recursive=True)
+
+    assert container._children == [l2, group, l0]
+    assert group._children == [sub1, sub0]
+
+
+@pytest.mark.parametrize("container_cls", [LayerStack, GroupLayer])
+def test_container_reverse_empty_and_single(container_cls):
+    """Valida que reverse em container vazio ou unitario e seguro."""
+    container = container_cls()
+    container.reverse(recursive=True)
+    assert len(container) == 0
+
+    l0 = Layer(make_mock_image(), name="L0")
+    container.append(l0)
+    container.reverse(recursive=True)
+    assert container._children == [l0]

@@ -83,6 +83,11 @@ class AbstractContainer(ABC):
         ...
 
     @abstractmethod
+    def reverse(self, recursive: bool = False) -> None:
+        """Inverte a ordem dos itens contidos neste container in-place."""
+        ...
+
+    @abstractmethod
     def __len__(self) -> int:
         ...
 

@@ -170,6 +170,14 @@ class Container(NullContainer, AbstractContainer):
         if idx_a != idx_b:
             self._children[idx_a], self._children[idx_b] = self._children[idx_b], self._children[idx_a]
 
+    def reverse(self, recursive: bool = False) -> None:
+        """Reverse the order of children in this container in place."""
+        self._children.reverse()
+        if recursive:
+            for child in self._children:
+                if isinstance(child, Container):
+                    child.reverse(recursive=True)
+
     @property
     def matrix(self) -> np.ndarray:
         return np.identity(3, dtype=np.float32)
