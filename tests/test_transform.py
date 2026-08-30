@@ -23,11 +23,7 @@ ATOL = 1e-4
 
 def test_mat_translation_valores_basicos():
     m = mat_translation(10, 20)
-    expected = np.array([
-        [1, 0, 10],
-        [0, 1, 20],
-        [0, 0, 1]
-    ], dtype=np.float32)
+    expected = np.array([[1, 0, 10], [0, 1, 20], [0, 0, 1]], dtype=np.float32)
     np.testing.assert_allclose(m, expected, atol=ATOL)
 
 
@@ -39,11 +35,7 @@ def test_mat_position_da_region():
 
 
 def test_calculate_new_rect_rotacao_90_graus():
-    rot_90 = np.array([
-        [0, -1, 0],
-        [1, 0, 0],
-        [0, 0, 1]
-    ], dtype=np.float32)
+    rot_90 = np.array([[0, -1, 0], [1, 0, 0], [0, 0, 1]], dtype=np.float32)
 
     size = (100, 50)
     rect = calculate_new_rect(rot_90, size)
@@ -51,6 +43,7 @@ def test_calculate_new_rect_rotacao_90_graus():
 
 
 # --- Testes ComposerRel ---
+
 
 def test_composer_rel_inicializacao():
     composer = ComposerRel((100, 100))
@@ -62,11 +55,7 @@ def test_composer_rel_translate_simples():
     composer = ComposerRel((100, 100))
     composer.translate(10, 20)
 
-    expected = np.array([
-        [1, 0, 10],
-        [0, 1, 20],
-        [0, 0, 1]
-    ], dtype=np.float32)
+    expected = np.array([[1, 0, 10], [0, 1, 20], [0, 0, 1]], dtype=np.float32)
 
     np.testing.assert_allclose(composer.matrix, expected, atol=ATOL)
 
@@ -123,11 +112,13 @@ def test_composer_rel_add_transform():
 
 # --- Testes TransformRel (Imutável / Pivôs Dinâmicos) ---
 
+
 def test_transform_rel_inicializacao():
     t = TransformRel()
     assert not t.has_distortion
-    np.testing.assert_allclose(t.get_matrix((100, 100)),
-                               np.eye(3, dtype=np.float32), atol=ATOL)
+    np.testing.assert_allclose(
+        t.get_matrix((100, 100)), np.eye(3, dtype=np.float32), atol=ATOL
+    )
 
 
 def test_transform_rel_dynamic_pivot_no_shift():
@@ -154,9 +145,17 @@ def test_transform_rel_validation_errors():
 
 # --- Testes de Estresse ---
 
+
 def test_transform_rel_stress_interleaved():
     size = (100, 100)
-    t = TransformRel().translate(10, 10).rotate(45).scale(2, 2).translate(5, 5).rotate(-30)
+    t = (
+        TransformRel()
+        .translate(10, 10)
+        .rotate(45)
+        .scale(2, 2)
+        .translate(5, 5)
+        .rotate(-30)
+    )
     res_matrix = t.get_matrix(size)
 
     x, y, w, h = calculate_new_rect(res_matrix, size)
@@ -165,6 +164,7 @@ def test_transform_rel_stress_interleaved():
 
 
 # --- Testes ComposerAbs ---
+
 
 def test_composer_abs_inicializacao():
     composer = ComposerAbs((100, 100))
@@ -212,6 +212,7 @@ def test_composer_abs_add_transform():
 
 # --- Testes TransformAbs ---
 
+
 def test_transform_abs_inicializacao():
     t = TransformAbs()
     assert not t.has_distortion
@@ -238,8 +239,14 @@ def test_transform_abs_validation_errors():
 
 
 def test_transform_abs_stress_interleaved():
-    t = TransformAbs().translate(10, 10).rotate(45, px=50, py=50).scale(
-        2, 2, px=10, py=10).translate(5, 5).rotate(-30, px=0, py=0)
+    t = (
+        TransformAbs()
+        .translate(10, 10)
+        .rotate(45, px=50, py=50)
+        .scale(2, 2, px=10, py=10)
+        .translate(5, 5)
+        .rotate(-30, px=0, py=0)
+    )
     res_matrix = t.get_matrix()
 
     x, y, w, h = calculate_new_rect(res_matrix, (100, 100))
@@ -274,12 +281,21 @@ def test_composer_sync_region():
     [
         pytest.param(np.eye(3, dtype=np.float32), False, id="identidade_sem_distorcao"),
         pytest.param(mat_translation(10, 20), False, id="translacao_sem_distorcao"),
-        pytest.param(TransformRel().rotate(45).get_matrix(
-            (100, 100)), True, id="rotacao_com_distorcao"),
-        pytest.param(TransformRel().scale(2.0, 2.0).get_matrix(
-            (100, 100)), True, id="escala_com_distorcao"),
-        pytest.param(TransformRel().translate(15, -30).get_matrix((100, 100)),
-                     False, id="translacao_relativa_sem_distorcao"),
+        pytest.param(
+            TransformRel().rotate(45).get_matrix((100, 100)),
+            True,
+            id="rotacao_com_distorcao",
+        ),
+        pytest.param(
+            TransformRel().scale(2.0, 2.0).get_matrix((100, 100)),
+            True,
+            id="escala_com_distorcao",
+        ),
+        pytest.param(
+            TransformRel().translate(15, -30).get_matrix((100, 100)),
+            False,
+            id="translacao_relativa_sem_distorcao",
+        ),
     ],
 )
 def test_has_distortion_function(matrix, expected_has_distortion):

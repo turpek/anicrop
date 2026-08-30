@@ -136,7 +136,7 @@ def test_content_flip_y_render_pipeline():
     """Valida a renderização de camada espelhada verticalmente via flip_y."""
     canvas = Canvas.from_size(100, 100)
     data = np.zeros((100, 100, 4), dtype=np.uint8)
-    data[:50, :] = [0, 255, 0, 255]    # Topo: verde
+    data[:50, :] = [0, 255, 0, 255]  # Topo: verde
     data[50:, :] = [255, 255, 0, 255]  # Base: amarelo
     layer = Layer(Image(data, ImageFormat.RGBA))
 

@@ -4,7 +4,12 @@ from anicrop.layer import Layer, LayerContent, LayerLayoutStrategy
 from anicrop.mask import Mask
 from anicrop.content import Content
 from anicrop.history import GlobalHistory
-from anicrop.command import BaseLayerCommand, LayerImageCommand, ReparentCommand, MaskCommand
+from anicrop.command import (
+    BaseLayerCommand,
+    LayerImageCommand,
+    ReparentCommand,
+    MaskCommand,
+)
 from anicrop.container import (
     Container,
     LayerStack,
@@ -58,7 +63,7 @@ class ProxyRegistry:
 
 
 def get_registry_for_history(history: Any) -> ProxyRegistry:
-    reg = getattr(history, '_proxy_registry', None)
+    reg = getattr(history, "_proxy_registry", None)
     if isinstance(reg, ProxyRegistry):
         return reg
     reg = ProxyRegistry(history)
@@ -71,10 +76,13 @@ def get_registry_for_history(history: Any) -> ProxyRegistry:
 
 class BaseHistoryProxy:
     """Classe base que cuida da interceptação segura de estado e histórico."""
+
     _ACTION_ROUTER: dict[str, type] = {}
     _CHAINABLE_PROPERTIES: tuple[str, ...] = ()
 
-    def __new__(cls, target: Any, history: GlobalHistory, registry: ProxyRegistry | None = None):
+    def __new__(
+        cls, target: Any, history: GlobalHistory, registry: ProxyRegistry | None = None
+    ):
         if isinstance(target, BaseHistoryProxy):
             return target
 
@@ -85,39 +93,43 @@ class BaseHistoryProxy:
 
         return super().__new__(cls)
 
-    def __init__(self, target: Any, history: GlobalHistory, registry: ProxyRegistry | None = None):
-        if hasattr(self, '_target'):
+    def __init__(
+        self, target: Any, history: GlobalHistory, registry: ProxyRegistry | None = None
+    ):
+        if hasattr(self, "_target"):
             return
 
         if registry is None:
             registry = get_registry_for_history(history)
 
-        super().__setattr__('_target', target)
-        super().__setattr__('_history', history)
-        super().__setattr__('_registry', registry)
+        super().__setattr__("_target", target)
+        super().__setattr__("_history", history)
+        super().__setattr__("_registry", registry)
         registry._cache[id(target)] = self
 
     def __eq__(self, other: Any) -> bool:
-        target = object.__getattribute__(self, '_target')
-        other_target = getattr(other, '_target', other)
+        target = object.__getattribute__(self, "_target")
+        other_target = getattr(other, "_target", other)
         return target is other_target or target == other_target
 
     def __hash__(self) -> int:
-        return hash(object.__getattribute__(self, '_target'))
+        return hash(object.__getattribute__(self, "_target"))
 
     def _resolve_command(self, name: str):
         if name not in self._ACTION_ROUTER:
             raise KeyError(f"Ação '{name}' não roteada no proxy {type(self).__name__}.")
         return self._ACTION_ROUTER[name]
 
-    def _extract_command_value(self, name: str, cmd_cls: type, target: Any, args: tuple) -> Any:
+    def _extract_command_value(
+        self, name: str, cmd_cls: type, target: Any, args: tuple
+    ) -> Any:
         """Hook para subclasses extraírem o parâmetro `value` do comando a partir dos argumentos do método."""
         if name == "__setitem__" and args:
             return args[0]
         return None
 
     def __dir__(self):
-        target = object.__getattribute__(self, '_target')
+        target = object.__getattribute__(self, "_target")
         return dir(target)
 
     def __getattribute__(self, name: str) -> Any:
@@ -130,7 +142,7 @@ class BaseHistoryProxy:
             "_resolve_command",
             "_extract_command_value",
             "__dict__",
-            "__class__"
+            "__class__",
         ):
             return object.__getattribute__(self, name)
 
@@ -157,17 +169,22 @@ class BaseHistoryProxy:
             return attr
 
         if callable(attr) and name in action_router:
+
             def method_wrapper(*args, **kwargs) -> Any:
-                history = object.__getattribute__(self, '_history')
+                history = object.__getattribute__(self, "_history")
 
                 unwrapped_args = tuple(
-                    object.__getattribute__(arg, '_target') if isinstance(
-                        arg, BaseHistoryProxy) else arg
+                    object.__getattribute__(arg, "_target")
+                    if isinstance(arg, BaseHistoryProxy)
+                    else arg
                     for arg in args
                 )
                 unwrapped_kwargs = {
-                    k: (object.__getattribute__(v, '_target') if isinstance(
-                        v, BaseHistoryProxy) else v)
+                    k: (
+                        object.__getattribute__(v, "_target")
+                        if isinstance(v, BaseHistoryProxy)
+                        else v
+                    )
                     for k, v in kwargs.items()
                 }
 
@@ -179,8 +196,7 @@ class BaseHistoryProxy:
 
                 cmd_cls = self._resolve_command(name)
 
-                value = self._extract_command_value(
-                    name, cmd_cls, target, args)
+                value = self._extract_command_value(name, cmd_cls, target, args)
                 history.start_action(cmd_cls, name, self, value)
 
                 with history.disabled():
@@ -188,9 +204,22 @@ class BaseHistoryProxy:
 
                 if result is target:
                     return self
-                if hasattr(self, '_registry') and not isinstance(result, BaseHistoryProxy):
-                    registry = object.__getattribute__(self, '_registry')
-                    if isinstance(result, (BaseLayer, Container, Mask, Content, LayerContent, LayerLayoutStrategy, GroupLayoutStrategy)):
+                if hasattr(self, "_registry") and not isinstance(
+                    result, BaseHistoryProxy
+                ):
+                    registry = object.__getattribute__(self, "_registry")
+                    if isinstance(
+                        result,
+                        (
+                            BaseLayer,
+                            Container,
+                            Mask,
+                            Content,
+                            LayerContent,
+                            LayerLayoutStrategy,
+                            GroupLayoutStrategy,
+                        ),
+                    ):
                         if isinstance(result, LayerContent):
                             return registry.get_or_create(LayerContent(cast(Any, self)))
                         if isinstance(result, LayerLayoutStrategy):
@@ -199,11 +228,23 @@ class BaseHistoryProxy:
                             return GroupLayoutStrategy(cast(Any, self))
                         return registry.get_or_create(result)
                 return result
+
             return method_wrapper
 
-        if hasattr(self, '_registry') and not isinstance(attr, BaseHistoryProxy):
-            registry = object.__getattribute__(self, '_registry')
-            if isinstance(attr, (BaseLayer, Container, Mask, Content, LayerContent, LayerLayoutStrategy, GroupLayoutStrategy)):
+        if hasattr(self, "_registry") and not isinstance(attr, BaseHistoryProxy):
+            registry = object.__getattribute__(self, "_registry")
+            if isinstance(
+                attr,
+                (
+                    BaseLayer,
+                    Container,
+                    Mask,
+                    Content,
+                    LayerContent,
+                    LayerLayoutStrategy,
+                    GroupLayoutStrategy,
+                ),
+            ):
                 if isinstance(attr, LayerContent):
                     return registry.get_or_create(LayerContent(cast(Any, self)))
                 if isinstance(attr, LayerLayoutStrategy):
@@ -221,11 +262,11 @@ class BaseHistoryProxy:
                 "Use container methods like 'parent.append(child)' or 'parent.remove(child)' instead."
             )
 
-        target = object.__getattribute__(self, '_target')
-        action_router = object.__getattribute__(self, '_ACTION_ROUTER')
+        target = object.__getattribute__(self, "_target")
+        action_router = object.__getattribute__(self, "_ACTION_ROUTER")
 
         if name in action_router:
-            history = object.__getattribute__(self, '_history')
+            history = object.__getattribute__(self, "_history")
 
             if not history.is_active:
                 setattr(target, name, value)
@@ -240,22 +281,24 @@ class BaseHistoryProxy:
             setattr(target, name, value)
 
     def __getitem__(self, item: Any) -> Any:
-        target = object.__getattribute__(self, '_target')
+        target = object.__getattribute__(self, "_target")
         return target[item]
 
     def __setitem__(self, item: Any, value: Any) -> None:
-        target = object.__getattribute__(self, '_target')
-        action_router = object.__getattribute__(self, '_ACTION_ROUTER')
+        target = object.__getattribute__(self, "_target")
+        action_router = object.__getattribute__(self, "_ACTION_ROUTER")
 
         if "__setitem__" in action_router:
-            history = object.__getattribute__(self, '_history')
+            history = object.__getattribute__(self, "_history")
 
             if not history.is_active:
                 target[item] = value
                 return
 
             cmd_cls = self._resolve_command("__setitem__")
-            value_arg = self._extract_command_value("__setitem__", cmd_cls, target, (item, value))
+            value_arg = self._extract_command_value(
+                "__setitem__", cmd_cls, target, (item, value)
+            )
             history.start_action(cmd_cls, "__setitem__", self, value_arg)
 
             with history.disabled():
@@ -313,8 +356,10 @@ class BaseContainerProxy(BaseHistoryProxy):
         "pop": ReparentCommand,
     }
 
-    def _extract_command_value(self, name: str, cmd_cls: type, target: Any, args: tuple) -> Any:
-        registry = object.__getattribute__(self, '_registry')
+    def _extract_command_value(
+        self, name: str, cmd_cls: type, target: Any, args: tuple
+    ) -> Any:
+        registry = object.__getattribute__(self, "_registry")
         if cmd_cls is ReparentCommand:
             if name in ("append", "remove", "move"):
                 return registry.get_or_create(args[0])
@@ -328,30 +373,31 @@ class BaseContainerProxy(BaseHistoryProxy):
         return None
 
     def __iter__(self):
-        registry = object.__getattribute__(self, '_registry')
-        for item in object.__getattribute__(self, '_target'):
+        registry = object.__getattribute__(self, "_registry")
+        for item in object.__getattribute__(self, "_target"):
             yield registry.get_or_create(item)
 
     def __reversed__(self):
-        registry = object.__getattribute__(self, '_registry')
-        for item in reversed(object.__getattribute__(self, '_target')):
+        registry = object.__getattribute__(self, "_registry")
+        for item in reversed(object.__getattribute__(self, "_target")):
             yield registry.get_or_create(item)
 
     def __len__(self):
-        return len(object.__getattribute__(self, '_target'))
+        return len(object.__getattribute__(self, "_target"))
 
     def __contains__(self, item):
-        target = object.__getattribute__(self, '_target')
-        return item in target or getattr(item, '_target', item) in target
+        target = object.__getattribute__(self, "_target")
+        return item in target or getattr(item, "_target", item) in target
 
     def __getitem__(self, item):
-        registry = object.__getattribute__(self, '_registry')
-        raw_item = object.__getattribute__(self, '_target')[item]
+        registry = object.__getattribute__(self, "_registry")
+        raw_item = object.__getattribute__(self, "_target")[item]
         return registry.get_or_create(raw_item)
 
 
 class LayerStackProxy(BaseContainerProxy):
     """Proxy dedicado a LayerStack (Root Container)."""
+
     pass
 
 

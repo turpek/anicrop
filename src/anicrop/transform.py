@@ -25,20 +25,18 @@ def corners_to_rect(min_x, min_y, max_x, max_y):
 def has_distortion(matrix: np.ndarray) -> bool:
     """Retorna True se a matriz contiver distorção afim (rotação, escala != 1 ou cisalhamento)."""
     return not (
-        matrix[0, 0] == 1.0 and
-        matrix[1, 1] == 1.0 and
-        matrix[0, 1] == 0.0 and
-        matrix[1, 0] == 0.0 and
-        matrix[2, 0] == 0.0 and
-        matrix[2, 1] == 0.0 and
-        matrix[2, 2] == 1.0
+        matrix[0, 0] == 1.0
+        and matrix[1, 1] == 1.0
+        and matrix[0, 1] == 0.0
+        and matrix[1, 0] == 0.0
+        and matrix[2, 0] == 0.0
+        and matrix[2, 1] == 0.0
+        and matrix[2, 2] == 1.0
     )
 
 
 def calculate_new_corners(
-    matrix: np.ndarray,
-    size: Size2D,
-    top_left: Point2D = (0.0, 0.0)
+    matrix: np.ndarray, size: Size2D, top_left: Point2D = (0.0, 0.0)
 ) -> tuple[float, float, float, float]:
     """retorna min_x, min_y, max_x, max_y"""
     x, y = top_left
@@ -46,12 +44,10 @@ def calculate_new_corners(
 
     # Agora os cantos consideram a posição inicial (x, y) exata da Região,
     # e não apenas a largura e altura partindo do zero.
-    corners = np.array([
-        [x, y, 1.0],
-        [x + w, y, 1.0],
-        [x + w, y + h, 1.0],
-        [x, y + h, 1.0]
-    ], dtype=np.float32).T
+    corners = np.array(
+        [[x, y, 1.0], [x + w, y, 1.0], [x + w, y + h, 1.0], [x, y + h, 1.0]],
+        dtype=np.float32,
+    ).T
 
     transformed_corners = matrix @ corners
     transformed_corners[0, :] /= transformed_corners[2, :]
@@ -70,7 +66,7 @@ def calculate_new_rect_smart(
     matrix: np.ndarray,
     size: tuple[int, int],
     top_left: tuple[int, int],
-    eps: float = 1e-5
+    eps: float = 1e-5,
 ) -> tuple[int, int, int, int]:
 
     min_x, min_y, max_x, max_y = calculate_new_corners(matrix, size, top_left)
@@ -93,18 +89,14 @@ def calculate_new_rect_smart(
 
 
 def calculate_new_rect(
-    matrix: np.ndarray,
-    size: tuple[int, int],
-    eps: float = 1e-5
+    matrix: np.ndarray, size: tuple[int, int], eps: float = 1e-5
 ) -> tuple[int, int, int, int]:
 
     return calculate_new_rect_smart(matrix, size, (0, 0), eps)
 
 
 def calculate_region_rect(
-    matrix: np.ndarray,
-    region: Region,
-    eps: float = 1e-5
+    matrix: np.ndarray, region: Region, eps: float = 1e-5
 ) -> tuple[int, int, int, int]:
 
     return calculate_new_rect_smart(matrix, region.size, region.top_left, eps)
@@ -139,7 +131,7 @@ def create_pivot_transform_rel(
     px_rel: float,
     py_rel: float,
     x: float = 0,
-    y: float = 0
+    y: float = 0,
 ) -> np.ndarray:
     """Gera o Sanduíche: Ida ao Pivô -> Transformação -> Volta do Pivô"""
 
@@ -148,11 +140,7 @@ def create_pivot_transform_rel(
 
 
 def mat_translation(x: float, y: float) -> np.ndarray:
-    return np.array([
-        [1, 0, x],
-        [0, 1, y],
-        [0, 0, 1]
-    ], dtype=np.float32)
+    return np.array([[1, 0, x], [0, 1, y], [0, 0, 1]], dtype=np.float32)
 
 
 def mat_position(region: Region) -> np.ndarray:
@@ -163,19 +151,11 @@ def mat_rotation(angle: float) -> np.ndarray:
     theta = np.radians(angle)
     c, s = np.cos(theta), np.sin(theta)
 
-    return np.array([
-        [c, -s, 0],
-        [s, c, 0],
-        [0, 0, 1]
-    ], dtype=np.float32)
+    return np.array([[c, -s, 0], [s, c, 0], [0, 0, 1]], dtype=np.float32)
 
 
 def mat_scale(sx: float, sy: float) -> np.ndarray:
-    return np.array([
-        [sx, 0, 0],
-        [0, sy, 0],
-        [0, 0, 1]
-    ], dtype=np.float32)
+    return np.array([[sx, 0, 0], [0, sy, 0], [0, 0, 1]], dtype=np.float32)
 
 
 def mat_pivot(transform: TransformState, size: tuple[int, int]) -> np.ndarray:
@@ -241,30 +221,31 @@ def transform_vector(
 
 
 class TransformBase(ABC):
-
     @abstractmethod
-    def matrix(self, size: Size2D = (0.0, 0.0), top_left: Point2D = (0.0, 0.0)) -> np.ndarray:
-        ...
+    def matrix(
+        self, size: Size2D = (0.0, 0.0), top_left: Point2D = (0.0, 0.0)
+    ) -> np.ndarray:
+        pass
 
 
 class TRotate(TransformBase):
     def __init__(
-            self,
-            angle: float,
-            pivot_x: float = 0.5,
-            pivot_y: float = 0.5,
-            pivot_fn: Callable = create_pivot_transform_rel
+        self,
+        angle: float,
+        pivot_x: float = 0.5,
+        pivot_y: float = 0.5,
+        pivot_fn: Callable = create_pivot_transform_rel,
     ):
         self._angle = angle
         self._pivots = pivot_x, pivot_y
         self._pivot_fn = pivot_fn
 
-    def matrix(self, size: Size2D = (0.0, 0.0), top_left: Point2D = (0.0, 0.0)) -> np.ndarray:
+    def matrix(
+        self, size: Size2D = (0.0, 0.0), top_left: Point2D = (0.0, 0.0)
+    ) -> np.ndarray:
         w, h = size
         x, y = top_left
-        return self._pivot_fn(
-            mat_rotation(self._angle), w, h, *self._pivots, x, y
-        )
+        return self._pivot_fn(mat_rotation(self._angle), w, h, *self._pivots, x, y)
 
 
 class TScale(TransformBase):
@@ -274,7 +255,7 @@ class TScale(TransformBase):
         sy: float,
         pivot_x: float = 0.5,
         pivot_y: float = 0.5,
-        pivot_fn: Callable = create_pivot_transform_rel
+        pivot_fn: Callable = create_pivot_transform_rel,
     ):
         if sx == 0 or sy == 0:
             raise ValueError("Scale factors cannot be zero.")
@@ -283,12 +264,12 @@ class TScale(TransformBase):
         self._pivots = pivot_x, pivot_y
         self._pivot_fn = pivot_fn
 
-    def matrix(self, size: Size2D = (0.0, 0.0), top_left: Point2D = (0.0, 0.0)) -> np.ndarray:
+    def matrix(
+        self, size: Size2D = (0.0, 0.0), top_left: Point2D = (0.0, 0.0)
+    ) -> np.ndarray:
         w, h = size
         x, y = top_left
-        return self._pivot_fn(
-            mat_scale(self._sx, self._sy), w, h, *self._pivots, x, y
-        )
+        return self._pivot_fn(mat_scale(self._sx, self._sy), w, h, *self._pivots, x, y)
 
 
 class TTranslate(TransformBase):
@@ -300,12 +281,13 @@ class TTranslate(TransformBase):
         self._x = x
         self._y = y
 
-    def matrix(self, size: Size2D = (0.0, 0.0), top_left: Point2D = (0.0, 0.0)) -> np.ndarray:
+    def matrix(
+        self, size: Size2D = (0.0, 0.0), top_left: Point2D = (0.0, 0.0)
+    ) -> np.ndarray:
         return mat_translation(self._x, self._y)
 
 
 class Composer(ABC):
-
     def __init__(self, size: tuple[int, int]):
         self._distortion = np.identity(3, dtype=np.float32)
         self._region = Region.from_size(*size)
@@ -319,9 +301,9 @@ class Composer(ABC):
         if not isinstance(other, Composer):
             return False
         return (
-            np.array_equal(self._distortion, other._distortion) and
-            np.array_equal(self._translation, other._translation) and
-            self._region == other._region
+            np.array_equal(self._distortion, other._distortion)
+            and np.array_equal(self._translation, other._translation)
+            and self._region == other._region
         )
 
     def copy(self) -> Self:
@@ -352,11 +334,11 @@ class Composer(ABC):
 
     @abstractmethod
     def rotate(self, angle: float, px: float = 0.5, py: float = 0.5) -> Self:
-        ...
+        pass
 
     @abstractmethod
     def scale(self, sx: float, sy: float, px: float = 0.5, py: float = 0.5) -> Self:
-        ...
+        pass
 
     def translate(self, x: int = 0, y: int = 0) -> Self:
         M_trans = TTranslate(x, y).matrix(self.size)
@@ -364,9 +346,7 @@ class Composer(ABC):
         return self
 
     def add_transform(
-        self,
-        transf: Transform,
-        reference_size: tuple[int, int] | None = None
+        self, transf: Transform, reference_size: tuple[int, int] | None = None
     ) -> Self:
 
         ref_size = reference_size or self.size
@@ -380,9 +360,7 @@ class ComposerRel(Composer):
         super().__init__(size)
 
     def __get_rect(self) -> tuple[tuple[float, float], tuple[float, float]]:
-        x, y, w, h = corners_to_rect(
-            *calculate_new_corners(self._distortion, self.size)
-        )
+        x, y, w, h = corners_to_rect(*calculate_new_corners(self._distortion, self.size))
         return (x, y), (w, h)
 
     def rotate(
@@ -395,7 +373,11 @@ class ComposerRel(Composer):
         return self
 
     def scale(
-        self, sx: float = 1, sy: float = 1, pivot_x: float = 0.5, pivot_y: float = 0.5,
+        self,
+        sx: float = 1,
+        sy: float = 1,
+        pivot_x: float = 0.5,
+        pivot_y: float = 0.5,
     ) -> ComposerRel:
 
         top_left, size = self.__get_rect()
@@ -405,12 +387,14 @@ class ComposerRel(Composer):
 
 
 class ComposerAbs(Composer):
-
     def __init__(self, size: tuple[int, int]):
         super().__init__(size)
 
     def rotate(
-        self, angle: float = 0, px: float = 0.0, py: float = 0.0,
+        self,
+        angle: float = 0,
+        px: float = 0.0,
+        py: float = 0.0,
     ) -> ComposerAbs:
 
         M_rot = TRotate(angle, px, py, pivot_fn=create_pivot_transform_abs).matrix()
@@ -418,7 +402,11 @@ class ComposerAbs(Composer):
         return self
 
     def scale(
-        self, sx: float = 1, sy: float = 1, px: float = 0.0, py: float = 0.0,
+        self,
+        sx: float = 1,
+        sy: float = 1,
+        px: float = 0.0,
+        py: float = 0.0,
     ) -> ComposerAbs:
 
         M_scale = TScale(sx, sy, px, py, pivot_fn=create_pivot_transform_abs).matrix()
@@ -443,9 +431,7 @@ class Transform(ABC):
         return self.COMPOSER_CLS(size)
 
     def __init__(
-            self,
-            intentions: list[TRotate | TScale] = [],
-            translate: list[TTranslate] = []
+        self, intentions: list[TRotate | TScale] = [], translate: list[TTranslate] = []
     ):
         if self._validate_list(intentions, TTranslate):
             raise TypeError("intentions list can only contain TRotate or TScale")
@@ -474,12 +460,16 @@ class Transform(ABC):
 
     @abstractmethod
     def _list_to_matrix(
-        self, size: tuple[int, int], matrix_list: Sequence[TransformBase],
+        self,
+        size: tuple[int, int],
+        matrix_list: Sequence[TransformBase],
     ) -> np.ndarray:
-        ...
+        pass
 
     def _get_first_transform(
-        self, size: tuple[int, int], transf: Sequence[TransformBase],
+        self,
+        size: tuple[int, int],
+        transf: Sequence[TransformBase],
     ) -> np.ndarray:
         if len(transf) == 0:
             return np.identity(3, dtype=np.float32)
@@ -502,11 +492,11 @@ class Transform(ABC):
 
     @abstractmethod
     def rotate(self, *args, **kwargs) -> Self:
-        ...
+        pass
 
     @abstractmethod
     def scale(self, *args, **kwargs) -> Self:
-        ...
+        pass
 
 
 class TransformRel(Transform):
@@ -524,7 +514,9 @@ class TransformRel(Transform):
         return (x, y), (w, h)
 
     def _list_to_matrix(
-        self, size: tuple[int, int], matrix_list: Sequence[TransformBase],
+        self,
+        size: tuple[int, int],
+        matrix_list: Sequence[TransformBase],
     ) -> np.ndarray:
 
         top_left: Point2D = (0.0, 0.0)
@@ -536,7 +528,10 @@ class TransformRel(Transform):
         return m_total
 
     def rotate(
-        self, angle: float = 0, pivot_x: float = 0.5, pivot_y: float = 0.5,
+        self,
+        angle: float = 0,
+        pivot_x: float = 0.5,
+        pivot_y: float = 0.5,
     ) -> TransformRel:
 
         new_intentions = self._intentions + [TRotate(angle, pivot_x, pivot_y)]
@@ -554,14 +549,14 @@ class TransformAbs(Transform):
     COMPOSER_CLS = ComposerAbs
 
     def __init__(
-            self,
-            intentions: list[TRotate | TScale] = [],
-            translate: list[TTranslate] = []
+        self, intentions: list[TRotate | TScale] = [], translate: list[TTranslate] = []
     ):
         super().__init__(intentions, translate)
 
     def _list_to_matrix(
-        self, size: tuple[int, int], matrix_list: Sequence[TransformBase],
+        self,
+        size: tuple[int, int],
+        matrix_list: Sequence[TransformBase],
     ) -> np.ndarray:
         m_total = np.identity(3, dtype=np.float32)
         for op in matrix_list:
@@ -569,7 +564,10 @@ class TransformAbs(Transform):
         return m_total
 
     def rotate(
-        self, angle: float = 0, px: float = 0.0, py: float = 0.0,
+        self,
+        angle: float = 0,
+        px: float = 0.0,
+        py: float = 0.0,
     ) -> TransformAbs:
 
         new_intentions = self._intentions + [
@@ -578,7 +576,11 @@ class TransformAbs(Transform):
         return TransformAbs(new_intentions, self._translate)
 
     def scale(
-        self, sx: float = 1, sy: float = 1, px: float = 0.0, py: float = 0.0,
+        self,
+        sx: float = 1,
+        sy: float = 1,
+        px: float = 0.0,
+        py: float = 0.0,
     ) -> TransformAbs:
 
         new_intentions = self._intentions + [

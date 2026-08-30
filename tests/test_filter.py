@@ -17,9 +17,9 @@ def make_checkerboard_image(w: int = 40, h: int = 40) -> Image:
     """Cria imagem de teste com padrão xadrez de alto contraste para testar suavização."""
     data = np.zeros((h, w, 4), dtype=np.uint8)
     data[: h // 2, : w // 2] = [255, 255, 255, 255]
-    data[h // 2:, w // 2:] = [255, 255, 255, 255]
-    data[: h // 2, w // 2:] = [0, 0, 0, 255]
-    data[h // 2:, : w // 2] = [0, 0, 0, 255]
+    data[h // 2 :, w // 2 :] = [255, 255, 255, 255]
+    data[: h // 2, w // 2 :] = [0, 0, 0, 255]
+    data[h // 2 :, : w // 2] = [0, 0, 0, 255]
     return Image(data, ImageFormat.RGBA)
 
 
@@ -47,13 +47,24 @@ def test_blur_filter_radius_normalization(radius_input, expected_rx, expected_ry
 @pytest.mark.parametrize(
     "radius, mode, affect_alpha, expected_padding",
     [
-        pytest.param(3.0, BlurMode.GAUSSIAN, True, (9, 9, 9, 9),
-                     id="gaussiano_afeta_alfa_3sigma"),
-        pytest.param((4.0, 2.0), BlurMode.GAUSSIAN, True, (6, 12, 6, 12),
-                     id="gaussiano_anisotropico_afeta_alfa"),
+        pytest.param(
+            3.0, BlurMode.GAUSSIAN, True, (9, 9, 9, 9), id="gaussiano_afeta_alfa_3sigma"
+        ),
+        pytest.param(
+            (4.0, 2.0),
+            BlurMode.GAUSSIAN,
+            True,
+            (6, 12, 6, 12),
+            id="gaussiano_anisotropico_afeta_alfa",
+        ),
         pytest.param(5.0, BlurMode.BOX, True, (5, 5, 5, 5), id="box_blur_afeta_alfa"),
-        pytest.param(5.0, BlurMode.GAUSSIAN, False, (0, 0, 0, 0),
-                     id="alfa_nao_afetado_padding_zero"),
+        pytest.param(
+            5.0,
+            BlurMode.GAUSSIAN,
+            False,
+            (0, 0, 0, 0),
+            id="alfa_nao_afetado_padding_zero",
+        ),
     ],
 )
 def test_blur_filter_get_padding(radius, mode, affect_alpha, expected_padding):
@@ -151,11 +162,14 @@ def test_blur_filter_merge_orthogonal_produces_isotropic_gaussian():
 def test_blur_filter_merge_with_different_base_matrices():
     """Valida se fusão de filtros com matrizes de base distintas calcula a covariância relativa correta."""
     rad90 = math.radians(90.0)
-    mat_rot90 = np.array([
-        [math.cos(rad90), -math.sin(rad90), 0.0],
-        [math.sin(rad90), math.cos(rad90), 0.0],
-        [0.0, 0.0, 1.0],
-    ], dtype=np.float32)
+    mat_rot90 = np.array(
+        [
+            [math.cos(rad90), -math.sin(rad90), 0.0],
+            [math.sin(rad90), math.cos(rad90), 0.0],
+            [0.0, 0.0, 1.0],
+        ],
+        dtype=np.float32,
+    )
 
     # blur1 local horizontal em base identidade (0 graus na tela)
     blur1 = BlurFilter(radius=(6.0, 0.0), angle=0.0)
@@ -239,11 +253,14 @@ def test_blur_filter_apply_with_rotated_matrix_adjusts_effective_angle():
 
     rad = math.radians(45.0)
     cos_a, sin_a = math.cos(rad), math.sin(rad)
-    matrix = np.array([
-        [cos_a, -sin_a, 0.0],
-        [sin_a, cos_a, 0.0],
-        [0.0, 0.0, 1.0],
-    ], dtype=np.float32)
+    matrix = np.array(
+        [
+            [cos_a, -sin_a, 0.0],
+            [sin_a, cos_a, 0.0],
+            [0.0, 0.0, 1.0],
+        ],
+        dtype=np.float32,
+    )
 
     result = blur.apply(img, matrix)
 
@@ -280,8 +297,11 @@ def test_render_layer_with_masked_blur_filter():
     # Máscara branca na metade superior (y < 20) e preta na inferior
     mask_data = np.zeros((40, 40, 1), dtype=np.uint8)
     mask_data[:20, :] = 255
-    mask = Mask(Image(mask_data, ImageFormat.GRAY), Region.from_size(
-        40, 40), np.identity(3, dtype=np.float32))
+    mask = Mask(
+        Image(mask_data, ImageFormat.GRAY),
+        Region.from_size(40, 40),
+        np.identity(3, dtype=np.float32),
+    )
 
     blur = BlurFilter(radius=6.0)
     layer.bind_effect(blur, mask=mask)

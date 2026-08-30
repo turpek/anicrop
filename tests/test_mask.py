@@ -8,14 +8,18 @@ from anicrop.mask import Mask
 from anicrop.spatial import Region
 
 
-def make_target_image(w: int = 20, h: int = 20, alpha: int = 255, fmt: ImageFormat = ImageFormat.RGBA) -> Image:
+def make_target_image(
+    w: int = 20, h: int = 20, alpha: int = 255, fmt: ImageFormat = ImageFormat.RGBA
+) -> Image:
     channels = 4 if fmt == ImageFormat.RGBA else 2
     data = np.full((h, w, channels), 200, dtype=np.uint8)
     data[..., -1] = alpha
     return Image(data, fmt)
 
 
-def make_mask_image(w: int = 20, h: int = 20, value: int = 255, fmt: ImageFormat = ImageFormat.GRAY) -> Image:
+def make_mask_image(
+    w: int = 20, h: int = 20, value: int = 255, fmt: ImageFormat = ImageFormat.GRAY
+) -> Image:
     channels = fmt.channels
     data = np.full((h, w, channels), value, dtype=np.uint8)
     return Image(data, fmt)
@@ -41,12 +45,14 @@ def test_mask_inherits_from_edit_layer():
     [
         pytest.param(255, 255, False, 255, id="mascara_branca_mantem_opacidade_total"),
         pytest.param(0, 255, False, 0, id="mascara_preta_torna_totalmente_transparente"),
-        pytest.param(128, 255, False, 128,
-                     id="mascara_cinza_reduz_opacidade_pela_metade"),
+        pytest.param(
+            128, 255, False, 128, id="mascara_cinza_reduz_opacidade_pela_metade"
+        ),
         pytest.param(128, 100, False, 50, id="mascara_cinza_modula_alfa_preexistente"),
         pytest.param(0, 255, True, 255, id="mascara_preta_invertida_mantem_opacidade"),
-        pytest.param(255, 255, True, 0,
-                     id="mascara_branca_invertida_torna_transparente"),
+        pytest.param(
+            255, 255, True, 0, id="mascara_branca_invertida_torna_transparente"
+        ),
     ],
 )
 def test_mask_apply_rgba_modulation(mask_value, initial_alpha, invert, expected_alpha):
@@ -106,15 +112,23 @@ def test_mask_merge_with_another_mask_unifies_regions():
 
 def test_mask_merge_with_incompatible_effect_returns_none():
     """Valida se merge retorna None quando o efeito fornecido não for uma Mask."""
+
     class FakeEffect:
         def __init__(self):
             self.visible = True
             self.matrix = np.identity(3, dtype=np.float32)
 
-        def prepare(self, frame): pass
-        def get_padding(self): return (0, 0, 0, 0)
-        def apply(self, img, mat=None): return img
-        def merge(self, other, mat): return None
+        def prepare(self, frame):
+            pass
+
+        def get_padding(self):
+            return (0, 0, 0, 0)
+
+        def apply(self, img, mat=None):
+            return img
+
+        def merge(self, other, mat):
+            return None
 
     mask_img = make_mask_image(10, 10)
     mask = Mask(mask_img, Region.from_size(10, 10), np.identity(3))

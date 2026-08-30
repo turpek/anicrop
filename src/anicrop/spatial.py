@@ -48,7 +48,7 @@ class Span:
 
     def _setup(self, start: int, length: int) -> None:
         if length <= 0:
-            raise ValueError(f'length must be greater than 0 (length={length})')
+            raise ValueError(f"length must be greater than 0 (length={length})")
 
         self._start = start
         self._length = length
@@ -150,7 +150,9 @@ class Span:
     def overlaps(self, other: Span) -> bool:
         return self.end > other.start and other.end > self.start
 
-    def expand(self, both: Optional[int] = None, *, before: int = 0, after: int = 0) -> Span:
+    def expand(
+        self, both: Optional[int] = None, *, before: int = 0, after: int = 0
+    ) -> Span:
         """Expands the span outward.
 
         Args:
@@ -175,7 +177,9 @@ class Span:
             )
         return Span(self.start - before, before + self.length + after)
 
-    def shrink(self, both: Optional[int] = None, *, before: int = 0, after: int = 0) -> Span:
+    def shrink(
+        self, both: Optional[int] = None, *, before: int = 0, after: int = 0
+    ) -> Span:
         """Shrinks the span inward.
 
         Guarantees that the resulting span stays within the original bounds
@@ -294,11 +298,13 @@ class Region:
         return cls(Span(x, width), Span(y, height))
 
     def __repr__(self):
-        start = f'start=({self.x.start},{self.y.start})'
-        length = f'length=({self.x.length},{self.y.length})'
-        return f'{type(self).__name__}({start}, {length})'
+        start = f"start=({self.x.start},{self.y.start})"
+        length = f"length=({self.x.length},{self.y.length})"
+        return f"{type(self).__name__}({start}, {length})"
 
-    def __shift(self, operation: Callable, offset: int | tuple[int, int] | Region) -> Region:
+    def __shift(
+        self, operation: Callable, offset: int | tuple[int, int] | Region
+    ) -> Region:
         if isinstance(offset, Region):
             x, y = offset.x.start, offset.y.start
 
@@ -340,7 +346,7 @@ class Region:
         left: int = 0,
         right: int = 0,
         top: int = 0,
-        bottom: int = 0
+        bottom: int = 0,
     ) -> Region:
 
         if isinstance(all, tuple):
@@ -352,8 +358,7 @@ class Region:
             top = bottom = all
 
         return Region(
-            span_op_x(before=left, after=right),
-            span_op_y(before=top, after=bottom)
+            span_op_x(before=left, after=right), span_op_y(before=top, after=bottom)
         )
 
     @property
@@ -390,13 +395,17 @@ class Region:
         left: int = 0,
         right: int = 0,
         top: int = 0,
-        bottom: int = 0
+        bottom: int = 0,
     ) -> Region:
         """Expands the region outward."""
         return self._apply_margins(
-            self.x.expand, self.y.expand, all,
-            left=left, right=right,
-            top=top, bottom=bottom
+            self.x.expand,
+            self.y.expand,
+            all,
+            left=left,
+            right=right,
+            top=top,
+            bottom=bottom,
         )
 
     def shrink(
@@ -406,13 +415,17 @@ class Region:
         left: int = 0,
         right: int = 0,
         top: int = 0,
-        bottom: int = 0
+        bottom: int = 0,
     ) -> Region:
         """Shrinks the region inward."""
         return self._apply_margins(
-            self.x.shrink, self.y.shrink, all,
-            left=left, right=right,
-            top=top, bottom=bottom
+            self.x.shrink,
+            self.y.shrink,
+            all,
+            left=left,
+            right=right,
+            top=top,
+            bottom=bottom,
         )
 
     def offset_to(self, other: Region, anchor_end: bool = False) -> tuple[int, int]:
@@ -430,7 +443,7 @@ class Region:
         """
         return (
             self.x.offset_to(other.x, anchor_end=anchor_end),
-            self.y.offset_to(other.y, anchor_end=anchor_end)
+            self.y.offset_to(other.y, anchor_end=anchor_end),
         )
 
     def overlaps(self, other: Region) -> bool:
@@ -471,7 +484,9 @@ class Region:
             self.y.align(ref.y, y_factor),
         )
 
-    def replace(self, *, x: int | Span | None = None, y: int | Span | None = None) -> Region:
+    def replace(
+        self, *, x: int | Span | None = None, y: int | Span | None = None
+    ) -> Region:
         """Creates a new Region with updated horizontal (X) and/or vertical (Y) spans.
 
         Args:

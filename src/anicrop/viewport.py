@@ -19,7 +19,7 @@ class Viewport:
         self.bg_color = bg_color if bg_color is not None else (204, 204, 204)
 
     def __repr__(self) -> str:
-        return f'Viewport(region={self.region}, scale={self.scale})'
+        return f"Viewport(region={self.region}, scale={self.scale})"
 
     @property
     def size(self) -> tuple[int, int]:

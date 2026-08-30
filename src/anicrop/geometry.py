@@ -6,7 +6,12 @@ from operator import or_
 from typing import TYPE_CHECKING
 
 from anicrop.spatial import Region, Span
-from anicrop.transform import calculate_new_rect, calculate_region_rect, mat_inverse, mat_position
+from anicrop.transform import (
+    calculate_new_rect,
+    calculate_region_rect,
+    mat_inverse,
+    mat_position,
+)
 
 import numpy as np
 
@@ -96,7 +101,7 @@ class GeometryStrategy(ABC):
     @abstractmethod
     def _compute_matrix(self) -> ndarray:
         """Calcula a matriz dinamicamente."""
-        ...
+        pass
 
     def _direct_matrix(self) -> ndarray:
         """Executa o cálculo dinâmico diretamente."""
@@ -115,7 +120,7 @@ class GeometryStrategy(ABC):
     @abstractmethod
     def _compute_region(self) -> Region:
         """Calcula a região local dinamicamente."""
-        ...
+        pass
 
     def _direct_region(self) -> Region:
         """Executa o cálculo de região local dinamicamente."""
@@ -134,7 +139,7 @@ class GeometryStrategy(ABC):
     @abstractmethod
     def _compute_global_region(self) -> Region:
         """Calcula a região global dinamicamente."""
-        ...
+        pass
 
     def _direct_global_region(self) -> Region:
         """Executa o cálculo de região global dinamicamente."""
@@ -152,7 +157,6 @@ class GeometryStrategy(ABC):
 
 
 class LayerGeometry(GeometryStrategy):
-
     def __init__(self, base: Layer, region: Region):
         super().__init__()
         self._base = base
@@ -171,7 +175,6 @@ class LayerGeometry(GeometryStrategy):
 
 
 class GroupGeometry(GeometryStrategy):
-
     def __init__(self, base: GroupLayer, region: Region):
         super().__init__()
         self._base = base
@@ -195,7 +198,6 @@ class GroupGeometry(GeometryStrategy):
 
 
 class FitGeometry(GeometryStrategy):
-
     def __init__(
         self,
         base: BaseLayer,
@@ -220,7 +222,6 @@ class FitGeometry(GeometryStrategy):
 
 
 class FitGroupGeometry(GeometryStrategy):
-
     def __init__(
         self,
         base: GroupLayer,

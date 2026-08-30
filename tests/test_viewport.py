@@ -49,11 +49,9 @@ def test_viewport_fit_matrix():
     # scaled_h = 600 * 0.25 = 150
     # offset_y = (600 - 150) / 2 = 225
 
-    expected_fit = np.array([
-        [0.25, 0.0, 300.0],
-        [0.0, 0.25, 225.0],
-        [0.0, 0.0, 1.0]
-    ], dtype=np.float32)
+    expected_fit = np.array(
+        [[0.25, 0.0, 300.0], [0.0, 0.25, 225.0], [0.0, 0.0, 1.0]], dtype=np.float32
+    )
 
     assert np.allclose(viewport.fit_matrix(layer_size), expected_fit)
 

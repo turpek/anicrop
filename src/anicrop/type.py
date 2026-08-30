@@ -28,11 +28,11 @@ class Id:
 class TransformState(Protocol):
     @property
     def matrix(self) -> np.ndarray:
-        ...
+        pass
 
     @property
     def pivot(self) -> tuple[float, float]:
-        ...
+        pass
 
 
 @dataclass(frozen=True)

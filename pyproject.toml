@@ -19,7 +19,6 @@ dependencies = [
 
 [dependency-groups]
 dev = [
-    "autopep8>=2.3.2",
     "cython>=3.2.9",
     "ipdb>=0.13.13",
     "ipython>=9.9.0",
@@ -38,5 +37,14 @@ markers = [
     "slow: marca testes pesados ou demorados com Zarr/LOD (desselecione com '-m \"not slow\"')",
 ]
 
-[tool.autopep8]
-max_line_length = 89
+[tool.ruff]
+line-length = 89
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "W"]
+ignore = ["E501", "E741"]
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"

@@ -74,6 +74,7 @@ def test_manager_idempotent_deletion():
 
 # --- Tests for NdarrayToken ---
 
+
 @patch("anicrop.persistence.token.manager_global")
 def test_token_creation_and_save_delegation(mock_manager):
     """Cenário 1: Criação e Delegação de Save"""

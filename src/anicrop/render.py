@@ -91,9 +91,9 @@ def warp_patch(
 ) -> np.ndarray | None:
 
     # 1. Região ideal com a margem do Lanczos (pode ter start negativo)
-    target_region = rect_to_region(calculate_region_rect(
-        mat_inverse(matrix_global), dest_region
-    )).expand(all=interp.padding)
+    target_region = rect_to_region(
+        calculate_region_rect(mat_inverse(matrix_global), dest_region)
+    ).expand(all=interp.padding)
 
     image_region = Region.from_size(*src_image.size)
 
@@ -110,7 +110,7 @@ def warp_patch(
             src_data = np.pad(
                 src_data,
                 ((pad_y_start, pad_y_end), (pad_x_start, pad_x_end), (0, 0)),
-                mode='constant'
+                mode="constant",
             )
 
         # 4. A origem da matriz da sub-imagem é sempre o top_left da target_region!
@@ -119,8 +119,7 @@ def warp_patch(
         dst_x, dst_y = dest_region.top_left
         M_dst_offset_inv = mat_translation(-dst_x, -dst_y)
 
-        M_cv2 = (M_dst_offset_inv @ matrix_global @
-                 M_src_offset).astype(np.float64)
+        M_cv2 = (M_dst_offset_inv @ matrix_global @ M_src_offset).astype(np.float64)
 
         warp = WARP_MODE.get(warp_mode, warp_affine)
         return warp(src_data, M_cv2, dest_region.size, interp, dst=dst)
@@ -159,7 +158,9 @@ def generate_opacity_mask(
             kernel_w = max(1, image.width // tw_img)
             kernel = np.ones((kernel_h, kernel_w), dtype=np.uint8)
             eroded = cv2.erode(alpha_origin, kernel)
-            mini_mask = cv2.resize(eroded, (tw_img, th_img), interpolation=cv2.INTER_NEAREST).astype(np.uint8)
+            mini_mask = cv2.resize(
+                eroded, (tw_img, th_img), interpolation=cv2.INTER_NEAREST
+            ).astype(np.uint8)
     else:
         mini_mask = np.full((th_img, tw_img), 255, dtype=np.uint8)
 
@@ -233,7 +234,9 @@ def render_image(
         return without_distortion(image, edit_bbox, dst_frame, dst_local, target_dst)
 
     # Executa o warp da imagem para a dest_region no espaço de destino
-    pixel_data = warp_patch(image, m_render, dst_patch, warp_mode, interp, dst=target_dst)
+    pixel_data = warp_patch(
+        image, m_render, dst_patch, warp_mode, interp, dst=target_dst
+    )
 
     if pixel_data is None:
         return None
@@ -336,7 +339,9 @@ class SceneTraverser:
                 if children_items:
                     buffer = Image.new(frame.dst_region.size, ImageFormat.RGBA)
                     group_image = blend_rendered_images(reversed(children_items), buffer)
-                    group_image = apply_post_processing(group_image, item, frame, self.interp)
+                    group_image = apply_post_processing(
+                        group_image, item, frame, self.interp
+                    )
                     rendered_items.append((item, group_image, frame.targ_region))  # type: ignore[arg-type]
                     if np.all(self.miniview == 255):
                         break
@@ -358,7 +363,9 @@ class BaseRenderer[FrameT: BaseFrame](ABC):
     frame_cls: type[FrameT]
 
     def __init__(
-            self, frame_cls: type[FrameT], target_size: tuple[int, int] = (32, 32),
+        self,
+        frame_cls: type[FrameT],
+        target_size: tuple[int, int] = (32, 32),
     ):
 
         self.frame_cls = frame_cls
@@ -373,7 +380,10 @@ class BaseRenderer[FrameT: BaseFrame](ABC):
         interp: InterpMode,
     ) -> Image | None:
         """Renderiza um único edit exatamente 1 vez com reciclagem de buffer e fast-path zero-copy."""
-        dst = self._scratch_buffer.configure(plan.dst_region.size, edit_layer.image.format)  # type: ignore[union-attr]
+        dst = self._scratch_buffer.configure(
+            plan.dst_region.size,  # type: ignore[union-attr]
+            edit_layer.image.format,
+        )
         result = render_edit(edit_layer, plan, interp=interp, dst=dst)
         if result is None:
             return None
@@ -399,7 +409,9 @@ class BaseRenderer[FrameT: BaseFrame](ABC):
         """Renderiza múltiplos edits compondo sequencialmente no buffer da camada com scratch buffer."""
         layer_image = Image.new(plan.dst_region.size, layer_format)  # type: ignore[union-attr]
         for edit_layer in visible_edits:
-            scratch = self._scratch_buffer.configure(layer_image.size, edit_layer.image.format)
+            scratch = self._scratch_buffer.configure(
+                layer_image.size, edit_layer.image.format
+            )
             result = render_edit(edit_layer, plan, interp=interp, dst=scratch)
             if result is None:
                 continue
@@ -423,7 +435,9 @@ class BaseRenderer[FrameT: BaseFrame](ABC):
 
         # Roteamento limpo: 1 edit vs múltiplos edits
         if len(visible_edits) == 1:
-            image = self._render_single_edit(visible_edits[0], layer.format, frame, interp)
+            image = self._render_single_edit(
+                visible_edits[0], layer.format, frame, interp
+            )
             if image is None:
                 image = Image.new(dst_region.size, layer.format)
         else:
@@ -451,7 +465,11 @@ class BaseRenderer[FrameT: BaseFrame](ABC):
     ) -> Image:
         with freeze_geometry(container):
             traverser = SceneTraverser(
-                self, surface, self.frame_cls, interp=interp, target_size=self._target_size
+                self,
+                surface,
+                self.frame_cls,
+                interp=interp,
+                target_size=self._target_size,
             )
             images = traverser.traverse(container)
 
@@ -472,16 +490,21 @@ class BaseRenderer[FrameT: BaseFrame](ABC):
         effective_region = surface.region & view_region
         with freeze_geometry(container):
             traverser = SceneTraverser(
-                self, surface, self.frame_cls, interp=interp, target_size=self._target_size
+                self,
+                surface,
+                self.frame_cls,
+                interp=interp,
+                target_size=self._target_size,
             )
             images = traverser.traverse(container, effective_region)
 
-            composition = Image.new(effective_region.size, format, color=surface.bg_color)
+            composition = Image.new(
+                effective_region.size, format, color=surface.bg_color
+            )
             return blend_rendered_images(reversed(images), composition)
 
 
 class CanvasRender(BaseRenderer[CanvasFrame]):
-
     def __init__(self):
         super().__init__(frame_cls=CanvasFrame)
 
@@ -514,6 +537,5 @@ class CanvasRender(BaseRenderer[CanvasFrame]):
 
 
 class ViewportRender(BaseRenderer[ViewportFrame]):
-
     def __init__(self):
         super().__init__(frame_cls=ViewportFrame)

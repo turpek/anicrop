@@ -67,7 +67,10 @@ def global_content_region(
     container: AbstractBaseLayer | AbstractContainer | Sequence[AbstractBaseLayer],
 ) -> Region | None:
     """Calcula a Bounding Box de conteúdo de todos os elementos projetada no Espaço Global."""
-    def _extract(item: AbstractBaseLayer | AbstractContainer | Sequence[AbstractBaseLayer]) -> Iterator[Region]:
+
+    def _extract(
+        item: AbstractBaseLayer | AbstractContainer | Sequence[AbstractBaseLayer],
+    ) -> Iterator[Region]:
         if isinstance(item, AbstractLayer):
             local_roi = _compute_layer_local_roi(item)
             if local_roi is None:
@@ -150,12 +153,16 @@ class LayerLayoutStrategy(LayoutStrategy):
         anchor_y: float = 0.5,
     ) -> bool:
         ref_region = resolve_region(ref)
-        new_global_region = self.target.global_region.align(ref_region, anchor_x, anchor_y)
+        new_global_region = self.target.global_region.align(
+            ref_region, anchor_x, anchor_y
+        )
         if self.target.global_region == new_global_region:
             return False
 
         dx, dy = transform_vector(
-            mat_inverse(self.target.parent.matrix), self.target.global_region, new_global_region
+            mat_inverse(self.target.parent.matrix),
+            self.target.global_region,
+            new_global_region,
         )
         self.target.region += (dx, dy)
         return True
@@ -184,7 +191,9 @@ class LayerLayoutStrategy(LayoutStrategy):
         if local_roi is None:
             return False
 
-        target_region = _resolve_target_content_region(self.target, global_roi, local_roi.size)
+        target_region = _resolve_target_content_region(
+            self.target, global_roi, local_roi.size
+        )
         self.target.frame = LayerGeometry(self.target, target_region)
         return True
 
@@ -195,7 +204,10 @@ class GroupLayoutStrategy(LayoutStrategy):
     def __init__(self, target: GroupLayer) -> None:
         self.target = target
 
-    def fit(self, ref: tuple[int, int, int, int] | Region | AbstractCanvas | AbstractBaseLayer) -> bool:
+    def fit(
+        self,
+        ref: tuple[int, int, int, int] | Region | AbstractCanvas | AbstractBaseLayer,
+    ) -> bool:
         ref_region = resolve_region(ref)
         if self.target.global_region == ref_region:
             return False
@@ -210,12 +222,16 @@ class GroupLayoutStrategy(LayoutStrategy):
         anchor_y: float = 0.5,
     ) -> bool:
         ref_region = resolve_region(ref)
-        new_global_region = self.target.global_region.align(ref_region, anchor_x, anchor_y)
+        new_global_region = self.target.global_region.align(
+            ref_region, anchor_x, anchor_y
+        )
         if self.target.global_region == new_global_region:
             return False
 
         dx, dy = transform_vector(
-            mat_inverse(self.target.parent.matrix), self.target.global_region, new_global_region
+            mat_inverse(self.target.parent.matrix),
+            self.target.global_region,
+            new_global_region,
         )
         self.target.transform.translate(dx, dy)
         return True
@@ -244,9 +260,15 @@ class CanvasLayoutStrategy(LayoutStrategy):
     def __init__(self, target: Canvas) -> None:
         self.target = target
 
-    def fit(self, ref: tuple[int, int, int, int] | Region | AbstractCanvas | AbstractBaseLayer) -> bool:
+    def fit(
+        self,
+        ref: tuple[int, int, int, int] | Region | AbstractCanvas | AbstractBaseLayer,
+    ) -> bool:
         ref_region = resolve_region(ref)
-        if not ref_region.overlaps(self.target.region) or self.target.region == ref_region:
+        if (
+            not ref_region.overlaps(self.target.region)
+            or self.target.region == ref_region
+        ):
             return False
 
         self.target.region = ref_region
@@ -281,10 +303,16 @@ class CanvasLayoutStrategy(LayoutStrategy):
         container: Container | Sequence[Layer] | None = None,
     ) -> bool:
         if container is None:
-            raise ValueError("Canvas.fit_content requires a container or sequence of layers.")
+            raise ValueError(
+                "Canvas.fit_content requires a container or sequence of layers."
+            )
 
         roi = global_content_region(container)
-        if roi is None or not roi.overlaps(self.target.region) or self.target.region == roi:
+        if (
+            roi is None
+            or not roi.overlaps(self.target.region)
+            or self.target.region == roi
+        ):
             return False
 
         self.target.region = roi

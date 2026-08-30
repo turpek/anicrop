@@ -74,7 +74,11 @@ class Mask(EditLayer, Effect):
         filt_data = filtered[...].astype(np.float32)
 
         if mask_data.shape[:2] != orig_data.shape[:2]:
-            mask_data = cv2.resize(mask_data, (orig_data.shape[1], orig_data.shape[0]), interpolation=cv2.INTER_LINEAR)
+            mask_data = cv2.resize(
+                mask_data,
+                (orig_data.shape[1], orig_data.shape[0]),
+                interpolation=cv2.INTER_LINEAR,
+            )
 
         luma = mask_data[..., np.newaxis]
         blended = orig_data * (1.0 - luma) + filt_data * luma
@@ -105,4 +109,11 @@ class Mask(EditLayer, Effect):
             other_target = union_region.overlap_with(other.region)
             combined_img[other_target] = other.image[...]
 
-        return Mask(combined_img, union_region, matrix, invert=self.invert, visible=self.visible, name=self.name)
+        return Mask(
+            combined_img,
+            union_region,
+            matrix,
+            invert=self.invert,
+            visible=self.visible,
+            name=self.name,
+        )

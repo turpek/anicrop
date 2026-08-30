@@ -16,12 +16,17 @@ def canvas():
     return make_canvas()
 
 
-@pytest.mark.parametrize("transform_intent, expected_bbox", [
-    (lambda t: t, (0, 0, 10, 10)),  # Identidade
-    (lambda t: t.translate(10, 20), (10, 20, 10, 10)),  # Translação
-    (lambda t: t.rotate(90, 0.5, 0.5), (0, 0, 10, 10)),  # Rotação centro
-])
-def test_layer_set_transform_cenario_sem_transformacoes(canvas, transform_intent, expected_bbox):
+@pytest.mark.parametrize(
+    "transform_intent, expected_bbox",
+    [
+        (lambda t: t, (0, 0, 10, 10)),  # Identidade
+        (lambda t: t.translate(10, 20), (10, 20, 10, 10)),  # Translação
+        (lambda t: t.rotate(90, 0.5, 0.5), (0, 0, 10, 10)),  # Rotação centro
+    ],
+)
+def test_layer_set_transform_cenario_sem_transformacoes(
+    canvas, transform_intent, expected_bbox
+):
     layer = Layer(canvas)
     t = transform_intent(TransformRel())
     layer.set_transform(t)
@@ -29,7 +34,7 @@ def test_layer_set_transform_cenario_sem_transformacoes(canvas, transform_intent
     res_region = layer.global_region
     expected_region = Region(
         Span(expected_bbox[0], expected_bbox[2]),
-        Span(expected_bbox[1], expected_bbox[3])
+        Span(expected_bbox[1], expected_bbox[3]),
     )
     assert res_region == expected_region
 
@@ -53,8 +58,14 @@ def test_layer_cenario_complexo_violao(canvas):
     # Intenção:
     # 1. Translação total acumulada: 10 + 5 = 15
     # 2. Distorção acumulada com PIVÔ DINÂMICO
-    t = TransformRel().translate(10, 10).rotate(45).scale(
-        2, 1, 0, 0).translate(5, 5).rotate(-30)
+    t = (
+        TransformRel()
+        .translate(10, 10)
+        .rotate(45)
+        .scale(2, 1, 0, 0)
+        .translate(5, 5)
+        .rotate(-30)
+    )
     layer.set_transform(t)
 
     # O resultado deve refletir o posicionamento no canvas.
@@ -99,6 +110,7 @@ def test_layer_set_transform_imutabilidade_aditiva_interna(canvas):
 
 
 # --- Testes de Integração com Referências Alternadas de Pivô ---
+
 
 def test_layer_transform_intercambiavel_referencia_layer_vs_canvas():
     """Testa a intercambeabilidade de referência de pivô no add_transform.
@@ -162,8 +174,9 @@ def test_layer_set_transform_com_transform_abs():
 
     assert isinstance(layer.transform, ComposerAbs)
     pt_origem = np.array([0, 0, 1], dtype=np.float32)
-    np.testing.assert_allclose(layer.transform.matrix @
-                               pt_origem, [100, 0, 1], atol=1e-4)
+    np.testing.assert_allclose(
+        layer.transform.matrix @ pt_origem, [100, 0, 1], atol=1e-4
+    )
 
 
 def test_layer_set_transform_com_referencia_layer_e_canvas():
@@ -179,11 +192,13 @@ def test_layer_set_transform_com_referencia_layer_e_canvas():
     # 1. Passando Layer como referência (1000x1000 -> pivô 500, 500)
     layer_filho.set_transform(t_rel, reference=layer_pai)
     pt_origem = np.array([0, 0, 1], dtype=np.float32)
-    np.testing.assert_allclose(layer_filho.transform.matrix @
-                               pt_origem, [1000, 0, 1], atol=1e-4)
+    np.testing.assert_allclose(
+        layer_filho.transform.matrix @ pt_origem, [1000, 0, 1], atol=1e-4
+    )
 
     # 2. Passando Canvas como referência (500x500 -> pivô 250, 250)
     canvas_obj = Canvas.from_size(500, 500)
     layer_filho.set_transform(t_rel, reference=canvas_obj)
-    np.testing.assert_allclose(layer_filho.transform.matrix @
-                               pt_origem, [500, 0, 1], atol=1e-4)
+    np.testing.assert_allclose(
+        layer_filho.transform.matrix @ pt_origem, [500, 0, 1], atol=1e-4
+    )

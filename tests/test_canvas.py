@@ -33,7 +33,7 @@ def test_canvas_alternative_constructors(factory_name, dimensions):
         (-100, 600),
         (800, -100),
     ],
-    ids=['size=(0,600)', 'size=(800,0)', 'size=(-100,600)', 'size=(800,-100)']
+    ids=["size=(0,600)", "size=(800,0)", "size=(-100,600)", "size=(800,-100)"],
 )
 def test_canvas_invalid_dimensions(width, height):
     """Garante que o Canvas valida dimensões maiores que zero."""

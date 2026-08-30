@@ -9,10 +9,20 @@ from anicrop.geometry import (
     GroupGeometry,
     LayerGeometry,
 )
+from anicrop.enums import ImageFormat
 from anicrop.image import Image
 from anicrop.layer import Layer
 
 from anicrop.spatial import Region
+
+
+def make_image_mock(
+    w: int = 50, h: int = 50, fmt: ImageFormat = ImageFormat.RGBA
+) -> Image:
+    mock_array = MagicMock(spec=np.ndarray)
+    mock_array.ndim = 3
+    mock_array.shape = (h, w, fmt.channels)
+    return Image(mock_array, fmt)
 
 
 def make_layer_mock(
@@ -20,16 +30,12 @@ def make_layer_mock(
     y: int = 50,
     w: int = 100,
     h: int = 100,
-    parent_matrix: np.ndarray = np.array([
-        [1.0, 0.0, 200.0],
-        [0.0, 1.0, 200.0],
-        [0.0, 0.0, 1.0]
-    ]),
-    transform_matrix: np.ndarray = np.array([
-        [2.0, 0.0, 0.0],
-        [0.0, 2.0, 0.0],
-        [0.0, 0.0, 1.0]
-    ]),
+    parent_matrix: np.ndarray = np.array(
+        [[1.0, 0.0, 200.0], [0.0, 1.0, 200.0], [0.0, 0.0, 1.0]]
+    ),
+    transform_matrix: np.ndarray = np.array(
+        [[2.0, 0.0, 0.0], [0.0, 2.0, 0.0], [0.0, 0.0, 1.0]]
+    ),
 ) -> MagicMock:
     """Cria um mock de Layer sem atributo region solto, usando geometry e native_geometry."""
     layer_mock = MagicMock(spec=Layer)
@@ -59,11 +65,9 @@ def make_group_mock() -> MagicMock:
     group_mock = MagicMock(spec=GroupLayer)
 
     group_mock.parent = MagicMock()
-    group_mock.parent.matrix = np.array([
-        [1.0, 0.0, 10.0],
-        [0.0, 1.0, 10.0],
-        [0.0, 0.0, 1.0]
-    ])
+    group_mock.parent.matrix = np.array(
+        [[1.0, 0.0, 10.0], [0.0, 1.0, 10.0], [0.0, 0.0, 1.0]]
+    )
 
     group_mock.transform = MagicMock()
     group_mock.transform.matrix = np.identity(3)
@@ -93,23 +97,19 @@ def make_group_mock() -> MagicMock:
     return group_mock
 
 
-LAYER_EXPECTED_MATRIX = np.array([
-    [2.0, 0.0, 250.0],
-    [0.0, 2.0, 250.0],
-    [0.0, 0.0, 1.0]
-])
+LAYER_EXPECTED_MATRIX = np.array([[2.0, 0.0, 250.0], [0.0, 2.0, 250.0], [0.0, 0.0, 1.0]])
 
-GROUP_EXPECTED_MATRIX = np.array([
-    [1.0, 0.0, 10.0],
-    [0.0, 1.0, 10.0],
-    [0.0, 0.0, 1.0]
-])
+GROUP_EXPECTED_MATRIX = np.array([[1.0, 0.0, 10.0], [0.0, 1.0, 10.0], [0.0, 0.0, 1.0]])
 
 
-@pytest.mark.parametrize("geometry_cls, make_mock, init_region, expected_matrix", [
-    (LayerGeometry, make_layer_mock, (50, 50, 100, 100), LAYER_EXPECTED_MATRIX),
-    (GroupGeometry, make_group_mock, (0, 0, 1, 1), GROUP_EXPECTED_MATRIX),
-], ids=["LayerGeometry", "GroupGeometry"])
+@pytest.mark.parametrize(
+    "geometry_cls, make_mock, init_region, expected_matrix",
+    [
+        (LayerGeometry, make_layer_mock, (50, 50, 100, 100), LAYER_EXPECTED_MATRIX),
+        (GroupGeometry, make_group_mock, (0, 0, 1, 1), GROUP_EXPECTED_MATRIX),
+    ],
+    ids=["LayerGeometry", "GroupGeometry"],
+)
 def test_geometry_matrix(geometry_cls, make_mock, init_region, expected_matrix):
     """A propriedade matrix retorna a matriz global correta."""
     base_mock = make_mock()
@@ -120,10 +120,14 @@ def test_geometry_matrix(geometry_cls, make_mock, init_region, expected_matrix):
     np.testing.assert_array_almost_equal(strategy.matrix, expected_matrix)
 
 
-@pytest.mark.parametrize("geometry_cls, make_mock, init_region, expected_bbox", [
-    (LayerGeometry, make_layer_mock, (50, 50, 100, 100), (250, 250, 200, 200)),
-    (GroupGeometry, make_group_mock, (0, 0, 1, 1), (20, 20, 280, 280)),
-], ids=["LayerGeometry", "GroupGeometry"])
+@pytest.mark.parametrize(
+    "geometry_cls, make_mock, init_region, expected_bbox",
+    [
+        (LayerGeometry, make_layer_mock, (50, 50, 100, 100), (250, 250, 200, 200)),
+        (GroupGeometry, make_group_mock, (0, 0, 1, 1), (20, 20, 280, 280)),
+    ],
+    ids=["LayerGeometry", "GroupGeometry"],
+)
 def test_geometry_global_region(geometry_cls, make_mock, init_region, expected_bbox):
     """Garante que a property global_region retorna a bbox correta."""
     base_mock = make_mock()
@@ -134,10 +138,14 @@ def test_geometry_global_region(geometry_cls, make_mock, init_region, expected_b
     assert strategy.global_region == Region.from_rect(*expected_bbox)
 
 
-@pytest.mark.parametrize("geometry_cls, make_mock, init_region, expected_bbox", [
-    (LayerGeometry, make_layer_mock, (50, 50, 100, 100), (50, 50, 100, 100)),
-    (GroupGeometry, make_group_mock, (0, 0, 1, 1), (10, 10, 140, 140)),
-], ids=["LayerGeometry", "GroupGeometry"])
+@pytest.mark.parametrize(
+    "geometry_cls, make_mock, init_region, expected_bbox",
+    [
+        (LayerGeometry, make_layer_mock, (50, 50, 100, 100), (50, 50, 100, 100)),
+        (GroupGeometry, make_group_mock, (0, 0, 1, 1), (10, 10, 140, 140)),
+    ],
+    ids=["LayerGeometry", "GroupGeometry"],
+)
 def test_geometry_region(geometry_cls, make_mock, init_region, expected_bbox):
     """Garante que a property region retorna a região local ou união das regiões dos filhos."""
     base_mock = make_mock()
@@ -169,11 +177,7 @@ def test_fit_group_geometry_region_and_global_region():
     """Valida se FitGroupGeometry armazena a região local na base e projeta a global_region no Canvas."""
     group_mock = MagicMock(spec=GroupLayer)
     # Matriz global da base com translação de (20, 30)
-    group_mock.matrix = np.array([
-        [1.0, 0.0, 20.0],
-        [0.0, 1.0, 30.0],
-        [0.0, 0.0, 1.0]
-    ])
+    group_mock.matrix = np.array([[1.0, 0.0, 20.0], [0.0, 1.0, 30.0], [0.0, 0.0, 1.0]])
 
     # Moldura passada no Canvas: (50, 50, 150, 100)
     ref_region = Region.from_rect(50, 50, 150, 100)
@@ -189,11 +193,7 @@ def test_fit_group_geometry_region_and_global_region():
 def test_fit_group_geometry_matrix():
     """Valida se a matriz da FitGroupGeometry retorna a matriz global da base do grupo."""
     group_mock = MagicMock(spec=GroupLayer)
-    group_mock.matrix = np.array([
-        [1.0, 0.0, 20.0],
-        [0.0, 1.0, 30.0],
-        [0.0, 0.0, 1.0]
-    ])
+    group_mock.matrix = np.array([[1.0, 0.0, 20.0], [0.0, 1.0, 30.0], [0.0, 0.0, 1.0]])
 
     ref_region = Region.from_rect(0, 0, 100, 100)
     strategy = FitGroupGeometry(group_mock, ref_region)
@@ -202,11 +202,7 @@ def test_fit_group_geometry_matrix():
     np.testing.assert_array_almost_equal(strategy.matrix, group_mock.matrix)
 
     # 2. Se a base for transformada posteriormente (ex: move mais +10, +15)
-    group_mock.matrix = np.array([
-        [1.0, 0.0, 30.0],
-        [0.0, 1.0, 45.0],
-        [0.0, 0.0, 1.0]
-    ])
+    group_mock.matrix = np.array([[1.0, 0.0, 30.0], [0.0, 1.0, 45.0], [0.0, 0.0, 1.0]])
     np.testing.assert_array_almost_equal(strategy.matrix, group_mock.matrix)
 
 
@@ -217,11 +213,7 @@ def test_fit_group_geometry_com_transformacao_propria():
     """
     group_mock = MagicMock(spec=GroupLayer)
     # Matriz composta total do grupo (50 + 30 = 80)
-    group_mock.matrix = np.array([
-        [1.0, 0.0, 80.0],
-        [0.0, 1.0, 80.0],
-        [0.0, 0.0, 1.0]
-    ])
+    group_mock.matrix = np.array([[1.0, 0.0, 80.0], [0.0, 1.0, 80.0], [0.0, 0.0, 1.0]])
 
     # Passamos uma moldura de (80, 80, 80, 80) no Canvas
     ref_region = Region.from_rect(80, 80, 80, 80)
@@ -234,23 +226,15 @@ def test_fit_group_geometry_com_transformacao_propria():
     assert strategy.global_region == Region.from_rect(80, 80, 80, 80)
 
     # Se a base for movida posteriormente para (90, 90):
-    group_mock.matrix = np.array([
-        [1.0, 0.0, 90.0],
-        [0.0, 1.0, 90.0],
-        [0.0, 0.0, 1.0]
-    ])
+    group_mock.matrix = np.array([[1.0, 0.0, 90.0], [0.0, 1.0, 90.0], [0.0, 0.0, 1.0]])
     assert strategy.global_region == Region.from_rect(90, 90, 80, 80)
 
 
 def test_freeze_geometry_congelamento_e_restauracao(mocker):
     """Valida se freeze_geometry congela matrizes sob demanda e restaura o modo dinâmico ao sair."""
     group = GroupLayer()
-    mock_img1 = MagicMock(spec=Image)
-    mock_img1.size = (50, 50)
-    mock_img2 = MagicMock(spec=Image)
-    mock_img2.size = (50, 50)
-    layer1 = Layer(mock_img1)
-    layer2 = Layer(mock_img2)
+    layer1 = Layer(make_image_mock(50, 50))
+    layer2 = Layer(make_image_mock(50, 50))
     group.append(layer1)
     group.append(layer2)
 
@@ -280,9 +264,7 @@ def test_freeze_geometry_congelamento_e_restauracao(mocker):
 def test_freeze_geometry_restaura_em_caso_de_excecao():
     """Valida se freeze_geometry restaura o modo dinâmico mesmo quando ocorre exceção dentro do bloco."""
     group = GroupLayer()
-    mock_img = MagicMock(spec=Image)
-    mock_img.size = (50, 50)
-    layer = Layer(mock_img)
+    layer = Layer(make_image_mock(50, 50))
     group.append(layer)
 
     with pytest.raises(RuntimeError):
@@ -296,9 +278,7 @@ def test_freeze_geometry_restaura_em_caso_de_excecao():
 def test_freeze_geometry_congelamento_region_e_global_region(mocker):
     """Valida se freeze_geometry congela region e global_region de grupos e layers sob demanda."""
     group = GroupLayer()
-    mock_img = MagicMock(spec=Image)
-    mock_img.size = (50, 50)
-    layer = Layer(mock_img)
+    layer = Layer(make_image_mock(50, 50))
     group.append(layer)
 
     spy_region = mocker.spy(group.frame, "_compute_region")

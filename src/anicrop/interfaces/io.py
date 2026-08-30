@@ -46,7 +46,7 @@ class AbstractImageIO(ABC):
         Returns:
             Tupla contendo (array de dados, formato resolvido, tamanho original (largura, altura)).
         """
-        ...
+        pass
 
     @abstractmethod
     def write(
@@ -64,9 +64,9 @@ class AbstractImageIO(ABC):
             format: Formato dos canais em memória (RGB, RGBA, GRAY, etc.).
             options: Configurações de qualidade e compressão.
         """
-        ...
+        pass
 
     @abstractmethod
     def get_size(self, file_path: str | Path) -> tuple[int, int]:
         """Extrai as dimensões (largura, altura) da imagem lendo apenas o cabeçalho."""
-        ...
+        pass

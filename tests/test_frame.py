@@ -43,8 +43,7 @@ def test_viewport_frame_partial_overlap():
 
 def test_viewport_frame_local_state():
     """Valida se ViewportFrame com local=True projeta o Layer unrotated (Mexicano Deitado) na tela da Viewport com a Câmera."""
-    img_mexican = Image(
-        np.zeros((100, 100, 4), dtype=np.uint8), ImageFormat.RGBA)
+    img_mexican = Image(np.zeros((100, 100, 4), dtype=np.uint8), ImageFormat.RGBA)
     layer = Layer(img_mexican)
     layer.set_transform(TransformRel().rotate(-90))
 
@@ -74,8 +73,7 @@ def test_viewport_frame_with_explicit_view_region_global():
 
 def test_viewport_frame_with_explicit_view_region_local():
     """Valida se view_region restringe o dst_region na tela da Viewport no modo local."""
-    img_mexican = Image(
-        np.zeros((100, 100, 4), dtype=np.uint8), ImageFormat.RGBA)
+    img_mexican = Image(np.zeros((100, 100, 4), dtype=np.uint8), ImageFormat.RGBA)
     layer = Layer(img_mexican)
     layer.set_transform(TransformRel().rotate(-90).translate(150, 250))
 
@@ -183,8 +181,7 @@ def test_canvas_frame_full_render_no_clipping():
 
 def test_canvas_frame_local_state():
     """Valida se CanvasFrame com local=True calcula os bounds no espaço local (0,0,W,H) e converte a view_region global via matriz inversa."""
-    img_mexican = Image(
-        np.zeros((100, 100, 4), dtype=np.uint8), ImageFormat.RGBA)
+    img_mexican = Image(np.zeros((100, 100, 4), dtype=np.uint8), ImageFormat.RGBA)
     layer = Layer(img_mexican)
     layer.set_transform(TransformRel().rotate(-90).translate(150, 250))
 
@@ -211,8 +208,7 @@ def test_canvas_frame_with_explicit_view_region_global():
 
 def test_canvas_frame_with_explicit_view_region_local():
     """Valida se view_region global explícita é mapeada via matriz inversa no modo local."""
-    img_mexican = Image(
-        np.zeros((100, 100, 4), dtype=np.uint8), ImageFormat.RGBA)
+    img_mexican = Image(np.zeros((100, 100, 4), dtype=np.uint8), ImageFormat.RGBA)
     layer = Layer(img_mexican)
     layer.set_transform(TransformRel().rotate(-90).translate(150, 250))
 
@@ -397,19 +393,34 @@ def test_viewport_frame_view_region_edge_cases(
 @pytest.mark.parametrize(
     "layer_rect, canvas_size, expected_dst",
     [
-        pytest.param((1000, 1000, 100, 100), (500, 500), None,
-                     id="culling_total_100_porcento_fora"),
-        pytest.param((-40, -30, 100, 100), (500, 500), Region.from_rect(0,
-                     0, 60, 70), id="recorte_topo_esquerdo_coords_negativas"),
-        pytest.param((450, 470, 100, 100), (500, 500), Region.from_rect(
-            450, 470, 50, 30), id="recorte_base_direita_limite_canvas"),
+        pytest.param(
+            (1000, 1000, 100, 100),
+            (500, 500),
+            None,
+            id="culling_total_100_porcento_fora",
+        ),
+        pytest.param(
+            (-40, -30, 100, 100),
+            (500, 500),
+            Region.from_rect(0, 0, 60, 70),
+            id="recorte_topo_esquerdo_coords_negativas",
+        ),
+        pytest.param(
+            (450, 470, 100, 100),
+            (500, 500),
+            Region.from_rect(450, 470, 50, 30),
+            id="recorte_base_direita_limite_canvas",
+        ),
     ],
 )
-def test_canvas_frame_recorte_e_culling_nas_bordas(layer_rect, canvas_size, expected_dst):
+def test_canvas_frame_recorte_e_culling_nas_bordas(
+    layer_rect, canvas_size, expected_dst
+):
     """Valida o cálculo exato de dst_region no CanvasFrame para culling total e recortes parciais de borda."""
     canvas = Canvas.from_size(*canvas_size)
-    layer = make_layer(w=layer_rect[2], h=layer_rect[3],
-                       x=layer_rect[0], y=layer_rect[1])
+    layer = make_layer(
+        w=layer_rect[2], h=layer_rect[3], x=layer_rect[0], y=layer_rect[1]
+    )
 
     frame = CanvasFrame(layer, canvas)
 
@@ -485,6 +496,7 @@ def test_canvas_frame_view_region_has_priority_over_mask():
 
 def test_canvas_frame_expand_bounds_with_effects_padding():
     """Valida se CanvasFrame expande os bounds geométricos de acordo com o padding dos efeitos."""
+
     class DummyPaddingEffect:
         def __init__(self, visible: bool = True):
             self.visible = visible

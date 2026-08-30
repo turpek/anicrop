@@ -20,12 +20,11 @@ from anicrop.transform import (
 )
 
 import numpy as np
+from ovld import ovld
 from anicrop.edit_layer import EditLayer, EDIT_LAYER_MAP
-from functools import singledispatchmethod
 
 
 class Layer(BaseLayer, AbstractLayer):
-
     def _init_base(
         self,
         region: Region,
@@ -48,101 +47,84 @@ class Layer(BaseLayer, AbstractLayer):
         self._content = LayerContent(self)
         self._layout = LayerLayoutStrategy(self)
 
-    @overload
-    def __init__(
-        self,
-        image: Image,
-        opacity: float = 1.0,
-        blend_mode: BlendMode = BlendMode.NORMAL,
-        name: str = 'Layer',
-    ) -> None:
-        ...
+    if TYPE_CHECKING:
 
-    @overload
-    def __init__(
-        self,
-        region: Region,
-        opacity: float = 1.0,
-        blend_mode: BlendMode = BlendMode.NORMAL,
-        name: str = 'Layer',
-        format: ImageFormat = ImageFormat.RGBA,
-    ) -> None:
-        ...
+        @overload
+        def __init__(
+            self,
+            image: Image,
+            *,
+            opacity: float = 1.0,
+            blend_mode: BlendMode = BlendMode.NORMAL,
+            name: str = "Layer",
+        ) -> None:
+            pass
 
-    @overload
-    def __init__(
-        self,
-        size: tuple[int, int],
-        opacity: float = 1.0,
-        blend_mode: BlendMode = BlendMode.NORMAL,
-        name: str = 'Layer',
-        format: ImageFormat = ImageFormat.RGBA,
-    ) -> None:
-        ...
+        @overload
+        def __init__(
+            self,
+            region: Region,
+            *,
+            opacity: float = 1.0,
+            blend_mode: BlendMode = BlendMode.NORMAL,
+            name: str = "Layer",
+            format: ImageFormat = ImageFormat.RGBA,
+        ) -> None:
+            pass
 
-    def __init__(
-        self,
-        *args: Any,
-        **kwargs: Any,
-    ) -> None:
-        target = kwargs.pop("image", None) or kwargs.pop("region", None) or kwargs.pop("size", None)
-        if target is None and args:
-            target = args[0]
-            args = args[1:]
-        self._dispatch_init(target, *args, **kwargs)
+        @overload
+        def __init__(
+            self,
+            size: tuple[int, int],
+            *,
+            opacity: float = 1.0,
+            blend_mode: BlendMode = BlendMode.NORMAL,
+            name: str = "Layer",
+            format: ImageFormat = ImageFormat.RGBA,
+        ) -> None:
+            pass
 
-    @singledispatchmethod
-    def _dispatch_init(
-        self,
-        target: Any,
-        opacity: float = 1.0,
-        blend_mode: BlendMode = BlendMode.NORMAL,
-        name: str = 'Layer',
-        format: ImageFormat = ImageFormat.RGBA,
-    ) -> None:
-        size = getattr(target, 'size', None)
-        if size is None:
-            raise TypeError(
-                f"Target inválido para Layer: {type(target).__name__}. "
-                "Esperado Image, Region ou tuple[int, int]."
+        def __init__(self, *args: Any, **kwargs: Any) -> None:
+            pass
+    else:
+
+        @ovld
+        def __init__(
+            self,
+            image: Image,
+            *,
+            opacity: float = 1.0,
+            blend_mode: BlendMode = BlendMode.NORMAL,
+            name: str = "Layer",
+        ) -> None:
+            self._init_base(
+                Region.from_size(*image.size), opacity, blend_mode, name, image.format
             )
-        layer_format = getattr(target, 'format', format)
-        self._init_base(Region.from_size(*size), opacity, blend_mode, name, layer_format)
-        self.add_edit(target, self.base.region, blend_mode)
+            self.add_edit(image, self.base.region, blend_mode)
 
-    @_dispatch_init.register
-    def _(
-        self,
-        image: Image,
-        opacity: float = 1.0,
-        blend_mode: BlendMode = BlendMode.NORMAL,
-        name: str = 'Layer',
-        format: ImageFormat = ImageFormat.RGBA,
-    ) -> None:
-        self._init_base(Region.from_size(*image.size), opacity, blend_mode, name, image.format)
-        self.add_edit(image, self.base.region, blend_mode)
+        @ovld
+        def __init__(  # noqa: F811
+            self,
+            region: Region,
+            *,
+            opacity: float = 1.0,
+            blend_mode: BlendMode = BlendMode.NORMAL,
+            name: str = "Layer",
+            format: ImageFormat = ImageFormat.RGBA,
+        ) -> None:
+            self._init_base(region, opacity, blend_mode, name, format)
 
-    @_dispatch_init.register
-    def _(
-        self,
-        region: Region,
-        opacity: float = 1.0,
-        blend_mode: BlendMode = BlendMode.NORMAL,
-        name: str = 'Layer',
-        format: ImageFormat = ImageFormat.RGBA,
-    ) -> None:
-        self._init_base(region, opacity, blend_mode, name, format)
-
-    @_dispatch_init.register
-    def _(
-        self,
-        size: tuple,
-        opacity: float = 1.0,
-        blend_mode: BlendMode = BlendMode.NORMAL,
-        name: str = 'Layer',
-        format: ImageFormat = ImageFormat.RGBA,
-    ) -> None:
-        self._init_base(Region.from_size(*size), opacity, blend_mode, name, format)
+        @ovld
+        def __init__(  # noqa: F811
+            self,
+            size: tuple,
+            *,
+            opacity: float = 1.0,
+            blend_mode: BlendMode = BlendMode.NORMAL,
+            name: str = "Layer",
+            format: ImageFormat = ImageFormat.RGBA,
+        ) -> None:
+            self._init_base(Region.from_size(*size), opacity, blend_mode, name, format)
 
     def __repr__(self) -> str:
         return f"Layer(x={self.x.start}, y={self.y.start}, size={self.region.size})"

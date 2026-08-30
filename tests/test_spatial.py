@@ -9,7 +9,7 @@ def test_Span_com_start_padrao():
     assert Span(5) == Span(0, 5)
 
 
-@pytest.mark.parametrize('value', [-5, 0, 5], ids=['-5', '0', '5'])
+@pytest.mark.parametrize("value", [-5, 0, 5], ids=["-5", "0", "5"])
 def test_Span_com_start_variado(value):
     span = Span(value, 5)
     assert span.start == value
@@ -19,9 +19,11 @@ def test_Span_com_start_variado(value):
     assert span.end == end_expect
 
 
-@pytest.mark.parametrize('value', [-1, 0], ids=['-1', '0'])
+@pytest.mark.parametrize("value", [-1, 0], ids=["-1", "0"])
 def test_Span_com_valores_de_length_invalidos(value):
-    with raises(ValueError, match=re.escape(f'length must be greater than 0 (length={value})')):
+    with raises(
+        ValueError, match=re.escape(f"length must be greater than 0 (length={value})")
+    ):
         Span(value)
 
 
@@ -36,8 +38,8 @@ def test_Span_expand_com_valor_negativo():
     assert result == expect
 
 
-@pytest.mark.parametrize('expand', [0, 1, 5], ids=['expand=0', 'expand=1', 'expand=5'])
-@pytest.mark.parametrize('start', [-1, 0, 1], ids=['start=-1', 'start=0', 'start=1'])
+@pytest.mark.parametrize("expand", [0, 1, 5], ids=["expand=0", "expand=1", "expand=5"])
+@pytest.mark.parametrize("start", [-1, 0, 1], ids=["start=-1", "start=0", "start=1"])
 def test_Span_expand_com_varios_valores_de_expand_e_start(start, expand):
     span = Span(start, 10).expand(expand)
     assert span == Span(start - expand, 10 + 2 * expand)
@@ -64,29 +66,31 @@ def test_Span_expand_com_both_e_after():
 
 
 def test_Span_shrink_com_valor_negativo():
-    expect = ("Margin for shrink() must be non-negative. To contract "
-              "To expand the span, use the expand() method with a positive margin.")
+    expect = (
+        "Margin for shrink() must be non-negative. To contract "
+        "To expand the span, use the expand() method with a positive margin."
+    )
     with raises(ValueError) as excinfo:
         Span(0, 2).shrink(-1)
     result = str(excinfo.value)
     assert result == expect
 
 
-@pytest.mark.parametrize('shrink', [0, 1, 4], ids=['shrink=0', 'shrink=1', 'shrink=4'])
-@pytest.mark.parametrize('start', [-1, 0, 1], ids=['start=-1', 'start=0', 'start=1'])
+@pytest.mark.parametrize("shrink", [0, 1, 4], ids=["shrink=0", "shrink=1", "shrink=4"])
+@pytest.mark.parametrize("start", [-1, 0, 1], ids=["start=-1", "start=0", "start=1"])
 def test_Span_shrink_com_varios_valores_de_both_e_start(shrink, start):
     span = Span(start, 10).shrink(shrink)
     assert span == Span(start + shrink, 10 - shrink * 2)
 
 
 @pytest.mark.parametrize(
-    'before, after, expect',
+    "before, after, expect",
     [
         (2, 3, (2, 5)),
         (100, 0, (9, 1)),
         (0, 100, (0, 1)),
     ],
-    ids=['(2,3)', '(100,0)', '(0,100)']
+    ids=["(2,3)", "(100,0)", "(0,100)"],
 )
 def test_Span_shrink_com_varios_valores_after_e_before(before, after, expect):
     span = Span(0, 10).shrink(before=before, after=after)
@@ -94,14 +98,16 @@ def test_Span_shrink_com_varios_valores_after_e_before(before, after, expect):
 
 
 @pytest.mark.parametrize(
-    'before, after, expect',
+    "before, after, expect",
     [
         (5, 5, (-45, 10)),
         (100, 100, (-31, 1)),
     ],
-    ids=['(5,5)', '(100,100)']
+    ids=["(5,5)", "(100,100)"],
 )
-def test_Span_shrink_com_varios_valores_after_e_before_e_start_negativo(before, after, expect):
+def test_Span_shrink_com_varios_valores_after_e_before_e_start_negativo(
+    before, after, expect
+):
     span = Span(-50, 20).shrink(before=before, after=after)
     assert span == Span(*expect)
 
@@ -175,12 +181,13 @@ def test_Span_offset_to_com_distancia_negativa():
 
 
 @pytest.mark.parametrize(
-    'value, expect', [
+    "value, expect",
+    [
         ([None], (0, 10)),
         ([5], (5, 10)),
         ([Span(5, 20)], (5, 20)),
     ],
-    ids=['none', 'start', 'span']
+    ids=["none", "start", "span"],
 )
 def test_Span_replace(value, expect):
     span = Span(0, 10)
@@ -247,13 +254,17 @@ def test_Region_deslocamento_negativo_nos_eixos_xy_com_tupla():
 
 
 def test_Region_deslocamento_positivo_com_tipo_errado():
-    expect = r"offset must be an int, a \(x, y\) tuple, or a Region instance \(got list\)"
+    expect = (
+        r"offset must be an int, a \(x, y\) tuple, or a Region instance \(got list\)"
+    )
     with raises(TypeError, match=expect):
         Region.from_size(10, 5) + [2, 3]
 
 
 def test_Region_deslocamento_negativo_com_tipo_errado():
-    expect = r"offset must be an int, a \(x, y\) tuple, or a Region instance \(got list\)"
+    expect = (
+        r"offset must be an int, a \(x, y\) tuple, or a Region instance \(got list\)"
+    )
     with raises(TypeError, match=expect):
         Region(Span(2, 10), Span(5, 12)) - [2, 3]
 
@@ -383,16 +394,16 @@ def test_Region_overlap_with_regionB_nao_sobreposto_regionA():
 
 def test_Span_offset_to_anchor_end():
     span1 = Span(-4, 58)  # end = 54
-    span2 = Span(0, 54)    # end = 54
+    span2 = Span(0, 54)  # end = 54
     assert span1.offset_to(span2, anchor_end=True) == 0
 
-    span3 = Span(0, 50)    # end = 50
+    span3 = Span(0, 50)  # end = 50
     assert span1.offset_to(span3, anchor_end=True) == -4
 
 
 def test_Region_offset_to_anchor_end():
     region1 = Region(Span(-4, 58), Span(-4, 58))  # end = (54, 54)
-    region2 = Region(Span(0, 50), Span(0, 50))    # end = (50, 50)
+    region2 = Region(Span(0, 50), Span(0, 50))  # end = (50, 50)
     result = region1.offset_to(region2, anchor_end=True)
     assert result == (-4, -4)
 
@@ -408,11 +419,14 @@ def test_Span_slack():
     assert reference.slack(target) == -160
 
 
-@pytest.mark.parametrize('factor, expect_start', [
-    (0.0, 100),   # align left: ref.start + 160 * 0.0
-    (0.5, 180),   # align center: ref.start + 160 * 0.5
-    (1.0, 260),   # align right: ref.start + 160 * 1.0
-])
+@pytest.mark.parametrize(
+    "factor, expect_start",
+    [
+        (0.0, 100),  # align left: ref.start + 160 * 0.0
+        (0.5, 180),  # align center: ref.start + 160 * 0.5
+        (1.0, 260),  # align right: ref.start + 160 * 1.0
+    ],
+)
 def test_Span_align(factor, expect_start):
     target = Span(10, 40)
     reference = Span(100, 200)
@@ -441,14 +455,15 @@ def test_Region_align():
 
 
 @pytest.mark.parametrize(
-    'value, expect', [
+    "value, expect",
+    [
         ({}, (0, 0, 10, 10)),
-        ({'x': 5}, (5, 0, 10, 10)),
-        ({'x': Span(5, 20)}, (5, 0, 20, 10)),
-        ({'y': 5}, (0, 5, 10, 10)),
-        ({'y': Span(5, 20)}, (0, 5, 10, 20)),
+        ({"x": 5}, (5, 0, 10, 10)),
+        ({"x": Span(5, 20)}, (5, 0, 20, 10)),
+        ({"y": 5}, (0, 5, 10, 10)),
+        ({"y": Span(5, 20)}, (0, 5, 10, 20)),
     ],
-    ids=['none', 'start_x', 'span_x', 'start_y', 'span_y']
+    ids=["none", "start_x", "span_x", "start_y", "span_y"],
 )
 def test_Region_replace(value, expect):
     region = Region.from_size(10, 10)
@@ -456,12 +471,40 @@ def test_Region_replace(value, expect):
 
 
 @pytest.mark.parametrize(
-    'source, bounds, x_factor, y_factor, expected',
+    "source, bounds, x_factor, y_factor, expected",
     [
-        pytest.param((0, 0, 200, 100), (0, 0, 100, 100), 0.5, 0.5, (0, 25, 100, 50), id='contain_wider_center'),
-        pytest.param((0, 0, 100, 200), (0, 0, 100, 100), 0.5, 0.5, (25, 0, 50, 100), id='contain_taller_center'),
-        pytest.param((0, 0, 200, 100), (10, 20, 100, 100), 0.0, 0.0, (10, 20, 100, 50), id='contain_top_left'),
-        pytest.param((0, 0, 200, 100), (10, 20, 100, 100), 1.0, 1.0, (10, 70, 100, 50), id='contain_bottom_right'),
+        pytest.param(
+            (0, 0, 200, 100),
+            (0, 0, 100, 100),
+            0.5,
+            0.5,
+            (0, 25, 100, 50),
+            id="contain_wider_center",
+        ),
+        pytest.param(
+            (0, 0, 100, 200),
+            (0, 0, 100, 100),
+            0.5,
+            0.5,
+            (25, 0, 50, 100),
+            id="contain_taller_center",
+        ),
+        pytest.param(
+            (0, 0, 200, 100),
+            (10, 20, 100, 100),
+            0.0,
+            0.0,
+            (10, 20, 100, 50),
+            id="contain_top_left",
+        ),
+        pytest.param(
+            (0, 0, 200, 100),
+            (10, 20, 100, 100),
+            1.0,
+            1.0,
+            (10, 70, 100, 50),
+            id="contain_bottom_right",
+        ),
     ],
 )
 def test_region_fit_contain(source, bounds, x_factor, y_factor, expected):
@@ -473,11 +516,32 @@ def test_region_fit_contain(source, bounds, x_factor, y_factor, expected):
 
 
 @pytest.mark.parametrize(
-    'source, bounds, x_factor, y_factor, expected',
+    "source, bounds, x_factor, y_factor, expected",
     [
-        pytest.param((0, 0, 200, 100), (0, 0, 100, 100), 0.5, 0.5, (-50, 0, 200, 100), id='cover_wider_center'),
-        pytest.param((0, 0, 100, 200), (0, 0, 100, 100), 0.5, 0.5, (0, -50, 100, 200), id='cover_taller_center'),
-        pytest.param((0, 0, 200, 100), (10, 20, 100, 100), 0.0, 0.0, (10, 20, 200, 100), id='cover_top_left'),
+        pytest.param(
+            (0, 0, 200, 100),
+            (0, 0, 100, 100),
+            0.5,
+            0.5,
+            (-50, 0, 200, 100),
+            id="cover_wider_center",
+        ),
+        pytest.param(
+            (0, 0, 100, 200),
+            (0, 0, 100, 100),
+            0.5,
+            0.5,
+            (0, -50, 100, 200),
+            id="cover_taller_center",
+        ),
+        pytest.param(
+            (0, 0, 200, 100),
+            (10, 20, 100, 100),
+            0.0,
+            0.0,
+            (10, 20, 200, 100),
+            id="cover_top_left",
+        ),
     ],
 )
 def test_region_fit_cover(source, bounds, x_factor, y_factor, expected):
@@ -489,10 +553,10 @@ def test_region_fit_cover(source, bounds, x_factor, y_factor, expected):
 
 
 @pytest.mark.parametrize(
-    'source, target_width, expected',
+    "source, target_width, expected",
     [
-        pytest.param((10, 20, 200, 100), 400, (10, 20, 400, 200), id='expand_width'),
-        pytest.param((10, 20, 200, 100), 100, (10, 20, 100, 50), id='shrink_width'),
+        pytest.param((10, 20, 200, 100), 400, (10, 20, 400, 200), id="expand_width"),
+        pytest.param((10, 20, 200, 100), 100, (10, 20, 100, 50), id="shrink_width"),
     ],
 )
 def test_region_scale_width(source, target_width, expected):
@@ -503,10 +567,10 @@ def test_region_scale_width(source, target_width, expected):
 
 
 @pytest.mark.parametrize(
-    'source, target_height, expected',
+    "source, target_height, expected",
     [
-        pytest.param((10, 20, 100, 200), 400, (10, 20, 200, 400), id='expand_height'),
-        pytest.param((10, 20, 100, 200), 100, (10, 20, 50, 100), id='shrink_height'),
+        pytest.param((10, 20, 100, 200), 400, (10, 20, 200, 400), id="expand_height"),
+        pytest.param((10, 20, 100, 200), 100, (10, 20, 50, 100), id="shrink_height"),
     ],
 )
 def test_region_scale_height(source, target_height, expected):

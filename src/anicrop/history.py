@@ -11,18 +11,32 @@ class ActionPolicy(ABC):
     """Interface abstrata (Strategy/Policy) para os modos de ação do histórico."""
 
     @abstractmethod
-    def start_action(self, history: GlobalHistory, command_cls: type[Command], name: str, target: Any = None, value: Any = None) -> None:
-        ...
+    def start_action(
+        self,
+        history: GlobalHistory,
+        command_cls: type[Command],
+        name: str,
+        target: Any = None,
+        value: Any = None,
+    ) -> None:
+        pass
 
     @abstractmethod
     def commit(self, history: GlobalHistory) -> bool:
-        ...
+        pass
 
 
 class NormalPolicy(ActionPolicy):
     """Política padrão: cria um novo comando e sela o anterior."""
 
-    def start_action(self, history: GlobalHistory, command_cls: type[Command], name: str, target: Any = None, value: Any = None) -> None:
+    def start_action(
+        self,
+        history: GlobalHistory,
+        command_cls: type[Command],
+        name: str,
+        target: Any = None,
+        value: Any = None,
+    ) -> None:
         history._clear_redo()
         history.commit()
         cmd = command_cls(name, target, value)
@@ -42,7 +56,14 @@ class NormalPolicy(ActionPolicy):
 class MergeContinuousPolicy(ActionPolicy):
     """Política de mesclagem contínua: mescla ações de mesmo nome e objeto."""
 
-    def start_action(self, history: GlobalHistory, command_cls: type[Command], name: str, target: Any = None, value: Any = None) -> None:
+    def start_action(
+        self,
+        history: GlobalHistory,
+        command_cls: type[Command],
+        name: str,
+        target: Any = None,
+        value: Any = None,
+    ) -> None:
         if len(history._undo_stack) > 0:
             last_cmd = history._undo_stack[-1]
             if type(last_cmd) is command_cls and last_cmd.can_merge(name, target):
@@ -60,7 +81,14 @@ class MergeContinuousPolicy(ActionPolicy):
 class GroupActionPolicy(ActionPolicy):
     """Política de agrupamento: ignora ações consecutivas da mesma classe de comando."""
 
-    def start_action(self, history: GlobalHistory, command_cls: type[Command], name: str, target: Any = None, value: Any = None) -> None:
+    def start_action(
+        self,
+        history: GlobalHistory,
+        command_cls: type[Command],
+        name: str,
+        target: Any = None,
+        value: Any = None,
+    ) -> None:
         if len(history._undo_stack) > 0:
             last_cmd = history._undo_stack[-1]
             if type(last_cmd) is command_cls:
@@ -78,7 +106,14 @@ class GroupActionPolicy(ActionPolicy):
 class DisabledPolicy(ActionPolicy):
     """Política silenciosa/desativada: ignora qualquer início de ação e commit."""
 
-    def start_action(self, history: GlobalHistory, command_cls: type[Command], name: str, target: Any = None, value: Any = None) -> None:
+    def start_action(
+        self,
+        history: GlobalHistory,
+        command_cls: type[Command],
+        name: str,
+        target: Any = None,
+        value: Any = None,
+    ) -> None:
         pass
 
     def commit(self, history: GlobalHistory) -> bool:
@@ -112,7 +147,6 @@ class AtomicPolicy(ActionPolicy):
 
 
 class GlobalHistory:
-
     def __init__(self) -> None:
         self._undo_stack: deque[Command] = deque()
         self._redo_stack: deque[Command] = deque()
@@ -128,7 +162,13 @@ class GlobalHistory:
     def commit(self) -> bool:
         return self._policy.commit(self)
 
-    def start_action(self, command_cls: type[Command], name: str, target: Any = None, value: Any = None) -> None:
+    def start_action(
+        self,
+        command_cls: type[Command],
+        name: str,
+        target: Any = None,
+        value: Any = None,
+    ) -> None:
         """Abre uma nova transação usando a política ativa."""
         self._policy.start_action(self, command_cls, name, target, value)
 

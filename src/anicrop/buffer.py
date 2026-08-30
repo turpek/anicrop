@@ -36,10 +36,10 @@ class ScratchBuffer(AbstractScratchBuffer):
         """Aloca ou reaproveita o array de imagem subjacente, expandindo por fator 1.5x."""
         w, h = self._size
         if (
-            self._image is None or
-            self._image.height < h or
-            self._image.width < w or
-            self._image.format != self._format
+            self._image is None
+            or self._image.height < h
+            or self._image.width < w
+            or self._image.format != self._format
         ):
             current_h = self._image.height if self._image is not None else 0
             current_w = self._image.width if self._image is not None else 0

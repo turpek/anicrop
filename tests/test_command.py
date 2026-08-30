@@ -1,6 +1,11 @@
 import numpy as np
 import pytest
-from anicrop.command import BaseLayerCommand, LayerImageCommand, ReparentCommand, GeometryControllerSnapshot
+from anicrop.command import (
+    BaseLayerCommand,
+    LayerImageCommand,
+    ReparentCommand,
+    GeometryControllerSnapshot,
+)
 from anicrop.container import GroupLayer, LayerStack, _NULL_CONTAINER
 from anicrop.enums import BlendMode
 from anicrop.geometry import GeometryController, LayerGeometry
@@ -20,7 +25,10 @@ def make_img(w=10, h=10):
 # Testes de Cobertura do ReparentCommand
 # ============================================================================
 
-@pytest.mark.parametrize("cls, proxy_cls", [(GroupLayer, GroupProxy), (LayerStack, LayerStackProxy)])
+
+@pytest.mark.parametrize(
+    "cls, proxy_cls", [(GroupLayer, GroupProxy), (LayerStack, LayerStackProxy)]
+)
 def test_reparent_between_different_groups(cls, proxy_cls):
     """1. Mover um Layer entre Grupos Diferentes (Grupo A -> Grupo B)"""
     history = GlobalHistory()
@@ -54,7 +62,9 @@ def test_reparent_between_different_groups(cls, proxy_cls):
     assert group_b[0] == layer
 
 
-@pytest.mark.parametrize("cls, proxy_cls", [(GroupLayer, GroupProxy), (LayerStack, LayerStackProxy)])
+@pytest.mark.parametrize(
+    "cls, proxy_cls", [(GroupLayer, GroupProxy), (LayerStack, LayerStackProxy)]
+)
 def test_reparent_reorder_same_container(cls, proxy_cls):
     """2. Reordenação no Mesmo Container (move)"""
     history = GlobalHistory()
@@ -83,7 +93,9 @@ def test_reparent_reorder_same_container(cls, proxy_cls):
     assert list(group._target) == [l2, l3, l1]
 
 
-@pytest.mark.parametrize("cls, proxy_cls", [(GroupLayer, GroupProxy), (LayerStack, LayerStackProxy)])
+@pytest.mark.parametrize(
+    "cls, proxy_cls", [(GroupLayer, GroupProxy), (LayerStack, LayerStackProxy)]
+)
 def test_reparent_remove_and_restore(cls, proxy_cls):
     """3. Remoção de um Elemento (remove / pop)"""
     history = GlobalHistory()
@@ -169,7 +181,9 @@ def test_reparent_restores_parent_inverse_matrix():
     assert np.array_equal(layer._parent_inverse, inverse_b_after)
 
 
-@pytest.mark.parametrize("cls, proxy_cls", [(GroupLayer, GroupProxy), (LayerStack, LayerStackProxy)])
+@pytest.mark.parametrize(
+    "cls, proxy_cls", [(GroupLayer, GroupProxy), (LayerStack, LayerStackProxy)]
+)
 def test_reparent_has_changes(cls, proxy_cls):
     """6. Verificação do método has_changes()"""
     history = GlobalHistory()

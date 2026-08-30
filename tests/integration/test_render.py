@@ -27,13 +27,24 @@ def viewport_render():
     return ViewportRender()
 
 
-def make_img(w: int = 100, h: int = 100, color: tuple[int, int, int, int] = (255, 0, 0, 255), form: ImageFormat = ImageFormat.RGBA) -> Image:
+def make_img(
+    w: int = 100,
+    h: int = 100,
+    color: tuple[int, int, int, int] = (255, 0, 0, 255),
+    form: ImageFormat = ImageFormat.RGBA,
+) -> Image:
     img_data = np.zeros((h, w, 4), dtype=np.uint8)
     img_data[:] = color
     return Image(img_data, form)
 
 
-def make_layer(w: int = 100, h: int = 100, x: int = 0, y: int = 0, color: tuple[int, int, int, int] = (255, 0, 0, 255)) -> Layer:
+def make_layer(
+    w: int = 100,
+    h: int = 100,
+    x: int = 0,
+    y: int = 0,
+    color: tuple[int, int, int, int] = (255, 0, 0, 255),
+) -> Layer:
     img = make_img(w, h, color)
     layer = Layer(img)
     if x != 0:
@@ -50,7 +61,9 @@ def test_canvas_render_identidade_sem_transformacao(canvas_render):
     rendered_image = canvas_render.render_layer(original_layer)
 
     assert rendered_image.size == (50, 50)
-    np.testing.assert_array_equal(rendered_image[...], original_layer.edits[0].image[...])
+    np.testing.assert_array_equal(
+        rendered_image[...], original_layer.edits[0].image[...]
+    )
 
 
 def test_canvas_render_rotacao_expansao_segura(canvas_render):
@@ -126,15 +139,32 @@ def test_render_fluxo_real_com_quina(canvas_render):
 @pytest.mark.parametrize(
     "edit_rect, edit_color, sample_coord, expected_color",
     [
-        pytest.param((50, 50, 10, 10), (255, 0, 0, 255), (55, 55),
-                     (255, 0, 0, 255), id="edit_centro_transladado"),
-        pytest.param((-10, 10, 20, 20), (255, 0, 0, 255), (15, 0),
-                     (255, 0, 0, 255), id="edit_vazando_esquerda"),
-        pytest.param((90, 10, 20, 20), (0, 0, 255, 255), (15, 95),
-                     (0, 0, 255, 255), id="edit_vazando_direita"),
+        pytest.param(
+            (50, 50, 10, 10),
+            (255, 0, 0, 255),
+            (55, 55),
+            (255, 0, 0, 255),
+            id="edit_centro_transladado",
+        ),
+        pytest.param(
+            (-10, 10, 20, 20),
+            (255, 0, 0, 255),
+            (15, 0),
+            (255, 0, 0, 255),
+            id="edit_vazando_esquerda",
+        ),
+        pytest.param(
+            (90, 10, 20, 20),
+            (0, 0, 255, 255),
+            (15, 95),
+            (0, 0, 255, 255),
+            id="edit_vazando_direita",
+        ),
     ],
 )
-def test_canvas_render_layer_edits_positioning_and_clipping(canvas_render, edit_rect, edit_color, sample_coord, expected_color):
+def test_canvas_render_layer_edits_positioning_and_clipping(
+    canvas_render, edit_rect, edit_color, sample_coord, expected_color
+):
     """Valida o posicionamento e o recorte de EditLayers sobrepostos à camada base."""
     layer = make_layer(w=100, h=100, color=(0, 0, 0, 0))
     edit_img = make_img(w=edit_rect[2], h=edit_rect[3], color=edit_color)
@@ -163,6 +193,7 @@ def test_viewport_render_scene_posicionamento_camadas(viewport_render):
 # ==============================================================================
 # Composição de Cenas com Grupos (GroupLayer no Canvas)
 # ==============================================================================
+
 
 def test_canvas_render_patch_with_restricting_view_region():
     """Valida se o render_patch restringe e retorna a imagem com o tamanho exato da view_region para uma camada simples."""
@@ -222,16 +253,42 @@ def test_canvas_render_patch_partial_overlap_returns_effective_size():
 @pytest.mark.parametrize(
     "group_trans, group_frame_rect, child_rect, expect_child_slice, expect_group_slice",
     [
-        pytest.param((50, 50), (40, 40, 120, 120), (20, 20, 50, 50),
-                     (30, 30, 50, 50), (40, 40, 120, 120), id="expanded_border"),
-        pytest.param((50, 50), (50, 50, 100, 100), (50, 50, 100, 100),
-                     (50, 50, 50, 50), (50, 50, 100, 100), id="child_clipping"),
-        pytest.param((200, 200), (200, 200, 150, 150), (20, 20, 50, 50),
-                     (20, 20, 50, 50), (200, 200, 100, 100), id="group_clipping"),
+        pytest.param(
+            (50, 50),
+            (40, 40, 120, 120),
+            (20, 20, 50, 50),
+            (30, 30, 50, 50),
+            (40, 40, 120, 120),
+            id="expanded_border",
+        ),
+        pytest.param(
+            (50, 50),
+            (50, 50, 100, 100),
+            (50, 50, 100, 100),
+            (50, 50, 50, 50),
+            (50, 50, 100, 100),
+            id="child_clipping",
+        ),
+        pytest.param(
+            (200, 200),
+            (200, 200, 150, 150),
+            (20, 20, 50, 50),
+            (20, 20, 50, 50),
+            (200, 200, 100, 100),
+            id="group_clipping",
+        ),
     ],
 )
-def test_canvas_render_scene_group_layer_scenarios(mocker, group_trans, group_frame_rect, child_rect, expect_child_slice, expect_group_slice):
+def test_canvas_render_scene_group_layer_scenarios(
+    mocker,
+    group_trans,
+    group_frame_rect,
+    child_rect,
+    expect_child_slice,
+    expect_group_slice,
+):
     """Testa cenários espaciais de GroupLayer: enquadramento com borda, clipping interno e recorte na borda do Canvas."""
+
     def fake_render_area(layer, frame, interp=None):
         if frame.dst_region is not None:
             return Image.new(frame.dst_region.size, ImageFormat.RGBA)
@@ -267,6 +324,7 @@ def test_canvas_render_scene_group_layer_scenarios(mocker, group_trans, group_fr
 
 def test_canvas_render_scene_nested_group_layers(mocker, monkeypatch):
     """Testa a composição em cascata de múltiplos níveis de GroupLayers aninhados."""
+
     def fake_render_area(layer, frame, interp=None):
         if frame.dst_region is not None:
             return Image.new(frame.dst_region.size, ImageFormat.RGBA)
@@ -289,7 +347,7 @@ def test_canvas_render_scene_nested_group_layers(mocker, monkeypatch):
             return Region.from_rect(80, 80, 80, 80)
         elif self is root_group.control.frame:
             return Region.from_rect(50, 50, 150, 150)
-        return self._calculate_region('global_region')
+        return self._calculate_region("global_region")
 
     monkeypatch.setattr(
         type(root_group.control.frame),
@@ -381,6 +439,7 @@ def test_canvas_render_scene_ignora_camada_com_visible_false(mocker):
 # Casos de Borda: Transformações Geométricas Extremas (Rotações e Escalas)
 # ==============================================================================
 
+
 @pytest.mark.parametrize(
     "angle, expected_size_approx",
     [
@@ -389,7 +448,9 @@ def test_canvas_render_scene_ignora_camada_com_visible_false(mocker):
         pytest.param(30, (136, 136), id="rotacao_30_graus"),
     ],
 )
-def test_canvas_render_rotacoes_nao_ortogonais(canvas_render, angle, expected_size_approx):
+def test_canvas_render_rotacoes_nao_ortogonais(
+    canvas_render, angle, expected_size_approx
+):
     """Valida se o render_layer gera a imagem com a bounding box expandida e pixel central preservado."""
     layer = make_layer(w=100, h=100, color=(255, 0, 0, 255))
     layer.transform.rotate(angle)
@@ -433,7 +494,8 @@ def test_canvas_render_escalas_extremas(canvas_render, scale_x, scale_y, expecte
 def test_render_layer_multiplos_edits_formatos_mistos(canvas_render):
     """Valida render_layer para camada contendo múltiplos EditLayers com formatos mistos (RGB, RGBA, GRAY)."""
     base_img = Image(
-        np.full((100, 100, 3), [0, 0, 255], dtype=np.uint8), ImageFormat.RGB)
+        np.full((100, 100, 3), [0, 0, 255], dtype=np.uint8), ImageFormat.RGB
+    )
     layer = Layer(base_img)
 
     sticker_data = np.full((30, 30, 4), [255, 0, 0, 255], dtype=np.uint8)
@@ -504,7 +566,10 @@ def test_render_crop_rotate_align_and_fit_content_mariachi_scenario():
     assert img_uncropped.size == (736, 1104)
 
     mask_cropped = img_cropped[...][..., 3] == 255
-    diff = np.abs(img_cropped[...][mask_cropped].astype(int) - img_uncropped[...][mask_cropped].astype(int))
+    diff = np.abs(
+        img_cropped[...][mask_cropped].astype(int)
+        - img_uncropped[...][mask_cropped].astype(int)
+    )
     assert np.mean(diff) < 3.0
 
 
@@ -547,7 +612,10 @@ def test_render_crop_rotate_align_and_fit_content_mariachi_scenario_com_borda_tr
     assert img_uncropped.size == (736, 1104)
 
     mask_cropped = img_cropped[...][..., 3] == 255
-    diff = np.abs(img_cropped[...][mask_cropped].astype(int) - img_uncropped[...][mask_cropped].astype(int))
+    diff = np.abs(
+        img_cropped[...][mask_cropped].astype(int)
+        - img_uncropped[...][mask_cropped].astype(int)
+    )
     assert np.mean(diff) < 3.0
 
 
@@ -573,7 +641,10 @@ def test_render_scene_mixed_single_and_multi_edit_layers(canvas_render):
     base_layer = make_layer(w=100, h=100, color=(255, 0, 0, 255))
 
     multi_layer = make_layer(w=100, h=100, color=(0, 0, 255, 255))
-    multi_layer.add_edit(Image(np.full((50, 50, 4), (0, 255, 0, 255), dtype=np.uint8), ImageFormat.RGBA), Region.from_rect(0, 0, 50, 50))
+    multi_layer.add_edit(
+        Image(np.full((50, 50, 4), (0, 255, 0, 255), dtype=np.uint8), ImageFormat.RGBA),
+        Region.from_rect(0, 0, 50, 50),
+    )
 
     canvas = Canvas.from_size(100, 100)
     result = canvas_render.render_scene([base_layer, multi_layer], canvas)
@@ -583,7 +654,9 @@ def test_render_scene_mixed_single_and_multi_edit_layers(canvas_render):
     np.testing.assert_array_equal(result[75, 75], [0, 0, 255, 255])
 
 
-def test_render_group_layer_com_multiplos_filhos_rotacionados_nao_contamina_buffers(canvas_render):
+def test_render_group_layer_com_multiplos_filhos_rotacionados_nao_contamina_buffers(
+    canvas_render,
+):
     """Valida se renderizar GroupLayer rotacionado com multiplos filhos nao contamina buffers entre camadas."""
     group = GroupLayer(name="Group")
 
@@ -600,4 +673,8 @@ def test_render_group_layer_com_multiplos_filhos_rotacionados_nao_contamina_buff
 
     assert result is not None
     # Verifica que a regiao superior esquerda de child_large nao contem pixels verdes vazados de child_small
-    assert not np.any((result[0:60, 0:60, 0] == 0) & (result[0:60, 0:60, 1] == 255) & (result[0:60, 0:60, 2] == 0))
+    assert not np.any(
+        (result[0:60, 0:60, 0] == 0)
+        & (result[0:60, 0:60, 1] == 255)
+        & (result[0:60, 0:60, 2] == 0)
+    )

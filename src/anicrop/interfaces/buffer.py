@@ -15,7 +15,7 @@ class AbstractScratchBuffer(ABC):
     @abstractmethod
     def was_used(self) -> bool:
         """Indica se o buffer foi acessado desde a última chamada a configure."""
-        ...
+        pass
 
     @abstractmethod
     def configure(
@@ -24,9 +24,9 @@ class AbstractScratchBuffer(ABC):
         fmt: ImageFormat = ...,
     ) -> AbstractScratchBuffer:
         """Configura a intenção de dimensões e formato para a próxima operação."""
-        ...
+        pass
 
     @abstractmethod
     def __getitem__(self, region: Region) -> np.ndarray:
         """Retorna uma fatia do buffer subjacente, alocando sob demanda se necessário."""
-        ...
+        pass

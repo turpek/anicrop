@@ -18,11 +18,10 @@ import numpy as np
 
 
 def _create_snapshot(
-    obj: Any,
-    registry: Iterable[tuple[type, type[StateSnapshot]]]
+    obj: Any, registry: Iterable[tuple[type, type[StateSnapshot]]]
 ) -> StateSnapshot:
-    if hasattr(obj, '_target'):
-        obj = getattr(obj, '_target')
+    if hasattr(obj, "_target"):
+        obj = getattr(obj, "_target")
     elif not isinstance(obj, NullContainer):
         raise TypeError("Expected a Proxy or neutral object (NullContainer).")
 
@@ -34,22 +33,20 @@ def _create_snapshot(
 
 
 class StateSnapshot(ABC):
-
     @abstractmethod
     def __init__(self, item: Any):
-        ...
+        pass
 
     @abstractmethod
     def restore(self) -> None:
-        ...
+        pass
 
     @abstractmethod
     def has_change(self, other: Any) -> bool:
-        ...
+        pass
 
 
 class ContainerSnapshot(StateSnapshot):
-
     def __init__(self, item: Container):
 
         self._parent_inverse = np.copy(item._parent_inverse)
@@ -70,7 +67,6 @@ class ContainerSnapshot(StateSnapshot):
 
 
 class NodeContainerSnapshot(StateSnapshot):
-
     def __init__(self, item: NodeContainerProtocol):
         self._parent_inverse = np.copy(item._parent_inverse)
         self._parent = item.parent
@@ -85,7 +81,6 @@ class NodeContainerSnapshot(StateSnapshot):
 
 
 class NullContainerSnapshot(StateSnapshot):
-
     def __init__(self, item: Any):
         self._item = item
 
@@ -97,7 +92,6 @@ class NullContainerSnapshot(StateSnapshot):
 
 
 class GeometryControllerSnapshot(StateSnapshot):
-
     def __init__(self, controller: GeometryController):
         self._frame_region = controller.frame.region
         self._frame_strategy = controller.frame
@@ -120,14 +114,13 @@ class GeometryControllerSnapshot(StateSnapshot):
 
     def has_change(self, other: GeometryControllerSnapshot) -> bool:
         return (
-            self._region_changed(other) or
-            self._instance_changed(other) or
-            self._type_changed(other)
+            self._region_changed(other)
+            or self._instance_changed(other)
+            or self._type_changed(other)
         )
 
 
 class BaseLayerSnapshot(StateSnapshot):
-
     def __init__(self, item: BaseLayer):
         self._name = item.name
         self._opacity = item.opacity
@@ -153,20 +146,19 @@ class BaseLayerSnapshot(StateSnapshot):
 
     def has_change(self, other: BaseLayerSnapshot) -> bool:
         return (
-            self._name != other._name or
-            self._opacity != other._opacity or
-            self._blend_mode != other._blend_mode or
-            self._visible != other._visible or
-            self._format != other._format or
-            self._transform != other._transform or
-            self._control.has_change(other._control) or
-            self._mask != other._mask or
-            self._effects != other._effects
+            self._name != other._name
+            or self._opacity != other._opacity
+            or self._blend_mode != other._blend_mode
+            or self._visible != other._visible
+            or self._format != other._format
+            or self._transform != other._transform
+            or self._control.has_change(other._control)
+            or self._mask != other._mask
+            or self._effects != other._effects
         )
 
 
 class Command(ABC):
-
     def __init__(self, name: str, item: Any, value: Any):
         self._sealed = False
         self._item = item
@@ -183,16 +175,16 @@ class Command(ABC):
 
     @abstractmethod
     def execute(self) -> None:
-        ...
+        pass
 
     @abstractmethod
     def undo(self) -> None:
-        ...
+        pass
 
     @abstractmethod
     def has_changes(self) -> bool:
         """Determina se o comando gerou alguma mutação de estado."""
-        ...
+        pass
 
     @property
     def is_sealed(self) -> bool:
@@ -216,7 +208,9 @@ class ReparentCommand(Command):
         (NullContainer, NullContainerSnapshot),
     )
 
-    def __init__(self, name: str, item: Container, value: NodeContainerProtocol | Container):
+    def __init__(
+        self, name: str, item: Container, value: NodeContainerProtocol | Container
+    ):
 
         if isinstance(value, LayerStack):
             raise ValueError(
@@ -255,18 +249,15 @@ class ReparentCommand(Command):
     def has_changes(self) -> bool:
         if not self._sealed:
             return True
-        return (
-            self._old_item.has_change(self._new_item) or
-            self._old_value.has_change(self._new_value)
+        return self._old_item.has_change(self._new_item) or self._old_value.has_change(
+            self._new_value
         )
 
 
 class BaseLayerCommand(Command):
     """Gerencia mutações em propriedades da classe BaseLayer."""
 
-    SNAPSHOT_REGISTRY = (
-        (BaseLayer, BaseLayerSnapshot),
-    )
+    SNAPSHOT_REGISTRY = ((BaseLayer, BaseLayerSnapshot),)
 
     def __init__(self, name: str, item: BaseLayer, value: Any = None):
         super().__init__(name, item, value)
@@ -294,17 +285,18 @@ class BaseLayerCommand(Command):
 
 
 class LayerImageSnapshot(StateSnapshot):
-
     def __init__(self, item: Layer):
         self._edits = list(item.edits)
-        self._opacity_mask = np.copy(
-            item._opacity_mask) if item._opacity_mask is not None else None
+        self._opacity_mask = (
+            np.copy(item._opacity_mask) if item._opacity_mask is not None else None
+        )
         self._item = item
 
     def restore(self) -> None:
         self._item._edits = deque(self._edits)
-        self._item._opacity_mask = np.copy(
-            self._opacity_mask) if self._opacity_mask is not None else None
+        self._item._opacity_mask = (
+            np.copy(self._opacity_mask) if self._opacity_mask is not None else None
+        )
 
     def has_change(self, other: LayerImageSnapshot) -> bool:
         if self._edits != other._edits:
@@ -324,9 +316,7 @@ class LayerImageSnapshot(StateSnapshot):
 class LayerImageCommand(Command):
     """Gerencia mutações exclusivas na camada de pixels (Edits e Masks)."""
 
-    SNAPSHOT_REGISTRY = (
-        (Layer, LayerImageSnapshot),
-    )
+    SNAPSHOT_REGISTRY = ((Layer, LayerImageSnapshot),)
 
     def __init__(self, name: str, item: Layer, value: Any = None):
         super().__init__(name, item, value)
@@ -371,9 +361,9 @@ class MaskStateSnapshot(StateSnapshot):
         if not isinstance(other, MaskStateSnapshot):
             return True
         return (
-            self._visible != other._visible or
-            self._invert != other._invert or
-            not np.array_equal(self._matrix, other._matrix)
+            self._visible != other._visible
+            or self._invert != other._invert
+            or not np.array_equal(self._matrix, other._matrix)
         )
 
 
