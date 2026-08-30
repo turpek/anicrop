@@ -1,12 +1,12 @@
 from __future__ import annotations
-from typing import Any, Sequence, TYPE_CHECKING
 
+from collections.abc import Iterator
 from functools import reduce
 from operator import or_
-from collections.abc import Iterator
+from typing import TYPE_CHECKING, Any, Sequence
 
 from anicrop.edit_layer import CropEditLayer
-from anicrop.geometry import LayerGeometry, FitGeometry, FitGroupGeometry
+from anicrop.geometry import FitGeometry, FitGroupGeometry, LayerGeometry
 from anicrop.image import calculate_content_rect
 from anicrop.interfaces.canvas import AbstractCanvas
 from anicrop.interfaces.container import AbstractContainer

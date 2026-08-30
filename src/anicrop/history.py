@@ -1,8 +1,9 @@
 from __future__ import annotations
+
 from abc import ABC, abstractmethod
-from typing import Any
 from collections import deque
 from contextlib import contextmanager
+from typing import Any
 
 from anicrop.command import Command, MacroCommand
 

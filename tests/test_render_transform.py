@@ -1,4 +1,5 @@
 import pytest
+
 from anicrop.image import Image, ImageFormat
 from anicrop.layer import Layer
 

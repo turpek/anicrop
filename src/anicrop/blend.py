@@ -1,8 +1,8 @@
 from __future__ import annotations
-from typing import Iterable, TYPE_CHECKING
+
+from typing import TYPE_CHECKING, Iterable
 
 import numpy as np
-
 
 from anicrop.enums import BlendMode, ImageFormat
 from anicrop.image import Image
@@ -26,7 +26,11 @@ def blend_rendered_images(
 try:
     from anicrop.native.blend import (  # type: ignore[import-untyped]
         blend_normal as _cy_blend_normal,
+    )
+    from anicrop.native.blend import (
         blend_normal_linear as _cy_blend_normal_linear,
+    )
+    from anicrop.native.blend import (
         hard_masking as _cy_hard_masking,
     )
 

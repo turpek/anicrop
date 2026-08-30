@@ -5,7 +5,7 @@ from anicrop.canvas import Canvas
 from anicrop.container import GroupLayer
 from anicrop.frame import CanvasFrame
 from anicrop.image import Image, ImageFormat
-from anicrop.layer import Layer, EditLayer
+from anicrop.layer import EditLayer, Layer
 from anicrop.layout import Layout
 from anicrop.render import CanvasRender
 from anicrop.spatial import Region

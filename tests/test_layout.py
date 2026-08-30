@@ -1,4 +1,5 @@
 from unittest.mock import MagicMock, PropertyMock
+
 import numpy as np
 import pytest
 
@@ -10,10 +11,10 @@ from anicrop.image import Image, ImageFormat
 from anicrop.layer import EditLayer, Layer
 from anicrop.layout import (
     Layout,
-    resolve_region,
     _compute_layer_local_roi,
     content_region,
     global_content_region,
+    resolve_region,
 )
 from anicrop.spatial import Region
 from anicrop.transform import TransformRel

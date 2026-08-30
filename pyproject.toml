@@ -42,7 +42,8 @@ line-length = 89
 target-version = "py312"
 
 [tool.ruff.lint]
-select = ["E", "F", "W"]
+select = ["E", "F", "W", "I"]
+extend-select = ["PLC0415"]
 ignore = ["E501", "E741"]
 
 [tool.ruff.format]

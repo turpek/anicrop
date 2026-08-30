@@ -1,4 +1,5 @@
 from pathlib import Path
+
 from anicrop import Document, ImageFormat
 from anicrop.content import FitContext
 from anicrop.filter import BlurFilter

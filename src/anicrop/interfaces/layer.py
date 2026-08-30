@@ -1,13 +1,16 @@
 from __future__ import annotations
+
 from abc import ABC, abstractmethod
-from typing import Any, TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
+
 import numpy as np
-from anicrop.spatial import Region
+
 from anicrop.interfaces.layout import LayoutStrategy
+from anicrop.spatial import Region
 
 if TYPE_CHECKING:
-    from anicrop.edit_layer import EditLayer
     from anicrop.container import NullContainer
+    from anicrop.edit_layer import EditLayer
     from anicrop.interfaces.container import AbstractContainer
     from anicrop.interfaces.content import ContentStrategy
 
@@ -50,6 +53,12 @@ class AbstractBaseLayer(ABC):
     @abstractmethod
     def layout(self) -> LayoutStrategy:
         """Estratégia de layout vinculada à moldura da camada."""
+        pass
+
+    @property
+    @abstractmethod
+    def content(self) -> ContentStrategy:
+        """Gerenciador de manipulação, transformação e ajuste de pixels/conteúdo."""
         pass
 
     @property
@@ -115,12 +124,6 @@ class AbstractLayer(AbstractBaseLayer):
     @abstractmethod
     def edits(self) -> tuple[EditLayer, ...]:
         """Coleção de edições e patches locais da camada."""
-        pass
-
-    @property
-    @abstractmethod
-    def content(self) -> ContentStrategy:
-        """Gerenciador de manipulação, transformação e ajuste de pixels/conteúdo."""
         pass
 
     @property

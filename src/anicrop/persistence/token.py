@@ -1,5 +1,6 @@
-from anicrop.persistence.manager import manager_global
 import numpy as np
+
+from anicrop.persistence.manager import manager_global
 
 
 class NdarrayToken:

@@ -185,8 +185,6 @@ def test_document_render_in_memory():
 
 def test_document_preview_returns_image():
     """Valida se doc.preview() retorna uma instância de Image."""
-    from anicrop.viewport import Viewport
-
     doc = Document("TestDoc", 100, 100)
     doc.add(Layer(make_img(100, 100), name="l1"))
     viewport = Viewport((50, 50))

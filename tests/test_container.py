@@ -1,22 +1,21 @@
 from unittest.mock import MagicMock
+
 import numpy as np
 import pytest
 
 from anicrop.canvas import Canvas
 from anicrop.container import (
+    _NULL_CONTAINER,
     Container,
     GroupLayer,
     GroupLayoutStrategy,
     LayerStack,
-    _NULL_CONTAINER,
     walk_nodes,
 )
 from anicrop.image import Image, ImageFormat
-from anicrop.layout import Layout
 from anicrop.layer import Layer
+from anicrop.layout import Layout
 from anicrop.spatial import Region, Span
-
-
 from anicrop.transform import (
     TransformAbs,
     TransformRel,

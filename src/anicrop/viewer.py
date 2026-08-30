@@ -1,8 +1,9 @@
 import cv2
 import numpy as np
+
 from anicrop.document import Document
-from anicrop.viewport import Viewport
 from anicrop.type import Scale
+from anicrop.viewport import Viewport
 
 
 class Viewer:

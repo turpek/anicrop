@@ -1,5 +1,7 @@
 from __future__ import annotations
-from enum import auto, Enum, IntFlag, StrEnum
+
+from enum import Enum, IntFlag, StrEnum, auto
+
 import cv2
 
 

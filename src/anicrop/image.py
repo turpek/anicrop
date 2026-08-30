@@ -1,21 +1,23 @@
 """Provides the Image class, a wrapper for image data processing."""
 
 from __future__ import annotations
-from types import EllipsisType
-from anicrop.enums import ImageFormat
-from anicrop.spatial import Region, Span
-from numpy import ndarray
-from typing import Any, cast
-import numpy as np
 
-import zarr
-import cv2
 import uuid
 from pathlib import Path
+from types import EllipsisType
+from typing import Any, cast
+
+import cv2
+import numpy as np
+import zarr
+from numpy import ndarray
 from PIL import Image as PILImage
-from anicrop.persistence.manager import manager_global
+
+from anicrop.enums import ImageFormat
 from anicrop.interfaces.io import AbstractImageIO, SaveOptions
 from anicrop.io.registry import get_backend
+from anicrop.persistence.manager import manager_global
+from anicrop.spatial import Region, Span
 
 
 class Image:

@@ -1,8 +1,9 @@
 import numpy as np
-from anicrop.viewport import Viewport
+
 from anicrop.spatial import Region
+from anicrop.transform import mat_pivot, mat_translation
 from anicrop.type import Scale
-from anicrop.transform import mat_translation, mat_pivot
+from anicrop.viewport import Viewport
 
 
 def test_viewport_initialization():

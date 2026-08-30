@@ -1,15 +1,17 @@
 from __future__ import annotations
+
 from ovld import ovld
 
 from anicrop.enums import BlendMode, ImageFormat
 from anicrop.image import Image
 from anicrop.interfaces.canvas import AbstractCanvas
-from anicrop.interfaces.container import AbstractBaseLayer
+from anicrop.interfaces.container import AbstractBaseLayer, AbstractGroupLayer
 from anicrop.interfaces.content import ContentStrategy
 from anicrop.interfaces.layer import AbstractLayer
 from anicrop.layout import resolve_region
 from anicrop.spatial import Region
 from anicrop.transform import mat_inverse, transform_vector
+from anicrop.utils import walk_nodes
 
 
 def resolve_crop_region(
@@ -19,25 +21,11 @@ def resolve_crop_region(
     return resolve_region(ref)
 
 
-class LayerContent(ContentStrategy):
-    """Gerenciador de manipulação, transformação e ajuste de conteúdo/pixels em uma camada específica."""
+class BaseContentStrategy(ContentStrategy):
+    """Estratégia base de manipulação e transformação de conteúdo geométrico em elementos visuais."""
 
-    def __init__(self, target: AbstractLayer) -> None:
+    def __init__(self, target: AbstractBaseLayer) -> None:
         self.target = target
-
-    def crop(
-        self,
-        ref: tuple[int, int, int, int] | Region | AbstractCanvas | AbstractBaseLayer,
-    ) -> bool:
-        crop_region = resolve_region(ref)
-
-        if not self.target.layout.fit(crop_region):
-            return False
-
-        mask_region = self.target.global_region
-        mask_image = Image.new(mask_region.size, ImageFormat.GRAY, color=255)
-        self.target.add_edit(mask_image, mask_region, blend_mode=BlendMode.CLIP)
-        return True
 
     def resize(
         self,
@@ -50,6 +38,9 @@ class LayerContent(ContentStrategy):
             )
 
         cur_w, cur_h = self.target.global_region.size
+        if cur_w <= 0 or cur_h <= 0:
+            return False
+
         if (cur_w, cur_h) == (width, height):
             return False
 
@@ -71,6 +62,9 @@ class LayerContent(ContentStrategy):
         cur_region = self.target.global_region
 
         if cur_region == ref_region:
+            return False
+
+        if cur_region.width <= 0 or cur_region.height <= 0:
             return False
 
         scale_x = ref_region.width / cur_region.width
@@ -99,12 +93,80 @@ class LayerContent(ContentStrategy):
         return True
 
 
+class LayerContentStrategy(BaseContentStrategy):
+    """Estratégia de manipulação e ajuste de conteúdo/pixels em uma camada folha (Layer)."""
+
+    def __init__(self, target: AbstractLayer) -> None:
+        super().__init__(target)
+        self.target: AbstractLayer = target
+
+    def crop(
+        self,
+        ref: tuple[int, int, int, int] | Region | AbstractCanvas | AbstractBaseLayer,
+    ) -> bool:
+        crop_region = resolve_region(ref)
+
+        if not self.target.layout.fit(crop_region):
+            return False
+
+        mask_region = self.target.global_region
+        mask_image = Image.new(mask_region.size, ImageFormat.GRAY, color=255)
+        self.target.add_edit(mask_image, mask_region, blend_mode=BlendMode.CLIP)
+        return True
+
+
+class GroupContentStrategy(BaseContentStrategy):
+    """Estratégia de manipulação e ajuste de conteúdo em um grupo de camadas (GroupLayer)."""
+
+    def __init__(self, target: AbstractGroupLayer) -> None:
+        super().__init__(target)
+        self.target: AbstractGroupLayer = target
+
+    def _has_content(self) -> bool:
+        """Verifica se existe ao menos uma camada folha (Layer) dentro da hierarquia do grupo."""
+        return any(isinstance(node, AbstractLayer) for node in walk_nodes(self.target))
+
+    def resize(
+        self,
+        width: int,
+        height: int,
+    ) -> bool:
+        if not self._has_content():
+            return False
+        return super().resize(width, height)
+
+    def fit(
+        self,
+        ref: tuple | Region | AbstractCanvas | AbstractBaseLayer,
+    ) -> bool:
+        if not self._has_content():
+            return False
+        return super().fit(ref)
+
+    def crop(
+        self,
+        ref: tuple[int, int, int, int] | Region | AbstractCanvas | AbstractBaseLayer,
+    ) -> bool:
+        if not self._has_content():
+            return False
+
+        crop_region = resolve_region(ref)
+
+        if not self.target.layout.fit(crop_region):
+            return False
+
+        mask_region = self.target.global_region
+        mask_image = Image.new(mask_region.size, ImageFormat.GRAY, color=255)
+        self.target.set_mask(mask_image, mask_region)
+        return True
+
+
 class FitContext:
     """Encapsula o par (target, ref) e os fatores de alinhamento para cálculo proporcional."""
 
     def __init__(
         self,
-        target: AbstractLayer,
+        target: AbstractBaseLayer,
         ref: tuple | Region | AbstractCanvas | AbstractBaseLayer,
         x_factor: float = 0.5,
         y_factor: float = 0.5,
@@ -115,7 +177,7 @@ class FitContext:
         self.y_factor = y_factor
 
     @property
-    def fit_contain(self) -> tuple[AbstractLayer, Region]:
+    def fit_contain(self) -> tuple[AbstractBaseLayer, Region]:
         """Calcula o enquadramento proporcional 'contain' e retorna (target, ref_resolvida)."""
         resolved = self.target.global_region.fit_contain(
             self.ref_region, self.x_factor, self.y_factor
@@ -123,7 +185,7 @@ class FitContext:
         return self.target, resolved
 
     @property
-    def fit_cover(self) -> tuple[AbstractLayer, Region]:
+    def fit_cover(self) -> tuple[AbstractBaseLayer, Region]:
         """Calcula o enquadramento proporcional 'cover' e retorna (target, ref_resolvida)."""
         resolved = self.target.global_region.fit_cover(
             self.ref_region, self.x_factor, self.y_factor
@@ -131,31 +193,31 @@ class FitContext:
         return self.target, resolved
 
     @property
-    def scale_width(self) -> tuple[AbstractLayer, Region]:
+    def scale_width(self) -> tuple[AbstractBaseLayer, Region]:
         """Calcula a escala proporcional ajustando à largura de ref e retorna (target, ref_resolvida)."""
         resolved = self.target.global_region.scale_width(self.ref_region.width)
         return self.target, resolved
 
     @property
-    def scale_height(self) -> tuple[AbstractLayer, Region]:
+    def scale_height(self) -> tuple[AbstractBaseLayer, Region]:
         """Calcula a escala proporcional ajustando à altura de ref e retorna (target, ref_resolvida)."""
         resolved = self.target.global_region.scale_height(self.ref_region.height)
         return self.target, resolved
 
 
 class Content:
-    """Motor de manipulação, transformação e ajuste de conteúdo/pixels em camadas."""
+    """Motor de manipulação, transformação e ajuste de conteúdo/pixels em camadas e grupos."""
 
     def crop(
         self,
-        target: AbstractLayer,
+        target: AbstractBaseLayer,
         ref: tuple[int, int, int, int] | Region | AbstractCanvas | AbstractBaseLayer,
     ) -> bool:
         return target.content.crop(ref)
 
     def resize(
         self,
-        target: AbstractLayer,
+        target: AbstractBaseLayer,
         width: int,
         height: int,
     ) -> bool:
@@ -164,7 +226,7 @@ class Content:
     @ovld
     def fit(
         self,
-        target: AbstractLayer,
+        target: AbstractBaseLayer,
         ref: tuple | Region | AbstractCanvas | AbstractBaseLayer,
     ) -> bool:
         return target.content.fit(ref)
@@ -174,12 +236,12 @@ class Content:
         self,
         payload: tuple,
     ) -> bool:
-        """Ajusta o conteúdo da camada a partir de uma tupla (target, ref_resolvida)."""
+        """Ajusta o conteúdo do elemento a partir de uma tupla (target, ref_resolvida)."""
         target, ref = payload
         return target.content.fit(ref)
 
-    def flip_x(self, target: AbstractLayer) -> bool:
+    def flip_x(self, target: AbstractBaseLayer) -> bool:
         return target.content.flip_x()
 
-    def flip_y(self, target: AbstractLayer) -> bool:
+    def flip_y(self, target: AbstractBaseLayer) -> bool:
         return target.content.flip_y()

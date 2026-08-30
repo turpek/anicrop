@@ -1,8 +1,9 @@
 from __future__ import annotations
+
+import os
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-import os
 import numpy as np
 
 os.environ.setdefault("VIPS_WARNING", "0")
@@ -24,6 +25,7 @@ from anicrop.interfaces.io import AbstractImageIO, SaveOptions
 
 if TYPE_CHECKING:
     import zarr
+
     from anicrop.spatial import Region
 
 

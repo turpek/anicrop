@@ -1,8 +1,8 @@
-from anicrop.blend import blend_normal
-from anicrop.image import Image, ImageFormat
-from anicrop.blend import hard_masking
 import numpy as np
 import pytest
+
+from anicrop.blend import blend_clip, blend_normal, hard_masking
+from anicrop.image import Image, ImageFormat
 
 
 def test_hard_masking_size_mismatch():
@@ -338,8 +338,6 @@ def test_blend_normal_formatos_mistos(base_fmt, edit_fmt, edit_color, expected_p
 
 def test_blend_clip_rgba_modulates_alpha_and_sets_transparent_white():
     """Valida se blend_clip em RGBA zera o alpha fora da mascara e preenche com branco transparente."""
-    from anicrop.blend import blend_clip
-
     base_data = np.full((10, 10, 4), [255, 0, 0, 255], dtype=np.uint8)
     base = Image(base_data, ImageFormat.RGBA)
 
@@ -358,8 +356,6 @@ def test_blend_clip_rgba_modulates_alpha_and_sets_transparent_white():
 
 def test_blend_clip_rgb_sets_solid_white_outside_crop():
     """Valida se blend_clip em RGB preenche com branco solido 255 fora da regiao de corte."""
-    from anicrop.blend import blend_clip
-
     base_data = np.full((10, 10, 3), [255, 0, 0], dtype=np.uint8)
     base = Image(base_data, ImageFormat.RGB)
 
@@ -377,8 +373,6 @@ def test_blend_clip_rgb_sets_solid_white_outside_crop():
 
 def test_blend_clip_gray_sets_solid_white_outside_crop():
     """Valida se blend_clip em GRAY preenche com branco 255 fora do corte."""
-    from anicrop.blend import blend_clip
-
     base_data = np.zeros((10, 10, 1), dtype=np.uint8)
     base = Image(base_data, ImageFormat.GRAY)
 

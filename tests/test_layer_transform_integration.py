@@ -1,10 +1,11 @@
 import numpy as np
 import pytest
+
 from anicrop.canvas import Canvas
 from anicrop.image import Image, ImageFormat
 from anicrop.layer import Layer
-from anicrop.transform import TransformRel, TransformAbs, ComposerRel, ComposerAbs
 from anicrop.spatial import Region, Span
+from anicrop.transform import ComposerAbs, ComposerRel, TransformAbs, TransformRel
 
 
 def make_canvas(w=10, h=10):

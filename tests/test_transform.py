@@ -1,21 +1,22 @@
 import numpy as np
 import pytest
-from anicrop.transform import (
-    mat_translation,
-    calculate_new_rect,
-    mat_position,
-    ComposerRel,
-    TransformRel,
-    ComposerAbs,
-    TransformAbs,
-    Transform,
-    has_distortion,
-)
+
 from anicrop.spatial import Region, Span
 
-
 # Importando as intenções para teste direto
-from anicrop.transform import TRotate, TTranslate
+from anicrop.transform import (
+    ComposerAbs,
+    ComposerRel,
+    Transform,
+    TransformAbs,
+    TransformRel,
+    TRotate,
+    TTranslate,
+    calculate_new_rect,
+    has_distortion,
+    mat_position,
+    mat_translation,
+)
 
 # Tolerância padrão para float32
 ATOL = 1e-4

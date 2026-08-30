@@ -1,11 +1,12 @@
 from __future__ import annotations
+
 from abc import ABC, abstractmethod
 from collections.abc import Callable, Sequence
-
-from anicrop.spatial import Region
-from typing import Self, TYPE_CHECKING
+from typing import TYPE_CHECKING, Self
 
 import numpy as np
+
+from anicrop.spatial import Region
 
 if TYPE_CHECKING:
     from anicrop.container import BaseLayer

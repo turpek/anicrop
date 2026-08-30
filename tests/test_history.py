@@ -1,7 +1,9 @@
-from anicrop.history import GlobalHistory, NormalPolicy
-from pytest import fixture
-import pytest
 from typing import Any
+
+import pytest
+from pytest import fixture
+
+from anicrop.history import GlobalHistory, NormalPolicy
 
 
 class FakeCommand:

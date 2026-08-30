@@ -1,9 +1,9 @@
 from __future__ import annotations
+
 from abc import ABC
 from functools import reduce
 from operator import or_
 from typing import Callable, Sequence
-
 
 import cv2
 import numpy as np
@@ -11,7 +11,6 @@ import numpy as np
 from anicrop.blend import blend_rendered_images
 from anicrop.buffer import ScratchBuffer
 from anicrop.canvas import Canvas
-from anicrop.interfaces.buffer import AbstractScratchBuffer
 from anicrop.container import BaseLayer, Container, GroupLayer, freeze_geometry
 from anicrop.enums import BlendMode, InterpMode, WarpMode
 from anicrop.frame import (
@@ -21,7 +20,8 @@ from anicrop.frame import (
     ViewportFrame,
 )
 from anicrop.image import Image, ImageFormat
-from anicrop.layer import Layer, EditLayer
+from anicrop.interfaces.buffer import AbstractScratchBuffer
+from anicrop.layer import EditLayer, Layer
 from anicrop.spatial import Region, rect_to_region
 from anicrop.transform import (
     calculate_new_rect,
@@ -32,7 +32,9 @@ from anicrop.transform import (
 )
 
 try:
-    from anicrop.native.blend import min_pool_alpha as _cy_min_pool_alpha  # type: ignore[import-untyped]
+    from anicrop.native.blend import (  # type: ignore[import-untyped]
+        min_pool_alpha as _cy_min_pool_alpha,
+    )
 except ImportError:
     _cy_min_pool_alpha = None
 
