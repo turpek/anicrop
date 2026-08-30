@@ -137,6 +137,39 @@ class Container(NullContainer, AbstractContainer):
         self._children.pop(old_index)
         self._children.insert(new_index, item)
 
+    def move_relative(self, item: BaseLayer, steps: int) -> None:
+        """Move an item by a relative number of steps towards top (positive) or bottom (negative)."""
+        if item not in self._children:
+            raise ValueError(f"Item {item} is not in this {self.__class__.__name__}")
+        if steps == 0:
+            return
+        old_index = self._children.index(item)
+        new_index = max(0, min(len(self._children) - 1, old_index + steps))
+        self.move(item, new_index)
+
+    def move_to_front(self, item: BaseLayer) -> None:
+        """Move an item to the very top (highest index) of the container."""
+        if item not in self._children:
+            raise ValueError(f"Item {item} is not in this {self.__class__.__name__}")
+        self.move(item, len(self._children) - 1)
+
+    def move_to_back(self, item: BaseLayer) -> None:
+        """Move an item to the very bottom (index 0) of the container."""
+        if item not in self._children:
+            raise ValueError(f"Item {item} is not in this {self.__class__.__name__}")
+        self.move(item, 0)
+
+    def swap(self, item_a: BaseLayer, item_b: BaseLayer) -> None:
+        """Swap the positions of two items in the container."""
+        if item_a not in self._children:
+            raise ValueError(f"Item {item_a} is not in this {self.__class__.__name__}")
+        if item_b not in self._children:
+            raise ValueError(f"Item {item_b} is not in this {self.__class__.__name__}")
+        idx_a = self._children.index(item_a)
+        idx_b = self._children.index(item_b)
+        if idx_a != idx_b:
+            self._children[idx_a], self._children[idx_b] = self._children[idx_b], self._children[idx_a]
+
     @property
     def matrix(self) -> np.ndarray:
         return np.identity(3, dtype=np.float32)

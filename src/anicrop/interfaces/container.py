@@ -63,6 +63,26 @@ class AbstractContainer(ABC):
         ...
 
     @abstractmethod
+    def move_relative(self, item: Any, steps: int) -> None:
+        """Move um item relativamente na pilha."""
+        ...
+
+    @abstractmethod
+    def move_to_front(self, item: Any) -> None:
+        """Move o item para o topo da pilha."""
+        ...
+
+    @abstractmethod
+    def move_to_back(self, item: Any) -> None:
+        """Move o item para a base da pilha."""
+        ...
+
+    @abstractmethod
+    def swap(self, item_a: Any, item_b: Any) -> None:
+        """Troca a posição de dois itens na pilha."""
+        ...
+
+    @abstractmethod
     def __len__(self) -> int:
         ...
 

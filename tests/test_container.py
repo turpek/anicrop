@@ -517,3 +517,127 @@ def test_group_layer_layout_bound_api():
 
     assert group.layout.resize_bounds(300, 300, 0.5, 0.5) is True
     assert group.global_region.size == (300, 300)
+
+
+@pytest.mark.parametrize("container_cls", [LayerStack, GroupLayer])
+@pytest.mark.parametrize(
+    "initial_index,steps,expected_index",
+    [
+        (1, 1, 2),
+        (1, 2, 3),
+        (2, -1, 1),
+        (2, -2, 0),
+        (1, 0, 1),
+        (2, 10, 3),
+        (1, -10, 0),
+    ],
+    ids=["up_1", "up_2", "down_1", "down_2", "zero", "clamp_top", "clamp_bottom"]
+)
+def test_container_move_relative(container_cls, initial_index, steps, expected_index):
+    """Valida movimentacao relativa de itens no container com clamping nos limites."""
+    container = container_cls()
+    layers = [Layer(make_mock_image(), name=f"L{i}") for i in range(4)]
+    for l in layers:
+        container.append(l)
+
+    target = layers[initial_index]
+    container.move_relative(target, steps)
+
+    assert container._children.index(target) == expected_index
+
+
+@pytest.mark.parametrize("container_cls", [LayerStack, GroupLayer])
+def test_container_move_relative_item_inexistente_lanca_erro(container_cls):
+    """Valida que move_relative com item fora do container lanca ValueError."""
+    container = container_cls()
+    l1 = Layer(make_mock_image(), name="L1")
+    l_fora = Layer(make_mock_image(), name="LFora")
+    container.append(l1)
+
+    with pytest.raises(ValueError):
+        container.move_relative(l_fora, 1)
+
+
+@pytest.mark.parametrize("container_cls", [LayerStack, GroupLayer])
+@pytest.mark.parametrize("start_idx", [0, 1, 2])
+def test_container_move_to_front(container_cls, start_idx):
+    """Valida envio de item para o topo absoluto do container."""
+    container = container_cls()
+    layers = [Layer(make_mock_image(), name=f"L{i}") for i in range(3)]
+    for l in layers:
+        container.append(l)
+
+    target = layers[start_idx]
+    container.move_to_front(target)
+
+    assert container._children[-1] is target
+    assert len(container) == 3
+
+
+@pytest.mark.parametrize("container_cls", [LayerStack, GroupLayer])
+def test_container_move_to_front_item_inexistente_lanca_erro(container_cls):
+    """Valida que move_to_front com item fora do container lanca ValueError."""
+    container = container_cls()
+    l_fora = Layer(make_mock_image(), name="LFora")
+
+    with pytest.raises(ValueError):
+        container.move_to_front(l_fora)
+
+
+@pytest.mark.parametrize("container_cls", [LayerStack, GroupLayer])
+@pytest.mark.parametrize("start_idx", [0, 1, 2])
+def test_container_move_to_back(container_cls, start_idx):
+    """Valida envio de item para a base absoluta do container."""
+    container = container_cls()
+    layers = [Layer(make_mock_image(), name=f"L{i}") for i in range(3)]
+    for l in layers:
+        container.append(l)
+
+    target = layers[start_idx]
+    container.move_to_back(target)
+
+    assert container._children[0] is target
+    assert len(container) == 3
+
+
+@pytest.mark.parametrize("container_cls", [LayerStack, GroupLayer])
+def test_container_move_to_back_item_inexistente_lanca_erro(container_cls):
+    """Valida que move_to_back com item fora do container lanca ValueError."""
+    container = container_cls()
+    l_fora = Layer(make_mock_image(), name="LFora")
+
+    with pytest.raises(ValueError):
+        container.move_to_back(l_fora)
+
+
+@pytest.mark.parametrize("container_cls", [LayerStack, GroupLayer])
+def test_container_swap_itens(container_cls):
+    """Valida troca de posicao entre dois itens do container."""
+    container = container_cls()
+    l0 = Layer(make_mock_image(), name="L0")
+    l1 = Layer(make_mock_image(), name="L1")
+    l2 = Layer(make_mock_image(), name="L2")
+    for l in (l0, l1, l2):
+        container.append(l)
+
+    container.swap(l0, l2)
+
+    assert container._children == [l2, l1, l0]
+
+    container.swap(l1, l1)
+    assert container._children == [l2, l1, l0]
+
+
+@pytest.mark.parametrize("container_cls", [LayerStack, GroupLayer])
+def test_container_swap_item_inexistente_lanca_erro(container_cls):
+    """Valida que swap com item fora do container lanca ValueError."""
+    container = container_cls()
+    l0 = Layer(make_mock_image(), name="L0")
+    l_fora = Layer(make_mock_image(), name="LFora")
+    container.append(l0)
+
+    with pytest.raises(ValueError):
+        container.swap(l0, l_fora)
+
+    with pytest.raises(ValueError):
+        container.swap(l_fora, l0)
