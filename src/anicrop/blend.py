@@ -31,6 +31,12 @@ try:
         blend_normal_linear as _cy_blend_normal_linear,
     )
     from anicrop.native.blend import (
+        blend_normal_prgba as _cy_blend_normal_prgba,
+    )
+    from anicrop.native.blend import (
+        blend_prgba_over_opaque as _cy_blend_prgba_over_opaque,
+    )
+    from anicrop.native.blend import (
         hard_masking as _cy_hard_masking,
     )
 
@@ -38,6 +44,8 @@ try:
 except ImportError:
     _cy_blend_normal = None
     _cy_blend_normal_linear = None
+    _cy_blend_normal_prgba = None
+    _cy_blend_prgba_over_opaque = None
     _cy_hard_masking = None
     _HAS_CY_BLEND = False
 
@@ -278,12 +286,18 @@ def blend_normal(base: Image, edit: Image, opacity: float = 1.0) -> None:
 
     # Fast-paths especializados para PRGBA e RGBX
     if base.format == ImageFormat.PRGBA and edit.format == ImageFormat.PRGBA:
+        if _HAS_CY_BLEND and _cy_blend_normal_prgba is not None:
+            _cy_blend_normal_prgba(base_arr, edit_arr, opacity)
+            return
         _blend_normal_prgba_numpy(b_view, e_view, opacity)
         return
     elif (
         base.format in (ImageFormat.RGB, ImageFormat.RGBX)
         and edit.format == ImageFormat.PRGBA
     ):
+        if _HAS_CY_BLEND and _cy_blend_prgba_over_opaque is not None:
+            _cy_blend_prgba_over_opaque(base_arr, edit_arr, opacity)
+            return
         _blend_prgba_over_opaque_numpy(b_view, e_view, opacity)
         return
 

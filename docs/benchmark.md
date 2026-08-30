@@ -94,30 +94,30 @@ Este documento consolida as métricas oficiais de desempenho do motor gráfico `
 ## 4. Benchmark de Formatos de Cor e Mesclagem (`PRGBA` e `RGBX`)
 
 - **Script:** [`scripts/benchmark_color_blend_formats.py`](file:///home/gui/python/anicrop/scripts/benchmark_color_blend_formats.py)
-- **Metodologia:** Avaliação comparativa de latência média por operação de mesclagem (`blend_normal` com opacidade 0.9) entre formatos com alfa (*Straight* `RGBA`, *Premultiplied* `PRGBA` e `RGBX` opaco de 32 bits), e latência de conversões bidirecionais via `anicrop.color`.
+- **Metodologia:** Avaliação comparativa de latência média por operação de mesclagem (`blend_normal` com opacidade 0.9) entre formatos com alfa (*Straight* `RGBA`, *Premultiplied* `PRGBA` e `RGBX` opaco de 32 bits compilados nativamente em C/OpenMP via Cython), e latência de conversões bidirecionais via `anicrop.color`.
 
-### 4.1. Mesclagem Normal (`blend_normal`):
+### 4.1. Mesclagem Normal (`blend_normal` - Extensão C / Cython):
 
-| Resolução | `RGBA -> RGBA` *(Cython C)* | `PRGBA -> PRGBA` *(NumPy Puro)* | `PRGBA -> RGBX` *(NumPy Puro)* |
-| :--- | :---: | :---: | :---: |
-| **256x256** (Retalho Pequeno) | **0.06 ms** | 7.31 ms | 7.34 ms |
-| **512x512** (Camada Padrão) | **2.43 ms** | 33.91 ms | 30.42 ms |
-| **1280x720** (720p HD) | **10.91 ms** | 108.44 ms | 84.57 ms |
-| **1920x1080** (1080p FHD) | **4.97 ms** | 213.39 ms | 191.75 ms |
-| **3840x2160** (4K UHD) | **6.67 ms** | 995.88 ms | 807.89 ms |
+| Resolução | `RGBA -> RGBA` *(Cython C)* | `PRGBA -> PRGBA` *(Cython C)* | `PRGBA -> RGBX` *(Cython C)* | Speedup vs NumPy Puro |
+| :--- | :---: | :---: | :---: | :---: |
+| **256x256** (Retalho Pequeno) | **0.06 ms** | **0.06 ms** | 0.14 ms | **121.8x mais rápido** ⚡ |
+| **512x512** (Camada Padrão) | **0.22 ms** | **0.23 ms** | 0.36 ms | **147.4x mais rápido** ⚡ |
+| **1280x720** (720p HD) | **0.79 ms** | **0.83 ms** | **0.80 ms** | **130.6x mais rápido** 🚀 |
+| **1920x1080** (1080p FHD) | 2.31 ms | 3.62 ms | **1.81 ms** | **58.9x mais rápido** 🏆 |
+| **3840x2160** (4K UHD) | **6.72 ms** | 9.70 ms | 7.94 ms | **102.6x mais rápido** 🏆 |
 
 > [!NOTE]
-> O formato `RGBA` utiliza o kernel compilado nativo em C (`_cy_blend_normal` via Cython com OpenMP), enquanto os formatos `PRGBA` e `RGBX` utilizam o fallback interpretado em Python/NumPy até a compilação de seus respectivos kernels dedicados em Cython.
+> Com os kernels dedicados em Cython (`_cy_blend_normal_prgba` e `_cy_blend_prgba_over_opaque`), o tempo de mesclagem para `PRGBA` em 1080p caiu de **213.39 ms (NumPy)** para **3.62 ms** (ou **1.81 ms** sobre fundo opaco `RGBX`), trazendo um ganho de performance de até **$147\times$** sem comprometer a qualidade visual e eliminando o artefato de *alpha bleeding*.
 
 ### 4.2. Velocidade de Conversão de Formatos ([`anicrop.color`](file:///home/gui/python/anicrop/src/anicrop/color.py)):
 
 | Resolução | `RGBA -> PRGBA` | `PRGBA -> RGBA` | `RGB -> RGBX` | `RGBX -> RGB` |
 | :--- | :---: | :---: | :---: | :---: |
-| **256x256** (Retalho Pequeno) | 1.39 ms | 4.01 ms | 394.2 µs | 384.2 µs |
-| **512x512** (Camada Padrão) | 6.19 ms | 15.14 ms | 1.45 ms | 1.37 ms |
-| **1280x720** (720p HD) | 19.31 ms | 53.32 ms | 5.44 ms | 5.10 ms |
-| **1920x1080** (1080p FHD) | 50.65 ms | 149.34 ms | 12.03 ms | 10.92 ms |
-| **3840x2160** (4K UHD) | 245.53 ms | 648.03 ms | 52.54 ms | 45.67 ms |
+| **256x256** (Retalho Pequeno) | 1.13 ms | 3.38 ms | 362.1 µs | 339.3 µs |
+| **512x512** (Camada Padrão) | 5.79 ms | 16.72 ms | 1.62 ms | 1.44 ms |
+| **1280x720** (720p HD) | 22.96 ms | 61.91 ms | 5.77 ms | 5.06 ms |
+| **1920x1080** (1080p FHD) | 50.78 ms | 152.15 ms | 13.02 ms | 11.38 ms |
+| **3840x2160** (4K UHD) | 241.27 ms | 678.79 ms | 53.26 ms | 46.94 ms |
 
 ---
 
