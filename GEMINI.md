@@ -115,6 +115,14 @@ Para detalhes de métodos, tipos de retorno e exemplos de uso de cada classe, co
 
 
 
+### 6.3. Fluxo de Git e Sincronização Multi-PC (`dev` <-> `main`):
+- **Branch `dev` (Ambiente de Trabalho Ativo):** Contém todo o repositório rastreado (`GEMINI.md`, `docs/`, `planos/`, código e testes) para sincronização perfeita entre múltiplos computadores.
+  - Enviar alterações de dev: `make push-dev` (ou `git push origin dev`).
+  - Puxar no outro computador: `make pull-dev` (ou `git pull origin dev`).
+- **Branch `main` (Produção e Distribuição Limpa):** Mantém estritamente os arquivos essenciais de código, testes, `README.md`, assets e build, sem poluição de rascunhos ou instruções de contexto.
+  - Sincronizar código limpo para a main: `make sync-main` (puxa da dev estritamente os arquivos de produção e commita na main).
+  - Publicar a main no GitHub: `make push-main`.
+
 ---
 
 ## 7. Status Atual e Decisões Consolidadas (Handoff)
@@ -162,7 +170,7 @@ Para detalhes de métodos, tipos de retorno e exemplos de uso de cada classe, co
   - **Properties de Render:** `doc.canvas_render` e `doc.viewport_render` expostas na fachada do `Document`.
 
 - **Fachada `Document` e Tipagem Estrita:**
-  - **Parâmetro Semântico `history: bool = True`:** Configura `ReactiveDocumentPolicy` vs `DirectDocumentPolicy`.
+  - **Parâmetro Semântico `history: bool = False`:** Configura `DirectDocumentPolicy` (padrão de alta performance) vs `ReactiveDocumentPolicy` (experimental).
   - **Tipagem Pura de Domínio:** Referências diretas a `LayerStack`, `BaseLayer`, `Layer`, `GroupLayer` e remoção limpa via protocolo de contêineres e `NullContainer`. Sobrecargas `@overload` em `Document.__getitem__` para inferência precisa.
   - **Qualidade de Código:** 100% de conformidade estrita no `mypy` (0 erros) e **941 testes passando** (0 pulados) no `pytest`.
 
