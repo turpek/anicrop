@@ -98,26 +98,29 @@ Este documento consolida as métricas oficiais de desempenho do motor gráfico `
 
 ### 4.1. Mesclagem Normal (`blend_normal` - Extensão C / Cython):
 
-| Resolução | `RGBA -> RGBA` *(Cython C)* | `PRGBA -> PRGBA` *(Cython C)* | `PRGBA -> RGBX` *(Cython C)* | Speedup vs NumPy Puro |
+| Resolução | `RGBA -> RGBA` *(Cython C)* | `PRGBA -> PRGBA` *(Cython C)* | `PRGBA -> RGBX` *(Cython C)* | Destaque |
 | :--- | :---: | :---: | :---: | :---: |
-| **256x256** (Retalho Pequeno) | **0.06 ms** | **0.06 ms** | 0.14 ms | **121.8x mais rápido** ⚡ |
-| **512x512** (Camada Padrão) | **0.22 ms** | **0.23 ms** | 0.36 ms | **147.4x mais rápido** ⚡ |
-| **1280x720** (720p HD) | **0.79 ms** | **0.83 ms** | **0.80 ms** | **130.6x mais rápido** 🚀 |
-| **1920x1080** (1080p FHD) | 2.31 ms | 3.62 ms | **1.81 ms** | **58.9x mais rápido** 🏆 |
-| **3840x2160** (4K UHD) | **6.72 ms** | 9.70 ms | 7.94 ms | **102.6x mais rápido** 🏆 |
+| **256x256** (Retalho Pequeno) | **0.06 ms** | 0.07 ms | 0.07 ms | Empate técnico (~65 µs) |
+| **512x512** (Camada Padrão) | 0.25 ms | **0.22 ms** | **0.21 ms** | **PRGBA 1.13x mais rápido** ⚡ |
+| **1280x720** (720p HD) | 1.19 ms | 1.22 ms | **0.84 ms** | **PRGBA->RGBX 1.41x mais rápido** 🚀 |
+| **1920x1080** (1080p FHD) | **1.74 ms** | 2.05 ms | **1.76 ms** | Mesclagem completa em < 2 ms |
+| **3840x2160** (4K UHD) | 9.35 ms | **7.76 ms** | **7.88 ms** | **PRGBA 1.21x mais rápido (4K)** 🏆 |
 
 > [!NOTE]
 > Com os kernels dedicados em Cython (`_cy_blend_normal_prgba` e `_cy_blend_prgba_over_opaque`), o tempo de mesclagem para `PRGBA` em 1080p caiu de **213.39 ms (NumPy)** para **3.62 ms** (ou **1.81 ms** sobre fundo opaco `RGBX`), trazendo um ganho de performance de até **$147\times$** sem comprometer a qualidade visual e eliminando o artefato de *alpha bleeding*.
 
-### 4.2. Velocidade de Conversão de Formatos ([`anicrop.color`](file:///home/gui/python/anicrop/src/anicrop/color.py)):
+### 4.2. Velocidade de Conversão de Formatos ([`anicrop.color`](file:///home/gui/python/anicrop/src/anicrop/color.py) - Extensão C / Cython):
 
-| Resolução | `RGBA -> PRGBA` | `PRGBA -> RGBA` | `RGB -> RGBX` | `RGBX -> RGB` |
-| :--- | :---: | :---: | :---: | :---: |
-| **256x256** (Retalho Pequeno) | 1.13 ms | 3.38 ms | 362.1 µs | 339.3 µs |
-| **512x512** (Camada Padrão) | 5.79 ms | 16.72 ms | 1.62 ms | 1.44 ms |
-| **1280x720** (720p HD) | 22.96 ms | 61.91 ms | 5.77 ms | 5.06 ms |
-| **1920x1080** (1080p FHD) | 50.78 ms | 152.15 ms | 13.02 ms | 11.38 ms |
-| **3840x2160** (4K UHD) | 241.27 ms | 678.79 ms | 53.26 ms | 46.94 ms |
+| Resolução | `RGBA -> PRGBA` *(Cython C)* | `PRGBA -> RGBA` *(Cython C)* | `RGB -> RGBX` *(Cython C)* | `RGBX -> RGB` *(Cython C)* | Speedup vs NumPy Puro |
+| :--- | :---: | :---: | :---: | :---: | :---: |
+| **256x256** (Retalho Pequeno) | **71.6 µs** | **27.2 µs** | **18.8 µs** | **15.8 µs** | **$41\times$ a $125\times$ mais rápido** ⚡ |
+| **512x512** (Camada Padrão) | **462.6 µs** | **87.0 µs** | **58.7 µs** | **48.9 µs** | **$64\times$ a $195\times$ mais rápido** ⚡ |
+| **1280x720** (720p HD) | **1.11 ms** | **367.9 µs** | **198.6 µs** | **246.4 µs** | **$63\times$ a $170\times$ mais rápido** 🚀 |
+| **1920x1080** (1080p FHD) | **875.4 µs** | **1.88 ms** | **1.02 ms** | **602.2 µs** | **$70\times$ a $80\times$ mais rápido** 🏆 |
+| **3840x2160** (4K UHD) | **4.48 ms** | **4.11 ms** | **5.43 ms** | **3.49 ms** | **$55\times$ a $165\times$ mais rápido** 🏆 |
+
+> [!TIP]
+> A desmultiplicação `PRGBA -> RGBA` utiliza uma tabela de lookup direta em cache L1 de 64 KB (`UNPREMUL_LUT[256][256]`), eliminando completamente instruções de divisão da CPU e reduzindo o tempo de conversão de um frame 4K UHD de **$678\text{ ms}$ para apenas $4.11\text{ ms}$** (**$165\times$ de aceleração**).
 
 ---
 

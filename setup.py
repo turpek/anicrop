@@ -20,12 +20,20 @@ ext_modules = []
 
 if USE_CYTHON:
     ext_modules += cythonize(
-        Extension(
-            "anicrop.native.blend",
-            sources=["src/anicrop/native/blend.pyx"],
-            extra_compile_args=extra_compile_args,
-            extra_link_args=extra_link_args,
-        ),
+        [
+            Extension(
+                "anicrop.native.blend",
+                sources=["src/anicrop/native/blend.pyx"],
+                extra_compile_args=extra_compile_args,
+                extra_link_args=extra_link_args,
+            ),
+            Extension(
+                "anicrop.native.color",
+                sources=["src/anicrop/native/color.pyx"],
+                extra_compile_args=extra_compile_args,
+                extra_link_args=extra_link_args,
+            ),
+        ],
         compiler_directives={"language_level": "3"},
     )
 
