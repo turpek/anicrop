@@ -3,7 +3,14 @@ import numpy as np
 import pytest
 
 from anicrop.canvas import Canvas
-from anicrop.container import Container, GroupLayer, GroupLayoutStrategy, LayerStack, _NULL_CONTAINER, walk_nodes
+from anicrop.container import (
+    Container,
+    GroupLayer,
+    GroupLayoutStrategy,
+    LayerStack,
+    _NULL_CONTAINER,
+    walk_nodes,
+)
 from anicrop.image import Image, ImageFormat
 from anicrop.layout import Layout
 from anicrop.layer import Layer
@@ -38,20 +45,25 @@ def test_adicionar_item_em_group_layer(mocker, count, container_cls, item_cls, p
 
 @pytest.mark.parametrize("container_cls", [LayerStack, GroupLayer])
 @pytest.mark.parametrize("item_cls", [Layer, GroupLayer])
-def test_remover_item_inexistente_deve_lancar_value_error(mocker, container_cls, item_cls):
+def test_remover_item_inexistente_deve_lancar_value_error(
+    mocker, container_cls, item_cls
+):
     group = container_cls()
     item = mocker.MagicMock(spec=item_cls)
 
     with pytest.raises(ValueError) as exc_info:
         group.remove(item)
 
-    assert str(
-        exc_info.value) == f"Item {item} is not in this {group.__class__.__name__}"
+    assert (
+        str(exc_info.value) == f"Item {item} is not in this {group.__class__.__name__}"
+    )
 
 
 @pytest.mark.parametrize("container_cls", [LayerStack, GroupLayer])
 @pytest.mark.parametrize("item_cls", [Layer, GroupLayer])
-def test_remover_item_existente_reseta_parent_len_e_matriz(mocker, container_cls, item_cls):
+def test_remover_item_existente_reseta_parent_len_e_matriz(
+    mocker, container_cls, item_cls
+):
     parent_group = container_cls()
     item = mocker.MagicMock(spec=item_cls)
     item.parent = _NULL_CONTAINER
@@ -99,19 +111,15 @@ def test_group_layer_matrix_multiplica_matriz_do_parent(mocker):
     group = GroupLayer()
 
     mock_parent = mocker.MagicMock(spec=Container)
-    mock_parent.matrix = np.array([
-        [1.0, 0.0, 10.0],
-        [0.0, 1.0, 20.0],
-        [0.0, 0.0, 1.0]
-    ], dtype=float)
+    mock_parent.matrix = np.array(
+        [[1.0, 0.0, 10.0], [0.0, 1.0, 20.0], [0.0, 0.0, 1.0]], dtype=float
+    )
 
     group.parent = mock_parent
 
-    expected_matrix = np.array([
-        [1.0, 0.0, 10.0],
-        [0.0, 1.0, 20.0],
-        [0.0, 0.0, 1.0]
-    ], dtype=float)
+    expected_matrix = np.array(
+        [[1.0, 0.0, 10.0], [0.0, 1.0, 20.0], [0.0, 0.0, 1.0]], dtype=float
+    )
 
     assert np.allclose(group.matrix, expected_matrix)
 
@@ -135,7 +143,7 @@ def test_group_layer_matrix_hierarquia_real():
         [[Region(Span(10, 100), Span(10, 100))], Region(Span(10, 100), Span(10, 100))],
         [
             [Region(Span(-10, 50), Span(10, 20)), Region(Span(60, 40), Span(15, 20))],
-            Region(Span(-10, 110), Span(10, 25))
+            Region(Span(-10, 110), Span(10, 25)),
         ],
     ],
     ids=["vazio", "1_layer", "2_layers"],
@@ -157,10 +165,7 @@ def test_group_layer_region_so_com_layers(mocker, regions, expected_region):
     "direct_regions, subgroup_regions",
     [
         [[], [Region(Span(10, 100), Span(10, 100))]],
-        [
-            [Region(Span(-10, 50), Span(10, 20))],
-            [Region(Span(60, 40), Span(15, 20))]
-        ],
+        [[Region(Span(-10, 50), Span(10, 20))], [Region(Span(60, 40), Span(15, 20))]],
     ],
     ids=["1_group", "1_layer_e_1_group"],
 )
@@ -268,7 +273,8 @@ def test_group_layer_hierarquia_acumula_matrizes_pai_e_filho(mocker):
 
     child_group = GroupLayer()
     mocker.patch.object(
-        type(child_group.base), 'region',
+        type(child_group.base),
+        "region",
         new_callable=mocker.PropertyMock,
         return_value=Region.from_size(50, 50),
     )
@@ -305,7 +311,9 @@ def test_adicionar_grupo_a_si_mesmo_deve_lancar_value_error(container_cls, metho
 @pytest.mark.parametrize("container_cls", [LayerStack, GroupLayer])
 @pytest.mark.parametrize("item_cls", [Layer, GroupLayer])
 @pytest.mark.parametrize("method_name", ["append", "insert"])
-def test_adicionar_item_ja_existente_deve_lancar_value_error(mocker, container_cls, item_cls, method_name):
+def test_adicionar_item_ja_existente_deve_lancar_value_error(
+    mocker, container_cls, item_cls, method_name
+):
     group = container_cls()
     item = mocker.MagicMock(spec=item_cls)
     item.parent = _NULL_CONTAINER
@@ -318,13 +326,17 @@ def test_adicionar_item_ja_existente_deve_lancar_value_error(mocker, container_c
         else:
             group.insert(0, item)
 
-    assert str(
-        exc_info.value) == f"Item {item} is already in this {group.__class__.__name__}"
+    assert (
+        str(exc_info.value)
+        == f"Item {item} is already in this {group.__class__.__name__}"
+    )
 
 
 @pytest.mark.parametrize("container_cls", [GroupLayer])
 @pytest.mark.parametrize("method_name", ["append", "insert"])
-def test_adicionar_ancestral_no_filho_deve_lancar_value_error(container_cls, method_name):
+def test_adicionar_ancestral_no_filho_deve_lancar_value_error(
+    container_cls, method_name
+):
     grandparent_group = container_cls()
     parent_group = container_cls()
     child_group = container_cls()
@@ -361,13 +373,17 @@ def test_adicionar_layer_stack_como_item_lanca_type_error(container_cls, method_
         else:
             container.insert(0, stack)
 
-    assert str(
-        exc_info.value) == "A LayerStack is a Root object and cannot be added as a child."
+    assert (
+        str(exc_info.value)
+        == "A LayerStack is a Root object and cannot be added as a child."
+    )
 
 
 @pytest.mark.parametrize("container_cls", [LayerStack, GroupLayer])
 @pytest.mark.parametrize("item_cls", [Layer, GroupLayer])
-def test_inserir_item_em_index_especifico_respeita_ordem(mocker, container_cls, item_cls):
+def test_inserir_item_em_index_especifico_respeita_ordem(
+    mocker, container_cls, item_cls
+):
     container = container_cls()
 
     item1 = mocker.MagicMock(spec=item_cls)
@@ -407,7 +423,9 @@ def test_group_layer_iter_retorna_children():
 
 @pytest.mark.parametrize("container_cls", [LayerStack, GroupLayer])
 @pytest.mark.parametrize("item_cls", [Layer, GroupLayer])
-def test_mover_item_existente_muda_ordem_sem_chamar_parent_remove(mocker, container_cls, item_cls):
+def test_mover_item_existente_muda_ordem_sem_chamar_parent_remove(
+    mocker, container_cls, item_cls
+):
     container = container_cls()
     item1 = mocker.MagicMock(spec=item_cls)
     item2 = mocker.MagicMock(spec=item_cls)
@@ -422,7 +440,7 @@ def test_mover_item_existente_muda_ordem_sem_chamar_parent_remove(mocker, contai
     container.append(item3)
 
     # Usar spy para certificar de que não tentamos desvincular via remove()
-    spy_remove = mocker.spy(container, 'remove')
+    spy_remove = mocker.spy(container, "remove")
 
     # move item3 do index 2 para o index 0
     container.move(item3, 0)
@@ -442,8 +460,10 @@ def test_mover_item_inexistente_deve_lancar_value_error(mocker, container_cls, i
     with pytest.raises(ValueError) as exc_info:
         container.move(item_invalido, 0)
 
-    assert str(
-        exc_info.value) == f"Item {item_invalido} is not in this {container.__class__.__name__}"
+    assert (
+        str(exc_info.value)
+        == f"Item {item_invalido} is not in this {container.__class__.__name__}"
+    )
 
 
 def make_mock_image(size: tuple[int, int] = (100, 100)) -> Image:
@@ -531,7 +551,7 @@ def test_group_layer_layout_bound_api():
         (2, 10, 3),
         (1, -10, 0),
     ],
-    ids=["up_1", "up_2", "down_1", "down_2", "zero", "clamp_top", "clamp_bottom"]
+    ids=["up_1", "up_2", "down_1", "down_2", "zero", "clamp_top", "clamp_bottom"],
 )
 def test_container_move_relative(container_cls, initial_index, steps, expected_index):
     """Valida movimentacao relativa de itens no container com clamping nos limites."""

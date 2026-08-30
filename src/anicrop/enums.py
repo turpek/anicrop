@@ -5,26 +5,28 @@ import cv2
 
 class BlendMode(Enum):
     """Defines how an edit layer blends with the underlying content."""
-    NORMAL = 'normal'
-    NORMAL_LINEAR = 'normal_linear'
-    MULTIPLY = 'multiply'
-    HARD_MASKING = 'hard_masking'
-    CLIP = 'clip'
+
+    NORMAL = "normal"
+    NORMAL_LINEAR = "normal_linear"
+    MULTIPLY = "multiply"
+    HARD_MASKING = "hard_masking"
+    CLIP = "clip"
 
     @property
     def default_name(self) -> str:
         """Retorna o nome padrao de edicao associado ao modo de mesclagem."""
         return {
-            BlendMode.NORMAL: 'EditLayer',
-            BlendMode.NORMAL_LINEAR: 'EditLayer',
-            BlendMode.MULTIPLY: 'EditLayer',
-            BlendMode.HARD_MASKING: 'EditLayer',
-            BlendMode.CLIP: 'Crop',
+            BlendMode.NORMAL: "EditLayer",
+            BlendMode.NORMAL_LINEAR: "EditLayer",
+            BlendMode.MULTIPLY: "EditLayer",
+            BlendMode.HARD_MASKING: "EditLayer",
+            BlendMode.CLIP: "Crop",
         }[self]
 
 
 class BlurMode(StrEnum):
     """Algoritmo de desfoque utilizado por filtros de desfoque."""
+
     GAUSSIAN = "gaussian"
     BOX = "box"
     MEDIAN = "median"
@@ -49,11 +51,11 @@ class InterpMode(Enum):
         # Mapeamento baseado no tamanho do Kernel de cada algoritmo
         return {
             InterpMode.NEAREST: 0,
-            InterpMode.LINEAR: 1,   # Kernel 2x2 (precisa de 1 de margem)
-            InterpMode.CUBIC: 2,    # Kernel 4x4 (precisa de 2 de margem)
+            InterpMode.LINEAR: 1,  # Kernel 2x2 (precisa de 1 de margem)
+            InterpMode.CUBIC: 2,  # Kernel 4x4 (precisa de 2 de margem)
             InterpMode.AREA: 1,
-            InterpMode.LANCZOS: 4   # Kernel 8x8 (precisa de 4 de margem)
-        }.get(self, 2)              # Padrão seguro de 2 pixels
+            InterpMode.LANCZOS: 4,  # Kernel 8x8 (precisa de 4 de margem)
+        }.get(self, 2)  # Padrão seguro de 2 pixels
 
 
 InterpolationOption = InterpMode
@@ -101,10 +103,10 @@ class ImageFormat(StrEnum):
 class RenderFlags(IntFlag):
     NONE = 0
     POSITION = auto()  # Invalida a localização global no canvas
-    PIXELS = auto()    # Invalida o buffer de pixels (exige re-renderizar o layer)
+    PIXELS = auto()  # Invalida o buffer de pixels (exige re-renderizar o layer)
     ALL_DIRTY = POSITION | PIXELS
 
 
 class WarpMode(Enum):
-    AFFINE = 'affine'
-    PERSPECTIVE = 'perspective'
+    AFFINE = "affine"
+    PERSPECTIVE = "perspective"

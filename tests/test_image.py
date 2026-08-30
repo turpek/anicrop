@@ -209,8 +209,7 @@ def test_image_accepts_zarr_array():
 
 
 def test_image_zarr_getitem_with_region():
-    z_array = zarr.zeros(shape=(100, 100, 3),
-                         chunks=(50, 50, 3), dtype=np.uint8)
+    z_array = zarr.zeros(shape=(100, 100, 3), chunks=(50, 50, 3), dtype=np.uint8)
     z_array[10:20, 10:20, :] = 128
     img = Image(z_array, ImageFormat.RGB)
     region = Region(Span(10, 10), Span(10, 10))
@@ -221,8 +220,7 @@ def test_image_zarr_getitem_with_region():
 
 
 def test_image_zarr_grayscale_is_always_3d():
-    z_array = zarr.zeros(shape=(100, 100, 1),
-                         chunks=(50, 50, 1), dtype=np.uint8)
+    z_array = zarr.zeros(shape=(100, 100, 1), chunks=(50, 50, 1), dtype=np.uint8)
     z_array[5:10, 5:10, 0] = 255
     img = Image(z_array, ImageFormat.GRAY)
     assert img.shape == (100, 100, 1)
@@ -237,13 +235,19 @@ def test_image_open_routes_to_backend(mocker):
     """Valida se Image.open roteia leitura padrao para o backend de IO."""
     mock_backend = mocker.MagicMock()
     mock_backend.get_size.return_value = (1000, 1000)
-    mock_backend.read.return_value = (np.zeros((1000, 1000, 3), dtype=np.uint8), ImageFormat.RGB, (1000, 1000))
+    mock_backend.read.return_value = (
+        np.zeros((1000, 1000, 3), dtype=np.uint8),
+        ImageFormat.RGB,
+        (1000, 1000),
+    )
 
     mock_zarr = mocker.patch("anicrop.image.Image._open_with_pillow_zarr")
 
     img = Image.open("dummy.png", ImageFormat.RGB, backend=mock_backend)
 
-    mock_backend.read.assert_called_once_with("dummy.png", format=ImageFormat.RGB, shrink=1, roi=None)
+    mock_backend.read.assert_called_once_with(
+        "dummy.png", format=ImageFormat.RGB, shrink=1, roi=None
+    )
     mock_zarr.assert_not_called()
     assert img.size == (1000, 1000)
 

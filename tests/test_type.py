@@ -5,8 +5,8 @@ import pytest
 
 # Apenas add e sub são suportados pela nova implementação de Rotation e Scale
 OPS = [
-    (add, 'add'),
-    (sub, 'sub'),
+    (add, "add"),
+    (sub, "sub"),
 ]
 
 
@@ -18,7 +18,7 @@ def test_Rotation_valor_padrao():
 
 
 @pytest.mark.parametrize("op,op_name", OPS, ids=[name for _, name in OPS])
-@pytest.mark.parametrize('value', [-45, 0, 45], ids=['-45', '0', '45'])
+@pytest.mark.parametrize("value", [-45, 0, 45], ids=["-45", "0", "45"])
 def test_Rotation_operacoes_com_valor_padrao(op, op_name, value):
     rot = Rotation()
     expect_angle = op(0.0, value)
@@ -31,7 +31,7 @@ def test_Rotation_operacoes_com_valor_padrao(op, op_name, value):
 
 
 @pytest.mark.parametrize("op,op_name", OPS, ids=[name for _, name in OPS])
-@pytest.mark.parametrize('value', [-45, 0, 45], ids=['-45', '0', '45'])
+@pytest.mark.parametrize("value", [-45, 0, 45], ids=["-45", "0", "45"])
 def test_Rotation_operacoes_com_valor_nao_padrao(op, op_name, value):
     rot = Rotation(angle=45.0)
     expect_angle = op(45.0, value)
@@ -43,7 +43,9 @@ def test_Rotation_operacoes_com_valor_nao_padrao(op, op_name, value):
 
 
 @pytest.mark.parametrize("op,op_name", OPS, ids=[name for _, name in OPS])
-@pytest.mark.parametrize('value', [(-45, 0.1, 0.2), (0, 0, 0), (45, 1, 1)], ids=['-45', '0', '45'])
+@pytest.mark.parametrize(
+    "value", [(-45, 0.1, 0.2), (0, 0, 0), (45, 1, 1)], ids=["-45", "0", "45"]
+)
 def test_Rotation_operacoes_com_tupla_alterando_pivot(op, op_name, value):
     rot = Rotation(angle=10.0)
     expect_angle = op(10.0, value[0])
@@ -92,7 +94,7 @@ def test_Scale_valor_padrao():
 
 
 @pytest.mark.parametrize("op,op_name", OPS, ids=[name for _, name in OPS])
-@pytest.mark.parametrize('value', [0.5, 1, 2], ids=['0.5', '1', '2'])
+@pytest.mark.parametrize("value", [0.5, 1, 2], ids=["0.5", "1", "2"])
 def test_Scale_operacoes_escalar(op, op_name, value):
     s = Scale(1.0, 1.0)
     result = op(s, value)
@@ -119,11 +121,7 @@ def test_Rotation_matrix_90_graus():
     # Sentido horário para Y-down: cos(90)=0, sin(90)=1
     rot = Rotation(90.0)
     m = rot.matrix
-    expected = np.array([
-        [0, -1, 0],
-        [1, 0, 0],
-        [0, 0, 1]
-    ], dtype=np.float32)
+    expected = np.array([[0, -1, 0], [1, 0, 0], [0, 0, 1]], dtype=np.float32)
     np.testing.assert_allclose(m, expected, atol=1e-5)
 
 
@@ -136,9 +134,5 @@ def test_Scale_matrix_identidade():
 def test_Scale_matrix_com_valores():
     s = Scale(2.0, 3.0)
     m = s.matrix
-    expected = np.array([
-        [2, 0, 0],
-        [0, 3, 0],
-        [0, 0, 1]
-    ], dtype=np.float32)
+    expected = np.array([[2, 0, 0], [0, 3, 0], [0, 0, 1]], dtype=np.float32)
     np.testing.assert_allclose(m, expected, atol=1e-5)

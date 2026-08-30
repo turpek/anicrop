@@ -24,7 +24,9 @@ def _decode_raw(file_path: str | Path) -> tuple[np.ndarray, int]:
     return raw_data, native_channels
 
 
-def _auto_detect_format(data: np.ndarray, channels: int) -> tuple[np.ndarray, ImageFormat]:
+def _auto_detect_format(
+    data: np.ndarray, channels: int
+) -> tuple[np.ndarray, ImageFormat]:
     """Detecta o formato nativo da imagem crua e converte BGR para o padrão RGB do anicrop."""
     if channels == 1:
         return data[..., np.newaxis], ImageFormat.GRAY
@@ -110,7 +112,7 @@ def _apply_shrink_and_roi(
             data = data[..., np.newaxis]
 
     if roi is not None:
-        data = data[roi.y.start:roi.y.end, roi.x.start:roi.x.end]
+        data = data[roi.y.start : roi.y.end, roi.x.start : roi.x.end]
 
     return data
 
@@ -132,7 +134,9 @@ def _flatten_alpha_to_background(
         alpha = img_arr[..., 1:2].astype(np.float32) / 255.0
         bg_gray = float(bg_color[0])
         gray = img_arr[..., 0:1].astype(np.float32)
-        flattened = (gray * alpha + bg_gray * (1.0 - alpha)).clip(0, 255).astype(np.uint8)
+        flattened = (
+            (gray * alpha + bg_gray * (1.0 - alpha)).clip(0, 255).astype(np.uint8)
+        )
         return flattened[:, :, 0]
 
     return img_arr
@@ -145,7 +149,7 @@ def _prepare_bgr_for_export(
     options: SaveOptions,
 ) -> np.ndarray:
     """Converte a matriz do anicrop para o layout de canais esperado pelo OpenCV."""
-    is_jpeg = ext in ('.jpg', '.jpeg')
+    is_jpeg = ext in (".jpg", ".jpeg")
 
     if is_jpeg and format in (ImageFormat.RGBA, ImageFormat.GRAY_ALPHA):
         return _flatten_alpha_to_background(data, format, options.bg_color)
@@ -166,11 +170,11 @@ def _prepare_bgr_for_export(
 def _build_opencv_params(ext: str, options: SaveOptions) -> list[int]:
     """Mapeia as SaveOptions para a lista de parâmetros de gravação do OpenCV."""
     params: list[int] = []
-    if ext in ('.jpg', '.jpeg'):
+    if ext in (".jpg", ".jpeg"):
         params.extend([cv2.IMWRITE_JPEG_QUALITY, options.quality])
-    elif ext == '.png':
+    elif ext == ".png":
         params.extend([cv2.IMWRITE_PNG_COMPRESSION, options.compression_level])
-    elif ext == '.webp':
+    elif ext == ".webp":
         quality_val = 101 if options.lossless else options.quality
         params.extend([cv2.IMWRITE_WEBP_QUALITY, quality_val])
     return params

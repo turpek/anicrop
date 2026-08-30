@@ -26,6 +26,7 @@ def make_test_layer(top_left: tuple[int, int], transform: TransformRel) -> Layer
 # 1. Testes do Pipeline de Renderização em Camada Padrão (Sem FitGeometry)
 # ==============================================================================
 
+
 @pytest.mark.parametrize(
     "top_left, transform, expect_plan_dst_rect, expect_rel_rect",
     [
@@ -67,6 +68,7 @@ def test_render_pipeline_integration(
     mocker, top_left, transform, expect_plan_dst_rect, expect_rel_rect
 ):
     """Testa o pipeline real de renderização acompanhando plan.dst_region e rel_region (view)."""
+
     def fake_render_patch(image, m_render, dest_region, *args, **kwargs):
         return np.zeros((dest_region.height, dest_region.width, 4), dtype=np.uint8)
 
@@ -91,6 +93,7 @@ def test_render_pipeline_integration(
 
 def test_render_pipeline_integration_with_parent_group_transforms(mocker):
     """Testa o pipeline real de renderização quando o GroupLayer pai possui translação, rotação e escala."""
+
     def fake_render_patch(image, m_render, dest_region, *args, **kwargs):
         return np.zeros((dest_region.height, dest_region.width, 4), dtype=np.uint8)
 
@@ -122,6 +125,7 @@ def test_render_pipeline_integration_with_parent_group_transforms(mocker):
 # 2. Testes do Pipeline de Renderização em Camada com FitGeometry (layout.fit)
 # ==============================================================================
 
+
 @pytest.mark.parametrize(
     "top_left, transform, fit_rect, expect_plan_dst_rect, expect_rel_rect",
     [
@@ -143,8 +147,6 @@ def test_render_pipeline_integration_with_parent_group_transforms(mocker):
             (0, 0, 200, 100),
             id="shifted_fit_contraction_with_scale",
         ),
-
-
         # 3. Fit em camada rotacionada 90°
         pytest.param(
             (0, 0),
@@ -165,6 +167,7 @@ def test_fit_geometry_render_pipeline(
     expect_rel_rect,
 ):
     """Testa o pipeline real de renderização com FitGeometry ativo (layout.fit)."""
+
     def fake_render_patch(image, m_render, dest_region, *args, **kwargs):
         return np.zeros((dest_region.height, dest_region.width, 4), dtype=np.uint8)
 
@@ -193,6 +196,7 @@ def test_fit_geometry_render_pipeline(
 
 def test_fit_geometry_render_pipeline_with_parent_group_transforms(mocker):
     """Testa o pipeline real com FitGeometry quando a camada pertence a um GroupLayer pai transformado."""
+
     def fake_render_patch(image, m_render, dest_region, *args, **kwargs):
         return np.zeros((dest_region.height, dest_region.width, 4), dtype=np.uint8)
 
@@ -227,6 +231,7 @@ def test_fit_geometry_render_pipeline_with_parent_group_transforms(mocker):
 # 3. Testes do Pipeline de Renderização com Align (layout.align)
 # ==============================================================================
 
+
 @pytest.mark.parametrize(
     "top_left, transform, align_anchors, expect_plan_dst_rect, expect_rel_rect",
     [
@@ -259,6 +264,7 @@ def test_align_geometry_render_pipeline(
     expect_rel_rect,
 ):
     """Testa o pipeline real de renderização quando layout.align é executado."""
+
     def fake_render_patch(image, m_render, dest_region, *args, **kwargs):
         return np.zeros((dest_region.height, dest_region.width, 4), dtype=np.uint8)
 
@@ -288,6 +294,7 @@ def test_align_geometry_render_pipeline(
 
 def test_fit_and_align_geometry_render_pipeline(mocker):
     """Testa o pipeline real combinando FitGeometry (layout.fit) seguido de layout.align."""
+
     def fake_render_patch(image, m_render, dest_region, *args, **kwargs):
         return np.zeros((dest_region.height, dest_region.width, 4), dtype=np.uint8)
 
@@ -325,8 +332,10 @@ def test_fit_and_align_geometry_render_pipeline(mocker):
 # 4. Testes do Pipeline de Renderização com Fit Content (layout.fit_content)
 # ==============================================================================
 
+
 def test_fit_content_geometry_render_pipeline(mocker):
     """Testa o pipeline real de renderização quando layout.fit_content é executado em uma imagem de 200x200 com conteúdo ativo de (25, 25) até (175, 175)."""
+
     def fake_render_patch(image, m_render, dest_region, *args, **kwargs):
         return np.zeros((dest_region.height, dest_region.width, 4), dtype=np.uint8)
 
@@ -365,6 +374,7 @@ def test_fit_content_geometry_render_pipeline(mocker):
 
 def test_fit_content_and_align_geometry_render_pipeline(mocker):
     """Testa o pipeline real combinando fit_content seguido de layout.align."""
+
     def fake_render_patch(image, m_render, dest_region, *args, **kwargs):
         return np.zeros((dest_region.height, dest_region.width, 4), dtype=np.uint8)
 
@@ -405,6 +415,7 @@ def test_fit_content_and_align_geometry_render_pipeline(mocker):
 
 def test_fit_content_with_layer_transform_render_pipeline(mocker):
     """Testa o pipeline real de renderização quando layout.fit_content é executado em uma camada rotacionada 90°."""
+
     def fake_render_patch(image, m_render, dest_region, *args, **kwargs):
         return np.zeros((dest_region.height, dest_region.width, 4), dtype=np.uint8)
 
@@ -440,6 +451,7 @@ def test_fit_content_with_layer_transform_render_pipeline(mocker):
 
 def test_fit_content_in_parent_group_render_pipeline(mocker):
     """Testa o pipeline real de renderização quando layout.fit_content é executado em uma camada dentro de um GroupLayer pai transformado."""
+
     def fake_render_patch(image, m_render, dest_region, *args, **kwargs):
         return np.zeros((dest_region.height, dest_region.width, 4), dtype=np.uint8)
 
@@ -483,6 +495,7 @@ def test_fit_content_in_parent_group_render_pipeline(mocker):
 # 5. Testes do Pipeline de Renderização com Resize Bounds (layout.resize_bounds)
 # ==============================================================================
 
+
 @pytest.mark.parametrize(
     "anchor_x, anchor_y, expect_plan_dst_rect, expect_rel_rect",
     [
@@ -520,6 +533,7 @@ def test_resize_bounds_geometry_render_pipeline(
     expect_rel_rect,
 ):
     """Testa o pipeline real de renderização quando layout.resize_bounds é executado com diferentes âncoras na camada."""
+
     def fake_render_patch(image, m_render, dest_region, *args, **kwargs):
         return np.zeros((dest_region.height, dest_region.width, 4), dtype=np.uint8)
 
@@ -548,6 +562,7 @@ def test_resize_bounds_geometry_render_pipeline(
 
 def test_resize_bounds_in_parent_group_render_pipeline(mocker):
     """Testa o pipeline real de renderização quando layout.resize_bounds é executado em uma camada dentro de um GroupLayer pai transformado."""
+
     def fake_render_patch(image, m_render, dest_region, *args, **kwargs):
         return np.zeros((dest_region.height, dest_region.width, 4), dtype=np.uint8)
 
@@ -582,6 +597,7 @@ def test_resize_bounds_in_parent_group_render_pipeline(mocker):
 
 def test_group_layout_fit_content_render_pipeline(mocker):
     """Testa o pipeline real de renderização quando layout.fit_content é executado em um GroupLayer com múltiplas camadas."""
+
     def fake_render_patch(image, m_render, dest_region, *args, **kwargs):
         return np.zeros((dest_region.height, dest_region.width, 4), dtype=np.uint8)
 
@@ -624,6 +640,7 @@ def test_group_layout_fit_content_render_pipeline(mocker):
 
 def test_group_layout_align_render_pipeline(mocker):
     """Testa o pipeline real de renderização quando layout.align é executado em um GroupLayer."""
+
     def fake_render_patch(image, m_render, dest_region, *args, **kwargs):
         return np.zeros((dest_region.height, dest_region.width, 4), dtype=np.uint8)
 
@@ -649,6 +666,7 @@ def test_group_layout_align_render_pipeline(mocker):
 
 def test_group_layout_fit_render_pipeline(mocker):
     """Testa o pipeline real de renderização quando layout.fit é executado em um GroupLayer."""
+
     def fake_render_patch(image, m_render, dest_region, *args, **kwargs):
         return np.zeros((dest_region.height, dest_region.width, 4), dtype=np.uint8)
 
@@ -673,6 +691,7 @@ def test_group_layout_fit_render_pipeline(mocker):
 
 def test_group_layout_resize_bounds_render_pipeline(mocker):
     """Testa o pipeline real de renderização quando layout.resize_bounds é executado em um GroupLayer com ancoras centradas."""
+
     def fake_render_patch(image, m_render, dest_region, *args, **kwargs):
         return np.zeros((dest_region.height, dest_region.width, 4), dtype=np.uint8)
 
@@ -695,6 +714,7 @@ def test_group_layout_resize_bounds_render_pipeline(mocker):
 
 def test_canvas_layout_fit_content_render_pipeline(mocker):
     """Testa o pipeline real de renderização quando layout.fit_content é executado em um Canvas contendo camadas com edições."""
+
     def fake_render_patch(image, m_render, dest_region, *args, **kwargs):
         return np.zeros((dest_region.height, dest_region.width, 4), dtype=np.uint8)
 

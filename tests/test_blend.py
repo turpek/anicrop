@@ -217,17 +217,43 @@ def test_blend_normal_sets_base_alpha_to_opaque():
 @pytest.mark.parametrize(
     "base_fmt, edit_fmt, edit_alpha, opacity, expected_copyto",
     [
-        pytest.param(ImageFormat.RGBA, ImageFormat.RGBA, 255, 1.0, True,
-                     id="rgba_solido_com_opacidade_total_usa_copyto"),
-        pytest.param(ImageFormat.RGB, ImageFormat.RGB, None, 1.0, True,
-                     id="rgb_solido_com_opacidade_total_usa_copyto"),
-        pytest.param(ImageFormat.RGBA, ImageFormat.RGBA, 128, 1.0,
-                     False, id="rgba_semi_transparente_nao_usa_copyto"),
-        pytest.param(ImageFormat.RGBA, ImageFormat.RGBA, 255, 0.5, False,
-                     id="rgba_solido_com_opacidade_reduzida_nao_usa_copyto"),
+        pytest.param(
+            ImageFormat.RGBA,
+            ImageFormat.RGBA,
+            255,
+            1.0,
+            True,
+            id="rgba_solido_com_opacidade_total_usa_copyto",
+        ),
+        pytest.param(
+            ImageFormat.RGB,
+            ImageFormat.RGB,
+            None,
+            1.0,
+            True,
+            id="rgb_solido_com_opacidade_total_usa_copyto",
+        ),
+        pytest.param(
+            ImageFormat.RGBA,
+            ImageFormat.RGBA,
+            128,
+            1.0,
+            False,
+            id="rgba_semi_transparente_nao_usa_copyto",
+        ),
+        pytest.param(
+            ImageFormat.RGBA,
+            ImageFormat.RGBA,
+            255,
+            0.5,
+            False,
+            id="rgba_solido_com_opacidade_reduzida_nao_usa_copyto",
+        ),
     ],
 )
-def test_blend_normal_fast_path_copyto(mocker, base_fmt, edit_fmt, edit_alpha, opacity, expected_copyto):
+def test_blend_normal_fast_path_copyto(
+    mocker, base_fmt, edit_fmt, edit_alpha, opacity, expected_copyto
+):
     """Valida se o fast-path de np.copyto é ativado exclusivamente para camadas sólidas com opacidade 1.0 no fallback NumPy."""
     mocker.patch("anicrop.blend._HAS_CY_BLEND", False)
     spy_copyto = mocker.spy(np, "copyto")
@@ -248,22 +274,54 @@ def test_blend_normal_fast_path_copyto(mocker, base_fmt, edit_fmt, edit_alpha, o
 @pytest.mark.parametrize(
     "base_fmt, edit_fmt, edit_color, expected_pixel",
     [
-        pytest.param(ImageFormat.RGBA, ImageFormat.RGB, [255, 0, 0], [
-                     255, 0, 0, 255], id="base_rgba_edit_rgb"),
-        pytest.param(ImageFormat.RGB, ImageFormat.RGBA, [0, 255, 0, 255], [
-                     0, 255, 0], id="base_rgb_edit_rgba"),
-        pytest.param(ImageFormat.GRAY, ImageFormat.RGB, [
-                     255, 0, 0], [76], id="base_gray_edit_red"),
-        pytest.param(ImageFormat.RGB, ImageFormat.GRAY, [128], [
-                     128, 128, 128], id="base_rgb_edit_gray"),
-        pytest.param(ImageFormat.GRAY, ImageFormat.GRAY, [
-                     200], [200], id="base_gray_edit_gray"),
-        pytest.param(ImageFormat.GRAY_ALPHA, ImageFormat.GRAY_ALPHA, [
-                     200, 255], [200, 255], id="base_gray_alpha_edit_gray_alpha"),
-        pytest.param(ImageFormat.RGBA, ImageFormat.GRAY_ALPHA, [100, 255], [
-                     100, 100, 100, 255], id="base_rgba_edit_gray_alpha"),
-        pytest.param(ImageFormat.GRAY_ALPHA, ImageFormat.RGB, [
-                     255, 0, 0], [76, 255], id="base_gray_alpha_edit_rgb"),
+        pytest.param(
+            ImageFormat.RGBA,
+            ImageFormat.RGB,
+            [255, 0, 0],
+            [255, 0, 0, 255],
+            id="base_rgba_edit_rgb",
+        ),
+        pytest.param(
+            ImageFormat.RGB,
+            ImageFormat.RGBA,
+            [0, 255, 0, 255],
+            [0, 255, 0],
+            id="base_rgb_edit_rgba",
+        ),
+        pytest.param(
+            ImageFormat.GRAY, ImageFormat.RGB, [255, 0, 0], [76], id="base_gray_edit_red"
+        ),
+        pytest.param(
+            ImageFormat.RGB,
+            ImageFormat.GRAY,
+            [128],
+            [128, 128, 128],
+            id="base_rgb_edit_gray",
+        ),
+        pytest.param(
+            ImageFormat.GRAY, ImageFormat.GRAY, [200], [200], id="base_gray_edit_gray"
+        ),
+        pytest.param(
+            ImageFormat.GRAY_ALPHA,
+            ImageFormat.GRAY_ALPHA,
+            [200, 255],
+            [200, 255],
+            id="base_gray_alpha_edit_gray_alpha",
+        ),
+        pytest.param(
+            ImageFormat.RGBA,
+            ImageFormat.GRAY_ALPHA,
+            [100, 255],
+            [100, 100, 100, 255],
+            id="base_rgba_edit_gray_alpha",
+        ),
+        pytest.param(
+            ImageFormat.GRAY_ALPHA,
+            ImageFormat.RGB,
+            [255, 0, 0],
+            [76, 255],
+            id="base_gray_alpha_edit_rgb",
+        ),
     ],
 )
 def test_blend_normal_formatos_mistos(base_fmt, edit_fmt, edit_color, expected_pixel):
@@ -281,6 +339,7 @@ def test_blend_normal_formatos_mistos(base_fmt, edit_fmt, edit_color, expected_p
 def test_blend_clip_rgba_modulates_alpha_and_sets_transparent_white():
     """Valida se blend_clip em RGBA zera o alpha fora da mascara e preenche com branco transparente."""
     from anicrop.blend import blend_clip
+
     base_data = np.full((10, 10, 4), [255, 0, 0, 255], dtype=np.uint8)
     base = Image(base_data, ImageFormat.RGBA)
 
@@ -300,6 +359,7 @@ def test_blend_clip_rgba_modulates_alpha_and_sets_transparent_white():
 def test_blend_clip_rgb_sets_solid_white_outside_crop():
     """Valida se blend_clip em RGB preenche com branco solido 255 fora da regiao de corte."""
     from anicrop.blend import blend_clip
+
     base_data = np.full((10, 10, 3), [255, 0, 0], dtype=np.uint8)
     base = Image(base_data, ImageFormat.RGB)
 
@@ -318,6 +378,7 @@ def test_blend_clip_rgb_sets_solid_white_outside_crop():
 def test_blend_clip_gray_sets_solid_white_outside_crop():
     """Valida se blend_clip em GRAY preenche com branco 255 fora do corte."""
     from anicrop.blend import blend_clip
+
     base_data = np.zeros((10, 10, 1), dtype=np.uint8)
     base = Image(base_data, ImageFormat.GRAY)
 

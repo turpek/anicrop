@@ -10,7 +10,13 @@ from anicrop.viewport import Viewport
 from anicrop.type import Scale
 
 
-def make_layer(w: int = 100, h: int = 100, color: tuple[int, int, int, int] = (255, 0, 0, 255), x: int = 0, y: int = 0) -> Layer:
+def make_layer(
+    w: int = 100,
+    h: int = 100,
+    color: tuple[int, int, int, int] = (255, 0, 0, 255),
+    x: int = 0,
+    y: int = 0,
+) -> Layer:
     """Cria uma camada de teste com cor solida e posicao definida."""
     img_data = np.zeros((h, w, 4), dtype=np.uint8)
     img_data[:] = color
@@ -65,6 +71,7 @@ def test_viewport_render_zoom_and_centering():
 def test_viewport_render_culling_camada_fora_da_tela(mocker):
     """Valida se ViewportRender descarta camadas totalmente fora do campo de visão da Viewport."""
     import anicrop.render
+
     spy_warp = mocker.spy(anicrop.render, "warp_patch")
     layer = make_layer(100, 100, (255, 0, 0, 255), x=5000, y=5000)
     viewport = Viewport(size=(200, 200), fit_scale=1.0)

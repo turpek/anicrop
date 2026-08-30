@@ -53,7 +53,9 @@ def test_content_crop_with_layer_reference():
     ref_layer = Layer(Image(np.zeros((60, 60, 4), dtype=np.uint8), ImageFormat.RGBA))
     ref_layer.transform.translate(10, 10)
 
-    target_layer = Layer(Image(np.zeros((100, 100, 4), dtype=np.uint8), ImageFormat.RGBA))
+    target_layer = Layer(
+        Image(np.zeros((100, 100, 4), dtype=np.uint8), ImageFormat.RGBA)
+    )
     content = Content()
     result = content.crop(target_layer, ref_layer)
 

@@ -44,15 +44,25 @@ class BlurFilter(Effect):
             rad = math.radians(self.angle)
             len_x = self.radius_x * multiplier
             len_y = self.radius_y * multiplier if self.radius_y > 0 else len_x
-            pad_x = int(math.ceil(abs(math.cos(rad)) * len_x + abs(math.sin(rad)) * len_y))
-            pad_y = int(math.ceil(abs(math.sin(rad)) * len_x + abs(math.cos(rad)) * len_y))
+            pad_x = int(
+                math.ceil(abs(math.cos(rad)) * len_x + abs(math.sin(rad)) * len_y)
+            )
+            pad_y = int(
+                math.ceil(abs(math.sin(rad)) * len_x + abs(math.cos(rad)) * len_y)
+            )
         else:
-            pad_x = int(math.ceil(self.radius_x * multiplier)) if self.radius_x > 0 else 0
-            pad_y = int(math.ceil(self.radius_y * multiplier)) if self.radius_y > 0 else 0
+            pad_x = (
+                int(math.ceil(self.radius_x * multiplier)) if self.radius_x > 0 else 0
+            )
+            pad_y = (
+                int(math.ceil(self.radius_y * multiplier)) if self.radius_y > 0 else 0
+            )
 
         return (pad_y, pad_x, pad_y, pad_x)
 
-    def _apply_directional(self, src_data: np.ndarray, length: float, angle_deg: float) -> np.ndarray:
+    def _apply_directional(
+        self, src_data: np.ndarray, length: float, angle_deg: float
+    ) -> np.ndarray:
         """Aplica desfoque direcional linear no ângulo especificado usando kernel 2D rotacionado."""
         multiplier = 3.0 if self.mode == BlurMode.GAUSSIAN else 2.0
         ksize = max(3, int(math.ceil(length * multiplier))) | 1
@@ -72,7 +82,9 @@ class BlurFilter(Effect):
         rotated_kernel = cv2.warpAffine(kernel, rot_mat, (ksize, ksize))
 
         k_sum = float(np.sum(rotated_kernel))
-        k_norm = np.asarray(rotated_kernel / k_sum if k_sum > 0 else rotated_kernel, dtype=np.float32)
+        k_norm = np.asarray(
+            rotated_kernel / k_sum if k_sum > 0 else rotated_kernel, dtype=np.float32
+        )
         return cv2.filter2D(src_data, -1, k_norm, borderType=cv2.BORDER_REFLECT_101)
 
     def apply(self, image: Image, matrix: np.ndarray) -> Image:
@@ -83,7 +95,9 @@ class BlurFilter(Effect):
         src_data = image[...]
 
         # Resolve ângulo e escalas efetivas no espaço de renderização a partir da matriz afim
-        mat_angle_deg = math.degrees(math.atan2(float(matrix[1, 0]), float(matrix[0, 0])))
+        mat_angle_deg = math.degrees(
+            math.atan2(float(matrix[1, 0]), float(matrix[0, 0]))
+        )
         effective_angle = self.angle + mat_angle_deg
 
         scale_x = math.hypot(float(matrix[0, 0]), float(matrix[1, 0]))
@@ -93,10 +107,17 @@ class BlurFilter(Effect):
 
         effective_angle = (effective_angle + 180.0) % 360.0 - 180.0
 
-        if abs(effective_rx - effective_ry) < 1e-4 and effective_rx > 0 and self.mode == BlurMode.GAUSSIAN and effective_angle == 0.0:
+        if (
+            abs(effective_rx - effective_ry) < 1e-4
+            and effective_rx > 0
+            and self.mode == BlurMode.GAUSSIAN
+            and effective_angle == 0.0
+        ):
             sigma = effective_rx
             processed = cv2.GaussianBlur(src_data, (0, 0), sigmaX=sigma, sigmaY=sigma)
-        elif self.mode in (BlurMode.GAUSSIAN, BlurMode.BOX) and (effective_angle != 0.0 or abs(effective_rx - effective_ry) >= 1e-4):
+        elif self.mode in (BlurMode.GAUSSIAN, BlurMode.BOX) and (
+            effective_angle != 0.0 or abs(effective_rx - effective_ry) >= 1e-4
+        ):
             if effective_angle != 0.0:
                 length = max(effective_rx, effective_ry)
                 processed = self._apply_directional(src_data, length, effective_angle)
@@ -106,10 +127,14 @@ class BlurFilter(Effect):
                     processed = src_data
                     if effective_rx > 0:
                         kx = max(3, int(math.ceil(effective_rx * 3.0))) | 1
-                        processed = cv2.GaussianBlur(processed, (kx, 1), sigmaX=effective_rx, sigmaY=0)
+                        processed = cv2.GaussianBlur(
+                            processed, (kx, 1), sigmaX=effective_rx, sigmaY=0
+                        )
                     if effective_ry > 0:
                         ky = max(3, int(math.ceil(effective_ry * 3.0))) | 1
-                        processed = cv2.GaussianBlur(processed, (1, ky), sigmaX=0, sigmaY=effective_ry)
+                        processed = cv2.GaussianBlur(
+                            processed, (1, ky), sigmaX=0, sigmaY=effective_ry
+                        )
                 else:
                     kx = max(1, int(round(effective_rx * 2.0 + 1.0))) | 1
                     ky = max(1, int(round(effective_ry * 2.0 + 1.0))) | 1
@@ -128,8 +153,10 @@ class BlurFilter(Effect):
             processed[..., -1] = src_data[..., -1]
 
         if self.strength < 1.0:
-            blended = (src_data.astype(np.float32) * (1.0 - self.strength) +
-                       processed.astype(np.float32) * self.strength)
+            blended = (
+                src_data.astype(np.float32) * (1.0 - self.strength)
+                + processed.astype(np.float32) * self.strength
+            )
             processed = np.clip(blended, 0, 255).astype(np.uint8)
 
         return Image(processed, image.format)
@@ -152,12 +179,14 @@ class BlurFilter(Effect):
 
         # Matriz de covariância Sigma 1
         c1, s1 = math.cos(ang1_rad), math.sin(ang1_rad)
-        sig1_11 = (r_x1 ** 2) * (c1 ** 2) + (r_y1 ** 2) * (s1 ** 2)
-        sig1_22 = (r_x1 ** 2) * (s1 ** 2) + (r_y1 ** 2) * (c1 ** 2)
-        sig1_12 = (r_x1 ** 2 - r_y1 ** 2) * c1 * s1
+        sig1_11 = (r_x1**2) * (c1**2) + (r_y1**2) * (s1**2)
+        sig1_22 = (r_x1**2) * (s1**2) + (r_y1**2) * (c1**2)
+        sig1_12 = (r_x1**2 - r_y1**2) * c1 * s1
 
         # 2. Transforma other pela matriz relativa
-        mat_angle_deg = math.degrees(math.atan2(float(matrix[1, 0]), float(matrix[0, 0])))
+        mat_angle_deg = math.degrees(
+            math.atan2(float(matrix[1, 0]), float(matrix[0, 0]))
+        )
         ang2_rad = math.radians(other.angle + mat_angle_deg)
         s_x2 = math.hypot(float(matrix[0, 0]), float(matrix[1, 0]))
         s_y2 = math.hypot(float(matrix[0, 1]), float(matrix[1, 1]))
@@ -166,9 +195,9 @@ class BlurFilter(Effect):
 
         # Matriz de covariância Sigma 2
         c2, s2 = math.cos(ang2_rad), math.sin(ang2_rad)
-        sig2_11 = (r_x2 ** 2) * (c2 ** 2) + (r_y2 ** 2) * (s2 ** 2)
-        sig2_22 = (r_x2 ** 2) * (s2 ** 2) + (r_y2 ** 2) * (c2 ** 2)
-        sig2_12 = (r_x2 ** 2 - r_y2 ** 2) * c2 * s2
+        sig2_11 = (r_x2**2) * (c2**2) + (r_y2**2) * (s2**2)
+        sig2_22 = (r_x2**2) * (s2**2) + (r_y2**2) * (c2**2)
+        sig2_12 = (r_x2**2 - r_y2**2) * c2 * s2
 
         # 3. Soma das matrizes de covariância (Teorema da Convolução de Gaussianas)
         sig_11 = sig1_11 + sig2_11
@@ -178,7 +207,7 @@ class BlurFilter(Effect):
         # 4. Decomposição espectral da matriz simétrica 2x2 resultante
         trace = sig_11 + sig_22
         diff = sig_11 - sig_22
-        discriminant = math.sqrt(max(0.0, diff ** 2 + 4.0 * (sig_12 ** 2)))
+        discriminant = math.sqrt(max(0.0, diff**2 + 4.0 * (sig_12**2)))
 
         lambda_1 = max(0.0, (trace + discriminant) / 2.0)
         lambda_2 = max(0.0, (trace - discriminant) / 2.0)

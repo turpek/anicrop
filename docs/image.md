@@ -69,11 +69,11 @@ O pacote `anicrop.io` fornece a camada extensível e modular para codificação 
 from anicrop.interfaces.io import SaveOptions
 
 options = SaveOptions(
-    quality=95,                   # Qualidade para JPEG e WebP (1-100)
-    lossless=False,               # Modo sem perdas para WebP
-    compression_level=6,          # Nível de compressão zlib para PNG (0-9)
-    bg_color=(255, 255, 255),     # Cor de fundo sólida ao exportar RGBA para JPEG
-    strip_metadata=True,          # Remove metadados EXIF/ICC para reduzir tamanho
+    quality=95,  # Qualidade para JPEG e WebP (1-100)
+    lossless=False,  # Modo sem perdas para WebP
+    compression_level=6,  # Nível de compressão zlib para PNG (0-9)
+    bg_color=(255, 255, 255),  # Cor de fundo sólida ao exportar RGBA para JPEG
+    strip_metadata=True,  # Remove metadados EXIF/ICC para reduzir tamanho
 )
 
 img.save("export.jpg", options=options)

@@ -158,7 +158,6 @@ from anicrop.image import Image
 
 @runtime_checkable
 class Effect(Protocol):
-
     def apply(self, image: Image) -> Image:
         """Recebe o buffer RGBA atual e retorna um novo buffer Image processado."""
         ...

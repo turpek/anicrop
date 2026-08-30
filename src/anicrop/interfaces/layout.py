@@ -9,7 +9,7 @@ class LayoutStrategy(ABC):
     @abstractmethod
     def fit(self, ref: Any) -> bool:
         """Enquadra a moldura no retângulo de referência."""
-        ...
+        pass
 
     @abstractmethod
     def align(
@@ -19,7 +19,7 @@ class LayoutStrategy(ABC):
         anchor_y: float = 0.5,
     ) -> bool:
         """Alinha a posição global em relação ao retângulo de referência."""
-        ...
+        pass
 
     @abstractmethod
     def resize_bounds(
@@ -30,9 +30,9 @@ class LayoutStrategy(ABC):
         anchor_y: float = 0.5,
     ) -> bool:
         """Redimensiona os limites da moldura."""
-        ...
+        pass
 
     @abstractmethod
     def fit_content(self, *args: Any, **kwargs: Any) -> bool:
         """Ajusta a moldura aos limites do conteúdo visível."""
-        ...
+        pass

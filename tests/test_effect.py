@@ -37,6 +37,7 @@ def test_mask_satisfies_effect_protocol():
 
 def test_bound_effect_decorates_effect_and_modulates():
     """Valida se BoundEffect encapsula um efeito, calcula matriz delta e modula com máscara."""
+
     class InvertEffect(DummyEffect):
         def apply(self, image: Image, matrix: np.ndarray) -> Image:
             data = np.copy(image[...])
@@ -49,10 +50,15 @@ def test_bound_effect_decorates_effect_and_modulates():
     # Máscara: metade esquerda branca (255 = efeito total), metade direita preta (0 = sem efeito)
     mask_data = np.zeros((10, 10, 1), dtype=np.uint8)
     mask_data[:, :5] = 255
-    mask = Mask(Image(mask_data, ImageFormat.GRAY), Region.from_size(
-        10, 10), np.identity(3, dtype=np.float32))
+    mask = Mask(
+        Image(mask_data, ImageFormat.GRAY),
+        Region.from_size(10, 10),
+        np.identity(3, dtype=np.float32),
+    )
 
-    bound_invert = BoundEffect(InvertEffect(), matrix=np.identity(3, dtype=np.float32), mask=mask)
+    bound_invert = BoundEffect(
+        InvertEffect(), matrix=np.identity(3, dtype=np.float32), mask=mask
+    )
     result = bound_invert.apply(base_img, np.identity(3, dtype=np.float32))
 
     # Metade esquerda invertida para preto (0)

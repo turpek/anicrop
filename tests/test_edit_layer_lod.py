@@ -7,15 +7,16 @@ from anicrop.spatial import Region, Span
 from anicrop.layer import EditLayer
 
 
-def make_edit_layer(width: int = 100, height: int = 100, is_zarr: bool = False) -> EditLayer:
+def make_edit_layer(
+    width: int = 100, height: int = 100, is_zarr: bool = False
+) -> EditLayer:
     """Função utilitária para criar EditLayers com suporte a Zarr ou ndarray."""
     if is_zarr:
         mock_zarr = MagicMock()
         mock_zarr.ndim = 3
         mock_zarr.shape = (height, width, 4)
         mock_zarr.dtype = np.uint8
-        mock_zarr.__getitem__.return_value = np.zeros(
-            (height, width, 4), dtype=np.uint8)
+        mock_zarr.__getitem__.return_value = np.zeros((height, width, 4), dtype=np.uint8)
         img = Image(mock_zarr, ImageFormat.RGBA)
     else:
         data = np.zeros((height, width, 4), dtype=np.uint8)
@@ -28,19 +29,22 @@ def make_edit_layer(width: int = 100, height: int = 100, is_zarr: bool = False) 
 
 # --- 1. Seleção Correta do Nível de LOD (n = floor(-log2(f))) ---
 
+
 @pytest.mark.parametrize(
     "scale_factor, expected_level, expected_lod_factor",
     [
         (1.5, 0, 1.0),
         (1.0, 0, 1.0),
-        (0.8, 0, 1.0),       # -log2(0.8) = 0.32 -> floor = 0
-        (0.5, 1, 0.5),       # -log2(0.5) = 1.0  -> floor = 1
-        (0.3, 1, 0.5),       # -log2(0.3) = 1.73 -> floor = 1
-        (0.25, 2, 0.25),     # -log2(0.25) = 2.0 -> floor = 2
-        (0.1, 3, 0.125),     # -log2(0.1) = 3.32 -> floor = 3
-    ]
+        (0.8, 0, 1.0),  # -log2(0.8) = 0.32 -> floor = 0
+        (0.5, 1, 0.5),  # -log2(0.5) = 1.0  -> floor = 1
+        (0.3, 1, 0.5),  # -log2(0.3) = 1.73 -> floor = 1
+        (0.25, 2, 0.25),  # -log2(0.25) = 2.0 -> floor = 2
+        (0.1, 3, 0.125),  # -log2(0.1) = 3.32 -> floor = 3
+    ],
 )
-def test_edit_layer_lod_level_calculation(scale_factor, expected_level, expected_lod_factor):
+def test_edit_layer_lod_level_calculation(
+    scale_factor, expected_level, expected_lod_factor
+):
     """Verifica se o cálculo do nível de LOD e o fator discreto 2^-n correspondem à especificação."""
     edit_layer = make_edit_layer(1000, 1000)
     lod_image, m_local = edit_layer.get_lod(scale_factor)
@@ -53,6 +57,7 @@ def test_edit_layer_lod_level_calculation(scale_factor, expected_level, expected
 
 
 # --- 2. Geração de LOD sob demanda sem cache para Imagens Comuns (<= 4Kx4K) ---
+
 
 def test_edit_layer_lod_on_demand_no_cache_for_normal_images():
     """Garante que para imagens comuns (<= 4Kx4K) o resize com INTER_AREA ocorra sob demanda e sem cache."""
@@ -76,6 +81,7 @@ def test_edit_layer_lod_on_demand_no_cache_for_normal_images():
 
 # --- 3. Geração de Cache para Imagens Grandes (> 4Kx4K) ---
 
+
 @pytest.mark.slow
 def test_edit_layer_lod_caching_for_large_images():
     """Verifica se imagens grandes (> 4Kx4K, ex: 5000x5000) alocam Zarr via Image.new e reutilizam o cache do LOD."""
@@ -96,6 +102,7 @@ def test_edit_layer_lod_caching_for_large_images():
 
 # --- 4. Geração de Cache para Imagens Zarr ---
 
+
 def test_edit_layer_lod_caching_for_zarr_images():
     """Verifica se imagens Zarr usam cache independente do tamanho."""
     edit_layer = make_edit_layer(1000, 1000, is_zarr=True)
@@ -109,6 +116,7 @@ def test_edit_layer_lod_caching_for_zarr_images():
 
 
 # --- 5. Escala >= 1.0 Não Dispara Resize ---
+
 
 @pytest.mark.parametrize("scale_factor", [1.0, 2.0, 5.0])
 def test_edit_layer_lod_full_resolution_no_resize(scale_factor):

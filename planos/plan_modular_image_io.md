@@ -42,14 +42,20 @@ src/anicrop/
 from dataclasses import dataclass
 from typing import Any
 
+
 @dataclass(frozen=True)
 class SaveOptions:
     """Opções de codificação para salvar imagens no disco."""
-    quality: int = 90                   # 1-100 para JPEG e WebP Lossy
-    lossless: bool = False              # True para WebP / AVIF sem perdas
-    compression_level: int = 6          # 0-9 para PNG (zlib)
-    bg_color: tuple[int, ...] = (255, 255, 255)  # Cor de fundo se imagem RGBA for salva em JPG
-    strip_metadata: bool = False        # Remove metadados EXIF/ICC para reduzir tamanho
+
+    quality: int = 90  # 1-100 para JPEG e WebP Lossy
+    lossless: bool = False  # True para WebP / AVIF sem perdas
+    compression_level: int = 6  # 0-9 para PNG (zlib)
+    bg_color: tuple[int, ...] = (
+        255,
+        255,
+        255,
+    )  # Cor de fundo se imagem RGBA for salva em JPG
+    strip_metadata: bool = False  # Remove metadados EXIF/ICC para reduzir tamanho
     dpi: tuple[int, int] | None = None  # Resolução para impressão
 ```
 
@@ -61,6 +67,7 @@ import numpy as np
 import zarr
 from anicrop.enums import ImageFormat
 from anicrop.spatial import Region
+
 
 class AbstractImageIO(ABC):
     """Contrato formal para decodificadores e codificadores de imagens."""
@@ -75,13 +82,13 @@ class AbstractImageIO(ABC):
     ) -> tuple[np.ndarray | zarr.Array, ImageFormat, tuple[int, int]]:
         """
         Lê e decodifica uma imagem a partir do disco.
-        
+
         Args:
             file_path: Caminho do arquivo.
             format: Formato desejado. Se None, auto-detecta o formato nativo do arquivo.
             shrink: Fator de redução direta no decoder (ex: 2 para metade da largura/altura).
             roi: Recorte espacial opcional para ler apenas uma área sem decodificar o todo.
-            
+
         Returns:
             Tupla contendo (array de dados, formato resolvido, tamanho original (W, H)).
         """
@@ -97,7 +104,7 @@ class AbstractImageIO(ABC):
     ) -> None:
         """
         Codifica e grava a imagem no disco.
-        
+
         Args:
             file_path: Caminho de destino.
             data: Matriz de pixels.
@@ -161,8 +168,7 @@ class Image:
         backend: AbstractImageIO | str | None = None,
         shrink: int = 1,
         roi: Region | None = None,
-    ) -> Image:
-        ...
+    ) -> Image: ...
 
     def save(
         self,
@@ -173,16 +179,20 @@ class Image:
         compression_level: int = 6,
         bg_color: tuple[int, ...] = (255, 255, 255),
         strip_metadata: bool = False,
-    ) -> None:
-        ...
+    ) -> None: ...
 ```
 
 ### Gerenciador de Backends Padrão:
 ```python
-from anicrop.io import set_default_backend, get_default_backend, PyvipsBackend, OpenCVBackend
+from anicrop.io import (
+    set_default_backend,
+    get_default_backend,
+    PyvipsBackend,
+    OpenCVBackend,
+)
 
 # Define o backend padrão para todas as operações do sistema
-set_default_backend(PyvipsBackend()) # ou OpenCVBackend()
+set_default_backend(PyvipsBackend())  # ou OpenCVBackend()
 ```
 
 ---

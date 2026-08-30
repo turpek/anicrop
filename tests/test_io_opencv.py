@@ -7,7 +7,10 @@ import pytest
 
 from anicrop.enums import ImageFormat
 from anicrop.interfaces.io import SaveOptions
-from anicrop.io import OpenCVBackend, get_backend, get_default_backend, register_backend, set_default_backend
+from anicrop.io import (
+    OpenCVBackend,
+    get_backend,
+)
 from anicrop.spatial import Region
 
 

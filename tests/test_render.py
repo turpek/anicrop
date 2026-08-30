@@ -28,18 +28,31 @@ from anicrop.transform import TransformRel
 from anicrop.viewport import Viewport
 
 
-def make_img(w: int = 100, h: int = 100, color: tuple[int, int, int, int] = (255, 0, 0, 255), form: ImageFormat = ImageFormat.RGBA) -> Image:
+def make_img(
+    w: int = 100,
+    h: int = 100,
+    color: tuple[int, int, int, int] = (255, 0, 0, 255),
+    form: ImageFormat = ImageFormat.RGBA,
+) -> Image:
     img_data = np.zeros((h, w, form.channels), dtype=np.uint8)
     img_data[:] = color
     return Image(img_data, form)
 
 
-def make_solid_image(size: tuple[int, int], fmt: ImageFormat, fill_value: int = 255) -> Image:
+def make_solid_image(
+    size: tuple[int, int], fmt: ImageFormat, fill_value: int = 255
+) -> Image:
     data = np.full((size[1], size[0], fmt.channels), fill_value, dtype=np.uint8)
     return Image(data, fmt)
 
 
-def make_layer(w: int = 100, h: int = 100, x: int = 0, y: int = 0, color: tuple[int, int, int, int] = (255, 0, 0, 255)) -> Layer:
+def make_layer(
+    w: int = 100,
+    h: int = 100,
+    x: int = 0,
+    y: int = 0,
+    color: tuple[int, int, int, int] = (255, 0, 0, 255),
+) -> Layer:
     img = make_img(w, h, color)
     layer = Layer(img)
     if x != 0:
@@ -49,7 +62,9 @@ def make_layer(w: int = 100, h: int = 100, x: int = 0, y: int = 0, color: tuple[
     return layer
 
 
-def make_checkerboard_image(w: int = 20, h: int = 20) -> tuple[Image, dict[str, list[int]]]:
+def make_checkerboard_image(
+    w: int = 20, h: int = 20
+) -> tuple[Image, dict[str, list[int]]]:
     colors = {
         "red": [255, 0, 0, 255],
         "blue": [0, 0, 255, 255],
@@ -69,13 +84,15 @@ def make_checkerboard_image(w: int = 20, h: int = 20) -> tuple[Image, dict[str, 
 # Motor de Projeção (Warp Dispatch e Fallback)
 # ==============================================================================
 
+
 @pytest.mark.parametrize(
     "warp_mode, expected_target",
     [
         pytest.param(WarpMode.AFFINE, "affine", id="dispatch_affine"),
         pytest.param(WarpMode.PERSPECTIVE, "perspective", id="dispatch_perspective"),
-        pytest.param("modo_inexistente", "affine",
-                     id="fallback_affine_quando_modo_inexistente"),
+        pytest.param(
+            "modo_inexistente", "affine", id="fallback_affine_quando_modo_inexistente"
+        ),
     ],
 )
 def test_warp_patch_dispatch_and_fallback(mocker, warp_mode, expected_target):
@@ -100,6 +117,7 @@ def test_warp_patch_dispatch_and_fallback(mocker, warp_mode, expected_target):
 # Geração da Máscara de Oclusão (generate_opacity_mask)
 # ==============================================================================
 
+
 @pytest.mark.parametrize(
     "img_format, fill_value, is_expected_opaque",
     [
@@ -108,11 +126,14 @@ def test_warp_patch_dispatch_and_fallback(mocker, warp_mode, expected_target):
         pytest.param(ImageFormat.RGB, 255, True, id="rgb_sem_alpha_sempre_opaco"),
     ],
 )
-def test_generate_opacity_mask_formatos_e_preenchimento(img_format, fill_value, is_expected_opaque):
+def test_generate_opacity_mask_formatos_e_preenchimento(
+    img_format, fill_value, is_expected_opaque
+):
     """Valida se a máscara de oclusão 32x32 identifica corretamente imagens sólidas e transparentes."""
     img = make_solid_image((100, 100), img_format, fill_value=fill_value)
-    mask = generate_opacity_mask(img, Region.from_size(
-        100, 100), (100, 100), target_size=(32, 32))
+    mask = generate_opacity_mask(
+        img, Region.from_size(100, 100), (100, 100), target_size=(32, 32)
+    )
 
     assert mask.shape == (32, 32)
     assert bool(np.all(mask == 255)) is is_expected_opaque
@@ -124,8 +145,9 @@ def test_generate_opacity_mask_pixel_com_transparencia_minima():
     data[50, 50, 3] = 254
     img = Image(data, ImageFormat.RGBA)
 
-    mask = generate_opacity_mask(img, Region.from_size(
-        100, 100), (100, 100), target_size=(32, 32))
+    mask = generate_opacity_mask(
+        img, Region.from_size(100, 100), (100, 100), target_size=(32, 32)
+    )
 
     assert mask.shape == (32, 32)
     assert not np.all(mask == 255)
@@ -137,8 +159,9 @@ def test_generate_opacity_mask_spatial_mapping():
     region = Region.from_rect(200, 400, 200, 200)
     viewport_size = (800, 800)
 
-    mask = generate_opacity_mask(img, render_region=region,
-                                 viewport_size=viewport_size, target_size=(32, 32))
+    mask = generate_opacity_mask(
+        img, render_region=region, viewport_size=viewport_size, target_size=(32, 32)
+    )
 
     expected_mask = np.zeros((32, 32), dtype=np.uint8)
     expected_mask[16:24, 8:16] = 255
@@ -151,20 +174,29 @@ def test_generate_opacity_mask_spatial_mapping():
 # Oclusão e Early-Exit na Cena (SceneTraverser / render_scene)
 # ==============================================================================
 
+
 @pytest.mark.parametrize(
     "layer_configs, expected_rendered_count",
     [
-        pytest.param([(1.0, 0), (1.0, 0)], 2,
-                     id="sem_oclusao_todas_camadas_renderizadas"),
-        pytest.param([(1.0, 0), (1.0, 255)], 1,
-                     id="oclusao_total_pelo_topo_interrompe_abaixo"),
-        pytest.param([(1.0, 0), (1.0, 255), (1.0, 0)], 2,
-                     id="oclusao_pelo_meio_renderiza_topo_e_meio"),
-        pytest.param([(1.0, 0), (0.9, 229)], 2,
-                     id="topo_semi_transparente_nao_interrompe"),
+        pytest.param(
+            [(1.0, 0), (1.0, 0)], 2, id="sem_oclusao_todas_camadas_renderizadas"
+        ),
+        pytest.param(
+            [(1.0, 0), (1.0, 255)], 1, id="oclusao_total_pelo_topo_interrompe_abaixo"
+        ),
+        pytest.param(
+            [(1.0, 0), (1.0, 255), (1.0, 0)],
+            2,
+            id="oclusao_pelo_meio_renderiza_topo_e_meio",
+        ),
+        pytest.param(
+            [(1.0, 0), (0.9, 229)], 2, id="topo_semi_transparente_nao_interrompe"
+        ),
     ],
 )
-def test_render_scene_culling_por_oclusao(mocker, layer_configs, expected_rendered_count):
+def test_render_scene_culling_por_oclusao(
+    mocker, layer_configs, expected_rendered_count
+):
     """Valida se o SceneTraverser realiza early-exit conservador ao atingir 100% de oclusão."""
     viewport = Viewport((800, 600), 1.0)
     vr = ViewportRender()
@@ -192,20 +224,42 @@ def test_render_scene_culling_por_oclusao(mocker, layer_configs, expected_render
 # Projeções e Recortes de Edits (render_edit e render_image)
 # ==============================================================================
 
+
 @pytest.mark.parametrize(
     "canvas_rect, is_local, expected_dest_rect, sample_point, expected_color_name",
     [
-        pytest.param((0, 0, 100, 100), True, (80, 40, 20, 20),
-                     (5, 5), "yellow", id="local_sem_recorte"),
-        pytest.param((40, 0, 20, 10), True, (0, 0, 10, 20),
-                     (5, 5), "red", id="local_com_recorte"),
-        pytest.param((0, 0, 100, 100), False, (40, 0, 20, 20),
-                     (5, 5), "red", id="global_sem_recorte"),
-        pytest.param((40, 0, 20, 10), False, (0, 0, 20, 10),
-                     (5, 5), "red", id="global_com_recorte"),
+        pytest.param(
+            (0, 0, 100, 100),
+            True,
+            (80, 40, 20, 20),
+            (5, 5),
+            "yellow",
+            id="local_sem_recorte",
+        ),
+        pytest.param(
+            (40, 0, 20, 10), True, (0, 0, 10, 20), (5, 5), "red", id="local_com_recorte"
+        ),
+        pytest.param(
+            (0, 0, 100, 100),
+            False,
+            (40, 0, 20, 20),
+            (5, 5),
+            "red",
+            id="global_sem_recorte",
+        ),
+        pytest.param(
+            (40, 0, 20, 10),
+            False,
+            (0, 0, 20, 10),
+            (5, 5),
+            "red",
+            id="global_com_recorte",
+        ),
     ],
 )
-def test_render_edit_canvas_frame_projecoes_e_recortes(canvas_rect, is_local, expected_dest_rect, sample_point, expected_color_name):
+def test_render_edit_canvas_frame_projecoes_e_recortes(
+    canvas_rect, is_local, expected_dest_rect, sample_point, expected_color_name
+):
     """Valida a projeção e o recorte espacial de um EditLayer sob coordenadas locais e globais do CanvasFrame."""
     layer = Layer(Image.new((100, 100), ImageFormat.RGBA))
     layer.set_transform(TransformRel().rotate(-90))
@@ -222,7 +276,8 @@ def test_render_edit_canvas_frame_projecoes_e_recortes(canvas_rect, is_local, ex
     warped_image, dest_region = result
     assert dest_region == Region.from_rect(*expected_dest_rect)
     np.testing.assert_array_equal(
-        warped_image[sample_point[1], sample_point[0]], colors[expected_color_name])
+        warped_image[sample_point[1], sample_point[0]], colors[expected_color_name]
+    )
 
 
 def test_render_edit_com_viewport_frame():
@@ -262,6 +317,7 @@ def test_render_image_direto():
 # ==============================================================================
 # Travessia e Culling de Hierarquia (SceneTraverser)
 # ==============================================================================
+
 
 def test_scene_traverser_recursivo_com_culling(mocker):
     """Valida a travessia recursiva de SceneTraverser em grupos e a interrupção por oclusão."""
@@ -336,6 +392,7 @@ def test_scene_traverser_ignora_tudo_se_raiz_for_invisivel():
 # Casos de Borda: Culling Total e Recortes de Borda no Renderizador
 # ==============================================================================
 
+
 def test_canvas_render_area_culling_total_retorna_none(mocker):
     """Valida se CanvasRender.render_area descarta camadas fora do Canvas retornando None sem invocar warp_patch."""
     spy_patch = mocker.spy(anicrop.render, "warp_patch")
@@ -353,17 +410,28 @@ def test_canvas_render_area_culling_total_retorna_none(mocker):
 @pytest.mark.parametrize(
     "layer_rect, canvas_size, expected_size",
     [
-        pytest.param((-40, -30, 100, 100), (500, 500), (60, 70),
-                     id="recorte_topo_esquerdo_coords_negativas"),
-        pytest.param((450, 470, 100, 100), (500, 500), (50, 30),
-                     id="recorte_base_direita_limite_canvas"),
+        pytest.param(
+            (-40, -30, 100, 100),
+            (500, 500),
+            (60, 70),
+            id="recorte_topo_esquerdo_coords_negativas",
+        ),
+        pytest.param(
+            (450, 470, 100, 100),
+            (500, 500),
+            (50, 30),
+            id="recorte_base_direita_limite_canvas",
+        ),
     ],
 )
-def test_canvas_render_area_recorte_parcial_retorna_dimensao_exata(layer_rect, canvas_size, expected_size):
+def test_canvas_render_area_recorte_parcial_retorna_dimensao_exata(
+    layer_rect, canvas_size, expected_size
+):
     """Valida se CanvasRender.render_area recorta e retorna o retalho com a dimensão visível exata."""
     canvas = Canvas.from_size(*canvas_size)
-    layer = make_layer(w=layer_rect[2], h=layer_rect[3],
-                       x=layer_rect[0], y=layer_rect[1])
+    layer = make_layer(
+        w=layer_rect[2], h=layer_rect[3], x=layer_rect[0], y=layer_rect[1]
+    )
     frame = CanvasFrame(layer, canvas)
 
     renderer = CanvasRender()
@@ -376,6 +444,7 @@ def test_canvas_render_area_recorte_parcial_retorna_dimensao_exata(layer_rect, c
 # ==============================================================================
 # Casos de Borda: GroupLayer Vazio e Filhos Fora da Tela (SceneTraverser)
 # ==============================================================================
+
 
 def test_scene_traverser_grupo_vazio_retorna_lista_vazia():
     """Valida se o SceneTraverser descarta imediatamente um GroupLayer sem camadas filhas."""
@@ -403,6 +472,7 @@ def test_scene_traverser_grupo_com_todos_filhos_fora_da_tela_retorna_lista_vazia
 # ==============================================================================
 # Otimização: Fast-Path para Translação Pura (Bypass de warp_patch)
 # ==============================================================================
+
 
 @pytest.mark.parametrize(
     "tx, ty",
@@ -594,7 +664,9 @@ def test_render_single_edit_full_frame_returns_direct_image():
     renderer = CanvasRender()
     frame = CanvasFrame(layer, Canvas.from_size(100, 80))
 
-    result = renderer._render_single_edit(layer.edits[0], layer.format, frame, InterpMode.LANCZOS)
+    result = renderer._render_single_edit(
+        layer.edits[0], layer.format, frame, InterpMode.LANCZOS
+    )
 
     assert result is not None
     assert result.size == (100, 80)
@@ -604,13 +676,19 @@ def test_render_single_edit_full_frame_returns_direct_image():
 def test_render_single_edit_partial_patch_blends_into_layer_image():
     """Valida se _render_single_edit compõe no layer_image quando o patch do edit é menor que a camada."""
     layer = make_layer(w=100, h=100, color=(0, 0, 0, 0))
-    patch_img = Image(np.full((40, 40, 4), (0, 255, 0, 255), dtype=np.uint8), ImageFormat.RGBA)
-    patch_edit = EditLayer(patch_img, Region.from_rect(30, 30, 40, 40), np.identity(3, dtype=np.float32))
+    patch_img = Image(
+        np.full((40, 40, 4), (0, 255, 0, 255), dtype=np.uint8), ImageFormat.RGBA
+    )
+    patch_edit = EditLayer(
+        patch_img, Region.from_rect(30, 30, 40, 40), np.identity(3, dtype=np.float32)
+    )
 
     renderer = CanvasRender()
     frame = CanvasFrame(layer, Canvas.from_size(100, 100))
 
-    result = renderer._render_single_edit(patch_edit, layer.format, frame, InterpMode.LANCZOS)
+    result = renderer._render_single_edit(
+        patch_edit, layer.format, frame, InterpMode.LANCZOS
+    )
 
     assert result is not None
     assert result.size == (100, 100)
@@ -648,7 +726,9 @@ def test_render_single_edit_preserves_image_format(fmt, color):
     renderer = CanvasRender()
     frame = CanvasFrame(layer, Canvas.from_size(60, 40))
 
-    result = renderer._render_single_edit(layer.edits[0], layer.format, frame, InterpMode.LANCZOS)
+    result = renderer._render_single_edit(
+        layer.edits[0], layer.format, frame, InterpMode.LANCZOS
+    )
 
     assert result is not None
     assert result.format == fmt
@@ -709,7 +789,9 @@ def test_render_container_com_bg_color():
     l1.transform.translate(50, 50)
 
     renderer = CanvasRender()
-    result = renderer.render_container([l1], format=ImageFormat.RGBA, bg_color=(0, 255, 0, 255))
+    result = renderer.render_container(
+        [l1], format=ImageFormat.RGBA, bg_color=(0, 255, 0, 255)
+    )
 
     assert result is not None
     assert result.size == (50, 50)

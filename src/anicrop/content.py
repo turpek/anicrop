@@ -45,7 +45,9 @@ class LayerContent(ContentStrategy):
         height: int,
     ) -> bool:
         if width <= 0 or height <= 0:
-            raise ValueError(f"Dimensões inválidas para resize: ({width}, {height}). Devem ser positivas.")
+            raise ValueError(
+                f"Dimensões inválidas para resize: ({width}, {height}). Devem ser positivas."
+            )
 
         cur_w, cur_h = self.target.global_region.size
         if (cur_w, cur_h) == (width, height):
@@ -115,13 +117,17 @@ class FitContext:
     @property
     def fit_contain(self) -> tuple[AbstractLayer, Region]:
         """Calcula o enquadramento proporcional 'contain' e retorna (target, ref_resolvida)."""
-        resolved = self.target.global_region.fit_contain(self.ref_region, self.x_factor, self.y_factor)
+        resolved = self.target.global_region.fit_contain(
+            self.ref_region, self.x_factor, self.y_factor
+        )
         return self.target, resolved
 
     @property
     def fit_cover(self) -> tuple[AbstractLayer, Region]:
         """Calcula o enquadramento proporcional 'cover' e retorna (target, ref_resolvida)."""
-        resolved = self.target.global_region.fit_cover(self.ref_region, self.x_factor, self.y_factor)
+        resolved = self.target.global_region.fit_cover(
+            self.ref_region, self.x_factor, self.y_factor
+        )
         return self.target, resolved
 
     @property

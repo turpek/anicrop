@@ -54,6 +54,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from anicrop.enums import AxisType, MeanMethod, SenseType
 
+
 @dataclass(frozen=True)
 class StitchConfig:
     files: list[Path]
@@ -77,21 +78,33 @@ class StitchConfig:
 from typing import Protocol, Any
 import numpy as np
 
+
 class ShiftEstimator(Protocol):
-    def estimate_shift(self, matches: list[Any], method: MeanMethod) -> tuple[float, float]:
-        ...
+    def estimate_shift(
+        self, matches: list[Any], method: MeanMethod
+    ) -> tuple[float, float]: ...
+
 
 class VerticalShiftEstimator:
-    def estimate_shift(self, matches: list[Any], method: MeanMethod) -> tuple[float, float]:
+    def estimate_shift(
+        self, matches: list[Any], method: MeanMethod
+    ) -> tuple[float, float]:
         return 0.0, calculate_mean(matches, method, axis="y")
 
+
 class HorizontalShiftEstimator:
-    def estimate_shift(self, matches: list[Any], method: MeanMethod) -> tuple[float, float]:
+    def estimate_shift(
+        self, matches: list[Any], method: MeanMethod
+    ) -> tuple[float, float]:
         return calculate_mean(matches, method, axis="x"), 0.0
 
+
 class MixedShiftEstimator:
-    def estimate_shift(self, matches: list[Any], method: MeanMethod) -> tuple[float, float]:
+    def estimate_shift(
+        self, matches: list[Any], method: MeanMethod
+    ) -> tuple[float, float]:
         return calculate_mean(matches, method, axis="xy")
+
 
 AXIS_ESTIMATORS: dict[AxisType, type[ShiftEstimator]] = {
     AxisType.VERTICAL: VerticalShiftEstimator,
@@ -112,9 +125,9 @@ class StitchContext:
     matrices: list[np.ndarray] = field(default_factory=list)
     result_document: Document | None = None
 
+
 class PipelineStep(Protocol):
-    def execute(self, context: StitchContext) -> None:
-        ...
+    def execute(self, context: StitchContext) -> None: ...
 ```
 
 ---
@@ -130,13 +143,17 @@ class StitchPipelineBuilder:
         # Etapas do Pipeline
         pipeline.add_step(ImageLoaderStep(config.files))
         pipeline.add_step(FeatureMatchingStep(config.num_keypoints))
-        
+
         # Despacho via Registry sem IF/ELSE
         estimator_cls = AXIS_ESTIMATORS[config.axis]
-        pipeline.add_step(ShiftEstimationStep(estimator=estimator_cls(), method=config.mean_method))
+        pipeline.add_step(
+            ShiftEstimationStep(estimator=estimator_cls(), method=config.mean_method)
+        )
 
         if config.rotate_threshold is not None and config.rotate_threshold > 0:
-            pipeline.add_step(RotationCompensationStep(threshold=config.rotate_threshold))
+            pipeline.add_step(
+                RotationCompensationStep(threshold=config.rotate_threshold)
+            )
 
         if config.border_trim > 0:
             pipeline.add_step(BorderTrimStep(border_px=config.border_trim))
@@ -156,17 +173,18 @@ from anicrop.layer import Layer
 from anicrop.image import Image
 from anicrop.enums import ImageFormat
 
+
 class AnicropCompositorStep:
     def execute(self, context: StitchContext) -> None:
         doc = Document("StitchPanorama", width=1920, height=1080, history=False)
 
         for img_data, matrix in zip(context.images, context.matrices):
             layer = doc.add(Layer(Image(img_data, ImageFormat.RGBA)))
-            
+
             # Aplica translação e rotação acumulada
             dx, dy = int(round(matrix[0, 2])), int(round(matrix[1, 2]))
             layer.transform.translate(dx, dy)
-            
+
             if has_rotation(matrix):
                 angle = extract_angle(matrix)
                 layer.transform.rotate(angle)

@@ -38,28 +38,30 @@ Ao desenhar a pilha de layers (`LayerStack`), percorremos de cima para baixo (do
 ### Algoritmo Front-to-Back de Varredura
 
 ```python
-def resolver_layers_visiveis(layers: list[Layer], viewport_region: Region) -> list[Layer]:
+def resolver_layers_visiveis(
+    layers: list[Layer], viewport_region: Region
+) -> list[Layer]:
     layers_a_desenhar = []
-    
+
     # Varremos do topo (mais visível) para o fundo
     for layer in reversed(layers):
         layers_a_desenhar.append(layer)
-        
+
         # Critérios para oclusão total:
         # 1. Modo de mesclagem NORMAL (substitui o fundo)
         # 2. Opacidade 100% (1.0)
         # 3. O layer cobre toda a viewport
         # 4. A miniatura de opacidade indica 100% de cobertura opaca
         if (
-            layer.blend_mode == BlendMode.NORMAL 
-            and layer.opacity == 1.0 
+            layer.blend_mode == BlendMode.NORMAL
+            and layer.opacity == 1.0
             and layer.canvas_region.contains(viewport_region)
             and verificar_cobertura_opaca(layer, viewport_region)
         ):
             # Encontramos um layer totalmente opaco que tampa a visão.
             # Ignoramos todos os layers que estão abaixo dele na pilha.
             break
-            
+
     return list(reversed(layers_a_desenhar))
 ```
 
@@ -80,18 +82,21 @@ Um pixel na miniatura só será considerado $255$ (totalmente opaco) se **todos*
 ```python
 import numpy as np
 
-def gerar_miniatura_alpha_conservadora(alpha_original: np.ndarray, target_size: tuple[int, int] = (32, 32)) -> np.ndarray:
+
+def gerar_miniatura_alpha_conservadora(
+    alpha_original: np.ndarray, target_size: tuple[int, int] = (32, 32)
+) -> np.ndarray:
     h, w = alpha_original.shape[:2]
     th, tw = target_size
-    
+
     block_h = h // th
     block_w = w // tw
-    
+
     # Trunca para ser múltiplo exato
     truncated_h = block_h * th
     truncated_w = block_w * tw
     crop_alpha = alpha_original[:truncated_h, :truncated_w]
-    
+
     # Reshape para agrupar em blocos e tira o mínimo nos eixos internos dos blocos
     reshaped = crop_alpha.reshape(th, block_h, tw, block_w)
     return np.min(reshaped, axis=(1, 3))
@@ -102,17 +107,20 @@ def gerar_miniatura_alpha_conservadora(alpha_original: np.ndarray, target_size: 
 import cv2
 import numpy as np
 
-def gerar_miniatura_opencv(alpha_original: np.ndarray, target_size: tuple[int, int] = (32, 32)) -> np.ndarray:
+
+def gerar_miniatura_opencv(
+    alpha_original: np.ndarray, target_size: tuple[int, int] = (32, 32)
+) -> np.ndarray:
     h, w = alpha_original.shape[:2]
     th, tw = target_size
-    
+
     kernel_h = max(1, h // th)
     kernel_w = max(1, w // tw)
     kernel = np.ones((kernel_h, kernel_w), dtype=np.uint8)
-    
+
     # A erosão propaga os pixels de menor opacidade (mais escuros)
     eroded_alpha = cv2.erode(alpha_original, kernel)
-    
+
     # Amostra via vizinho mais próximo
     return cv2.resize(eroded_alpha, target_size, interpolation=cv2.INTER_NEAREST)
 ```

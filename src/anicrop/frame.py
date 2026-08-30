@@ -28,11 +28,11 @@ class SurfaceProtocol(Protocol):
 
     @property
     def region(self) -> Region:
-        ...
+        pass
 
     @property
     def size(self) -> tuple[int, int]:
-        ...
+        pass
 
 
 def calculate_mask_rect(mask: Mask | None, matrix: np.ndarray) -> Region | None:
@@ -43,7 +43,6 @@ def calculate_mask_rect(mask: Mask | None, matrix: np.ndarray) -> Region | None:
 
 
 class BaseFrame(ABC):
-
     def __init__(
         self,
         base: BaseLayer,
@@ -62,7 +61,9 @@ class BaseFrame(ABC):
         self._src_region = self._source_region(self.bounds, self.dst_region)
 
     def _render_region(
-        self, final_region: Region, view_region: Region | None,
+        self,
+        final_region: Region,
+        view_region: Region | None,
     ) -> Region | None:
 
         if view_region is None:
@@ -145,7 +146,9 @@ class BaseFrame(ABC):
         if self._dst_region is None:
             return None
 
-        buffer_region = self._view_region if self._view_region is not None else self.surface.region
+        buffer_region = (
+            self._view_region if self._view_region is not None else self.surface.region
+        )
 
         if buffer_region.overlaps(self._dst_region):
             return buffer_region.overlap_with(self._dst_region)
@@ -181,7 +184,9 @@ class ViewportFrame(BaseFrame):
         bounds = rect_to_region(calculate_new_rect(matrix, base.region.size))
         bounds = self._expand_bounds(bounds, base)
 
-        super().__init__(base, bounds, view_region, effective_view, matrix=matrix, surface=viewport)
+        super().__init__(
+            base, bounds, view_region, effective_view, matrix=matrix, surface=viewport
+        )
 
 
 class CanvasFrame(BaseFrame):
@@ -216,4 +221,6 @@ class CanvasFrame(BaseFrame):
 
         bounds = self._expand_bounds(bounds, base)
 
-        super().__init__(base, bounds, view_region, view_target, matrix=matrix, surface=canvas)
+        super().__init__(
+            base, bounds, view_region, view_target, matrix=matrix, surface=canvas
+        )

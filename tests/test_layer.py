@@ -18,8 +18,12 @@ def make_region(w=3, h=3, offset=0):
 
 def make_image(w=W, h=H, channel=4, color=None):
     channels = {
-        1: ImageFormat.GRAY, 2: ImageFormat.GRAY_ALPHA, 3: ImageFormat.RGB,
-        4: ImageFormat.RGBA, -4: ImageFormat.CMYK, 5: ImageFormat.CMYK_ALPHA
+        1: ImageFormat.GRAY,
+        2: ImageFormat.GRAY_ALPHA,
+        3: ImageFormat.RGB,
+        4: ImageFormat.RGBA,
+        -4: ImageFormat.CMYK,
+        5: ImageFormat.CMYK_ALPHA,
     }
     if color:
         return Image.new((h, w), channels.get(channel), color=color)
@@ -47,6 +51,7 @@ def test_EditLayer_inicializacao(image, identity_matrix):
     assert edit.blend_mode == BlendMode.NORMAL
     assert edit.image is image
 
+
 # ############################# Teste da classe Layer (Originais) #############################################
 
 
@@ -70,7 +75,7 @@ def test_layer_inserido_em_grupo_herda_transformacoes_do_pai(image):
 
 def test_Layer_inicializando_com_valores_padroes(image):
     layer = Layer(image)
-    assert layer.name == 'Layer'
+    assert layer.name == "Layer"
     assert layer.opacity == 1.0
     assert layer.blend_mode == BlendMode.NORMAL
     assert layer.region == Region.from_size(10, 10)
@@ -78,8 +83,8 @@ def test_Layer_inicializando_com_valores_padroes(image):
 
 
 def test_Layer_inicializando_com_parametros(image):
-    layer = Layer(image, opacity=0.8, blend_mode=BlendMode.MULTIPLY, name='Picture')
-    assert layer.name == 'Picture'
+    layer = Layer(image, opacity=0.8, blend_mode=BlendMode.MULTIPLY, name="Picture")
+    assert layer.name == "Picture"
     assert layer.opacity == 0.8
     assert layer.blend_mode == BlendMode.MULTIPLY
     assert layer.region == Region.from_size(10, 10)
@@ -115,11 +120,12 @@ def test_Layer_atribuindo_valor_qualquer_ao_region(image):
 
 def test_Layer_name_mudanca_valor(image):
     layer = Layer(image)
-    layer.name = 'Picture'
-    assert layer.name == 'Picture'
+    layer.name = "Picture"
+    assert layer.name == "Picture"
 
 
 # ############################# Testes para add_edit (Novos) #####################################
+
 
 def test_Layer_add_edit_cria_e_adiciona_edit_layer(image):
     layer = Layer(image)
@@ -153,11 +159,9 @@ def test_Layer_add_edit_calcula_inversa_corretamente(image):
 
     # Matriz global esperada: Translação(10, 20)
     # Inversa esperada: Translação(-10, -20)
-    expected_inv = np.array([
-        [1., 0., -10.],
-        [0., 1., -20.],
-        [0., 0., 1.]
-    ], dtype=np.float32)
+    expected_inv = np.array(
+        [[1.0, 0.0, -10.0], [0.0, 1.0, -20.0], [0.0, 0.0, 1.0]], dtype=np.float32
+    )
 
     np.testing.assert_array_almost_equal(edit.matrix, expected_inv)
 
@@ -170,19 +174,24 @@ def test_Layer_add_edit_usa_blend_mode_passado(image):
 
 # ############################# Testes de Invalidação de Cache (TDD) #####################################
 
+
 def test_layer_cache_initial_state(image):
     """Cenário 1: Layer recém-instanciado deve retornar ALL."""
     layer = Layer(image)
     assert layer._resolve_render() & RenderFlags.ALL_DIRTY
 
 
-@pytest.mark.parametrize("update_fn", [
-    lambda layer: setattr(layer, 'x', layer.x.start + 10),
-    lambda layer: setattr(layer, 'y', layer.y.start + 10),
-    lambda layer: setattr(layer, 'region', layer.region + (5, 5)),
-    lambda layer: layer.transform.translate(10, 10),
-    lambda layer: layer.set_transform(TransformRel().translate(10, 10))
-], ids=["set_x", "set_y", "set_reg", "tr_trans", "st_trans"])
+@pytest.mark.parametrize(
+    "update_fn",
+    [
+        lambda layer: setattr(layer, "x", layer.x.start + 10),
+        lambda layer: setattr(layer, "y", layer.y.start + 10),
+        lambda layer: setattr(layer, "region", layer.region + (5, 5)),
+        lambda layer: layer.transform.translate(10, 10),
+        lambda layer: layer.set_transform(TransformRel().translate(10, 10)),
+    ],
+    ids=["set_x", "set_y", "set_reg", "tr_trans", "st_trans"],
+)
 def test_layer_cache_translation(image, update_fn):
     """Cenário 2: Translação pura deve retornar POSITION."""
     layer = Layer(image)
@@ -192,10 +201,14 @@ def test_layer_cache_translation(image, update_fn):
     assert layer._resolve_render() & RenderFlags.POSITION
 
 
-@pytest.mark.parametrize("update_fn", [
-    lambda layer: layer.transform.rotate(45),
-    lambda layer: layer.set_transform(TransformRel().rotate(45))
-], ids=["tr_rot", "st_rot"])
+@pytest.mark.parametrize(
+    "update_fn",
+    [
+        lambda layer: layer.transform.rotate(45),
+        lambda layer: layer.set_transform(TransformRel().rotate(45)),
+    ],
+    ids=["tr_rot", "st_rot"],
+)
 def test_layer_cache_rotation(image, update_fn):
     """Cenário 3: Rotação deve retornar PIXELS."""
     layer = Layer(image)
@@ -205,10 +218,14 @@ def test_layer_cache_rotation(image, update_fn):
     assert layer._resolve_render() & RenderFlags.PIXELS
 
 
-@pytest.mark.parametrize("update_fn", [
-    lambda layer: layer.transform.scale(2.0, 2.0),
-    lambda layer: layer.set_transform(TransformRel().scale(2.0, 2.0))
-], ids=["tr_scal", "st_scal"])
+@pytest.mark.parametrize(
+    "update_fn",
+    [
+        lambda layer: layer.transform.scale(2.0, 2.0),
+        lambda layer: layer.set_transform(TransformRel().scale(2.0, 2.0)),
+    ],
+    ids=["tr_scal", "st_scal"],
+)
 def test_layer_cache_scale(image, update_fn):
     """Cenário 4: Escala deve retornar PIXELS."""
     layer = Layer(image)
@@ -262,6 +279,7 @@ def test_layer_resolve_dirty_nao_deve_ser_acumulativo(image):
 
 # ############################# Testes de Modo de Projeção (WarpMode) #####################################
 
+
 def test_layer_warp_mode_is_affine_even_with_translation(mocker, image):
     """Garante que translação pura ainda utiliza o motor AFFINE (Afim)."""
     # Matriz com Translação forte, mas última linha intacta [0, 0, 1]
@@ -298,21 +316,22 @@ def test_layer_snapshot_completeness(image):
     forçando o desenvolvedor a tomar uma decisão arquitetural (salvar ou ignorar).
     """
     from anicrop.command import BaseLayerSnapshot
+
     layer = Layer(image)
 
     layer_attributes = set(vars(layer).keys())
 
     # Atributos estáticos, de infraestrutura ou de cache que não representam estado de edição
     IGNORED_ATTRIBUTES = {
-        '_id',
-        '_old_matrix',
-        '_render_flags',
-        '_warp_mode',
-        'parent',
-        '_parent_inverse',
-        '_reference',
-        '_content',
-        '_layout',
+        "_id",
+        "_old_matrix",
+        "_render_flags",
+        "_warp_mode",
+        "parent",
+        "_parent_inverse",
+        "_reference",
+        "_content",
+        "_layout",
     }
 
     base_snapshot = BaseLayerSnapshot(layer)
@@ -320,9 +339,9 @@ def test_layer_snapshot_completeness(image):
     # Mapeia as chaves do BaseLayerSnapshot
     snapshot_attributes = set()
     for attr in vars(base_snapshot).keys():
-        if attr.startswith('_') and attr != '_item':
+        if attr.startswith("_") and attr != "_item":
             key = attr[1:]
-            if hasattr(layer, f"_{key}") and key != 'visible':
+            if hasattr(layer, f"_{key}") and key != "visible":
                 snapshot_attributes.add(f"_{key}")
             else:
                 snapshot_attributes.add(key)
@@ -332,10 +351,14 @@ def test_layer_snapshot_completeness(image):
     snapshot_attributes.add("_opacity_mask")
 
     missing_attributes = layer_attributes - snapshot_attributes - IGNORED_ATTRIBUTES
-    assert not missing_attributes, f"NOVO ESTADO DETECTADO: Atributos {missing_attributes} foram adicionados ao Layer mas não estão sendo salvos nos Snapshots!"
+    assert not missing_attributes, (
+        f"NOVO ESTADO DETECTADO: Atributos {missing_attributes} foram adicionados ao Layer mas não estão sendo salvos nos Snapshots!"
+    )
 
     stale_attributes = snapshot_attributes - layer_attributes
-    assert not stale_attributes, f"LIXO DETECTADO: Os Snapshots estão salvando propriedades {stale_attributes} que não existem mais no Layer!"
+    assert not stale_attributes, (
+        f"LIXO DETECTADO: Os Snapshots estão salvando propriedades {stale_attributes} que não existem mais no Layer!"
+    )
 
 
 def test_layer_transform_rotate_pivot_respects_layout_fit_region():
@@ -368,7 +391,9 @@ def test_layer_layout_bound_api():
     assert result_fit is True
     assert layer.global_region == Region.from_rect(0, 0, 80, 80)
 
-    result_align = layer.layout.align(Region.from_rect(0, 0, 200, 200), anchor_x=1.0, anchor_y=1.0)
+    result_align = layer.layout.align(
+        Region.from_rect(0, 0, 200, 200), anchor_x=1.0, anchor_y=1.0
+    )
     assert result_align is True
     assert layer.global_region == Region.from_rect(120, 120, 80, 80)
 
@@ -410,11 +435,14 @@ def test_layer_add_edit_with_global_matrix():
     edit_img = Image.new((40, 40), ImageFormat.RGBA)
     edit_region = Region.from_rect(10, 10, 40, 40)
 
-    global_mat = np.array([
-        [2.0, 0.0, 100.0],
-        [0.0, 2.0, 150.0],
-        [0.0, 0.0, 1.0],
-    ], dtype=np.float32)
+    global_mat = np.array(
+        [
+            [2.0, 0.0, 100.0],
+            [0.0, 2.0, 150.0],
+            [0.0, 0.0, 1.0],
+        ],
+        dtype=np.float32,
+    )
 
     edit = layer.add_edit(edit_img, edit_region, global_matrix=global_mat)
 
@@ -469,3 +497,9 @@ def test_layer_init_with_image_creates_initial_edit():
     assert layer.region == Region.from_size(50, 60)
     assert len(layer.edits) == 1
     assert layer.edits[0].image is img
+
+
+def test_layer_init_invalid_target_raises_error():
+    """Valida que passar um target invalido para Layer dispara erro de resolucao do ovld."""
+    with pytest.raises(Exception):
+        Layer(123)  # type: ignore[call-overload]

@@ -79,7 +79,9 @@ from anicrop.composition import flatten
 from anicrop.enums import ImageFormat, InterpMode
 
 # Achata as camadas em uma única camada rasterizada
-flat_layer = flatten([layer_fundo, layer_efeito], name="FundoAssado", interp=InterpMode.LANCZOS)
+flat_layer = flatten(
+    [layer_fundo, layer_efeito], name="FundoAssado", interp=InterpMode.LANCZOS
+)
 ```
 
 ---

@@ -13,15 +13,15 @@ class Effect(Protocol):
 
     def get_padding(self) -> tuple[int, int, int, int]:
         """Retorna a margem extra (top, right, bottom, left) necessária para efeitos de expansão."""
-        ...
+        pass
 
     def apply(self, image: Image, matrix: np.ndarray) -> Image:
         """Processa e transforma o buffer de imagem recebendo a matriz espacial ativa."""
-        ...
+        pass
 
     def merge(self, other: Effect, matrix: np.ndarray) -> Effect | None:
         """Tenta combinar este efeito com outro, retornando o efeito unificado ou None."""
-        ...
+        pass
 
 
 class BoundEffect(Effect):
@@ -67,7 +67,9 @@ class BoundEffect(Effect):
 
         merged_inner = self.effect.merge(other.effect, matrix)
         if merged_inner is not None:
-            return BoundEffect(merged_inner, self.matrix, mask=self.mask, visible=self.visible)
+            return BoundEffect(
+                merged_inner, self.matrix, mask=self.mask, visible=self.visible
+            )
         return None
 
 

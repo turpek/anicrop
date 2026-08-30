@@ -31,12 +31,12 @@ if TYPE_CHECKING:
 @runtime_checkable
 class NodeContainerProtocol(Protocol):
     """Protocolo formal para qualquer elemento da árvore espacial/hierárquica."""
+
     parent: Container
     _parent_inverse: np.ndarray
 
 
 class NullContainer:
-
     def __init__(self):
         self.parent: AbstractContainer | NullContainer = self
         self._parent_inverse: np.ndarray = np.identity(3, dtype=np.float32)
@@ -49,14 +49,14 @@ class NullContainer:
 
     @_children.setter
     def _children(self, value: list) -> None:
-        ...
+        pass
 
     @property
     def matrix(self) -> np.ndarray:
         return self.__matrix
 
     def remove(self, item: BaseLayer) -> None:
-        ...
+        pass
 
 
 _NULL_CONTAINER = NullContainer()
@@ -100,7 +100,8 @@ class Container(NullContainer, AbstractContainer):
     def _check_and_remove_item(self, item: BaseLayer):
         if isinstance(item, LayerStack):
             raise TypeError(
-                "A LayerStack is a Root object and cannot be added as a child.")
+                "A LayerStack is a Root object and cannot be added as a child."
+            )
         if self is item:
             raise ValueError(f"Cannot add a {self.__class__.__name__} to itself")
         elif item in self._children:
@@ -168,7 +169,10 @@ class Container(NullContainer, AbstractContainer):
         idx_a = self._children.index(item_a)
         idx_b = self._children.index(item_b)
         if idx_a != idx_b:
-            self._children[idx_a], self._children[idx_b] = self._children[idx_b], self._children[idx_a]
+            self._children[idx_a], self._children[idx_b] = (
+                self._children[idx_b],
+                self._children[idx_a],
+            )
 
     def reverse(self, recursive: bool = False) -> None:
         """Reverse the order of children in this container in place."""
@@ -184,16 +188,14 @@ class Container(NullContainer, AbstractContainer):
 
 
 class BaseLayer(AbstractBaseLayer):
-
     def __init__(
         self,
         parent: NullContainer | Container | AbstractContainer | Any,
         geometry_cls: Callable[[Any, Region], GeometryStrategy],
         region: Region,
-
         opacity: float = 1.0,
         blend_mode: BlendMode = BlendMode.NORMAL,
-        name: str = 'BaseLayer',
+        name: str = "BaseLayer",
         format: ImageFormat = ImageFormat.RGBA,
     ):
         self.parent = parent
@@ -243,7 +245,9 @@ class BaseLayer(AbstractBaseLayer):
     ) -> Mask:
         """Cria e atribui a máscara da camada, vinculando a matriz inversa."""
         matrix = mat_inverse(mat_global(self))
-        self._mask = Mask(image, region, matrix, invert=invert, visible=visible, name=name)
+        self._mask = Mask(
+            image, region, matrix, invert=invert, visible=visible, name=name
+        )
         return self._mask
 
     def remove_mask(self) -> None:
@@ -273,7 +277,11 @@ class BaseLayer(AbstractBaseLayer):
 
     def remove_effect(self, effect: Effect) -> None:
         """Remove um efeito da camada."""
-        self._effects = [e for e in self._effects if e is not effect and getattr(e, "effect", None) is not effect]
+        self._effects = [
+            e
+            for e in self._effects
+            if e is not effect and getattr(e, "effect", None) is not effect
+        ]
 
     def clear_effects(self) -> None:
         """Remove todos os efeitos de pós-processamento da camada."""
@@ -352,22 +360,28 @@ class BaseLayer(AbstractBaseLayer):
 
 
 class LayerStack(Container):
-    ...
+    pass
 
 
 class GroupLayer(Container, BaseLayer, AbstractGroupLayer):
-
     def __init__(
         self,
         opacity: float = 1.0,
         blend_mode: BlendMode = BlendMode.NORMAL,
-        name: str = 'BaseLayer',
+        name: str = "BaseLayer",
         format: ImageFormat = ImageFormat.RGBA,
     ):
         region = Region.from_size(1, 1)
         Container.__init__(self)
         BaseLayer.__init__(
-            self, self.parent, GroupGeometry, region, opacity, blend_mode, name, format=format,
+            self,
+            self.parent,
+            GroupGeometry,
+            region,
+            opacity,
+            blend_mode,
+            name,
+            format=format,
         )
         self._layout = GroupLayoutStrategy(self)
 
@@ -400,7 +414,9 @@ class GroupLayer(Container, BaseLayer, AbstractGroupLayer):
         return self._layout
 
 
-def walk_nodes(root: BaseLayer | Container | Iterable[BaseLayer]) -> Generator[BaseLayer, None, None]:
+def walk_nodes(
+    root: BaseLayer | Container | Iterable[BaseLayer],
+) -> Generator[BaseLayer, None, None]:
     """Gera uma travessia preguiçosa de todos os nós a partir de uma raiz ou coleção (DFS)."""
     if isinstance(root, BaseLayer):
         yield root
@@ -411,17 +427,28 @@ def walk_nodes(root: BaseLayer | Container | Iterable[BaseLayer]) -> Generator[B
 
 
 @contextmanager
-def freeze_geometry(container: Container | Iterable[BaseLayer]) -> Generator[None, None, None]:
+def freeze_geometry(
+    container: Container | Iterable[BaseLayer],
+) -> Generator[None, None, None]:
     """Congela temporariamente o cálculo de matrizes e regiões com snapshot sob demanda para todos os nós."""
+
     def _toggle_freeze(enable: bool) -> None:
         for node in walk_nodes(container):
             for strategy in (node.control.base, node.control.frame):
                 strategy._cached_matrix = None
                 strategy._cached_region = None
                 strategy._cached_global_region = None
-                strategy._resolve_matrix = strategy._lazy_matrix if enable else strategy._direct_matrix
-                strategy._resolve_region = strategy._lazy_region if enable else strategy._direct_region
-                strategy._resolve_global_region = strategy._lazy_global_region if enable else strategy._direct_global_region
+                strategy._resolve_matrix = (
+                    strategy._lazy_matrix if enable else strategy._direct_matrix
+                )
+                strategy._resolve_region = (
+                    strategy._lazy_region if enable else strategy._direct_region
+                )
+                strategy._resolve_global_region = (
+                    strategy._lazy_global_region
+                    if enable
+                    else strategy._direct_global_region
+                )
 
     _toggle_freeze(True)
     try:

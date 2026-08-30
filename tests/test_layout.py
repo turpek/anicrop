@@ -19,7 +19,9 @@ from anicrop.spatial import Region
 from anicrop.transform import TransformRel
 
 
-def make_mock_image(size: tuple[int, int] = (100, 50), format: ImageFormat = ImageFormat.RGBA) -> Image:
+def make_mock_image(
+    size: tuple[int, int] = (100, 50), format: ImageFormat = ImageFormat.RGBA
+) -> Image:
     """Cria uma Image real cujo buffer interno (_data) é um MagicMock."""
     w, h = size
     mock_data = MagicMock(spec=np.ndarray)
@@ -46,24 +48,25 @@ def make_transformed_layer(
 
 
 @pytest.mark.parametrize(
-    'ref, expected_rect',
+    "ref, expected_rect",
     [
-        pytest.param((10, 20, 100, 50), (10, 20, 100, 50), id='tuple_rect'),
-        pytest.param(Region.from_rect(10, 20, 100, 50),
-                     (10, 20, 100, 50), id='region_object'),
+        pytest.param((10, 20, 100, 50), (10, 20, 100, 50), id="tuple_rect"),
+        pytest.param(
+            Region.from_rect(10, 20, 100, 50), (10, 20, 100, 50), id="region_object"
+        ),
         pytest.param(
             make_transformed_layer(x=30, y=40, w=100, h=50),
             (30, 40, 100, 50),
-            id='layer_no_rotation',
+            id="layer_no_rotation",
         ),
         pytest.param(
             make_transformed_layer(
                 x=0, y=0, w=100, h=50, transform=TransformRel().rotate(90)
             ),
             (25, -25, 50, 100),
-            id='layer_rotated_90',
+            id="layer_rotated_90",
         ),
-        pytest.param(Canvas.from_size(200, 150), (0, 0, 200, 150), id='canvas_object'),
+        pytest.param(Canvas.from_size(200, 150), (0, 0, 200, 150), id="canvas_object"),
     ],
 )
 def test_resolve_region(ref, expected_rect):
@@ -72,11 +75,11 @@ def test_resolve_region(ref, expected_rect):
 
 
 @pytest.mark.parametrize(
-    'ref, expect_global_rect',
+    "ref, expect_global_rect",
     [
-        pytest.param((10, 20, 100, 50), None, id='fit_equal_no_op'),
-        pytest.param((0, 0, 200, 200), (0, 0, 200, 200), id='fit_expansion'),
-        pytest.param((20, 30, 50, 30), (20, 30, 50, 30), id='fit_contraction'),
+        pytest.param((10, 20, 100, 50), None, id="fit_equal_no_op"),
+        pytest.param((0, 0, 200, 200), (0, 0, 200, 200), id="fit_expansion"),
+        pytest.param((20, 30, 50, 30), (20, 30, 50, 30), id="fit_contraction"),
     ],
 )
 def test_layout_fit(ref, expect_global_rect):
@@ -96,14 +99,16 @@ def test_layout_fit(ref, expect_global_rect):
 
 
 @pytest.mark.parametrize(
-    'ref, anchor_x, anchor_y, expect_rect',
+    "ref, anchor_x, anchor_y, expect_rect",
     [
-        pytest.param((0, 0, 200, 200), 0.0, 0.0, (0, 0, 100, 50), id='align_top_left'),
-        pytest.param((0, 0, 200, 200), 0.5, 0.5, (50, 75, 100, 50), id='align_center'),
-        pytest.param((0, 0, 200, 200), 1.0, 1.0,
-                     (100, 150, 100, 50), id='align_bottom_right'),
-        pytest.param((10, 20, 200, 200), 0.0, 0.0, None,
-                     id='align_already_aligned_no_op'),
+        pytest.param((0, 0, 200, 200), 0.0, 0.0, (0, 0, 100, 50), id="align_top_left"),
+        pytest.param((0, 0, 200, 200), 0.5, 0.5, (50, 75, 100, 50), id="align_center"),
+        pytest.param(
+            (0, 0, 200, 200), 1.0, 1.0, (100, 150, 100, 50), id="align_bottom_right"
+        ),
+        pytest.param(
+            (10, 20, 200, 200), 0.0, 0.0, None, id="align_already_aligned_no_op"
+        ),
     ],
 )
 def test_layout_align(ref, anchor_x, anchor_y, expect_rect):
@@ -146,16 +151,24 @@ def test_layout_align_layer_dentro_de_grupo_rotacionado():
 
 
 @pytest.mark.parametrize(
-    'ref, anchor_x, anchor_y, expected_global_rect',
+    "ref, anchor_x, anchor_y, expected_global_rect",
     [
-        pytest.param((0, 0, 400, 400), 0.0, 0.0,
-                     (0, 0, 200, 100), id='align_group_top_left'),
-        pytest.param((0, 0, 400, 400), 0.5, 0.5,
-                     (100, 150, 200, 100), id='align_group_center'),
-        pytest.param((0, 0, 400, 400), 1.0, 1.0, (200, 300, 200, 100),
-                     id='align_group_bottom_right'),
-        pytest.param((10, 20, 400, 400), 0.0, 0.0,
-                     (10, 20, 200, 100), id='align_group_no_op'),
+        pytest.param(
+            (0, 0, 400, 400), 0.0, 0.0, (0, 0, 200, 100), id="align_group_top_left"
+        ),
+        pytest.param(
+            (0, 0, 400, 400), 0.5, 0.5, (100, 150, 200, 100), id="align_group_center"
+        ),
+        pytest.param(
+            (0, 0, 400, 400),
+            1.0,
+            1.0,
+            (200, 300, 200, 100),
+            id="align_group_bottom_right",
+        ),
+        pytest.param(
+            (10, 20, 400, 400), 0.0, 0.0, (10, 20, 200, 100), id="align_group_no_op"
+        ),
     ],
 )
 def test_group_layout_align(ref, anchor_x, anchor_y, expected_global_rect):
@@ -174,18 +187,21 @@ def test_group_layout_align(ref, anchor_x, anchor_y, expected_global_rect):
 
 
 @pytest.mark.parametrize(
-    'new_w, new_h, anchor_x, anchor_y, expect_rect',
+    "new_w, new_h, anchor_x, anchor_y, expect_rect",
     [
-        pytest.param(200, 100, 0.5, 0.5, (-40, -5, 200, 100),
-                     id='resize_center_anchored'),
-        pytest.param(200, 100, 0.0, 0.0, (10, 20, 200, 100),
-                     id='resize_top_left_anchored'),
-        pytest.param(200, 100, 1.0, 1.0, (-90, -30, 200, 100),
-                     id='resize_bottom_right_anchored'),
-        pytest.param(200, 100, 0.25, 0.75, (-15, -18, 200, 100),
-                     id='resize_asymmetric_anchored'),
-
-        pytest.param(100, 50, 0.5, 0.5, None, id='resize_no_op'),
+        pytest.param(
+            200, 100, 0.5, 0.5, (-40, -5, 200, 100), id="resize_center_anchored"
+        ),
+        pytest.param(
+            200, 100, 0.0, 0.0, (10, 20, 200, 100), id="resize_top_left_anchored"
+        ),
+        pytest.param(
+            200, 100, 1.0, 1.0, (-90, -30, 200, 100), id="resize_bottom_right_anchored"
+        ),
+        pytest.param(
+            200, 100, 0.25, 0.75, (-15, -18, 200, 100), id="resize_asymmetric_anchored"
+        ),
+        pytest.param(100, 50, 0.5, 0.5, None, id="resize_no_op"),
     ],
 )
 def test_layout_resize_bounds(new_w, new_h, anchor_x, anchor_y, expect_rect):
@@ -193,7 +209,8 @@ def test_layout_resize_bounds(new_w, new_h, anchor_x, anchor_y, expect_rect):
     layout = Layout()
 
     result = layout.resize_bounds(
-        target, new_w, new_h, anchor_x=anchor_x, anchor_y=anchor_y)
+        target, new_w, new_h, anchor_x=anchor_x, anchor_y=anchor_y
+    )
 
     if expect_rect is None:
         assert result is False
@@ -213,13 +230,14 @@ def test_layout_resize_bounds_com_rotacao_90_deg():
 
 
 @pytest.mark.parametrize(
-    'edits_rect, expect_global_rect',
+    "edits_rect, expect_global_rect",
     [
-        pytest.param((10, 10, 40, 20), (20, 30, 40, 20), id='fit_content_contraction'),
-        pytest.param((-20, -10, 200, 150), (-10, 10, 200, 150),
-                     id='fit_content_expansion'),
-        pytest.param(None, None, id='fit_content_empty_no_edits'),
-        pytest.param((0, 0, 100, 50), None, id='fit_content_already_fitted_no_op'),
+        pytest.param((10, 10, 40, 20), (20, 30, 40, 20), id="fit_content_contraction"),
+        pytest.param(
+            (-20, -10, 200, 150), (-10, 10, 200, 150), id="fit_content_expansion"
+        ),
+        pytest.param(None, None, id="fit_content_empty_no_edits"),
+        pytest.param((0, 0, 100, 50), None, id="fit_content_already_fitted_no_op"),
     ],
 )
 def test_layout_fit_content(mocker, edits_rect, expect_global_rect):
@@ -233,7 +251,7 @@ def test_layout_fit_content(mocker, edits_rect, expect_global_rect):
         target._edits.clear()
         target._edits.append(edit_layer)
         mocker.patch(
-            'anicrop.layout.calculate_content_rect',
+            "anicrop.layout.calculate_content_rect",
             return_value=Region.from_rect(0, 0, edits_rect[2], edits_rect[3]),
         )
     else:
@@ -263,7 +281,7 @@ def test_layout_fit_content_apos_fit_preserva_tamanho_das_edicoes(mocker):
     layout.fit(layer, (0, 0, 200, 200))
 
     mocker.patch(
-        'anicrop.layout.calculate_content_rect',
+        "anicrop.layout.calculate_content_rect",
         return_value=Region.from_rect(0, 0, 100, 100),
     )
 
@@ -309,29 +327,40 @@ def test_layout_group_layer_fit_usa_fit_group_geometry():
     assert layer2.region == Region.from_rect(100, 50, 100, 50)
 
 
-@pytest.mark.parametrize("root_transform, sub_transform, ref_rect", [
-    (
-        TransformRel().translate(50, 50),
-        TransformRel().translate(30, 30),
-        (80, 80, 80, 80),
-    ),
-    (
-        TransformRel().translate(40, 60).scale(2.0, 2.0),
-        TransformRel().translate(20, 10).scale(1.0, 0.5),
-        (100, 120, 200, 150),
-    ),
-    (
-        TransformRel().translate(50, 50),
-        TransformRel().translate(30, 30).rotate(90),
-        (50, 50, 120, 120),
-    ),
-    (
-        TransformRel().translate(30, 40).scale(2.0, 2.0).rotate(180),
-        TransformRel().translate(20, 10).rotate(180),
-        (60, 70, 240, 180),
-    ),
-], ids=["translation_only", "translation_scale", "translation_rotation_90", "composite_transforms_180"])
-def test_layout_fit_group_layer_com_transformacao_propria(root_transform, sub_transform, ref_rect):
+@pytest.mark.parametrize(
+    "root_transform, sub_transform, ref_rect",
+    [
+        (
+            TransformRel().translate(50, 50),
+            TransformRel().translate(30, 30),
+            (80, 80, 80, 80),
+        ),
+        (
+            TransformRel().translate(40, 60).scale(2.0, 2.0),
+            TransformRel().translate(20, 10).scale(1.0, 0.5),
+            (100, 120, 200, 150),
+        ),
+        (
+            TransformRel().translate(50, 50),
+            TransformRel().translate(30, 30).rotate(90),
+            (50, 50, 120, 120),
+        ),
+        (
+            TransformRel().translate(30, 40).scale(2.0, 2.0).rotate(180),
+            TransformRel().translate(20, 10).rotate(180),
+            (60, 70, 240, 180),
+        ),
+    ],
+    ids=[
+        "translation_only",
+        "translation_scale",
+        "translation_rotation_90",
+        "composite_transforms_180",
+    ],
+)
+def test_layout_fit_group_layer_com_transformacao_propria(
+    root_transform, sub_transform, ref_rect
+):
     """
     Valida se layout.fit em GroupLayer com transformações arbitrárias (translação, escala, rotação)
     e contido em um pai também transformado posiciona a global_region no Canvas com precisão exata.
@@ -381,8 +410,9 @@ def test_layout_fit_group_layer_rigid_unit_rotation_45():
     [
         pytest.param(300, 200, 0.0, 0.0, (0, 0, 300, 200), id="anchor_top_left"),
         pytest.param(300, 200, 0.5, 0.5, (-50, -50, 300, 200), id="anchor_center"),
-        pytest.param(300, 200, 1.0, 1.0, (-100, -100, 300, 200),
-                     id="anchor_bottom_right"),
+        pytest.param(
+            300, 200, 1.0, 1.0, (-100, -100, 300, 200), id="anchor_bottom_right"
+        ),
     ],
 )
 def test_group_layout_resize_bounds(new_w, new_h, anchor_x, anchor_y, expected_rect):
@@ -395,7 +425,8 @@ def test_group_layout_resize_bounds(new_w, new_h, anchor_x, anchor_y, expected_r
 
     layout = Layout()
     result = layout.resize_bounds(
-        group, new_w, new_h, anchor_x=anchor_x, anchor_y=anchor_y)
+        group, new_w, new_h, anchor_x=anchor_x, anchor_y=anchor_y
+    )
 
     assert result is True
     assert group.global_region == Region.from_rect(*expected_rect)
@@ -442,7 +473,8 @@ def test_group_layout_fit_content_com_camada_filha_rotacionada(mocker):
     """Valida se layout.fit_content em GroupLayer projeta corretamente o conteudo de camada filha com rotacao de 90°."""
     group = GroupLayer()
     layer = make_transformed_layer(
-        x=50, y=50, w=100, h=100, transform=TransformRel().rotate(90))
+        x=50, y=50, w=100, h=100, transform=TransformRel().rotate(90)
+    )
 
     mock_img = make_mock_image(size=(40, 20))
     edit = EditLayer(mock_img, Region.from_rect(20, 30, 40, 20), np.identity(3))
@@ -519,26 +551,38 @@ def test_global_content_region_mariachi_cropped_rotated_and_uncropped(mocker):
 
     cos45 = float(np.cos(np.radians(45)))
     sin45 = float(np.sin(np.radians(45)))
-    matrix = np.array([
-        [cos45, -sin45, 368.0 - 300.0 * cos45 + 250.0 * sin45],
-        [sin45, cos45, 552.0 - 300.0 * sin45 - 250.0 * cos45],
-        [0.0, 0.0, 1.0],
-    ])
+    matrix = np.array(
+        [
+            [cos45, -sin45, 368.0 - 300.0 * cos45 + 250.0 * sin45],
+            [sin45, cos45, 552.0 - 300.0 * sin45 - 250.0 * cos45],
+            [0.0, 0.0, 1.0],
+        ]
+    )
     mocker.patch.object(Layer, "matrix", new_callable=PropertyMock, return_value=matrix)
 
     mock_base_img = make_mock_image(size=(736, 1104))
     mock_crop_img = make_mock_image(size=(400, 400))
 
-    base_edit = EditLayer(mock_base_img, Region.from_rect(0, 0, 736, 1104), np.identity(3))
-    crop_edit = CropEditLayer(mock_crop_img, Region.from_rect(100, 50, 400, 400), np.identity(3))
+    base_edit = EditLayer(
+        mock_base_img, Region.from_rect(0, 0, 736, 1104), np.identity(3)
+    )
+    crop_edit = CropEditLayer(
+        mock_crop_img, Region.from_rect(100, 50, 400, 400), np.identity(3)
+    )
 
     layer._edits.clear()
     layer._edits.extend([base_edit, crop_edit])
 
     def fake_calculate_content_rect(img):
-        return Region.from_size(400, 400) if img is mock_crop_img else Region.from_size(736, 1104)
+        return (
+            Region.from_size(400, 400)
+            if img is mock_crop_img
+            else Region.from_size(736, 1104)
+        )
 
-    mocker.patch("anicrop.layout.calculate_content_rect", side_effect=fake_calculate_content_rect)
+    mocker.patch(
+        "anicrop.layout.calculate_content_rect", side_effect=fake_calculate_content_rect
+    )
 
     roi_cropped = global_content_region(layer)
 
@@ -576,7 +620,9 @@ def test_compute_layer_local_roi_com_crop_edit_layer_isolado(mocker):
     mock_crop_img = MagicMock(spec=Image)
     mock_crop_img.size = (400, 400)
 
-    crop_edit = CropEditLayer(mock_crop_img, Region.from_rect(100, 50, 400, 400), np.identity(3))
+    crop_edit = CropEditLayer(
+        mock_crop_img, Region.from_rect(100, 50, 400, 400), np.identity(3)
+    )
     type(mock_layer).edits = PropertyMock(return_value=(crop_edit,))
 
     mocker.patch(
@@ -605,7 +651,11 @@ def test_group_layout_fit_content_enquadra_conteudo_global_sem_alterar_filhos(mo
     layer._edits.append(edit)
 
     def fake_calculate_content_rect(img):
-        return Region.from_size(50, 50) if img is mock_edit_img else Region.from_size(100, 100)
+        return (
+            Region.from_size(50, 50)
+            if img is mock_edit_img
+            else Region.from_size(100, 100)
+        )
 
     mocker.patch(
         "anicrop.layout.calculate_content_rect",

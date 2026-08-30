@@ -15,29 +15,29 @@ class AbstractCanvas(ABC):
     @property
     @abstractmethod
     def size(self) -> tuple[int, int]:
-        ...
+        pass
 
     @property
     @abstractmethod
     def width(self) -> int:
-        ...
+        pass
 
     @property
     @abstractmethod
     def height(self) -> int:
-        ...
+        pass
 
     @property
     @abstractmethod
     def region(self) -> Region:
-        ...
+        pass
 
     @region.setter
     @abstractmethod
     def region(self, value: Region) -> None:
-        ...
+        pass
 
     @property
     @abstractmethod
     def layout(self) -> LayoutStrategy:
-        ...
+        pass

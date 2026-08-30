@@ -29,6 +29,7 @@ try:
         blend_normal_linear as _cy_blend_normal_linear,
         hard_masking as _cy_hard_masking,
     )
+
     _HAS_CY_BLEND = True
 except ImportError:
     _cy_blend_normal = None
@@ -37,7 +38,9 @@ except ImportError:
     _HAS_CY_BLEND = False
 
 
-def _blend_normal_linear_numpy(b_view: np.ndarray, e_view: np.ndarray, opacity: float) -> None:
+def _blend_normal_linear_numpy(
+    b_view: np.ndarray, e_view: np.ndarray, opacity: float
+) -> None:
     b_has_alpha = b_view.shape[-1] in (2, 4)
     e_has_alpha = e_view.shape[-1] in (2, 4)
 
@@ -60,10 +63,14 @@ def _blend_normal_linear_numpy(b_view: np.ndarray, e_view: np.ndarray, opacity: 
     if b_channels == 3 and e_channels == 1:
         rgb_e_srgb = np.repeat(rgb_e_srgb, 3, axis=-1)
     elif b_channels == 1 and e_channels == 3:
-        rgb_e_srgb = (0.299 * rgb_e_srgb[..., 0:1] + 0.587 * rgb_e_srgb[..., 1:2] + 0.114 * rgb_e_srgb[..., 2:3])
+        rgb_e_srgb = (
+            0.299 * rgb_e_srgb[..., 0:1]
+            + 0.587 * rgb_e_srgb[..., 1:2]
+            + 0.114 * rgb_e_srgb[..., 2:3]
+        )
 
     # LINEARIZA: Eleva a 2.2 para remover a curva da tela
-    rgb_e_lin = rgb_e_srgb ** 2.2
+    rgb_e_lin = rgb_e_srgb**2.2
 
     if e_has_alpha:
         alpha_e = (e_view[mask, -1:].astype(np.float32) / 255.0) * opacity
@@ -72,7 +79,7 @@ def _blend_normal_linear_numpy(b_view: np.ndarray, e_view: np.ndarray, opacity: 
 
     # 3. MATEMÁTICA E DESLINEARIZAÇÃO (BASE)
     rgb_b_srgb = b_view[mask, :b_channels].astype(np.float32) / 255.0
-    rgb_b_lin = rgb_b_srgb ** 2.2  # Lineariza o fundo
+    rgb_b_lin = rgb_b_srgb**2.2  # Lineariza o fundo
 
     if b_has_alpha:
         # Fundo COM transparência
@@ -83,7 +90,9 @@ def _blend_normal_linear_numpy(b_view: np.ndarray, e_view: np.ndarray, opacity: 
         out_a_safe = np.where(out_a == 0, 1.0, out_a)
 
         # A Mágica: Mistura as luzes LINEARES usando os Alphas
-        out_rgb_lin = (rgb_e_lin * alpha_e + rgb_b_lin * alpha_b * (1.0 - alpha_e)) / out_a_safe
+        out_rgb_lin = (
+            rgb_e_lin * alpha_e + rgb_b_lin * alpha_b * (1.0 - alpha_e)
+        ) / out_a_safe
 
         # DESLINEARIZA: Eleva a (1 / 2.2) para devolver a curva sRGB que o monitor espera ver
         out_rgb_srgb = out_rgb_lin ** (1.0 / 2.2)
@@ -113,7 +122,10 @@ def blend_normal_linear(base: Image, edit: Image, opacity: float = 1.0) -> None:
 
     base_arr = base[...]
     edit_arr = edit[...]
-    h, w = min(base_arr.shape[0], edit_arr.shape[0]), min(base_arr.shape[1], edit_arr.shape[1])
+    h, w = (
+        min(base_arr.shape[0], edit_arr.shape[0]),
+        min(base_arr.shape[1], edit_arr.shape[1]),
+    )
 
     b_view = base_arr[:h, :w]
     e_view = edit_arr[:h, :w]
@@ -134,7 +146,9 @@ def _blend_normal_numpy(b_view: np.ndarray, e_view: np.ndarray, opacity: float) 
 
     # Fast-Path: Cópia direta para imagens 100% sólidas com opacidade total (1.0)
     if opacity >= 1.0:
-        if e_view.shape[-1] == b_view.shape[-1] and (not e_has_alpha or np.all(e_view[..., -1] == 255)):
+        if e_view.shape[-1] == b_view.shape[-1] and (
+            not e_has_alpha or np.all(e_view[..., -1] == 255)
+        ):
             np.copyto(b_view, e_view)
             return
         if e_view.shape[-1] == 3 and b_view.shape[-1] == 4:
@@ -168,7 +182,9 @@ def _blend_normal_numpy(b_view: np.ndarray, e_view: np.ndarray, opacity: float) 
     if b_channels == 3 and e_channels == 1:
         rgb_e = np.repeat(rgb_e, 3, axis=-1)
     elif b_channels == 1 and e_channels == 3:
-        rgb_e = (0.299 * rgb_e[..., 0:1] + 0.587 * rgb_e[..., 1:2] + 0.114 * rgb_e[..., 2:3])
+        rgb_e = (
+            0.299 * rgb_e[..., 0:1] + 0.587 * rgb_e[..., 1:2] + 0.114 * rgb_e[..., 2:3]
+        )
 
     if e_has_alpha:
         alpha_e = (e_view[mask, -1:].astype(np.float32) / 255.0) * opacity
@@ -213,14 +229,19 @@ def blend_normal(base: Image, edit: Image, opacity: float = 1.0) -> None:
         _cy_blend_normal(base_arr, edit_arr, opacity)
         return
 
-    h, w = min(base_arr.shape[0], edit_arr.shape[0]), min(base_arr.shape[1], edit_arr.shape[1])
+    h, w = (
+        min(base_arr.shape[0], edit_arr.shape[0]),
+        min(base_arr.shape[1], edit_arr.shape[1]),
+    )
     b_view = base_arr[:h, :w]
     e_view = edit_arr[:h, :w]
     e_has_alpha = e_view.shape[-1] in (2, 4)
 
     # Fast-Path: Cópia direta para imagens 100% sólidas com opacidade total (1.0)
     if opacity >= 1.0:
-        if e_view.shape[-1] == b_view.shape[-1] and (not e_has_alpha or np.all(e_view[..., -1] == 255)):
+        if e_view.shape[-1] == b_view.shape[-1] and (
+            not e_has_alpha or np.all(e_view[..., -1] == 255)
+        ):
             np.copyto(b_view, e_view)
             return
         if e_view.shape[-1] == 3 and b_view.shape[-1] == 4:
@@ -280,7 +301,9 @@ def hard_masking_overlay_without_alpha(
 
 
 def _hard_masking_numpy(base: Image, overlay: Image, opacity: float = 1.0) -> Image:
-    color_channels = 1 if overlay.format in (ImageFormat.GRAY, ImageFormat.GRAY_ALPHA) else 3
+    color_channels = (
+        1 if overlay.format in (ImageFormat.GRAY, ImageFormat.GRAY_ALPHA) else 3
+    )
     if overlay.has_alpha:
         hard_masking_overlay_with_alpha(base, overlay, color_channels, opacity)
     else:
@@ -319,7 +342,11 @@ def _blend_clip_numpy(base: Image, overlay: Image, opacity: float = 1.0) -> Imag
         if overlay.format in (ImageFormat.GRAY, ImageFormat.GRAY_ALPHA):
             luma = o_arr[..., 0:1].astype(np.float32) / 255.0
         else:
-            luma = (0.299 * o_arr[..., 0:1] + 0.587 * o_arr[..., 1:2] + 0.114 * o_arr[..., 2:3]).astype(np.float32) / 255.0
+            luma = (
+                0.299 * o_arr[..., 0:1]
+                + 0.587 * o_arr[..., 1:2]
+                + 0.114 * o_arr[..., 2:3]
+            ).astype(np.float32) / 255.0
         factor = luma * opacity
 
     if base.has_alpha:

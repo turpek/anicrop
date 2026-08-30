@@ -2,9 +2,13 @@ from __future__ import annotations
 from functools import reduce
 from operator import or_
 from typing import TYPE_CHECKING, Sequence
-import numpy as np
 
-from anicrop.container import BaseLayer, Container, GroupLayer, LayerStack, _NULL_CONTAINER
+from anicrop.container import (
+    BaseLayer,
+    Container,
+    GroupLayer,
+    _NULL_CONTAINER,
+)
 from anicrop.edit_layer import EditLayer, EDIT_LAYER_MAP
 from anicrop.effect import BoundEffect
 from anicrop.enums import ImageFormat, InterpMode
@@ -31,14 +35,16 @@ def clone_layer(layer: Layer) -> Layer:
     # 1. Clone each EditLayer with new affine 3x3 matrix
     for edit in layer.edits:
         edit_cls = EDIT_LAYER_MAP.get(edit.blend_mode, EditLayer)
-        cloned._edits.append(edit_cls(
-            image=edit.image,
-            region=edit.region,
-            matrix=edit.matrix.copy(),
-            blend_mode=edit.blend_mode,
-            name=edit.name,
-            visible=edit.visible,
-        ))
+        cloned._edits.append(
+            edit_cls(
+                image=edit.image,
+                region=edit.region,
+                matrix=edit.matrix.copy(),
+                blend_mode=edit.blend_mode,
+                name=edit.name,
+                visible=edit.visible,
+            )
+        )
 
     # 2. Clone mask with isolated NumPy buffer
     if layer.mask is not None:
@@ -56,7 +62,9 @@ def clone_layer(layer: Layer) -> Layer:
         if isinstance(effect, BoundEffect):
             cloned_mask = None
             if effect.mask is not None:
-                cloned_mask = Image(effect.mask.image[...].copy(), effect.mask.image.format)
+                cloned_mask = Image(
+                    effect.mask.image[...].copy(), effect.mask.image.format
+                )
             bound = BoundEffect(
                 effect.effect,
                 matrix=effect.matrix.copy(),
@@ -105,7 +113,9 @@ def clone_group(group: GroupLayer) -> GroupLayer:
         if isinstance(effect, BoundEffect):
             cloned_mask = None
             if effect.mask is not None:
-                cloned_mask = Image(effect.mask.image[...].copy(), effect.mask.image.format)
+                cloned_mask = Image(
+                    effect.mask.image[...].copy(), effect.mask.image.format
+                )
             bound = BoundEffect(
                 effect.effect,
                 matrix=effect.matrix.copy(),
@@ -198,7 +208,9 @@ class LayerComposition:
         interp: InterpMode = InterpMode.LANCZOS,
         bg_color: tuple[int, ...] | None = None,
     ) -> Layer:
-        return flatten(layers, name=name, format=format, interp=interp, bg_color=bg_color)
+        return flatten(
+            layers, name=name, format=format, interp=interp, bg_color=bg_color
+        )
 
     @staticmethod
     def clone(node: BaseLayer) -> BaseLayer:
@@ -224,14 +236,20 @@ class Combine:
         elif isinstance(target, BaseLayer):
             resolved_target = target
         else:
-            raise TypeError(f"Invalid target type {type(target).__name__}. Expected BaseLayer or str.")
+            raise TypeError(
+                f"Invalid target type {type(target).__name__}. Expected BaseLayer or str."
+            )
 
         parent = resolved_target.parent
         if parent is _NULL_CONTAINER or not isinstance(parent, Container):
-            raise ValueError(f"Layer '{resolved_target.name}' does not belong to a valid container in the document.")
+            raise ValueError(
+                f"Layer '{resolved_target.name}' does not belong to a valid container in the document."
+            )
 
         if resolved_target not in parent._children:
-            raise ValueError(f"Layer '{resolved_target.name}' is not in its parent container.")
+            raise ValueError(
+                f"Layer '{resolved_target.name}' is not in its parent container."
+            )
 
         target_idx = parent._children.index(resolved_target)
 
@@ -245,7 +263,9 @@ class Combine:
                     break
 
         if not collected:
-            raise ValueError(f"No visible layers found below '{resolved_target.name}' in the same container to merge.")
+            raise ValueError(
+                f"No visible layers found below '{resolved_target.name}' in the same container to merge."
+            )
 
         # Order from bottom to top for composition
         sequence: list[BaseLayer] = list(reversed(collected)) + [resolved_target]
@@ -326,14 +346,22 @@ class Combine:
 
         parent = group.parent
         if parent is _NULL_CONTAINER or not isinstance(parent, Container):
-            raise ValueError(f"Group '{group.name}' is not attached to a valid container.")
+            raise ValueError(
+                f"Group '{group.name}' is not attached to a valid container."
+            )
 
         resolved_name = name or group.name
         resolved_format = format or group.format
 
         self._validate_name(resolved_name, [group])
 
-        flat_layer = flatten(group, name=resolved_name, format=resolved_format, interp=interp, bg_color=bg_color)
+        flat_layer = flatten(
+            group,
+            name=resolved_name,
+            format=resolved_format,
+            interp=interp,
+            bg_color=bg_color,
+        )
 
         idx = parent._children.index(group)
         parent.remove(group)
@@ -351,7 +379,9 @@ class Combine:
         """Bakes the entire document's LayerStack into a single flat Layer."""
         self._validate_name(name, list(self._doc.stack))
 
-        flat_layer = flatten(self._doc.stack, name=name, format=format, interp=interp, bg_color=bg_color)
+        flat_layer = flatten(
+            self._doc.stack, name=name, format=format, interp=interp, bg_color=bg_color
+        )
 
         self._doc.stack.clear()
         self._doc.stack.append(flat_layer)

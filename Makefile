@@ -29,7 +29,7 @@ test:
 
 # Roda a suíte de testes com o pytest excluindo os mais lentos.
 test_speed:
-	uv run autopep8 -i tests/*.py tests/integration/*.py
+	uv run ruff format tests/
 	uv run pytest -m "not slow" $(RUN_ARGS)
 
 # Roda os testes e gera um relatório de cobertura HTML na pasta 'htmlcov/'.
@@ -44,9 +44,9 @@ mypy:
 lint:
 	uv run ruff check .
 
-# Formata o código com autopep8.
+# Formata o código com ruff format.
 format:
-	uv run autopep8 --in-place --ignore=E501,W504 src/anicrop/*.py src/anicrop/interfaces/*.py tests/*.py tests/integration/*.py
+	uv run ruff format .
 
 # ==============================================================================
 # Fluxo de Sincronização Git Multi-PC (dev <-> main)

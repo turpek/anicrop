@@ -182,7 +182,9 @@ def test_prevenir_ciclo_ao_adicionar_pai_como_filho_no_proxy():
     g1.append(g2)
     assert g2.parent is g1
 
-    with pytest.raises(ValueError, match="Cannot add an ancestor container to a child container"):
+    with pytest.raises(
+        ValueError, match="Cannot add an ancestor container to a child container"
+    ):
         g2.append(g1)
 
 
@@ -210,7 +212,9 @@ def test_proxy_parent_read_only_and_dir_target_only():
     proxy = ProxyLayer(raw_layer, hist)
 
     # 1. Atribuição direta a .parent lança AttributeError
-    with pytest.raises(AttributeError, match="Direct assignment to 'parent' is not supported"):
+    with pytest.raises(
+        AttributeError, match="Direct assignment to 'parent' is not supported"
+    ):
         proxy.parent = "Novo Pai"
 
     # 2. dir(proxy) devolve exatamente os atributos do target real
@@ -250,6 +254,7 @@ def test_container_proxy_pop_returns_proxy_and_records_history():
 def test_proxy_layer_mask_property_returns_proxy_mask():
     """Garante que acessar proxy_layer.mask retorna uma instância de ProxyMask reativo."""
     from anicrop.proxy import ProxyMask
+
     hist = GlobalHistory()
     raw_layer = Layer(make_img(50, 50), name="L1")
     proxy = ProxyLayer(raw_layer, hist)

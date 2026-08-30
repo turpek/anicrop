@@ -23,11 +23,11 @@ LayerT = TypeVar("LayerT", bound=BaseLayer)
 class DocumentPolicy(ABC):
     @abstractmethod
     def setup(self) -> tuple[GlobalHistory | None, LayerStack]:
-        ...
+        pass
 
     @abstractmethod
     def process_layer(self, layer: LayerT, history: GlobalHistory | None) -> LayerT:
-        ...
+        pass
 
 
 class ReactiveDocumentPolicy(DocumentPolicy):
@@ -128,7 +128,7 @@ class Document:
             backend: Backend de I/O a ser utilizado.
         """
         img = Image.open(str(path), format, backend=backend)
-        layer = Layer(image=img, opacity=opacity, blend_mode=blend_mode, name=name)
+        layer = Layer(img, opacity=opacity, blend_mode=blend_mode, name=name)
         w, h = layer.region.size
 
         doc = cls(name=name, width=w, height=h, history=history, bg_color=bg_color)
@@ -165,7 +165,9 @@ class Document:
         if self._find_in_container(self.stack, name, recursive=True) is not None:
             raise ValueError(f"A layer named '{name}' already exists in the document.")
 
-    def _find_in_container(self, container: Container, name: str, recursive: bool = True) -> BaseLayer | None:
+    def _find_in_container(
+        self, container: Container, name: str, recursive: bool = True
+    ) -> BaseLayer | None:
         """Busca interna auxiliar por nome na hierarquia de um container."""
         for child in container:
             if child.name == name:
@@ -207,7 +209,7 @@ class Document:
         Carrega uma imagem do disco e adiciona como camada na pilha do documento com nome obrigatório.
         """
         img = Image.open(str(path), format, backend=backend)
-        layer = Layer(image=img, opacity=opacity, blend_mode=blend_mode, name=name)
+        layer = Layer(img, opacity=opacity, blend_mode=blend_mode, name=name)
         return self.add(layer)  # type: ignore[return-value]
 
     def find(self, name: str, recursive: bool = True) -> BaseLayer | None:
@@ -226,11 +228,11 @@ class Document:
 
     @overload
     def __getitem__(self, key: int | str) -> BaseLayer:
-        ...
+        pass
 
     @overload
     def __getitem__(self, key: slice) -> list[BaseLayer]:
-        ...
+        pass
 
     def __getitem__(self, key: int | slice | str) -> BaseLayer | list[BaseLayer]:
         """
@@ -245,7 +247,9 @@ class Document:
             if layer is None:
                 raise KeyError(f"Layer named '{key}' not found in document.")
             return layer
-        raise TypeError(f"Invalid key type {type(key).__name__}. Expected int, slice, or str.")
+        raise TypeError(
+            f"Invalid key type {type(key).__name__}. Expected int, slice, or str."
+        )
 
     def __contains__(self, item: BaseLayer | str) -> bool:
         """
@@ -264,7 +268,9 @@ class Document:
         elif isinstance(key, str):
             self.remove(key)
         else:
-            raise TypeError(f"Invalid key type {type(key).__name__}. Expected int or str.")
+            raise TypeError(
+                f"Invalid key type {type(key).__name__}. Expected int or str."
+            )
 
     def remove(self, layer_or_name: BaseLayer | str) -> None:
         """
@@ -295,7 +301,9 @@ class Document:
         """
         Renderiza a composição final no formato especificado e retorna o objeto Image.
         """
-        return self._canvas_render.render_scene(self.stack, self.canvas, format=format, interp=interp)
+        return self._canvas_render.render_scene(
+            self.stack, self.canvas, format=format, interp=interp
+        )
 
     def preview(
         self,
@@ -306,7 +314,9 @@ class Document:
         """
         Gera o Preview para renderizar na interface de usuário via Viewport e retorna um objeto Image.
         """
-        return self._viewport_render.render_scene(self.stack, viewport, format=format, interp=interp)
+        return self._viewport_render.render_scene(
+            self.stack, viewport, format=format, interp=interp
+        )
 
     def export(
         self,
@@ -319,4 +329,6 @@ class Document:
         """
         Renderiza a composição final no formato especificado e salva no disco.
         """
-        self.render(format=format, interp=interp).save(path, options=options, backend=backend)
+        self.render(format=format, interp=interp).save(
+            path, options=options, backend=backend
+        )

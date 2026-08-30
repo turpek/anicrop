@@ -23,7 +23,9 @@ def set_default_backend(backend: str | AbstractImageIO) -> None:
     if isinstance(backend, str):
         key = backend.lower()
         if key not in _BACKENDS:
-            raise KeyError(f"Backend '{backend}' não está registrado. Disponíveis: {list(_BACKENDS.keys())}")
+            raise KeyError(
+                f"Backend '{backend}' não está registrado. Disponíveis: {list(_BACKENDS.keys())}"
+            )
         _DEFAULT_BACKEND_NAME = key
     else:
         # Se foi passado um objeto direto
@@ -32,7 +34,9 @@ def set_default_backend(backend: str | AbstractImageIO) -> None:
         _DEFAULT_BACKEND_NAME = name
 
 
-def get_backend(name_or_instance: str | AbstractImageIO | None = None) -> AbstractImageIO:
+def get_backend(
+    name_or_instance: str | AbstractImageIO | None = None,
+) -> AbstractImageIO:
     """Retorna a instância do backend solicitado ou o backend padrão."""
     if name_or_instance is None:
         if _DEFAULT_BACKEND_NAME is None or _DEFAULT_BACKEND_NAME not in _BACKENDS:
@@ -42,7 +46,9 @@ def get_backend(name_or_instance: str | AbstractImageIO | None = None) -> Abstra
     if isinstance(name_or_instance, str):
         key = name_or_instance.lower()
         if key not in _BACKENDS:
-            raise KeyError(f"Backend '{name_or_instance}' não encontrado. Disponíveis: {list(_BACKENDS.keys())}")
+            raise KeyError(
+                f"Backend '{name_or_instance}' não encontrado. Disponíveis: {list(_BACKENDS.keys())}"
+            )
         return _BACKENDS[key]
 
     return name_or_instance

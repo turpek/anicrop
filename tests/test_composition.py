@@ -4,7 +4,14 @@ from operator import or_
 import numpy as np
 import pytest
 
-from anicrop.composition import Combine, LayerComposition, clone_group, clone_layer, clone_node, flatten, merge
+from anicrop.composition import (
+    LayerComposition,
+    clone_group,
+    clone_layer,
+    clone_node,
+    flatten,
+    merge,
+)
 from anicrop.container import GroupLayer
 from anicrop.document import Document
 from anicrop.effect import BoundEffect
@@ -16,7 +23,9 @@ from anicrop.render import CanvasRender
 from anicrop.spatial import Region
 
 
-def make_layer(color: tuple[int, ...], size: tuple[int, int] = (100, 100), name: str = "Layer") -> Layer:
+def make_layer(
+    color: tuple[int, ...], size: tuple[int, int] = (100, 100), name: str = "Layer"
+) -> Layer:
     """Cria uma camada de teste com cor solida e tamanho especificado."""
     img = Image.new(size, ImageFormat.RGBA, color=color)
     return Layer(img, name=name)
@@ -250,7 +259,7 @@ def test_flatten_with_filters_and_masks_bakes_effects():
 
     assert isinstance(flat, Layer)
     assert len(flat.effects) == 0  # Os efeitos ja foram assados no buffer
-    assert flat.mask is None      # A mascara ja foi assada no buffer
+    assert flat.mask is None  # A mascara ja foi assada no buffer
 
 
 def test_flatten_empty_and_non_renderable_validations():

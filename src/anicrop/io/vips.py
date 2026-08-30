@@ -103,7 +103,11 @@ def _vips_convert_to_requested_format(
         elif bands == 2:
             return vips_img
         gray = vips_img.colourspace("b-w").extract_band(0)
-        alpha = vips_img[3] if bands == 4 else (pyvips.Image.black(vips_img.width, vips_img.height) + 255)
+        alpha = (
+            vips_img[3]
+            if bands == 4
+            else (pyvips.Image.black(vips_img.width, vips_img.height) + 255)
+        )
         return gray.bandjoin(alpha)
 
     return vips_img
@@ -112,7 +116,9 @@ def _vips_convert_to_requested_format(
 def _vips_to_numpy(vips_img: pyvips.Image) -> np.ndarray:
     """Converte a imagem libvips para ndarray NumPy sem cópias redundantes."""
     mem = vips_img.write_to_memory()
-    arr = np.frombuffer(mem, dtype=np.uint8).reshape((vips_img.height, vips_img.width, vips_img.bands))
+    arr = np.frombuffer(mem, dtype=np.uint8).reshape(
+        (vips_img.height, vips_img.width, vips_img.bands)
+    )
     if arr.ndim == 2:
         return arr[..., np.newaxis]
     return arr
@@ -136,14 +142,21 @@ def _vips_save_file(
     ext = file_path.suffix.lower()
     path_str = str(file_path)
 
-    if ext in ('.jpg', '.jpeg'):
+    if ext in (".jpg", ".jpeg"):
         if format in (ImageFormat.RGBA, ImageFormat.GRAY_ALPHA) or vips_img.hasalpha():
             vips_img = vips_img.flatten(background=list(options.bg_color[:3]))
         vips_img.jpegsave(path_str, Q=options.quality, strip=options.strip_metadata)
-    elif ext == '.png':
-        vips_img.pngsave(path_str, compression=options.compression_level, strip=options.strip_metadata)
-    elif ext == '.webp':
-        vips_img.webpsave(path_str, Q=options.quality, lossless=options.lossless, strip=options.strip_metadata)
+    elif ext == ".png":
+        vips_img.pngsave(
+            path_str, compression=options.compression_level, strip=options.strip_metadata
+        )
+    elif ext == ".webp":
+        vips_img.webpsave(
+            path_str,
+            Q=options.quality,
+            lossless=options.lossless,
+            strip=options.strip_metadata,
+        )
     else:
         vips_img.write_to_file(path_str)
 
@@ -153,7 +166,9 @@ class PyvipsBackend(AbstractImageIO):
 
     def __init__(self) -> None:
         if pyvips is None:
-            raise ImportError("pyvips não está instalado. Instale com 'uv add pyvips' para utilizar este backend.")
+            raise ImportError(
+                "pyvips não está instalado. Instale com 'uv add pyvips' para utilizar este backend."
+            )
 
     def get_size(self, file_path: str | Path) -> tuple[int, int]:
         """Extrai as dimensões da imagem lendo apenas o cabeçalho (sem decodificar pixels)."""
@@ -170,7 +185,9 @@ class PyvipsBackend(AbstractImageIO):
         """Lê e decodifica a imagem com suporte a streaming e shrink nativo."""
         path_str = str(file_path)
         if not Path(file_path).exists():
-            raise FileNotFoundError(f"Não foi possível carregar a imagem em: {file_path}")
+            raise FileNotFoundError(
+                f"Não foi possível carregar a imagem em: {file_path}"
+            )
 
         # Obtém tamanho original
         orig_img = pyvips.Image.new_from_file(path_str, access="sequential")

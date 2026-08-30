@@ -9,7 +9,12 @@ from anicrop.render import CanvasRender
 from anicrop.spatial import Region
 
 
-def make_solid_layer(w: int, h: int, color: tuple[int, int, int, int] = (255, 0, 0, 255), name: str = "Layer") -> Layer:
+def make_solid_layer(
+    w: int,
+    h: int,
+    color: tuple[int, int, int, int] = (255, 0, 0, 255),
+    name: str = "Layer",
+) -> Layer:
     data = np.full((h, w, 4), color, dtype=np.uint8)
     img = Image(data, ImageFormat.RGBA)
     return Layer(img, name=name)
@@ -146,8 +151,9 @@ def test_layer_is_renderable_with_mask():
 
     # Adiciona máscara sem overlap (em 200, 200)
     mask_data = np.full((50, 50, 1), 255, dtype=np.uint8)
-    layer.set_mask(Image(mask_data, ImageFormat.GRAY),
-                   Region.from_rect(200, 200, 50, 50))
+    layer.set_mask(
+        Image(mask_data, ImageFormat.GRAY), Region.from_rect(200, 200, 50, 50)
+    )
     assert layer.is_renderable is False
 
     # Substitui por máscara com overlap (em 0, 0)

@@ -77,9 +77,9 @@ Para detalhes de métodos, tipos de retorno e exemplos de uso de cada classe, co
 ## 6. Testes, Qualidade e Regras de Interação com a IA (GEMINI)
 
 - **Desenvolvimento Orientado a Testes (TDD):** A suíte de testes (`pytest`) é a fonte de verdade absoluta para validação de geometria, renderização e estado. A IA deve propor e executar cenários de teste antes/durante refatorações.
-- **Formatação Automática (autopep8):** Sempre que a IA for autorizada a alterar, criar ou refatorar qualquer arquivo Python (`.py`), DEVE obrigatoriamente executar:
+- **Formatação Automática (ruff format):** Sempre que a IA for autorizada a alterar, criar ou refatorar qualquer arquivo Python (`.py`), DEVE obrigatoriamente executar:
   ```bash
-  uv run autopep8 --in-place --ignore=E501,W504 <arquivo.py>
+  uv run ruff format <arquivo.py>
   ```
 - **Arquivos Temporários e Scratch:** Scripts de teste temporários ou de debug DEVEM ser gerados em `scratch/` ou `scripts/`, nunca na raiz do projeto.
 

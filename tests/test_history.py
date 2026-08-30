@@ -5,7 +5,6 @@ from typing import Any
 
 
 class FakeCommand:
-
     def __init__(self, name: str, item: Any, value: Any = None):
         self.execute_count = 0
         self._sealed = False
@@ -57,7 +56,6 @@ class FakeTranslateCommand(FakeCommand):
 
 
 class FakeNoChangeCommand(FakeCommand):
-
     def has_changes(self) -> bool:
         return False
 
@@ -79,13 +77,13 @@ def test_GlobalHistory_vazia(history):
 
 def test_GlobalHistory_undo_nao_vazia(mocker, history):
     mock_layer = make_layer()
-    history.start_action(FakeCommand, 'fake', mock_layer)
+    history.start_action(FakeCommand, "fake", mock_layer)
     assert not history.undo_empty()
 
 
 def test_GlobalHistory_redo_nao_vazia(mocker, history):
     mock_layer = make_layer()
-    history.start_action(FakeCommand, 'fake', mock_layer)
+    history.start_action(FakeCommand, "fake", mock_layer)
     history.undo()
     assert not history.redo_empty()
 
@@ -98,7 +96,7 @@ def test_GlobalHistory_undo_com_undo_stack_vazia(mocker, history):
 def test_GlobalHistory_undo(mocker, history):
     spy_undo = mocker.spy(FakeCommand, "undo")
     layer = make_layer()
-    history.start_action(FakeCommand, 'fake', layer)
+    history.start_action(FakeCommand, "fake", layer)
     history.undo()
     assert history.undo_empty()
     assert spy_undo.call_count == 1
@@ -112,7 +110,7 @@ def test_GlobalHistory_redo_com_undo_stack_vazia(mocker, history):
 
 def test_GlobalHistory_redo_apos_undo(mocker, history):
     layer = make_layer()
-    history.start_action(FakeCommand, 'fake', layer)
+    history.start_action(FakeCommand, "fake", layer)
     cmd = history._undo_stack[-1]
     spy_execute = mocker.spy(cmd, "execute")
     history.undo()
@@ -123,25 +121,25 @@ def test_GlobalHistory_redo_apos_undo(mocker, history):
 def test_GlobalHistory_redo_empty_apos_um_undo_seguido_de_push(mocker, history):
     layer1 = make_layer()
     layer2 = make_layer()
-    history.start_action(FakeCommand, 'fake', layer1)
+    history.start_action(FakeCommand, "fake", layer1)
     history.undo()
-    history.start_action(FakeCommand, 'fake', layer2)
+    history.start_action(FakeCommand, "fake", layer2)
     assert history.redo_empty()
 
 
 def test_GlobalHistory_commit_apos_mudar_comando(mocker, history):
     layer = make_layer()
-    history.start_action(FakeScaleCommand, 'scale', layer)
-    history.start_action(FakeRotationCommand, 'rotation', layer)
-    history.start_action(FakeRotationCommand, 'rotation', layer)
-    history.start_action(FakeScaleCommand, 'scale', layer)
+    history.start_action(FakeScaleCommand, "scale", layer)
+    history.start_action(FakeRotationCommand, "rotation", layer)
+    history.start_action(FakeRotationCommand, "rotation", layer)
+    history.start_action(FakeScaleCommand, "scale", layer)
     cmd = history._undo_stack[-2]
     assert cmd.is_sealed()
 
 
 def test_GlobalHistory_commit_manualmente(mocker, history):
     layer = make_layer()
-    history.start_action(FakeScaleCommand, 'scale', layer)
+    history.start_action(FakeScaleCommand, "scale", layer)
     assert history.commit()
 
     cmd = history._undo_stack[-1]
@@ -153,12 +151,13 @@ def test_GlobalHistory_commit_manualmente_com_undo_vazio(mocker, history):
 
 
 @pytest.mark.parametrize(
-    'context_manager_name, expected_size', [
-        ('transaction', 5),
-        ('atomic', 1),
-        ('merge_continuous', 4),
-        ('group_action', 3),
-        ('disabled', 0)
+    "context_manager_name, expected_size",
+    [
+        ("transaction", 5),
+        ("atomic", 1),
+        ("merge_continuous", 4),
+        ("group_action", 3),
+        ("disabled", 0),
     ],
 )
 def test_GlobalHistory_context_modes(history, context_manager_name, expected_size):
@@ -174,27 +173,27 @@ def test_GlobalHistory_context_modes(history, context_manager_name, expected_siz
     with context_manager():
         # Comando Fake 1, Classe 1
         history.commit()
-        history.start_action(FakeRotationCommand, 'prop1', layer1)
+        history.start_action(FakeRotationCommand, "prop1", layer1)
         layer1.state = 1
         history.commit()
 
         # Comando Fake 1, Classe 1
-        history.start_action(FakeRotationCommand, 'prop1', layer1)
+        history.start_action(FakeRotationCommand, "prop1", layer1)
         layer1.state = 2
         history.commit()
 
         # Comando Fake 1, Classe 1
-        history.start_action(FakeRotationCommand, 'prop1-b', layer1)
+        history.start_action(FakeRotationCommand, "prop1-b", layer1)
         layer1.state = 3
         history.commit()
 
         # Comando Fake 2, Classe 2
-        history.start_action(FakeScaleCommand, 'prop2', layer2)
+        history.start_action(FakeScaleCommand, "prop2", layer2)
         layer2.state = 1
         history.commit()
 
         # Comando Fake 1, Classe 1
-        history.start_action(FakeRotationCommand, 'prop1', layer1)
+        history.start_action(FakeRotationCommand, "prop1", layer1)
         layer1.state = 4
         history.commit()
 
@@ -204,15 +203,16 @@ def test_GlobalHistory_context_modes(history, context_manager_name, expected_siz
 
 def test_undo_discards_unmutated_command_at_top_of_stack(history):
     """Valida se undo() descarta comando sem alteração no topo e desfaz a ação real anterior."""
+
     class Target:
         state = 0
 
     target = Target()
-    history.start_action(FakeCommand, 'real_action', target, value=10)
+    history.start_action(FakeCommand, "real_action", target, value=10)
     target.state = 10
     history.commit()
 
-    history.start_action(FakeNoChangeCommand, 'read_action', target)
+    history.start_action(FakeNoChangeCommand, "read_action", target)
     assert len(history._undo_stack) == 2
 
     history.undo()

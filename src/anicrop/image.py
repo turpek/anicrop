@@ -65,8 +65,7 @@ class Image:
 
         elif isinstance(key, tuple):
             if any(isinstance(arg, Region) for arg in key[1:]):
-                raise TypeError(
-                    "Region argument is only valid at the first position")
+                raise TypeError("Region argument is only valid at the first position")
 
             elif isinstance(key[0], Region):
                 return self.__region_to_slice(key[0]) + key[1:]
@@ -232,8 +231,7 @@ class Image:
         """Redimensiona a imagem usando a fábrica inteligente Image.new."""
         new_w, new_h = target_size
         img_data = self[...]
-        resized_data = cv2.resize(
-            img_data, (new_w, new_h), interpolation=cv2.INTER_AREA)
+        resized_data = cv2.resize(img_data, (new_w, new_h), interpolation=cv2.INTER_AREA)
 
         if resized_data.ndim == 2:
             resized_data = resized_data[..., np.newaxis]
@@ -301,11 +299,11 @@ class Image:
     @classmethod
     def _open_with_pillow_zarr(cls, file_path: str, image_format: ImageFormat) -> Image:
         mode_map = {
-            ImageFormat.GRAY: 'L',
-            ImageFormat.GRAY_ALPHA: 'LA',
-            ImageFormat.RGB: 'RGB',
-            ImageFormat.RGBA: 'RGBA',
-            ImageFormat.CMYK: 'CMYK',
+            ImageFormat.GRAY: "L",
+            ImageFormat.GRAY_ALPHA: "LA",
+            ImageFormat.RGB: "RGB",
+            ImageFormat.RGBA: "RGBA",
+            ImageFormat.CMYK: "CMYK",
         }
         mode = mode_map.get(image_format)
 
@@ -367,8 +365,7 @@ def calculate_content_rect(image: Image) -> Region:
     alpha = image[..., -1]
     rows = np.any(alpha > 0, axis=1)
     if not np.any(rows):
-        raise ValueError(
-            "EditLayer cannot be created from a fully transparent image.")
+        raise ValueError("EditLayer cannot be created from a fully transparent image.")
 
     cols = np.any(alpha > 0, axis=0)
 

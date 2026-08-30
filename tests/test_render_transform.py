@@ -45,8 +45,7 @@ def test_render_transform_chaining_complexo(red_layer):
     # 2. Translação global final (+50, +50):
     #    Top-Left: (-50+50, -50+50) = (0, 0)
     #    Size: (200, 200)
-    red_layer.transform.translate(50, 50).scale(
-        2, 2, 0.5, 0.5).rotate(90, 0.5, 0.5)
+    red_layer.transform.translate(50, 50).scale(2, 2, 0.5, 0.5).rotate(90, 0.5, 0.5)
 
     region = red_layer.global_region
     assert region.top_left == (0, 0)

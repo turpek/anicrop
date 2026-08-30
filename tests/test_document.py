@@ -8,7 +8,7 @@ from anicrop.history import GlobalHistory
 from anicrop.image import Image
 from anicrop.layer import Layer
 from anicrop.layout import Layout
-from anicrop.proxy import GroupProxy, LayerStackProxy, ProxyLayer
+from anicrop.proxy import LayerStackProxy, ProxyLayer
 from anicrop.render import CanvasRender, ViewportRender
 from anicrop.spatial import Region
 from anicrop.viewport import Viewport
@@ -186,6 +186,7 @@ def test_document_render_in_memory():
 def test_document_preview_returns_image():
     """Valida se doc.preview() retorna uma instância de Image."""
     from anicrop.viewport import Viewport
+
     doc = Document("TestDoc", 100, 100)
     doc.add(Layer(make_img(100, 100), name="l1"))
     viewport = Viewport((50, 50))
@@ -322,7 +323,9 @@ def test_document_load_layer_with_blend_mode(tmp_path):
     make_solid((200, 100, 50, 255), 20, 20).save(file_path)
 
     doc = Document("Doc", 50, 50)
-    layer = doc.load_layer(file_path, name="L1", opacity=0.75, blend_mode=BlendMode.MULTIPLY)
+    layer = doc.load_layer(
+        file_path, name="L1", opacity=0.75, blend_mode=BlendMode.MULTIPLY
+    )
 
     assert layer.blend_mode == BlendMode.MULTIPLY
     assert layer.opacity == 0.75
@@ -344,7 +347,9 @@ def test_document_open_with_blend_mode(tmp_path):
     file_path = tmp_path / "sample.png"
     make_solid((200, 100, 50, 255), 30, 40).save(file_path)
 
-    doc = Document.open(file_path, name="OpenedDoc", opacity=0.5, blend_mode=BlendMode.HARD_MASKING)
+    doc = Document.open(
+        file_path, name="OpenedDoc", opacity=0.5, blend_mode=BlendMode.HARD_MASKING
+    )
 
     assert doc[0].blend_mode == BlendMode.HARD_MASKING
     assert doc[0].opacity == 0.5

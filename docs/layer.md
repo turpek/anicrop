@@ -41,12 +41,12 @@ Os pixels originais da imagem nunca são modificados diretamente. Toda alteraç�
 
 ### Principais Propriedades e Métodos de `Layer`
 
-#### Construtor Polimórfico (`__init__`)
-- **Descrição**: Inicializa uma nova camada `Layer` de forma polimórfica aceitando uma imagem base (`Image`), uma região delimitadora pura (`Region`) ou dimensões `size: tuple[int, int]`.
-- **Sobrecargas (`@overload`)**:
-  - `Layer(image: Image, opacity: float = 1.0, blend_mode: BlendMode = BlendMode.NORMAL, name: str = 'Layer')`: Cria camada com tamanho da imagem e popula o primeiro `EditLayer` com os pixels da imagem.
-  - `Layer(region: Region, opacity: float = 1.0, blend_mode: BlendMode = BlendMode.NORMAL, name: str = 'Layer', format: ImageFormat = ImageFormat.RGBA)`: Cria camada pura apenas com moldura espacial (sem edits prévios).
-  - `Layer(size: tuple[int, int], opacity: float = 1.0, blend_mode: BlendMode = BlendMode.NORMAL, name: str = 'Layer', format: ImageFormat = ImageFormat.RGBA)`: Cria camada pura com dimensões `(w, h)` (sem edits prévios).
+#### Construtor Polimórfico (`__init__` via `@ovld`)
+- **Descrição**: Inicializa uma nova camada `Layer` de forma polimórfica utilizando *multiple dispatch* nativo via `@ovld`, aceitando uma imagem base (`Image`), uma região delimitadora pura (`Region`) ou dimensões `size: tuple[int, int]`.
+- **Sobrecargas (`@ovld`)**:
+  - `Layer(image: Image, *, opacity: float = 1.0, blend_mode: BlendMode = BlendMode.NORMAL, name: str = 'Layer', format: ImageFormat | None = None)`: Cria camada com tamanho da imagem e popula o primeiro `EditLayer` com os pixels da imagem.
+  - `Layer(region: Region, *, opacity: float = 1.0, blend_mode: BlendMode = BlendMode.NORMAL, name: str = 'Layer', format: ImageFormat = ImageFormat.RGBA)`: Cria camada pura apenas com moldura espacial (sem edits prévios).
+  - `Layer(size: tuple, *, opacity: float = 1.0, blend_mode: BlendMode = BlendMode.NORMAL, name: str = 'Layer', format: ImageFormat = ImageFormat.RGBA)`: Cria camada pura com dimensões `(w, h)` (sem edits prévios).
 - **Retorno**: Instância de `Layer`.
 
 #### `@property transform -> Composer`

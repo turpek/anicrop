@@ -3,6 +3,7 @@ from setuptools import Extension, setup
 
 try:
     from Cython.Build import cythonize
+
     USE_CYTHON = True
 except ImportError:
     USE_CYTHON = False

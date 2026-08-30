@@ -29,7 +29,7 @@ class EditLayer:
         region: Region,
         matrix: np.ndarray,
         blend_mode: BlendMode = BlendMode.NORMAL,
-        name: str = 'Edit',
+        name: str = "Edit",
         visible: bool = True,
     ):
         self._image = image
@@ -103,7 +103,9 @@ class EditLayer:
         lod_image = self._resize(lod_factor)
         return lod_image, m_local
 
-    def blend_into(self, layer_image: Image, edit_image: Image, dst_region: Region) -> None:
+    def blend_into(
+        self, layer_image: Image, edit_image: Image, dst_region: Region
+    ) -> None:
         """Aplica a mesclagem padrão dos pixels da edição dentro do retângulo de destino."""
         blend = BLEND_MODE[self.blend_mode]
         blend(layer_image.view(dst_region), edit_image)
@@ -118,7 +120,7 @@ class CropEditLayer(EditLayer):
         region: Region,
         matrix: np.ndarray,
         blend_mode: BlendMode = BlendMode.CLIP,
-        name: str = 'Crop',
+        name: str = "Crop",
         visible: bool = True,
     ):
         super().__init__(
@@ -130,7 +132,9 @@ class CropEditLayer(EditLayer):
             visible=visible,
         )
 
-    def blend_into(self, layer_image: Image, edit_image: Image, dst_region: Region) -> None:
+    def blend_into(
+        self, layer_image: Image, edit_image: Image, dst_region: Region
+    ) -> None:
         """Aplica o recorte e zera qualquer pixel fora do retângulo de destino."""
         blend_clip(layer_image.view(dst_region), edit_image)
         layer_image.clear_rect(dst_region, invert=True)
