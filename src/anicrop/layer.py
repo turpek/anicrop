@@ -1,6 +1,6 @@
 from __future__ import annotations
 from collections import deque
-from typing import Optional, TYPE_CHECKING
+from typing import Any, Optional, TYPE_CHECKING, overload
 
 from anicrop.container import (
     _NULL_CONTAINER,
@@ -9,7 +9,7 @@ from anicrop.container import (
 from anicrop.content import LayerContent
 from anicrop.interfaces.layer import AbstractLayer
 from anicrop.layout import LayerLayoutStrategy
-from anicrop.enums import BlendMode, RenderFlags, WarpMode
+from anicrop.enums import BlendMode, ImageFormat, RenderFlags, WarpMode
 from anicrop.geometry import LayerGeometry
 from anicrop.image import Image
 from anicrop.spatial import Region, Span
@@ -21,38 +21,128 @@ from anicrop.transform import (
 
 import numpy as np
 from anicrop.edit_layer import EditLayer, EDIT_LAYER_MAP
-
-if TYPE_CHECKING:
-    pass
+from functools import singledispatchmethod
 
 
 class Layer(BaseLayer, AbstractLayer):
 
+    def _init_base(
+        self,
+        region: Region,
+        opacity: float,
+        blend_mode: BlendMode,
+        name: str,
+        format: ImageFormat,
+    ) -> None:
+        self.parent = _NULL_CONTAINER
+        super().__init__(
+            self.parent, LayerGeometry, region, opacity, blend_mode, name, format=format
+        )
+        self._id = Id()
+        self._edits: deque[EditLayer] = deque()
+        self._opacity_mask: Optional[np.ndarray] = None
+        self._parent_inverse = np.identity(3, dtype=np.float32)
+        self._old_matrix = np.zeros((3, 3))
+        self._render_flags = RenderFlags.ALL_DIRTY
+        self._warp_mode = WarpMode.AFFINE
+        self._content = LayerContent(self)
+        self._layout = LayerLayoutStrategy(self)
+
+    @overload
     def __init__(
         self,
         image: Image,
         opacity: float = 1.0,
         blend_mode: BlendMode = BlendMode.NORMAL,
         name: str = 'Layer',
-    ):
+    ) -> None:
+        ...
 
-        self.parent = _NULL_CONTAINER
-        region = Region.from_size(*image.size)
-        super().__init__(
-            self.parent, LayerGeometry, region, opacity, blend_mode, name, format=image.format
-        )
+    @overload
+    def __init__(
+        self,
+        region: Region,
+        opacity: float = 1.0,
+        blend_mode: BlendMode = BlendMode.NORMAL,
+        name: str = 'Layer',
+        format: ImageFormat = ImageFormat.RGBA,
+    ) -> None:
+        ...
 
-        self._id = Id()
-        self._edits: deque[EditLayer] = deque()
-        self._opacity_mask: Optional[np.ndarray] = None
-        self._parent_inverse = np.identity(3, dtype=np.float32)
+    @overload
+    def __init__(
+        self,
+        size: tuple[int, int],
+        opacity: float = 1.0,
+        blend_mode: BlendMode = BlendMode.NORMAL,
+        name: str = 'Layer',
+        format: ImageFormat = ImageFormat.RGBA,
+    ) -> None:
+        ...
 
-        self.add_edit(image, region, blend_mode)
-        self._old_matrix = np.zeros((3, 3))
-        self._render_flags = RenderFlags.ALL_DIRTY
-        self._warp_mode = WarpMode.AFFINE
-        self._content = LayerContent(self)
-        self._layout = LayerLayoutStrategy(self)
+    def __init__(
+        self,
+        *args: Any,
+        **kwargs: Any,
+    ) -> None:
+        target = kwargs.pop("image", None) or kwargs.pop("region", None) or kwargs.pop("size", None)
+        if target is None and args:
+            target = args[0]
+            args = args[1:]
+        self._dispatch_init(target, *args, **kwargs)
+
+    @singledispatchmethod
+    def _dispatch_init(
+        self,
+        target: Any,
+        opacity: float = 1.0,
+        blend_mode: BlendMode = BlendMode.NORMAL,
+        name: str = 'Layer',
+        format: ImageFormat = ImageFormat.RGBA,
+    ) -> None:
+        size = getattr(target, 'size', None)
+        if size is None:
+            raise TypeError(
+                f"Target inválido para Layer: {type(target).__name__}. "
+                "Esperado Image, Region ou tuple[int, int]."
+            )
+        layer_format = getattr(target, 'format', format)
+        self._init_base(Region.from_size(*size), opacity, blend_mode, name, layer_format)
+        self.add_edit(target, self.base.region, blend_mode)
+
+    @_dispatch_init.register
+    def _(
+        self,
+        image: Image,
+        opacity: float = 1.0,
+        blend_mode: BlendMode = BlendMode.NORMAL,
+        name: str = 'Layer',
+        format: ImageFormat = ImageFormat.RGBA,
+    ) -> None:
+        self._init_base(Region.from_size(*image.size), opacity, blend_mode, name, image.format)
+        self.add_edit(image, self.base.region, blend_mode)
+
+    @_dispatch_init.register
+    def _(
+        self,
+        region: Region,
+        opacity: float = 1.0,
+        blend_mode: BlendMode = BlendMode.NORMAL,
+        name: str = 'Layer',
+        format: ImageFormat = ImageFormat.RGBA,
+    ) -> None:
+        self._init_base(region, opacity, blend_mode, name, format)
+
+    @_dispatch_init.register
+    def _(
+        self,
+        size: tuple,
+        opacity: float = 1.0,
+        blend_mode: BlendMode = BlendMode.NORMAL,
+        name: str = 'Layer',
+        format: ImageFormat = ImageFormat.RGBA,
+    ) -> None:
+        self._init_base(Region.from_size(*size), opacity, blend_mode, name, format)
 
     def __repr__(self) -> str:
         return f"Layer(x={self.x.start}, y={self.y.start}, size={self.region.size})"
@@ -133,9 +223,11 @@ class Layer(BaseLayer, AbstractLayer):
         blend_mode: BlendMode = BlendMode.NORMAL,
         name: str | None = None,
         visible: bool = True,
+        global_matrix: np.ndarray | None = None,
     ) -> EditLayer:
 
-        matrix = mat_inverse(self.matrix)
+        inv_mat = mat_inverse(self.matrix)
+        matrix = inv_mat if global_matrix is None else inv_mat @ global_matrix
         edit_cls = EDIT_LAYER_MAP.get(blend_mode, EditLayer)
         edit_name = name or blend_mode.default_name
         edit = edit_cls(image, region, matrix, blend_mode, edit_name, visible)

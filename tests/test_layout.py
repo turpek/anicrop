@@ -19,6 +19,16 @@ from anicrop.spatial import Region
 from anicrop.transform import TransformRel
 
 
+def make_mock_image(size: tuple[int, int] = (100, 50), format: ImageFormat = ImageFormat.RGBA) -> Image:
+    """Cria uma Image real cujo buffer interno (_data) é um MagicMock."""
+    w, h = size
+    mock_data = MagicMock(spec=np.ndarray)
+    mock_data.ndim = 3
+    mock_data.shape = (h, w, format.channels)
+    mock_data.dtype = np.uint8
+    return Image(mock_data, format)
+
+
 def make_transformed_layer(
     x: int = 10,
     y: int = 20,
@@ -27,8 +37,7 @@ def make_transformed_layer(
     transform: TransformRel | None = None,
 ) -> Layer:
     """Cria uma camada com mock de Image, translação e transformações opcionais."""
-    mock_img = MagicMock(spec=Image)
-    mock_img.size = (w, h)
+    mock_img = make_mock_image(size=(w, h))
     layer = Layer(mock_img)
     layer.region += (x, y)
     if transform is not None:
@@ -217,8 +226,7 @@ def test_layout_fit_content(mocker, edits_rect, expect_global_rect):
     target = make_transformed_layer(x=10, y=20, w=100, h=50)
 
     if edits_rect is not None:
-        mock_edit_img = MagicMock(spec=Image)
-        mock_edit_img.size = (edits_rect[2], edits_rect[3])
+        mock_edit_img = make_mock_image(size=(edits_rect[2], edits_rect[3]))
         edit_layer = EditLayer(
             mock_edit_img, Region.from_rect(*edits_rect), np.identity(3)
         )
@@ -244,8 +252,7 @@ def test_layout_fit_content(mocker, edits_rect, expect_global_rect):
 def test_layout_fit_content_apos_fit_preserva_tamanho_das_edicoes(mocker):
     layer = make_transformed_layer(x=50, y=50, w=100, h=100)
 
-    mock_edit_img = MagicMock(spec=Image)
-    mock_edit_img.size = (100, 100)
+    mock_edit_img = make_mock_image(size=(100, 100))
     edit_layer = EditLayer(
         mock_edit_img, Region.from_rect(0, 0, 100, 100), np.identity(3)
     )
@@ -402,14 +409,12 @@ def test_group_layout_fit_content(mocker):
     layer1 = make_transformed_layer(x=10, y=20, w=100, h=50)
     layer2 = make_transformed_layer(x=100, y=50, w=100, h=50)
 
-    mock_img1 = MagicMock(spec=Image)
-    mock_img1.size = (40, 20)
+    mock_img1 = make_mock_image(size=(40, 20))
     edit1 = EditLayer(mock_img1, Region.from_rect(10, 10, 40, 20), np.identity(3))
     layer1._edits.clear()
     layer1._edits.append(edit1)
 
-    mock_img2 = MagicMock(spec=Image)
-    mock_img2.size = (80, 40)
+    mock_img2 = make_mock_image(size=(80, 40))
     edit2 = EditLayer(mock_img2, Region.from_rect(0, 0, 80, 40), np.identity(3))
     layer2._edits.clear()
     layer2._edits.append(edit2)
@@ -439,8 +444,7 @@ def test_group_layout_fit_content_com_camada_filha_rotacionada(mocker):
     layer = make_transformed_layer(
         x=50, y=50, w=100, h=100, transform=TransformRel().rotate(90))
 
-    mock_img = MagicMock(spec=Image)
-    mock_img.size = (40, 20)
+    mock_img = make_mock_image(size=(40, 20))
     edit = EditLayer(mock_img, Region.from_rect(20, 30, 40, 20), np.identity(3))
     layer._edits.clear()
     layer._edits.append(edit)
@@ -463,8 +467,7 @@ def test_canvas_fit_content_com_group_layer_aninhado(mocker):
     group = GroupLayer()
     layer = make_transformed_layer(x=20, y=30, w=100, h=50)
 
-    mock_img = MagicMock(spec=Image)
-    mock_img.size = (40, 20)
+    mock_img = make_mock_image(size=(40, 20))
     edit = EditLayer(mock_img, Region.from_rect(10, 10, 40, 20), np.identity(3))
     layer._edits.clear()
     layer._edits.append(edit)
@@ -523,13 +526,8 @@ def test_global_content_region_mariachi_cropped_rotated_and_uncropped(mocker):
     ])
     mocker.patch.object(Layer, "matrix", new_callable=PropertyMock, return_value=matrix)
 
-    mock_base_img = MagicMock(spec=Image)
-    mock_base_img.size = (736, 1104)
-    mock_base_img.is_zarr = False
-
-    mock_crop_img = MagicMock(spec=Image)
-    mock_crop_img.size = (400, 400)
-    mock_crop_img.is_zarr = False
+    mock_base_img = make_mock_image(size=(736, 1104))
+    mock_crop_img = make_mock_image(size=(400, 400))
 
     base_edit = EditLayer(mock_base_img, Region.from_rect(0, 0, 736, 1104), np.identity(3))
     crop_edit = CropEditLayer(mock_crop_img, Region.from_rect(100, 50, 400, 400), np.identity(3))
@@ -555,8 +553,7 @@ def test_layout_fit_content_com_edicao_desativada_retorna_false():
     """Valida que fit_content retorna False e não altera o layout quando todas as edições estão desativadas."""
     layer = make_transformed_layer(x=10, y=20, w=100, h=50)
 
-    mock_img = MagicMock(spec=Image)
-    mock_img.size = (40, 20)
+    mock_img = make_mock_image(size=(40, 20))
     edit = EditLayer(mock_img, Region.from_rect(10, 10, 40, 20), np.identity(3))
     edit.visible = False
     layer._edits.clear()

@@ -4,7 +4,7 @@ import pytest
 
 from anicrop.canvas import Canvas
 from anicrop.container import Container, GroupLayer, GroupLayoutStrategy, LayerStack, _NULL_CONTAINER, walk_nodes
-from anicrop.image import Image
+from anicrop.image import Image, ImageFormat
 from anicrop.layout import Layout
 from anicrop.layer import Layer
 from anicrop.spatial import Region, Span
@@ -446,7 +446,17 @@ def test_mover_item_inexistente_deve_lancar_value_error(mocker, container_cls, i
         exc_info.value) == f"Item {item_invalido} is not in this {container.__class__.__name__}"
 
 
-def test_group_layer_transform_rotate_pivot_respects_layout_fit_region():
+def make_mock_image(size: tuple[int, int] = (100, 100)) -> Image:
+    """Cria uma Image real cujo buffer interno (_data) é um MagicMock."""
+    w, h = size
+    mock_data = MagicMock(spec=np.ndarray)
+    mock_data.ndim = 3
+    mock_data.shape = (h, w, 4)
+    mock_data.dtype = np.uint8
+    return Image(mock_data, ImageFormat.RGBA)
+
+
+def test_group_layer_fit_preserva_pivo_com_camada_filha_deslocada():
     """
     Valida se o cálculo do pivô relativo (0.5, 0.5) do Composer no GroupLayer
     utiliza a moldura ativa do Layout (layout.region) em vez da base.region dos filhos.
@@ -454,8 +464,7 @@ def test_group_layer_transform_rotate_pivot_respects_layout_fit_region():
     ajustado para (0, 0, 100, 100) calcularia o pivô em (70, 70), deslocando a global_region incorretamente.
     """
     group = GroupLayer()
-    mock_child_img = MagicMock(spec=Image)
-    mock_child_img.size = (40, 40)
+    mock_child_img = make_mock_image(size=(40, 40))
     child = Layer(mock_child_img)
     child.region += (50, 50)
     group.append(child)
@@ -474,13 +483,11 @@ def test_group_layer_transform_rotate_pivot_respects_layout_fit_region():
 def test_walk_nodes_com_camadas_e_grupos_aninhados():
     """Valida se walk_nodes realiza a travessia DFS completa de uma árvore contendo grupos e camadas."""
     root = GroupLayer(name="root_group")
-    mock_img1 = MagicMock(spec=Image)
-    mock_img1.size = (10, 10)
+    mock_img1 = make_mock_image(size=(10, 10))
     child_layer1 = Layer(mock_img1, name="layer1")
 
     child_group = GroupLayer(name="sub_group")
-    mock_img2 = MagicMock(spec=Image)
-    mock_img2.size = (10, 10)
+    mock_img2 = make_mock_image(size=(10, 10))
     sub_child_layer = Layer(mock_img2, name="sub_layer")
 
     child_group.append(sub_child_layer)
@@ -495,8 +502,7 @@ def test_walk_nodes_com_camadas_e_grupos_aninhados():
 def test_group_layer_layout_bound_api():
     """Valida as operações de layout diretamente via group.layout."""
     group = GroupLayer(name="test_group")
-    mock_img = MagicMock(spec=Image)
-    mock_img.size = (100, 100)
+    mock_img = make_mock_image(size=(100, 100))
     child = Layer(mock_img)
     group.append(child)
 

@@ -400,3 +400,72 @@ def test_group_layer_format_setter():
 
     with pytest.raises(TypeError):
         group.format = None  # type: ignore[assignment]
+
+
+def test_layer_add_edit_with_global_matrix():
+    """Valida se add_edit calcula a matriz relativa correta quando global_matrix e fornecido."""
+    layer = Layer(Image.new((100, 100), ImageFormat.RGBA))
+    layer.transform.rotate(30).translate(50, 50)
+
+    edit_img = Image.new((40, 40), ImageFormat.RGBA)
+    edit_region = Region.from_rect(10, 10, 40, 40)
+
+    global_mat = np.array([
+        [2.0, 0.0, 100.0],
+        [0.0, 2.0, 150.0],
+        [0.0, 0.0, 1.0],
+    ], dtype=np.float32)
+
+    edit = layer.add_edit(edit_img, edit_region, global_matrix=global_mat)
+
+    expected_matrix = np.linalg.inv(layer.matrix) @ global_mat
+    assert np.allclose(edit.matrix, expected_matrix)
+    assert edit.region == edit_region
+    assert edit.image is edit_img
+
+
+def test_layer_add_edit_default_global_matrix():
+    """Valida se add_edit sem global_matrix assume o espaco global da cena."""
+    layer = Layer(Image.new((100, 100), ImageFormat.RGBA))
+    layer.transform.scale(2.0, 2.0).translate(20, 30)
+
+    edit_img = Image.new((50, 50), ImageFormat.RGBA)
+    edit_region = Region.from_rect(0, 0, 50, 50)
+
+    edit = layer.add_edit(edit_img, edit_region)
+
+    expected_matrix = np.linalg.inv(layer.matrix)
+    assert np.allclose(edit.matrix, expected_matrix)
+
+
+def test_layer_init_with_region():
+    """Valida criacao de Layer a partir de uma Region (sem edits iniciais)."""
+    reg = Region.from_rect(15, 25, 120, 80)
+    layer = Layer(reg, opacity=0.7, name="RegionLayer", format=ImageFormat.RGB)
+
+    assert layer.name == "RegionLayer"
+    assert layer.opacity == 0.7
+    assert layer.format == ImageFormat.RGB
+    assert layer.region == reg
+    assert len(layer.edits) == 0
+
+
+def test_layer_init_with_size_tuple():
+    """Valida criacao de Layer a partir de uma tupla (width, height) (sem edits iniciais)."""
+    layer = Layer((300, 200), name="SizeLayer")
+
+    assert layer.name == "SizeLayer"
+    assert layer.region == Region.from_size(300, 200)
+    assert layer.format == ImageFormat.RGBA
+    assert len(layer.edits) == 0
+
+
+def test_layer_init_with_image_creates_initial_edit():
+    """Valida criacao de Layer a partir de Image (com edit inicial)."""
+    img = Image.new((50, 60), ImageFormat.RGBA)
+    layer = Layer(img, name="ImageLayer")
+
+    assert layer.name == "ImageLayer"
+    assert layer.region == Region.from_size(50, 60)
+    assert len(layer.edits) == 1
+    assert layer.edits[0].image is img
