@@ -41,13 +41,19 @@ A classe `Image` garante a integridade dos dados de imagem (validação de forma
   - `region` (`Ellipsis | Region`): A sub-região espacial a ser extraída (padrão `...` para a imagem inteira).
 - **Retorno**: `np.ndarray` — Matriz NumPy pronta para o OpenCV.
 
+#### `to_format(target_format: ImageFormat) -> Image`
+- **Descrição**: Converte a imagem para o formato de canais e espaço de cores especificado (`RGBA`, `PRGBA`, `RGBX`, `RGB`, `GRAY`, `GRAY_ALPHA`) utilizando a tabela de despacho de estratégias de conversão do módulo `anicrop.color`.
+- **Parâmetros**:
+  - `target_format` (`ImageFormat`): O formato de destino desejado.
+- **Retorno**: `Image` — Nova instância contendo os pixels convertidos.
+
 #### Propriedades de Dimensão e Metadados:
 - `@property size -> tuple[int, int]`: Retorna `(width, height)` da imagem em pixels.
 - `@property width -> int` / `@property height -> int`: Retornam a largura e a altura da imagem.
 - `@property shape -> tuple[int, ...]`: Retorna a tupla de dimensões da matriz interna `(height, width, channels)`.
-- `@property channels -> int`: Retorna o número de canais da imagem (ex: `4` para RGBA, `3` para RGB, `1` para GRAY).
-- `@property format -> ImageFormat`: Retorna o enum `ImageFormat` associado.
-- `@property has_alpha -> bool`: Retorna `True` se o formato da imagem incluir canal de transparência (Alpha).
+- `@property channels -> int`: Retorna o número de canais da imagem (ex: `4` para RGBA/PRGBA/RGBX, `3` para RGB, `1` para GRAY).
+- `@property format -> ImageFormat`: Retorna o enum `ImageFormat` associado (`RGBA`, `PRGBA`, `RGBX`, `RGB`, `GRAY`, `GRAY_ALPHA`, `CMYK`, `CMYK_ALPHA`).
+- `@property has_alpha -> bool`: Retorna `True` se o formato da imagem incluir canal de transparência (Alpha ativo em `RGBA`, `PRGBA`, `GRAY_ALPHA`, `CMYK_ALPHA`).
 - `@property is_zarr -> bool`: Retorna `True` se os dados estiverem armazenados em um array Zarr no disco.
 
 ---

@@ -141,6 +141,46 @@ def blend_normal_linear(base: Image, edit: Image, opacity: float = 1.0) -> None:
     _blend_normal_linear_numpy(b_view, e_view, opacity)
 
 
+def _blend_normal_prgba_numpy(
+    b_view: np.ndarray, e_view: np.ndarray, opacity: float
+) -> None:
+    """Mesclagem Porter-Duff Over otimizada para canais pré-multiplicados (PRGBA)."""
+    mask = e_view[..., 3] > 0
+    if not np.any(mask):
+        return
+
+    alpha_e = (e_view[mask, 3:4].astype(np.float32) / 255.0) * opacity
+    alpha_b = b_view[mask, 3:4].astype(np.float32) / 255.0
+
+    rgb_e = e_view[mask, :3].astype(np.float32) * opacity
+    rgb_b = b_view[mask, :3].astype(np.float32)
+
+    inv_alpha_e = 1.0 - alpha_e
+    out_rgb = rgb_e + rgb_b * inv_alpha_e
+    out_a = alpha_e + alpha_b * inv_alpha_e
+
+    b_view[mask, :3] = np.clip(np.round(out_rgb), 0, 255).astype(np.uint8)
+    b_view[mask, 3:4] = np.clip(np.round(out_a * 255.0), 0, 255).astype(np.uint8)
+
+
+def _blend_prgba_over_opaque_numpy(
+    b_view: np.ndarray, e_view: np.ndarray, opacity: float
+) -> None:
+    """Mesclagem de PRGBA sobre fundo opaco (RGB / RGBX)."""
+    mask = e_view[..., 3] > 0
+    if not np.any(mask):
+        return
+
+    alpha_e = (e_view[mask, 3:4].astype(np.float32) / 255.0) * opacity
+    rgb_e = e_view[mask, :3].astype(np.float32) * opacity
+    rgb_b = b_view[mask, :3].astype(np.float32)
+
+    out_rgb = rgb_e + rgb_b * (1.0 - alpha_e)
+    b_view[mask, :3] = np.clip(np.round(out_rgb), 0, 255).astype(np.uint8)
+    if b_view.shape[-1] == 4:
+        b_view[mask, 3] = 255
+
+
 def _blend_normal_numpy(b_view: np.ndarray, e_view: np.ndarray, opacity: float) -> None:
     b_has_alpha = b_view.shape[-1] in (2, 4)
     e_has_alpha = e_view.shape[-1] in (2, 4)
@@ -228,6 +268,24 @@ def blend_normal(base: Image, edit: Image, opacity: float = 1.0) -> None:
 
     base_arr = base[...]
     edit_arr = edit[...]
+
+    h, w = (
+        min(base_arr.shape[0], edit_arr.shape[0]),
+        min(base_arr.shape[1], edit_arr.shape[1]),
+    )
+    b_view = base_arr[:h, :w]
+    e_view = edit_arr[:h, :w]
+
+    # Fast-paths especializados para PRGBA e RGBX
+    if base.format == ImageFormat.PRGBA and edit.format == ImageFormat.PRGBA:
+        _blend_normal_prgba_numpy(b_view, e_view, opacity)
+        return
+    elif (
+        base.format in (ImageFormat.RGB, ImageFormat.RGBX)
+        and edit.format == ImageFormat.PRGBA
+    ):
+        _blend_prgba_over_opaque_numpy(b_view, e_view, opacity)
+        return
 
     if _HAS_CY_BLEND and _cy_blend_normal is not None:
         _cy_blend_normal(base_arr, edit_arr, opacity)

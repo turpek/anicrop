@@ -68,6 +68,8 @@ class ImageFormat(StrEnum):
     GRAY_ALPHA = "gray_alpha"
     RGB = "rgb"
     RGBA = "rgba"
+    PRGBA = "prgba"
+    RGBX = "rgbx"
     CMYK = "cmyk"
     CMYK_ALPHA = "cmyk_alpha"
 
@@ -76,8 +78,13 @@ class ImageFormat(StrEnum):
         return self in {
             ImageFormat.GRAY_ALPHA,
             ImageFormat.RGBA,
+            ImageFormat.PRGBA,
             ImageFormat.CMYK_ALPHA,
         }
+
+    @property
+    def is_premultiplied(self) -> bool:
+        return self == ImageFormat.PRGBA
 
     @property
     def channels(self) -> int:
@@ -86,6 +93,8 @@ class ImageFormat(StrEnum):
             ImageFormat.GRAY_ALPHA: 2,
             ImageFormat.RGB: 3,
             ImageFormat.RGBA: 4,
+            ImageFormat.PRGBA: 4,
+            ImageFormat.RGBX: 4,
             ImageFormat.CMYK: 4,
             ImageFormat.CMYK_ALPHA: 5,
         }[self]
@@ -96,6 +105,8 @@ class ImageFormat(StrEnum):
             "gray_alpha": "gray",
             "rgb": "rgb",
             "rgba": "rgb",
+            "prgba": "rgb",
+            "rgbx": "rgb",
             "cmyk": "cmyk",
             "cmyk_alpha": "cmyk",
         }

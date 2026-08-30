@@ -14,6 +14,7 @@ import zarr
 from numpy import ndarray
 from PIL import Image as PILImage
 
+from anicrop.color import convert_image_format
 from anicrop.enums import ImageFormat
 from anicrop.interfaces.io import AbstractImageIO, SaveOptions
 from anicrop.io.registry import get_backend
@@ -251,14 +252,24 @@ class Image:
     def crop(self, region: EllipsisType | Region = ...) -> Image:
         return Image(self[region].copy(), self.format)
 
+    def to_format(self, target_format: ImageFormat) -> Image:
+        """Converte a imagem para o formato especificado utilizando a tabela de estratégias de conversão."""
+        if self.format == target_format:
+            return Image(self[...].copy(), target_format)
+        converted_data = convert_image_format(self[...], self.format, target_format)
+        return Image(converted_data, target_format)
+
     def bgr(self, region: EllipsisType | Region = ...) -> np.ndarray:
         """Extrai a matriz NumPy da região convertida para o formato BGR/BGRA do OpenCV."""
         frame = self[region]
 
         if self.format == ImageFormat.RGBA:
             return cv2.cvtColor(frame, cv2.COLOR_RGBA2BGRA)
-        elif self.format == ImageFormat.RGB:
-            return cv2.cvtColor(frame, cv2.COLOR_RGB2BGR)
+        elif self.format == ImageFormat.PRGBA:
+            rgba_data = convert_image_format(frame, ImageFormat.PRGBA, ImageFormat.RGBA)
+            return cv2.cvtColor(rgba_data, cv2.COLOR_RGBA2BGRA)
+        elif self.format in (ImageFormat.RGB, ImageFormat.RGBX):
+            return cv2.cvtColor(frame[..., :3], cv2.COLOR_RGB2BGR)
         elif self.format == ImageFormat.GRAY_ALPHA:
             gray_bgr = cv2.cvtColor(frame[..., 0], cv2.COLOR_GRAY2BGR)
             return np.dstack([gray_bgr, frame[..., 1]])
