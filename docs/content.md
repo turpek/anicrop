@@ -21,7 +21,7 @@ O módulo `anicrop.content` fornece operações de alto nível para transformaç
 
 ## 2. Métodos da Classe `Content` (`anicrop.content.Content`)
 
-### `crop(target: BaseLayer, ref: Region | tuple[int, int, int, int] | Canvas | BaseLayer) -> bool`
+### `crop(target: BaseLayer, ref: Region | tuple[float, float, float, float] | Canvas | BaseLayer) -> bool`
 - **Descrição**: Recorta o conteúdo visual da camada ou grupo para os limites especificados em `ref`.
 - **Parâmetros**:
   - `target` (`BaseLayer`): A camada folha (`Layer`) ou grupo (`GroupLayer`) a ser recortado.
@@ -55,9 +55,9 @@ doc.content.resize(doc["grupo_cenario"], 1920, 1080)
 
 ### `fit(target: BaseLayer, ref: Region | tuple | Canvas | BaseLayer) -> bool`
 - **Descrição**: Ajusta a escala e translada o conteúdo da camada ou grupo para preencher exatamente a região de referência `ref`.
-- **Sobrecargas (`@ovld`)**:
+- **Sobrecargas (`@overload` / `@ovld`)**:
   - `fit(target, ref)`: Ajuste direto para uma região ou elemento.
-  - `fit(payload)`: Recebe uma tupla gerada por um contexto de ajuste proporcional (como `FitContext`).
+  - `fit(payload)`: Recebe uma tupla `(target, ref_resolvida)` gerada por um contexto de ajuste proporcional (como `FitContext`).
 
 ```python
 # Ajusta o conteúdo do grupo para cobrir exatamente a região do Canvas
@@ -81,10 +81,10 @@ doc.content.flip_x(doc["grupo_personagens"])
 
 ## 3. Ajustes Proporcionais Avançados (`FitContext`)
 
-A classe `FitContext` permite calcular enquadramentos proporcionais complexos antes de aplicá-los em camadas ou grupos:
+A classe `FitContext` permite calcular enquadramentos proporcionais analíticos antes de aplicá-los em camadas ou grupos:
 
-- **`fit_contain(x_factor=0.5, y_factor=0.5)`**: Redimensiona proporcionalmente para caber totalmente dentro de `ref` sem cortar nada.
-- **`fit_cover(x_factor=0.5, y_factor=0.5)`**: Redimensiona proporcionalmente para cobrir totalmente `ref` (com corte das sobras).
+- **`fit_contain()`**: Redimensiona proporcionalmente para caber totalmente dentro de `ref` sem cortar nada.
+- **`fit_cover()`**: Redimensiona proporcionalmente para cobrir totalmente `ref` (com corte das sobras).
 - **`scale_width()`**: Ajusta proporcionalmente travando a largura em `ref.width`.
 - **`scale_height()`**: Ajusta proporcionalmente travando a altura em `ref.height`.
 
@@ -96,7 +96,7 @@ from anicrop.content import FitContext
 ctx = FitContext(doc["grupo_logos"], doc.canvas)
 
 # Aplica o resultado calculado no motor de Content:
-doc.content.fit(ctx.fit_contain(x_factor=0.5, y_factor=0.5))
+doc.content.fit(ctx.fit_contain())
 ```
 
 ---

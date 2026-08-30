@@ -42,11 +42,11 @@ Separa internamente a matriz em duas partes para permitir otimizações de cache
 - **Descrição**: Modifica o composer *in-place* acumulando uma escala.
 - **Retorno**: `self`.
 
-#### `translate(x: int = 0, y: int = 0) -> Self`
+#### `translate(x: float = 0.0, y: float = 0.0) -> Self`
 - **Descrição**: Modifica o composer *in-place* acumulando uma translação $(x, y)$.
 - **Retorno**: `self`.
 
-#### `add_transform(transf: Transform, reference_size: tuple[int, int] = None) -> Self`
+#### `add_transform(transf: Transform, reference_size: tuple[float, float] | None = None) -> Self`
 - **Descrição**: Aplica e acumula um objeto de intenção `Transform` neste composer.
 - **Retorno**: `self`.
 

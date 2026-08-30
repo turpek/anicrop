@@ -169,8 +169,13 @@ Para detalhes de métodos, tipos de retorno e exemplos de uso de cada classe, co
   - **`CanvasRender.render_container`:** Renderiza sequências avulsas (`Sequence[BaseLayer]` ou `Container`) calculando o Canvas automaticamente pela união das `global_region` dos elementos renderizáveis (`layer.is_renderable`), ideal para pipelines de streaming/batch como o Stitcher.
   - **Properties de Render:** `doc.canvas_render` e `doc.viewport_render` expostas na fachada do `Document`.
 
+- **Arquitetura Espacial e Geometria Contínua em `float` (`Point`, `Span`, `Region`):**
+  - **Primitiva `Point(NamedTuple)`:** Subclasse direta e eficiente de `tuple[float, float]` com suporte a desempacotamento, igualdade com tolerância analítica (`math.isclose`) e conversão discreta `.to_int(mode="round"|"floor"|"ceil")`.
+  - **Pipeline Contínuo e Imunidade a Size Drift:** Toda a álgebra de `Span`, `Region`, `Composer`, `Layout` e `Content` opera estritamente em ponto flutuante analítico (`float`). A quantização para inteiros ocorre exclusivamente na fronteira física de buffers de imagem (`Image`, `ScratchBuffer`).
+  - **Padronização Estrita de Tipagem e Sobrecargas:** Sobrecargas polimórficas padronizadas com `@overload` sob `if TYPE_CHECKING:` (com `pass` em linha dedicada) e `@ovld` em `else:` para despacho dinâmico em tempo de execução (`Span.__init__`, `Content.fit`, `Layer.__init__`).
+
 - **Fachada `Document` e Tipagem Estrita:**
   - **Parâmetro Semântico `history: bool = False`:** Configura `DirectDocumentPolicy` (padrão de alta performance) vs `ReactiveDocumentPolicy` (experimental).
   - **Tipagem Pura de Domínio:** Referências diretas a `LayerStack`, `BaseLayer`, `Layer`, `GroupLayer` e remoção limpa via protocolo de contêineres e `NullContainer`. Sobrecargas `@overload` em `Document.__getitem__` para inferência precisa.
-  - **Qualidade de Código:** 100% de conformidade estrita no `mypy` (0 erros) e **941 testes passando** (0 pulados) no `pytest`.
+  - **Qualidade de Código:** 100% de conformidade estrita no `mypy` (0 erros com `--check-untyped-defs`) e **958 testes passando** (0 falhas, 0 pulados) no `pytest`.
 
