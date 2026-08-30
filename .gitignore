@@ -1,19 +1,23 @@
-GEMINI.md
-guia
-Makefile
+# Caches e builds
 anicrop.egg-info
 .coverage
+.mypy_cache
+.pytest_cache
+.ruff_cache
+htmlcov/
+build/
+*.so
+*.pyd
+src/anicrop/native/*.c
+
+# Scripts temporarios de debug
 prog.py
 debug.py
 temp.py
-planos
 scripts
 scratch
-docs
 cont.txt
+
+# Imagens (exceto assets oficiais)
 *.png
 !assets/*.png
-*.so
-*.pyd
-build/
-src/anicrop/native/*.c
