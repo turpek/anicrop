@@ -24,10 +24,35 @@ Projetado com rigor matemático e precisão geométrica, o motor utiliza uma ár
 
 ## 📦 Instalação
 
-Recomenda-se o uso do [`uv`](https://github.com/astral-sh/uv) para gerenciamento do ambiente:
+### 1. Dependências do Sistema (Opcional, para aceleração `libvips`)
+O backend `PyvipsBackend` utiliza aceleração SIMD nativa em C. O motor faz fallback automático para `OpenCV` se a biblioteca não estiver presente, mas para máxima velocidade de decodificação:
 
 ```bash
-uv add numpy opencv-python pyvips zarr pillow loguru
+# Ubuntu / Debian
+sudo apt install libvips-dev
+
+# macOS (Homebrew)
+brew install vips
+
+# Fedora / Arch Linux
+sudo dnf install vips-devel   # Fedora
+sudo pacman -S libvips        # Arch
+```
+
+### 2. Instalação do Pacote e Extensões Nativas (Cython / OpenMP)
+O projeto inclui extensões em Cython (`anicrop.native.blend`) para mesclagem de canais em alta performance. Instale o ambiente utilizando [`uv`](https://github.com/astral-sh/uv):
+
+```bash
+# Sincroniza o ambiente virtual
+uv sync
+
+# Compila as extensões nativas em modo editável
+uv pip install -e .
+```
+
+Ou utilizando `pip` padrão:
+```bash
+pip install -e .
 ```
 
 ---
