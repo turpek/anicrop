@@ -68,3 +68,18 @@ def test_scratch_buffer_reallocates_on_format_change():
 
     assert buf._image.format == ImageFormat.RGB
     assert slice_rgb.shape == (50, 50, 3)
+
+
+def test_scratch_buffer_was_used_flag_lifecycle():
+    """Valida se a flag was_used inicia como False, vira True apos __getitem__ e reseta no configure."""
+    buf = ScratchBuffer()
+    assert buf.was_used is False
+
+    buf.configure((100, 100), ImageFormat.RGBA)
+    assert buf.was_used is False
+
+    _ = buf[Region.from_size(50, 50)]
+    assert buf.was_used is True
+
+    buf.configure((100, 100), ImageFormat.RGBA)
+    assert buf.was_used is False

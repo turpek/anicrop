@@ -11,6 +11,12 @@ if TYPE_CHECKING:
 class AbstractScratchBuffer(ABC):
     """Classe base abstrata para buffers temporários reutilizáveis com alocação preguiçosa."""
 
+    @property
+    @abstractmethod
+    def was_used(self) -> bool:
+        """Indica se o buffer foi acessado desde a última chamada a configure."""
+        ...
+
     @abstractmethod
     def configure(
         self,

@@ -581,3 +581,23 @@ def test_render_scene_mixed_single_and_multi_edit_layers(canvas_render):
     assert result.size == (100, 100)
     np.testing.assert_array_equal(result[25, 25], [0, 255, 0, 255])
     np.testing.assert_array_equal(result[75, 75], [0, 0, 255, 255])
+
+
+def test_render_group_layer_com_multiplos_filhos_rotacionados_nao_contamina_buffers(canvas_render):
+    """Valida se renderizar GroupLayer rotacionado com multiplos filhos nao contamina buffers entre camadas."""
+    group = GroupLayer(name="Group")
+
+    child_small = make_layer(w=40, h=40, color=(0, 255, 0, 255))
+    child_small.transform.translate(140, 140)
+
+    child_large = make_layer(w=200, h=200, color=(255, 0, 0, 255))
+
+    group.append(child_small)
+    group.append(child_large)
+    group.transform.rotate(45)
+
+    result = canvas_render.render_container(group)
+
+    assert result is not None
+    # Verifica que a regiao superior esquerda de child_large nao contem pixels verdes vazados de child_small
+    assert not np.any((result[0:60, 0:60, 0] == 0) & (result[0:60, 0:60, 1] == 255) & (result[0:60, 0:60, 2] == 0))

@@ -380,11 +380,11 @@ class BaseRenderer[FrameT: BaseFrame](ABC):
 
         edit_image, dst_region = result
 
-        # 1. Fast-Path: Cobre 100% da área da camada -> Zero-Copy direto!
-        if dst_region.size == plan.dst_region.size:  # type: ignore[union-attr]
+        # 1. Fast-Path: Cobre 100% da área da camada sem uso de buffer (Zero-Copy direto de edit.image!)
+        if not dst.was_used:
             return edit_image
 
-        # 2. Patch parcial: Mescla o resultado já obtido dentro de layer_image
+        # 2. Patch com distorção ou parcial: Mescla o resultado já obtido dentro de layer_image
         layer_image = Image.new(plan.dst_region.size, layer_format)  # type: ignore[union-attr]
         edit_layer.blend_into(layer_image, edit_image, dst_region)
         return layer_image

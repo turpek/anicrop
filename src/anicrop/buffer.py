@@ -14,6 +14,12 @@ class ScratchBuffer(AbstractScratchBuffer):
         self._image: Image | None = None
         self._size: tuple[int, int] = (0, 0)
         self._format: ImageFormat = ImageFormat.RGBA
+        self._used: bool = False
+
+    @property
+    def was_used(self) -> bool:
+        """Indica se o buffer foi acessado desde a última chamada a configure."""
+        return self._used
 
     def configure(
         self,
@@ -23,6 +29,7 @@ class ScratchBuffer(AbstractScratchBuffer):
         """Configura as dimensões mínimas e o formato desejado para o próximo acesso."""
         self._size = size
         self._format = fmt
+        self._used = False
         return self
 
     def _ensure_allocated(self) -> Image:
@@ -44,5 +51,6 @@ class ScratchBuffer(AbstractScratchBuffer):
 
     def __getitem__(self, region: Region) -> np.ndarray:
         """Retorna o slice NumPy da região requisitada após garantir a alocação."""
+        self._used = True
         view = self._ensure_allocated()
         return view[region]

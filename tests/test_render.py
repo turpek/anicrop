@@ -714,3 +714,18 @@ def test_render_container_com_bg_color():
     assert result is not None
     assert result.size == (50, 50)
     assert np.array_equal(result[0, 0], [255, 0, 0, 255])
+
+
+def test_render_single_edit_com_distorcao_nao_retorna_referencia_ao_scratch_buffer():
+    """Valida se _render_single_edit com distorcao retorna uma imagem isolada e nao o scratch buffer compartilhado."""
+    layer = make_layer(w=60, h=60, color=(255, 0, 0, 255))
+    layer.transform.rotate(45)
+
+    renderer = CanvasRender()
+    frame = CanvasFrame(layer, Canvas(layer.global_region))
+
+    rendered = renderer.render_area(layer, frame)
+
+    assert rendered is not None
+    scratch_allocated = renderer._scratch_buffer._ensure_allocated()
+    assert not np.shares_memory(rendered[...], scratch_allocated[...])
