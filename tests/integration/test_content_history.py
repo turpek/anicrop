@@ -74,7 +74,7 @@ def test_fit_helper_contain_undo_single_step_restores_and_empties_history():
     doc.history._undo_stack.clear()
     initial_region = layer.global_region
 
-    doc.content.fit(FitContext(layer, doc.canvas).fit_contain)
+    doc.content.fit(FitContext(layer, doc.canvas).fit_contain())
     assert layer.global_region == Region.from_rect(0, 25, 100, 50)
 
     doc.history.undo()

@@ -79,11 +79,11 @@ chapeu.content.resize(250, 250)
 # 4. Alinha o chapéu no topo da cabeça da personagem diretamente via .layout
 chapeu.layout.align(personagem, anchor_x=0.51, anchor_y=-0.07)
 
-# 5. Achata o chapéu com a personagem em uma única camada (Merge Down: Chapéu + 1 camada abaixo)
-heroina = doc.combine.flatten("Chapeu", name="Heroina", count=1)
+# 5. Agrupa o chapéu com a personagem em um grupo não-destrutivo (Merge Down: Chapéu + 1 camada abaixo)
+heroina = doc.combine.merge("Chapeu", name="Heroina", count=1)
 
 # 6. Enquadra a heroína proporcionalmente para caber na altura do Canvas (fit_contain)
-fit_payload = FitContext(heroina, doc.canvas).fit_contain
+fit_payload = FitContext(heroina, doc.canvas).fit_contain()
 heroina.content.fit(fit_payload)
 
 # 7. Posiciona a heroína no lado direito do cenário diretamente via .layout

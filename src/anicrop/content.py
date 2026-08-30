@@ -162,43 +162,39 @@ class GroupContentStrategy(BaseContentStrategy):
 
 
 class FitContext:
-    """Encapsula o par (target, ref) e os fatores de alinhamento para cálculo proporcional."""
+    """Encapsula o par (target, ref) para cálculos proporcionais de enquadramento."""
 
     def __init__(
         self,
         target: AbstractBaseLayer,
         ref: tuple | Region | AbstractCanvas | AbstractBaseLayer,
-        x_factor: float = 0.5,
-        y_factor: float = 0.5,
-    ):
+    ) -> None:
         self.target = target
         self.ref_region = resolve_crop_region(ref)  # type: ignore[arg-type]
-        self.x_factor = x_factor
-        self.y_factor = y_factor
 
-    @property
-    def fit_contain(self) -> tuple[AbstractBaseLayer, Region]:
+    def fit_contain(
+        self, x_factor: float = 0.5, y_factor: float = 0.5
+    ) -> tuple[AbstractBaseLayer, Region]:
         """Calcula o enquadramento proporcional 'contain' e retorna (target, ref_resolvida)."""
         resolved = self.target.global_region.fit_contain(
-            self.ref_region, self.x_factor, self.y_factor
+            self.ref_region, x_factor, y_factor
         )
         return self.target, resolved
 
-    @property
-    def fit_cover(self) -> tuple[AbstractBaseLayer, Region]:
+    def fit_cover(
+        self, x_factor: float = 0.5, y_factor: float = 0.5
+    ) -> tuple[AbstractBaseLayer, Region]:
         """Calcula o enquadramento proporcional 'cover' e retorna (target, ref_resolvida)."""
         resolved = self.target.global_region.fit_cover(
-            self.ref_region, self.x_factor, self.y_factor
+            self.ref_region, x_factor, y_factor
         )
         return self.target, resolved
 
-    @property
     def scale_width(self) -> tuple[AbstractBaseLayer, Region]:
         """Calcula a escala proporcional ajustando à largura de ref e retorna (target, ref_resolvida)."""
         resolved = self.target.global_region.scale_width(self.ref_region.width)
         return self.target, resolved
 
-    @property
     def scale_height(self) -> tuple[AbstractBaseLayer, Region]:
         """Calcula a escala proporcional ajustando à altura de ref e retorna (target, ref_resolvida)."""
         resolved = self.target.global_region.scale_height(self.ref_region.height)
