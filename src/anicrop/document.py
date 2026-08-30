@@ -1,10 +1,11 @@
 from __future__ import annotations
 from abc import ABC, abstractmethod
 from pathlib import Path
-from typing import Iterator, TypeVar
+from typing import Iterator, TypeVar, overload
 
 from anicrop.canvas import Canvas
 from anicrop.container import BaseLayer, Container, GroupLayer, LayerStack, NullContainer
+from anicrop.composition import Combine
 from anicrop.content import Content
 from anicrop.enums import BlendMode, ImageFormat, InterpMode
 from anicrop.history import GlobalHistory
@@ -86,6 +87,7 @@ class Document:
         self._canvas_render = CanvasRender()
         self._layout = Layout()
         self._content = Content()
+        self._combine = Combine(self)
 
     @classmethod
     def open(
@@ -120,6 +122,11 @@ class Document:
     def content(self) -> Content:
         """Instância do motor de manipulação de conteúdo/pixels do documento."""
         return self._content
+
+    @property
+    def combine(self) -> Combine:
+        """Instância do serviço de combinação/fusão de camadas no documento."""
+        return self._combine
 
     @property
     def canvas_render(self) -> CanvasRender:
@@ -194,6 +201,14 @@ class Document:
     def __iter__(self) -> Iterator[BaseLayer]:
         """Itera pelas camadas raiz da pilha."""
         return iter(self.stack)
+
+    @overload
+    def __getitem__(self, key: int | str) -> BaseLayer:
+        ...
+
+    @overload
+    def __getitem__(self, key: slice) -> list[BaseLayer]:
+        ...
 
     def __getitem__(self, key: int | slice | str) -> BaseLayer | list[BaseLayer]:
         """

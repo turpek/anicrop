@@ -4,8 +4,9 @@ from operator import or_
 import numpy as np
 import pytest
 
-from anicrop.composition import LayerComposition, clone_group, clone_layer, clone_node, flatten, merge
+from anicrop.composition import Combine, LayerComposition, clone_group, clone_layer, clone_node, flatten, merge
 from anicrop.container import GroupLayer
+from anicrop.document import Document
 from anicrop.effect import BoundEffect
 from anicrop.enums import BlendMode, ImageFormat
 from anicrop.filter import BlurFilter
@@ -275,3 +276,193 @@ def test_flatten_default_name():
     l1 = make_layer((255, 0, 0, 255), (50, 50))
     flat = flatten([l1])
     assert flat.name == "Layer"
+
+
+def test_doc_combine_merge_basic_and_order():
+    """Valida merge descendente basico no Document e substituicao na posicao correta da stack."""
+    doc = Document("TestDoc", 200, 200, history=False)
+    l0 = make_layer((255, 0, 0, 255), name="L0")
+    l1 = make_layer((0, 255, 0, 255), name="L1")
+    l2 = make_layer((0, 0, 255, 255), name="L2")
+    l3 = make_layer((255, 255, 0, 255), name="L3")
+    for l in (l0, l1, l2, l3):
+        doc.add(l)
+
+    group = doc.combine.merge("L3", name="MergedGroup", count=1)
+
+    assert isinstance(group, GroupLayer)
+    assert group.name == "MergedGroup"
+    assert len(doc.stack) == 3
+    assert [child.name for child in doc.stack] == ["L0", "L1", "MergedGroup"]
+    assert len(group) == 2
+    assert [child.name for child in group] == ["L2", "L3"]
+
+
+def test_doc_combine_merge_skips_invisible_layers():
+    """Valida que o merge descendente pula camadas com visible=False."""
+    doc = Document("TestDoc", 200, 200, history=False)
+    l0 = make_layer((255, 0, 0, 255), name="L0")
+    l1 = make_layer((0, 255, 0, 255), name="L1")
+    l2 = make_layer((0, 0, 255, 255), name="L2")
+    l3 = make_layer((255, 255, 0, 255), name="L3")
+    l2.visible = False
+    for l in (l0, l1, l2, l3):
+        doc.add(l)
+
+    group = doc.combine.merge(l3, name="MergedGroup", count=1)
+
+    assert [child.name for child in group] == ["L1", "L3"]
+    assert [child.name for child in doc.stack] == ["L0", "MergedGroup", "L2"]
+
+
+def test_doc_combine_merge_count_exceeds_available_consumes_all():
+    """Valida que count maior que o disponivel consome todas as camadas visiveis abaixo."""
+    doc = Document("TestDoc", 200, 200, history=False)
+    l0 = make_layer((255, 0, 0, 255), name="L0")
+    l1 = make_layer((0, 255, 0, 255), name="L1")
+    l2 = make_layer((0, 0, 255, 255), name="L2")
+    for l in (l0, l1, l2):
+        doc.add(l)
+
+    group = doc.combine.merge("L2", name="MergedAll", count=10)
+
+    assert len(doc.stack) == 1
+    assert doc.stack[0] is group
+    assert [child.name for child in group] == ["L0", "L1", "L2"]
+
+
+def test_doc_combine_merge_nested_inside_group():
+    """Valida merge descendente aplicado sobre camadas filhas dentro de um GroupLayer."""
+    doc = Document("TestDoc", 200, 200, history=False)
+    parent_group = doc.add_group(name="ParentGroup")
+
+    sub0 = make_layer((255, 0, 0, 255), name="Sub0")
+    sub1 = make_layer((0, 255, 0, 255), name="Sub1")
+    sub2 = make_layer((0, 0, 255, 255), name="Sub2")
+    for sub in (sub0, sub1, sub2):
+        parent_group.append(sub)
+
+    res = doc.combine.merge("Sub2", name="InnerGroup", count=1)
+
+    assert len(parent_group) == 2
+    assert [child.name for child in parent_group] == ["Sub0", "InnerGroup"]
+    assert [child.name for child in res] == ["Sub1", "Sub2"]
+
+
+def test_doc_combine_merge_remove_source_false():
+    """Valida que remove_source=False gera o grupo sem alterar a pilha original."""
+    doc = Document("TestDoc", 200, 200, history=False)
+    l0 = make_layer((255, 0, 0, 255), name="L0")
+    l1 = make_layer((0, 255, 0, 255), name="L1")
+    l2 = make_layer((0, 0, 255, 255), name="L2")
+    for l in (l0, l1, l2):
+        doc.add(l)
+
+    group = doc.combine.merge("L2", name="UnattachedGroup", count=1, remove_source=False)
+
+    assert len(doc.stack) == 3
+    assert [child.name for child in doc.stack] == ["L0", "L1", "L2"]
+    assert len(group) == 2
+    assert [child.name for child in group] == ["L1", "L2"]
+
+
+def test_doc_combine_name_validation_and_reuse():
+    """Valida que e permitido reutilizar nomes das camadas sendo removidas e bloqueia colisoes externas."""
+    doc = Document("TestDoc", 200, 200, history=False)
+    l0 = make_layer((255, 0, 0, 255), name="L0")
+    l1 = make_layer((0, 255, 0, 255), name="L1")
+    l2 = make_layer((0, 0, 255, 255), name="L2")
+    l3 = make_layer((255, 255, 0, 255), name="L3")
+    for l in (l0, l1, l2, l3):
+        doc.add(l)
+
+    # Reutilizar nome de camada que sera removida (L3) deve funcionar
+    group = doc.combine.merge("L3", name="L3", count=1, remove_source=True)
+    assert group.name == "L3"
+
+    # Colidir com camada existente nao envolvida (L0) deve lancar ValueError
+    with pytest.raises(ValueError):
+        doc.combine.merge("L3", name="L0", count=1, remove_source=True)
+
+
+def test_doc_combine_flatten_inherits_target_format():
+    """Valida que flatten herda o ImageFormat da camada alvo do topo."""
+    doc = Document("TestDoc", 200, 200, history=False)
+    l0 = Layer(Image.new((100, 100), ImageFormat.RGBA), name="L0")
+    l1 = Layer(Image.new((100, 100), ImageFormat.RGB), name="L1")
+    doc.add(l0)
+    doc.add(l1)
+
+    flat = doc.combine.flatten("L1", name="FlatRGB", count=1)
+
+    assert isinstance(flat, Layer)
+    assert flat.format == ImageFormat.RGB
+    assert len(doc.stack) == 1
+    assert doc.stack[0].name == "FlatRGB"
+
+
+def test_doc_combine_errors_on_invalid_count_and_bottom_layer():
+    """Valida lancamento de excecoes em contagem invalida ou sem camadas abaixo."""
+    doc = Document("TestDoc", 200, 200, history=False)
+    l0 = make_layer((255, 0, 0, 255), name="L0")
+    doc.add(l0)
+
+    with pytest.raises(ValueError):
+        doc.combine.merge("L0", name="G", count=0)
+
+    with pytest.raises(ValueError):
+        doc.combine.merge("L0", name="G", count=1)
+
+
+def test_doc_combine_bake_group_in_place():
+    """Valida bake de GroupLayer substituindo o grupo por um Layer no mesmo indice."""
+    doc = Document("TestDoc", 200, 200, history=False)
+    l0 = make_layer((255, 0, 0, 255), name="L0")
+    l3 = make_layer((0, 255, 0, 255), name="L3")
+    doc.add(l0)
+
+    group = doc.add_group(name="CharGroup")
+    sub1 = make_layer((0, 0, 255, 255), name="Sub1")
+    sub2 = make_layer((255, 255, 0, 255), name="Sub2")
+    group.append(sub1)
+    group.append(sub2)
+
+    doc.add(l3)
+
+    baked = doc.combine.bake("CharGroup")
+
+    assert isinstance(baked, Layer)
+    assert baked.name == "CharGroup"
+    assert len(doc.stack) == 3
+    assert [child.name for child in doc.stack] == ["L0", "CharGroup", "L3"]
+    assert doc.stack[1] is baked
+
+
+def test_doc_combine_bake_stack():
+    """Valida bake da stack completa do documento em uma unica camada plana."""
+    doc = Document("TestDoc", 200, 200, history=False)
+    l0 = make_layer((255, 0, 0, 255), name="L0")
+    l1 = make_layer((0, 255, 0, 255), name="L1")
+    doc.add(l0)
+    doc.add(l1)
+
+    baked = doc.combine.bake_stack(name="FullScene")
+
+    assert isinstance(baked, Layer)
+    assert len(doc.stack) == 1
+    assert doc.stack[0] is baked
+    assert doc.stack[0].name == "FullScene"
+
+
+def test_doc_combine_bake_invalid_target_errors():
+    """Valida que bake lanca erro quando target nao e GroupLayer ou nao pertence a um container."""
+    doc = Document("TestDoc", 200, 200, history=False)
+    l0 = make_layer((255, 0, 0, 255), name="L0")
+    doc.add(l0)
+
+    with pytest.raises(TypeError):
+        doc.combine.bake("L0")
+
+    unattached_group = GroupLayer(name="Unattached")
+    with pytest.raises(ValueError):
+        doc.combine.bake(unattached_group)
