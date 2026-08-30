@@ -5,7 +5,7 @@ from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from numbers import Real
 from operator import add, sub
-from typing import NamedTuple, Optional
+from typing import TYPE_CHECKING, Any, NamedTuple, Optional, overload
 
 from ovld import ovld
 
@@ -51,37 +51,52 @@ class Span:
     This class is immutable.
 
     Attributes:
-        start (float | int): The starting point of the span.
-        length (float | int): The length of the span (must be > 0).
-        end (float | int): The ending point (start + length).
+        start (float): The starting point of the span.
+        length (float): The length of the span (must be > 0).
+        end (float): The ending point (start + length).
     """
 
-    @ovld
-    def __init__(self, length: int | float, /):
-        """Initializes a Span with start=0.
+    if TYPE_CHECKING:
 
-        Args:
-            length: The length of the span. Must be positive.
+        @overload
+        def __init__(self, length: float, /) -> None:
+            pass
 
-        Raises:
-            ValueError: If `length <= 0`.
-        """
-        self._setup(0, length)
+        @overload
+        def __init__(self, start: float, length: float, /) -> None:
+            pass
 
-    @ovld  # type: ignore[no-redef]
-    def __init__(self, start: int | float, length: int | float, /):  # noqa: F811
-        """Initializes a Span.
+        def __init__(self, *args: Any, **kwargs: Any) -> None:
+            pass
 
-        Args:
-            start: The starting point of the span (can be negative).
-            length: The length of the span. Must be positive.
+    else:
 
-        Raises:
-            ValueError: If `length <= 0`.
-        """
-        self._setup(start, length)
+        @ovld
+        def __init__(self, length: int | float, /):
+            """Initializes a Span with start=0.
 
-    def _setup(self, start: float | Real, length: float | Real) -> None:
+            Args:
+                length: The length of the span. Must be positive.
+
+            Raises:
+                ValueError: If `length <= 0`.
+            """
+            self._setup(0, length)
+
+        @ovld
+        def __init__(self, start: int | float, length: int | float, /):  # noqa: F811
+            """Initializes a Span.
+
+            Args:
+                start: The starting point of the span (can be negative).
+                length: The length of the span. Must be positive.
+
+            Raises:
+                ValueError: If `length <= 0`.
+            """
+            self._setup(start, length)
+
+    def _setup(self, start: float, length: float) -> None:
         if length <= 0:
             raise ValueError(f"length must be greater than 0 (length={length})")
 

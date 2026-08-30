@@ -76,7 +76,7 @@ class Layer(BaseLayer, AbstractLayer):
         @overload
         def __init__(
             self,
-            size: tuple[int, int],
+            size: tuple[float, float],
             *,
             opacity: float = 1.0,
             blend_mode: BlendMode = BlendMode.NORMAL,
