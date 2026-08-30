@@ -32,116 +32,79 @@ uv add numpy opencv-python pyvips zarr pillow loguru
 
 ---
 
-## 🚀 Guia Rápido & Exemplos de Uso
+## 🚀 Exemplo Completo de Composição (End-to-End)
 
-### 1. Criando um Documento e Manipulando Camadas
-
-```python
-from anicrop import Document, Layer, Image, ImageFormat
-from anicrop.enums import BlendMode
-
-# Cria um novo documento (1920x1080) com fundo transparente
-doc = Document("MeuProjeto", width=1920, height=1080)
-
-# Carrega camadas diretamente do disco
-fundo = doc.load_layer("assets/background.jpg", name="Fundo")
-personagem = doc.load_layer("assets/character.png", name="Personagem")
-
-# Aplica opacidade e modo de mesclagem
-personagem.opacity = 0.95
-personagem.blend_mode = BlendMode.NORMAL
-```
-
----
-
-### 2. Transformações Espaciais e Layout
+O fluxo abaixo demonstra a composição não-destrutiva de uma cena: criando o canvas a partir do background, redimensionando e ancorando elementos via `.content` e `.layout`, achatando camadas (`flatten`), aplicando enquadramento proporcional (`fit_contain`), filtros de profundidade e exportando a imagem final:
 
 ```python
-from anicrop.enums import FitMode, HAlign, VAlign
-
-# Encadeamento direto de transformações afins 3x3 na camada
-personagem.transform.scale(1.2, 1.2).rotate(15).translate(100, 50)
-
-# Ajuste espacial inteligente (Fit) e alinhamento via motor de Layout
-doc.layout.fit(personagem, doc.canvas, mode=FitMode.CONTAIN)
-doc.layout.align(personagem, doc.canvas, halign=HAlign.CENTER, valign=VAlign.MIDDLE)
-```
-
----
-
-### 3. Corte Não-Destrutivo (`Content.crop`)
-
-```python
-from anicrop.spatial import Region
-
-# Define uma região de interesse e aplica o corte não-destrutivo
-# (preserva a imagem original e ativa uma máscara EditLayer com BlendMode.CLIP)
-corte_roi = Region(x=100, y=100, width=500, height=400)
-doc.content.crop(personagem, corte_roi)
-```
-
----
-
-### 4. Filtros e Efeitos Ancorados (`BlurFilter`)
-
-```python
+from anicrop import Document, ImageFormat, Viewer
+from anicrop.content import FitContext
 from anicrop.filter import BlurFilter
 
-# Adiciona um filtro de desfoque Gaussiano ancorado à geometria da camada
-desfoque = BlurFilter(sigma_x=10.0, sigma_y=10.0)
-personagem.bind_effect(desfoque)
-```
+# 1. Abre o Documento herdando as dimensões exatas do background (1376x768)
+doc = Document.open("assets/background.jpg", name="Fundo")
 
----
+# 2. Carrega as camadas: Personagem e Chapéu (no topo)
+personagem = doc.load_layer("assets/character.png", name="Personagem")
+chapeu = doc.load_layer("assets/hat.png", name="Chapeu")
 
-### 5. Agrupamento, Mesclagem e Bake (`doc.combine`)
+# 3. Redimensiona o chapéu diretamente via .content da camada
+chapeu.content.resize(250, 250)
 
-```python
-# 1. Agrupa camadas (Merge Down): mescla 'Personagem' com 1 camada visível abaixo
-grupo = doc.combine.merge("Personagem", name="GrupoPersonagem", count=1)
+# 4. Alinha o chapéu no topo da cabeça da personagem diretamente via .layout
+chapeu.layout.align(personagem, anchor_x=0.51, anchor_y=-0.07)
 
-# 2. Assa o grupo em uma única camada plana substituindo-o na árvore
-camada_plana = doc.combine.bake("GrupoPersonagem")
+# 5. Achata o chapéu com a personagem em uma única camada (Merge Down: Chapéu + 1 camada abaixo)
+heroina = doc.combine.flatten("Chapeu", name="Heroina", count=1)
 
-# 3. Ou achata toda a pilha do documento (Flatten Image)
-camada_final = doc.combine.bake_stack(name="ArteFinal")
-```
+# 6. Enquadra a heroína proporcionalmente para caber na altura do Canvas (fit_contain)
+fit_payload = FitContext(heroina, doc.canvas).fit_contain
+heroina.content.fit(fit_payload)
 
----
+# 7. Posiciona a heroína no lado direito do cenário diretamente via .layout
+heroina.layout.align(doc.canvas, anchor_x=0.85, anchor_y=1.0)
 
-### 6. Organização e Inversão da Pilha (`doc.stack`)
+# 8. Profundidade de campo: aplica desfoque suave no fundo
+fundo = doc["Fundo"]
+fundo.bind_effect(BlurFilter(radius=3.0))
 
-```python
-# Desloca a camada 2 posições para cima na pilha
-doc.stack.move_relative(personagem, steps=2)
-
-# Envia diretamente para o topo ou base
-doc.stack.move_to_front(personagem)
-doc.stack.move_to_back(fundo)
-
-# Troca a posição de duas camadas
-doc.stack.swap(personagem, fundo)
-
-# Inverte a ordem das camadas (com recursive=True descendo em subgrupos)
-doc.stack.reverse(recursive=True)
-```
-
----
-
-### 7. Renderização, Exportação e Visualização Interativa
-
-```python
-from anicrop import Viewer
-
-# Renderiza a cena completa do documento em alta resolução
+# 9. Renderiza a cena e salva no disco
 resultado = doc.render(format=ImageFormat.RGBA)
+resultado.save("assets/cena_final.png")
 
-# Salva a imagem rasterizada no disco
-resultado.save("output/composicao_final.png", quality=95)
-
-# Abre a janela do visualizador interativo OpenCV
+# 10. (Opcional) Visualiza interativamente na janela OpenCV
 Viewer(doc).show()
 ```
+
+---
+
+## 🛠️ Motores e Operações Principais
+
+### Disposição Espacial e Moldura (`layer.layout` / `doc.layout`)
+Opera exclusivamente sobre a moldura lógica e o alinhamento de nós no Espaço Global sem alterar pixels:
+- `layer.layout.fit(ref)`: Enquadra a moldura da camada dentro da região de referência mantendo o aspect ratio.
+- `layer.layout.align(ref, anchor_x=0.5, anchor_y=0.5)`: Alinha a posição global da camada com base em âncoras normalizadas.
+- `layer.layout.resize_bounds(width, height)`: Redimensiona a moldura lógica ancorada.
+
+### Manipulação de Pixels e Conteúdo (`layer.content` / `doc.content`)
+Operações sobre o conteúdo visual, transformações afins e recortes não-destrutivos:
+- `layer.content.crop(regiao)`: Corte não-destrutivo aplicando máscara `EditLayer` com `BlendMode.CLIP`.
+- `layer.content.resize(width, height)`: Redimensiona a escala global da imagem.
+- `layer.content.fit(ref)`: Ajusta a escala e translada a camada para preencher a região de referência.
+- `layer.content.flip_x()` / `layer.content.flip_y()`: Espelhamento horizontal e vertical imediato.
+
+### Composição e Fusão (`doc.combine`)
+Orquestra fusão, agrupamento e rasterização na árvore de camadas:
+- `doc.combine.merge(alvo, name="Grupo", count=1)`: Mescla o alvo com $N$ camadas visíveis abaixo em um `GroupLayer`.
+- `doc.combine.flatten(alvo, name="Plano", count=1)`: Achata o alvo e as camadas abaixo em uma única camada folha.
+- `doc.combine.bake("Grupo")`: Assa o conteúdo interno de um grupo e o substitui por um `Layer` rasterizado.
+- `doc.combine.bake_stack(name="Final")`: Achata toda a pilha do documento em uma camada plana única.
+
+### Manipulação da Pilha de Camadas (`doc.stack`)
+- `doc.stack.move_relative(camada, steps=1)`: Desloca a camada para cima ou para baixo.
+- `doc.stack.move_to_front(camada)` / `doc.stack.move_to_back(camada)`: Move para o topo ou base da pilha.
+- `doc.stack.swap(camada_a, camada_b)`: Troca a posição de duas camadas.
+- `doc.stack.reverse(recursive=True)`: Inverte a ordem das camadas com suporte opcional a recursão profunda.
 
 ---
 

@@ -12,6 +12,7 @@ scratch
 docs
 cont.txt
 *.png
+!assets/*.png
 *.so
 *.pyd
 build/
