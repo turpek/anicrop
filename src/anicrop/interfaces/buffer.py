@@ -22,7 +22,7 @@ class AbstractScratchBuffer(ABC):
     @abstractmethod
     def configure(
         self,
-        size: tuple[int, int],
+        size: tuple[float, float],
         fmt: ImageFormat = ...,
     ) -> AbstractScratchBuffer:
         """Configura a intenção de dimensões e formato para a próxima operação."""

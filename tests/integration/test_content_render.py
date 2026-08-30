@@ -61,8 +61,8 @@ def test_crop_followed_by_rotation_clears_outer_pixels():
     renderer = CanvasRender()
     rendered = renderer.render_scene([layer], canvas)
 
-    center_x = (layer.global_region.x.start + layer.global_region.x.end) // 2
-    center_y = (layer.global_region.y.start + layer.global_region.y.end) // 2
+    center_x = int((layer.global_region.x.start + layer.global_region.x.end) // 2)
+    center_y = int((layer.global_region.y.start + layer.global_region.y.end) // 2)
     np.testing.assert_array_equal(rendered[center_y, center_x], [255, 0, 0, 255])
     np.testing.assert_array_equal(rendered[150, 150], [0, 0, 0, 0])
     np.testing.assert_array_equal(rendered[5, 5], [0, 0, 0, 0])

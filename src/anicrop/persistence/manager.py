@@ -8,7 +8,7 @@ import numpy as np
 class ScratchDiskManager:
     """Singleton ou instância global por Canvas para gerenciar os arquivos temporários."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         self._temp_dir = tempfile.TemporaryDirectory(prefix="anicrop_scratch_")
         self.workspace_path = Path(self._temp_dir.name)
 
@@ -31,7 +31,7 @@ class ScratchDiskManager:
         if file_path.exists():
             file_path.unlink()
 
-    def cleanup_session(self):
+    def cleanup_session(self) -> None:
         self._temp_dir.cleanup()
 
 

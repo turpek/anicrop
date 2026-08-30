@@ -114,7 +114,9 @@ def _apply_shrink_and_roi(
             data = data[..., np.newaxis]
 
     if roi is not None:
-        data = data[roi.y.start : roi.y.end, roi.x.start : roi.x.end]
+        x1, y1 = roi.top_left.to_int()
+        x2, y2 = roi.bottom_right.to_int()
+        data = data[y1:y2, x1:x2]
 
     return data
 

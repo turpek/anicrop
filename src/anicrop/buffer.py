@@ -24,11 +24,11 @@ class ScratchBuffer(AbstractScratchBuffer):
 
     def configure(
         self,
-        size: tuple[int, int],
+        size: tuple[float, float],
         fmt: ImageFormat = ImageFormat.RGBA,
     ) -> ScratchBuffer:
         """Configura as dimensões mínimas e o formato desejado para o próximo acesso."""
-        self._size = size
+        self._size = (int(round(size[0])), int(round(size[1])))
         self._format = fmt
         self._used = False
         return self

@@ -1,6 +1,6 @@
 from numpy import ndarray
 
-from anicrop.spatial import Region, rect_to_region
+from anicrop.spatial import Point, Region, rect_to_region
 from anicrop.transform import calculate_new_rect, mat_inverse, mat_pivot, mat_translation
 from anicrop.type import Scale
 
@@ -10,11 +10,11 @@ class Viewport:
 
     def __init__(
         self,
-        size: tuple[int, int],
+        size: tuple[float, float],
         fit_scale: float = 1.0,
         bg_color: tuple[int, ...] | None = None,
     ):
-        self._region = Region.from_size(*size)
+        self._region = Region.from_size(size[0], size[1])
         self._scale = Scale(1, 1)
         self._fit = Scale(fit_scale, fit_scale)
         self.bg_color = bg_color if bg_color is not None else (204, 204, 204)
@@ -23,11 +23,11 @@ class Viewport:
         return f"Viewport(region={self.region}, scale={self.scale})"
 
     @property
-    def size(self) -> tuple[int, int]:
+    def size(self) -> Point:
         return self._region.size
 
     @property
-    def top_left(self) -> tuple[int, int]:
+    def top_left(self) -> Point:
         return self._region.top_left
 
     @property
@@ -55,7 +55,7 @@ class Viewport:
         x, y = self._region.top_left
         return mat_pivot(self.scale, self.size) @ mat_translation(-x, -y)
 
-    def fit_matrix(self, layer_size: tuple[int, int]) -> ndarray:
+    def fit_matrix(self, layer_size: tuple[float, float]) -> ndarray:
         # 2. Qual o tamanho do papel DEPOIS de encolher?
         s = self._fit.sx
         scaled_w = layer_size[0] * s

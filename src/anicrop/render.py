@@ -42,18 +42,19 @@ except ImportError:
 def warp_affine(
     src_data: np.ndarray,
     m_cv2: np.ndarray,
-    dest_size: tuple[int, int],
+    dest_size: tuple[int | float, int | float] | Sequence[int | float],
     interp: InterpMode = InterpMode.LINEAR,
     dst: np.ndarray | None = None,
 ) -> np.ndarray:
     M_affine = m_cv2[:2, :].astype(np.float64)
+    dsize = (int(round(dest_size[0])), int(round(dest_size[1])))
 
     # Usa BORDER_REPLICATE para que o kernel de interpolação (Lanczos/Linear) não amoste
     # pixels nulos (0,0,0,0) fora do limite do retalho, eliminando a moldura/franja na borda.
     return cv2.warpAffine(
         src_data,
         M_affine,
-        dest_size,
+        dsize,
         dst=dst,
         flags=interp.value,
         borderMode=cv2.BORDER_CONSTANT,
@@ -64,14 +65,15 @@ def warp_affine(
 def warp_perspective(
     src_data: np.ndarray,
     m_cv2: np.ndarray,
-    dest_size: tuple[int, int],
+    dest_size: tuple[int | float, int | float] | Sequence[int | float],
     interp: InterpMode = InterpMode.LINEAR,
     dst: np.ndarray | None = None,
 ) -> np.ndarray:
+    dsize = (int(round(dest_size[0])), int(round(dest_size[1])))
     return cv2.warpPerspective(
         src_data,
         m_cv2,
-        dest_size,
+        dsize,
         dst=dst,
         flags=interp.value,
     )
@@ -105,10 +107,18 @@ def warp_patch(
         src_data = src_image[valid_region]
 
         # 3. Calcula o padding usando offset_to (inicio e fim)
-        pad_x_start, pad_y_start = target_region.offset_to(valid_region)
-        pad_x_end, pad_y_end = valid_region.offset_to(target_region, anchor_end=True)
+        pad_x_start = max(0, int(round(target_region.offset_to(valid_region)[0])))
+        pad_y_start = max(0, int(round(target_region.offset_to(valid_region)[1])))
+        pad_x_end = max(
+            0,
+            int(round(valid_region.offset_to(target_region, anchor_end=True)[0])),
+        )
+        pad_y_end = max(
+            0,
+            int(round(valid_region.offset_to(target_region, anchor_end=True)[1])),
+        )
 
-        if (pad_x_start | pad_y_start | pad_x_end | pad_y_end) > 0:
+        if pad_x_start > 0 or pad_y_start > 0 or pad_x_end > 0 or pad_y_end > 0:
             src_data = np.pad(
                 src_data,
                 ((pad_y_start, pad_y_end), (pad_x_start, pad_x_end), (0, 0)),
@@ -124,7 +134,8 @@ def warp_patch(
         M_cv2 = (M_dst_offset_inv @ matrix_global @ M_src_offset).astype(np.float64)
 
         warp = WARP_MODE.get(warp_mode, warp_affine)
-        return warp(src_data, M_cv2, dest_region.size, interp, dst=dst)
+        dest_size = (int(round(dest_region.width)), int(round(dest_region.height)))
+        return warp(src_data, M_cv2, dest_size, interp, dst=dst)
 
     return None
 
@@ -132,14 +143,15 @@ def warp_patch(
 def generate_opacity_mask(
     image: Image,
     render_region: Region,
-    viewport_size: tuple[int, int],
-    target_size=(32, 32),
+    viewport_size: tuple[float, float],
+    target_size: tuple[float, float] = (32.0, 32.0),
     opacity: float = 1.0,
     blend_mode: BlendMode = BlendMode.NORMAL,
 ) -> np.ndarray:
     """Função usada para gerar miniaturas do layer mapeadas proporcionalmente na tela"""
 
-    eroded_alpha = np.zeros(target_size, dtype=np.uint8)
+    dsize = (int(round(target_size[0])), int(round(target_size[1])))
+    eroded_alpha = np.zeros(dsize, dtype=np.uint8)
 
     if blend_mode != BlendMode.NORMAL or opacity <= 0.0:
         return eroded_alpha
@@ -174,10 +186,12 @@ def generate_opacity_mask(
     start_y = int(render_region.top_left[1] * scale_y)
 
     # Limites seguros na matriz target_size (caso o layer saia da tela)
+    max_target_h = int(round(target_size[1]))
+    max_target_w = int(round(target_size[0]))
     sy = max(0, start_y)
-    ey = min(target_size[1], start_y + th_img)
+    ey = min(max_target_h, start_y + th_img)
     sx = max(0, start_x)
-    ex = min(target_size[0], start_x + tw_img)
+    ex = min(max_target_w, start_x + tw_img)
 
     # Pedaço da mini_mask que será efetivamente copiado
     my1 = sy - start_y

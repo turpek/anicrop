@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from typing import TYPE_CHECKING, Any, overload
+
 from ovld import ovld
 
 from anicrop.enums import BlendMode, ImageFormat
@@ -219,22 +221,47 @@ class Content:
     ) -> bool:
         return target.content.resize(width, height)
 
-    @ovld
-    def fit(
-        self,
-        target: AbstractBaseLayer,
-        ref: tuple | Region | AbstractCanvas | AbstractBaseLayer,
-    ) -> bool:
-        return target.content.fit(ref)
+    if TYPE_CHECKING:
 
-    @ovld  # type: ignore[no-redef]
-    def fit(  # noqa: F811
-        self,
-        payload: tuple,
-    ) -> bool:
-        """Ajusta o conteúdo do elemento a partir de uma tupla (target, ref_resolvida)."""
-        target, ref = payload
-        return target.content.fit(ref)
+        @overload
+        def fit(
+            self,
+            target: AbstractBaseLayer,
+            ref: tuple[float, float, float, float]
+            | Region
+            | AbstractCanvas
+            | AbstractBaseLayer,
+        ) -> bool:
+            pass
+
+        @overload
+        def fit(
+            self,
+            payload: tuple[AbstractBaseLayer, Region],
+        ) -> bool:
+            pass
+
+        def fit(self, *args: Any, **kwargs: Any) -> bool:
+            pass
+
+    else:
+
+        @ovld
+        def fit(
+            self,
+            target: AbstractBaseLayer,
+            ref: tuple | Region | AbstractCanvas | AbstractBaseLayer,
+        ) -> bool:
+            return target.content.fit(ref)
+
+        @ovld
+        def fit(  # noqa: F811
+            self,
+            payload: tuple,
+        ) -> bool:
+            """Ajusta o conteúdo do elemento a partir de uma tupla (target, ref_resolvida)."""
+            target, ref = payload
+            return target.content.fit(ref)
 
     def flip_x(self, target: AbstractBaseLayer) -> bool:
         return target.content.flip_x()

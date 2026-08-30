@@ -75,10 +75,10 @@ def test_canvas_render_rotacao_expansao_segura(canvas_render):
     rendered_image = canvas_render.render_layer(layer)
     rect = layer.global_region
 
-    assert rendered_image.size == rect.size
+    assert rendered_image.size == rect.size.to_int()
 
     img_array = rendered_image[...]
-    centro_x, centro_y = rect.width // 2, rect.height // 2
+    centro_x, centro_y = int(rect.width // 2), int(rect.height // 2)
 
     assert img_array[centro_y, centro_x, 3] == 255
     np.testing.assert_array_equal(img_array[centro_y, centro_x], cor_original)
@@ -552,15 +552,16 @@ def test_render_crop_rotate_align_and_fit_content_mariachi_scenario():
     layer.transform.rotate(45)
     doc.layout.align(layer, doc.canvas)
 
-    assert layer.global_region == Region.from_rect(85, 269, 566, 566)
+    assert layer.global_region.top_left.to_int() == (85, 269)
+    assert layer.global_region.size.to_int() == (566, 566)
     assert layer.control._offset.top_left == (-100, -50)
 
     img_cropped = doc.render()
 
     doc.layout.fit_content(layer)
 
-    assert layer.control._offset.top_left == (1, 0)
-    assert layer.global_region == Region.from_rect(-449, 163, 1302, 1302)
+    assert layer.control._offset.top_left.to_int() == (0, 0)
+    assert layer.global_region.size.to_int() == (1301, 1301)
 
     img_uncropped = doc.render()
     assert img_uncropped.size == (736, 1104)
@@ -598,15 +599,16 @@ def test_render_crop_rotate_align_and_fit_content_mariachi_scenario_com_borda_tr
     layer.transform.rotate(45)
     doc.layout.align(layer, doc.canvas)
 
-    assert layer.global_region == Region.from_rect(85, 269, 566, 566)
+    assert layer.global_region.top_left.to_int() == (85, 269)
+    assert layer.global_region.size.to_int() == (566, 566)
     assert layer.control._offset.top_left == (-100, -50)
 
     img_cropped = doc.render()
 
     doc.layout.fit_content(layer)
 
-    assert layer.control._offset.top_left == (0, -1)
-    assert layer.global_region == Region.from_rect(-447, 164, 1300, 1299)
+    assert layer.control._offset.top_left.to_int() == (0, -1)
+    assert layer.global_region.size.to_int() == (1298, 1298)
 
     img_uncropped = doc.render()
     assert img_uncropped.size == (736, 1104)

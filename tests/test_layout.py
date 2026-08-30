@@ -200,7 +200,7 @@ def test_group_layout_align(ref, anchor_x, anchor_y, expected_global_rect):
             200, 100, 1.0, 1.0, (-90, -30, 200, 100), id="resize_bottom_right_anchored"
         ),
         pytest.param(
-            200, 100, 0.25, 0.75, (-15, -18, 200, 100), id="resize_asymmetric_anchored"
+            200, 100, 0.25, 0.75, (-15, -17.5, 200, 100), id="resize_asymmetric_anchored"
         ),
         pytest.param(100, 50, 0.5, 0.5, None, id="resize_no_op"),
     ],
@@ -402,8 +402,8 @@ def test_layout_fit_group_layer_rigid_unit_rotation_45():
     # Aplica rotação de 45° no grupo após o Fit
     group.transform.rotate(45)
 
-    # O quadrado de 50x50 girado em 45° tem AABB perfeitamente simétrica de (72, 72)
-    assert group.global_region.size == (72, 72)
+    # O quadrado de 50x50 girado em 45° tem AABB analiticamente 50*sqrt(2) = ~70.71
+    assert group.global_region.size.to_int() == (71, 71)
 
 
 @pytest.mark.parametrize(
@@ -590,8 +590,10 @@ def test_global_content_region_mariachi_cropped_rotated_and_uncropped(mocker):
     crop_edit.visible = False
     roi_uncropped = global_content_region(layer)
 
-    assert roi_cropped == Region.from_rect(85, 269, 566, 566)
-    assert roi_uncropped == Region.from_rect(-449, 163, 1303, 1302)
+    assert roi_cropped.top_left.to_int() == (85, 269)
+    assert roi_cropped.size.to_int() == (566, 566)
+    assert roi_uncropped.top_left.to_int() == (-448, 163)
+    assert roi_uncropped.size.to_int() == (1301, 1301)
 
 
 def test_layout_fit_content_com_edicao_desativada_retorna_false():

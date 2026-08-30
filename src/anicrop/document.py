@@ -72,8 +72,8 @@ class Document:
     def __init__(
         self,
         name: str,
-        width: int,
-        height: int,
+        width: float,
+        height: float,
         history: bool = False,
         bg_color: tuple[int, ...] | None = None,
     ):

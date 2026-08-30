@@ -1,12 +1,13 @@
 from __future__ import annotations
 
+import math
 from abc import ABC, abstractmethod
 from collections.abc import Callable, Sequence
 from typing import TYPE_CHECKING, Self
 
 import numpy as np
 
-from anicrop.spatial import Region
+from anicrop.spatial import Point, Region
 
 if TYPE_CHECKING:
     from anicrop.container import BaseLayer
@@ -17,34 +18,36 @@ Size2D = tuple[float, float]
 Point2D = tuple[float, float]
 
 
-def corners_to_rect(min_x, min_y, max_x, max_y):
-    new_w = max(1, max_x - min_x)
-    new_h = max(1, max_y - min_y)
+def corners_to_rect(
+    min_x: float, min_y: float, max_x: float, max_y: float
+) -> tuple[float, float, float, float]:
+    new_w = max(1e-6, max_x - min_x)
+    new_h = max(1e-6, max_y - min_y)
     return min_x, min_y, new_w, new_h
 
 
 def has_distortion(matrix: np.ndarray) -> bool:
     """Retorna True se a matriz contiver distorção afim (rotação, escala != 1 ou cisalhamento)."""
     return not (
-        matrix[0, 0] == 1.0
-        and matrix[1, 1] == 1.0
-        and matrix[0, 1] == 0.0
-        and matrix[1, 0] == 0.0
-        and matrix[2, 0] == 0.0
-        and matrix[2, 1] == 0.0
-        and matrix[2, 2] == 1.0
+        math.isclose(float(matrix[0, 0]), 1.0, abs_tol=1e-5)
+        and math.isclose(float(matrix[1, 1]), 1.0, abs_tol=1e-5)
+        and math.isclose(float(matrix[0, 1]), 0.0, abs_tol=1e-5)
+        and math.isclose(float(matrix[1, 0]), 0.0, abs_tol=1e-5)
+        and math.isclose(float(matrix[2, 0]), 0.0, abs_tol=1e-5)
+        and math.isclose(float(matrix[2, 1]), 0.0, abs_tol=1e-5)
+        and math.isclose(float(matrix[2, 2]), 1.0, abs_tol=1e-5)
     )
 
 
 def calculate_new_corners(
-    matrix: np.ndarray, size: Size2D, top_left: Point2D = (0.0, 0.0)
+    matrix: np.ndarray,
+    size: tuple[float, float],
+    top_left: tuple[float, float] = (0.0, 0.0),
 ) -> tuple[float, float, float, float]:
     """retorna min_x, min_y, max_x, max_y"""
     x, y = top_left
     w, h = size
 
-    # Agora os cantos consideram a posição inicial (x, y) exata da Região,
-    # e não apenas a largura e altura partindo do zero.
     corners = np.array(
         [[x, y, 1.0], [x + w, y, 1.0], [x + w, y + h, 1.0], [x, y + h, 1.0]],
         dtype=np.float32,
@@ -65,41 +68,31 @@ def calculate_new_corners(
 
 def calculate_new_rect_smart(
     matrix: np.ndarray,
-    size: tuple[int, int],
-    top_left: tuple[int, int],
+    size: tuple[float, float],
+    top_left: tuple[float, float] = (0.0, 0.0),
     eps: float = 1e-5,
-) -> tuple[int, int, int, int]:
-
-    min_x, min_y, max_x, max_y = calculate_new_corners(matrix, size, top_left)
-
-    # Acha os novos limites (usando o round para o vizinho mais próximo)
-    # + eps empurra o -0.00001 de volta para 0, para o floor não jogar no -1
-    min_x = int(np.floor(min_x + eps))
-    min_y = int(np.floor(min_y + eps))
-
-    # - eps puxa o 00.0000 de volta para 00, para o ceil não jogar no 0
-    max_x = int(np.ceil(max_x - eps))
-    max_y = int(np.ceil(max_y - eps))
-
-    # A nova largura/altura soma +1 porque (max - min) de índices conta os intervalos.
-    # Ex: (99 - 0) = 99 intervalos, o que significa 100 pixels de largura real!
-    new_w = max(1, max_x - min_x)
-    new_h = max(1, max_y - min_y)
-
+) -> tuple[float, float, float, float]:
+    min_x, min_y, max_x, max_y = calculate_new_corners(
+        matrix,
+        size,
+        top_left,
+    )
+    new_w = max(1e-6, max_x - min_x)
+    new_h = max(1e-6, max_y - min_y)
     return min_x, min_y, new_w, new_h
 
 
 def calculate_new_rect(
-    matrix: np.ndarray, size: tuple[int, int], eps: float = 1e-5
-) -> tuple[int, int, int, int]:
-
-    return calculate_new_rect_smart(matrix, size, (0, 0), eps)
+    matrix: np.ndarray,
+    size: tuple[float, float],
+    eps: float = 1e-5,
+) -> tuple[float, float, float, float]:
+    return calculate_new_rect_smart(matrix, size, (0.0, 0.0), eps)
 
 
 def calculate_region_rect(
     matrix: np.ndarray, region: Region, eps: float = 1e-5
-) -> tuple[int, int, int, int]:
-
+) -> tuple[float, float, float, float]:
     return calculate_new_rect_smart(matrix, region.size, region.top_left, eps)
 
 
@@ -159,8 +152,10 @@ def mat_scale(sx: float, sy: float) -> np.ndarray:
     return np.array([[sx, 0, 0], [0, sy, 0], [0, 0, 1]], dtype=np.float32)
 
 
-def mat_pivot(transform: TransformState, size: tuple[int, int]) -> np.ndarray:
-    return create_pivot_transform_rel(transform.matrix, *size, *transform.pivot)
+def mat_pivot(transform: TransformState, size: Size2D) -> np.ndarray:
+    return create_pivot_transform_rel(
+        transform.matrix, size[0], size[1], *transform.pivot
+    )
 
 
 def mat_global(layer: BaseLayer) -> np.ndarray:
@@ -210,7 +205,7 @@ def transform_vector(
     matrix: np.ndarray,
     start_region: Region,
     target_region: Region,
-) -> tuple[int, int]:
+) -> tuple[float, float]:
     """Calcula o vetor offset entre duas regiões e o projeta através de uma matriz 3x3 (sem translação)."""
     dx, dy = (target_region - start_region).top_left
 
@@ -218,7 +213,7 @@ def transform_vector(
     m_rot_scale[:2, 2] = 0.0
 
     vec = m_rot_scale @ np.array([dx, dy, 1.0], dtype=np.float32)
-    return int(round(vec[0])), int(round(vec[1]))
+    return float(vec[0]), float(vec[1])
 
 
 class TransformBase(ABC):
@@ -289,9 +284,9 @@ class TTranslate(TransformBase):
 
 
 class Composer(ABC):
-    def __init__(self, size: tuple[int, int]):
+    def __init__(self, size: Size2D):
         self._distortion = np.identity(3, dtype=np.float32)
-        self._region = Region.from_size(*size)
+        self._region = Region.from_size(size[0], size[1])
         self._translation = np.identity(3, dtype=np.float32)
 
     @property
@@ -302,8 +297,8 @@ class Composer(ABC):
         if not isinstance(other, Composer):
             return False
         return (
-            np.array_equal(self._distortion, other._distortion)
-            and np.array_equal(self._translation, other._translation)
+            np.allclose(self._distortion, other._distortion, atol=1e-5)
+            and np.allclose(self._translation, other._translation, atol=1e-5)
             and self._region == other._region
         )
 
@@ -322,7 +317,7 @@ class Composer(ABC):
         self._region = other._region
 
     @property
-    def size(self) -> tuple[int, int]:
+    def size(self) -> Point:
         return self.region.size
 
     @property
@@ -341,13 +336,13 @@ class Composer(ABC):
     def scale(self, sx: float, sy: float, px: float = 0.5, py: float = 0.5) -> Self:
         pass
 
-    def translate(self, x: int = 0, y: int = 0) -> Self:
+    def translate(self, x: float = 0.0, y: float = 0.0) -> Self:
         M_trans = TTranslate(x, y).matrix(self.size)
         self._translation = M_trans @ self._translation
         return self
 
     def add_transform(
-        self, transf: Transform, reference_size: tuple[int, int] | None = None
+        self, transf: Transform, reference_size: Size2D | None = None
     ) -> Self:
 
         ref_size = reference_size or self.size
@@ -357,7 +352,7 @@ class Composer(ABC):
 
 
 class ComposerRel(Composer):
-    def __init__(self, size: tuple[int, int]):
+    def __init__(self, size: Size2D):
         super().__init__(size)
 
     def __get_rect(self) -> tuple[tuple[float, float], tuple[float, float]]:
@@ -428,7 +423,7 @@ class Transform(ABC):
         """Fábrica para criar uma cadeia de transformações de pivô absoluto."""
         return TransformAbs()
 
-    def create_composer(self, size: tuple[int, int]) -> Composer:
+    def create_composer(self, size: Size2D) -> Composer:
         return self.COMPOSER_CLS(size)
 
     def __init__(
@@ -451,7 +446,7 @@ class Transform(ABC):
     def _check_transform_list(self, transf: Sequence[TransformBase]) -> bool:
         return len(transf) == 0 or len(transf) == 1
 
-    def translate(self, x: int = 0, y: int = 0) -> Self:
+    def translate(self, x: float = 0.0, y: float = 0.0) -> Self:
         new_translate = self._translate + [TTranslate(x, y)]
         return self.__class__(self._intentions, new_translate)
 
@@ -462,31 +457,31 @@ class Transform(ABC):
     @abstractmethod
     def _list_to_matrix(
         self,
-        size: tuple[int, int],
+        size: Size2D,
         matrix_list: Sequence[TransformBase],
     ) -> np.ndarray:
         pass
 
     def _get_first_transform(
         self,
-        size: tuple[int, int],
+        size: Size2D,
         transf: Sequence[TransformBase],
     ) -> np.ndarray:
         if len(transf) == 0:
             return np.identity(3, dtype=np.float32)
         return transf[0].matrix(size)
 
-    def _get_translate(self, size: tuple[int, int] = (0, 0)) -> np.ndarray:
+    def _get_translate(self, size: Size2D = (0, 0)) -> np.ndarray:
         if self._check_transform_list(self._translate):
             return self._get_first_transform(size, self._translate)
         return self._list_to_matrix(size, self._translate)
 
-    def _get_distortion(self, size: tuple[int, int] = (0, 0)) -> np.ndarray:
+    def _get_distortion(self, size: Size2D = (0, 0)) -> np.ndarray:
         if self._check_transform_list(self._intentions):
             return self._get_first_transform(size, self._intentions)
         return self._list_to_matrix(size, self._intentions)
 
-    def get_matrix(self, size: tuple[int, int] = (0, 0)) -> np.ndarray:
+    def get_matrix(self, size: Size2D = (0, 0)) -> np.ndarray:
         M_trans = self._get_translate(size)
         M_intent = self._get_distortion(size)
         return M_trans @ M_intent
@@ -516,7 +511,7 @@ class TransformRel(Transform):
 
     def _list_to_matrix(
         self,
-        size: tuple[int, int],
+        size: Size2D,
         matrix_list: Sequence[TransformBase],
     ) -> np.ndarray:
 
@@ -556,7 +551,7 @@ class TransformAbs(Transform):
 
     def _list_to_matrix(
         self,
-        size: tuple[int, int],
+        size: Size2D,
         matrix_list: Sequence[TransformBase],
     ) -> np.ndarray:
         m_total = np.identity(3, dtype=np.float32)

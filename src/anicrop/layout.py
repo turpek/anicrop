@@ -114,7 +114,7 @@ def _resolve_target_fit_region(target: AbstractLayer, global_ref: Region) -> Reg
 def _resolve_target_content_region(
     target: AbstractLayer,
     global_roi: Region,
-    ref_size: tuple[int, int],
+    ref_size: tuple[float, float],
 ) -> Region:
     """Calcula a região da moldura da camada no espaço do pai compensando o drift de rotação."""
     parent_roi_rect = calculate_region_rect(
@@ -124,7 +124,7 @@ def _resolve_target_content_region(
     (drift_x, drift_y, *_) = calculate_new_rect(target.transform.matrix, ref_size)
     parent_x = parent_roi_rect[0] - drift_x
     parent_y = parent_roi_rect[1] - drift_y
-    return Region.from_rect(parent_x, parent_y, *ref_size)
+    return Region.from_rect(parent_x, parent_y, ref_size[0], ref_size[1])
 
 
 class LayerLayoutStrategy(LayoutStrategy):
