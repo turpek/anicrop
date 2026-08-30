@@ -195,7 +195,7 @@ def test_content_fit_helper_contain_dispatch():
 
     # Contain 200x100 em 100x100 -> 100x50 centralizado em (0, 25)
     cf = FitContext(layer, canvas)
-    result = content.fit(cf.fit_contain)
+    result = content.fit(cf.fit_contain())
 
     assert result is True
     assert layer.global_region == Region.from_rect(0, 25, 100, 50)
@@ -210,7 +210,7 @@ def test_content_fit_helper_cover_dispatch():
 
     # Cover 200x100 em 100x100 -> 200x100 centralizado em (-50, 0)
     cf = FitContext(layer, canvas)
-    result = content.fit(cf.fit_cover)
+    result = content.fit(cf.fit_cover())
 
     assert result is True
     assert layer.global_region == Region.from_rect(-50, 0, 200, 100)
@@ -223,24 +223,24 @@ def test_content_fit_helper_scale_width_and_height():
     content = Content()
 
     cf_w = FitContext(layer, (0, 0, 400, 100))
-    content.fit(cf_w.scale_width)
+    content.fit(cf_w.scale_width())
     assert layer.global_region == Region.from_rect(0, 0, 400, 200)
 
     cf_h = FitContext(layer, (0, 0, 100, 100))
-    content.fit(cf_h.scale_height)
+    content.fit(cf_h.scale_height())
     assert layer.global_region == Region.from_rect(0, 0, 200, 100)
 
 
 def test_content_fit_helper_with_custom_factors():
-    """Valida FitContext com fatores de alinhamento customizados passados no construtor."""
+    """Valida FitContext com fatores de alinhamento customizados passados no método fit_contain."""
     data = np.full((100, 200, 4), 255, dtype=np.uint8)  # 200x100 (2:1)
     layer = Layer(Image(data, ImageFormat.RGBA))
     canvas = Canvas.from_size(100, 100)
     content = Content()
 
     # Alinhamento no canto superior esquerdo (0.0, 0.0)
-    cf = FitContext(layer, canvas, x_factor=0.0, y_factor=0.0)
-    content.fit(cf.fit_contain)
+    cf = FitContext(layer, canvas)
+    content.fit(cf.fit_contain(x_factor=0.0, y_factor=0.0))
     assert layer.global_region == Region.from_rect(0, 0, 100, 50)
 
 

@@ -171,8 +171,8 @@ def test_group_content_fit_context():
     canvas = Canvas(Region.from_size(500, 500))
     content = Content()
 
-    ctx = FitContext(group, canvas, x_factor=0.5, y_factor=0.5)
-    result = content.fit(ctx.fit_contain)
+    ctx = FitContext(group, canvas)
+    result = content.fit(ctx.fit_contain(x_factor=0.5, y_factor=0.5))
 
     assert result is True
     assert group.global_region.size == (500, 250)

@@ -83,20 +83,20 @@ doc.content.flip_x(doc["grupo_personagens"])
 
 A classe `FitContext` permite calcular enquadramentos proporcionais complexos antes de aplicá-los em camadas ou grupos:
 
-- **`fit_contain`**: Redimensiona proporcionalmente para caber totalmente dentro de `ref` sem cortar nada.
-- **`fit_cover`**: Redimensiona proporcionalmente para cobrir totalmente `ref` (com corte das sobras).
-- **`scale_width`**: Ajusta proporcionalmente travando a largura em `ref.width`.
-- **`scale_height`**: Ajusta proporcionalmente travando a altura em `ref.height`.
+- **`fit_contain(x_factor=0.5, y_factor=0.5)`**: Redimensiona proporcionalmente para caber totalmente dentro de `ref` sem cortar nada.
+- **`fit_cover(x_factor=0.5, y_factor=0.5)`**: Redimensiona proporcionalmente para cobrir totalmente `ref` (com corte das sobras).
+- **`scale_width()`**: Ajusta proporcionalmente travando a largura em `ref.width`.
+- **`scale_height()`**: Ajusta proporcionalmente travando a altura em `ref.height`.
 
 ### Exemplo de Uso com `FitContext`:
 ```python
 from anicrop.content import FitContext
 
-# Calcula o enquadramento proporcional "contain" centralizado para um grupo:
-ctx = FitContext(doc["grupo_logos"], doc.canvas, x_factor=0.5, y_factor=0.5)
+# Cria o contexto de ajuste:
+ctx = FitContext(doc["grupo_logos"], doc.canvas)
 
 # Aplica o resultado calculado no motor de Content:
-doc.content.fit(ctx.fit_contain)
+doc.content.fit(ctx.fit_contain(x_factor=0.5, y_factor=0.5))
 ```
 
 ---
