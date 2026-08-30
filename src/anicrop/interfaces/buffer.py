@@ -1,13 +1,14 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
+from collections.abc import Sequence
 from typing import TYPE_CHECKING
 
 import numpy as np
 
 if TYPE_CHECKING:
     from anicrop.enums import ImageFormat
-    from anicrop.spatial import Region
+    from anicrop.spatial import Point, Region
 
 
 class AbstractScratchBuffer(ABC):
@@ -22,7 +23,7 @@ class AbstractScratchBuffer(ABC):
     @abstractmethod
     def configure(
         self,
-        size: tuple[int, int],
+        size: tuple[float, float] | Point | Sequence[float],
         fmt: ImageFormat = ...,
     ) -> AbstractScratchBuffer:
         """Configura a intenção de dimensões e formato para a próxima operação."""

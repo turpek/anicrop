@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import uuid
+from collections.abc import Sequence
 from pathlib import Path
 from types import EllipsisType
 from typing import Any, cast
@@ -56,8 +57,8 @@ class Image:
     def __region_to_slice(self, region: Region) -> tuple[slice, slice]:
         """Converts a Region object to a tuple of slices for NumPy indexing."""
         return (
-            slice(region.y.start, region.y.end),
-            slice(region.x.start, region.x.end),
+            slice(int(round(region.y.start)), int(round(region.y.end))),
+            slice(int(round(region.x.start)), int(round(region.x.end))),
         )
 
     def __to_indexer(self, key: Any) -> Any:
@@ -130,8 +131,8 @@ class Image:
         if not invert:
             self[clipped] = fill_value
         else:
-            x1, y1 = clipped.top_left
-            x2, y2 = clipped.bottom_right
+            x1, y1 = clipped.top_left.to_int()
+            x2, y2 = clipped.bottom_right.to_int()
 
             self._data[:y1, :] = fill_value
             self._data[y2:, :] = fill_value
@@ -190,7 +191,7 @@ class Image:
     @classmethod
     def new(
         cls,
-        size: tuple[int, int],
+        size: tuple[int | float, int | float] | Sequence[int | float],
         fmt: ImageFormat,
         color: int | tuple[int, ...] = 0,
         threshold_pixels: int = 4096 * 4096,
@@ -199,7 +200,8 @@ class Image:
 
         Uses Zarr if width * height > threshold_pixels, or NumPy ndarray otherwise.
         """
-        width, height = size
+        width = int(round(size[0]))
+        height = int(round(size[1]))
         channels = fmt.channels
         shape = (height, width, channels)
 
@@ -229,9 +231,10 @@ class Image:
             buffer = np.full(shape, color, dtype=np.uint8)
         return cls(buffer, fmt)
 
-    def resize(self, target_size: tuple[int, int]) -> Image:
+    def resize(self, target_size: tuple[int | float, int | float]) -> Image:
         """Redimensiona a imagem usando a fábrica inteligente Image.new."""
-        new_w, new_h = target_size
+        new_w = int(round(target_size[0]))
+        new_h = int(round(target_size[1]))
         img_data = self[...]
         resized_data = cv2.resize(img_data, (new_w, new_h), interpolation=cv2.INTER_AREA)
 

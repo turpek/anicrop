@@ -70,7 +70,8 @@ def test_render_pipeline_integration(
     """Testa o pipeline real de renderização acompanhando plan.dst_region e rel_region (view)."""
 
     def fake_render_patch(image, m_render, dest_region, *args, **kwargs):
-        return np.zeros((dest_region.height, dest_region.width, 4), dtype=np.uint8)
+        w, h = dest_region.size.to_int()
+        return np.zeros((h, w, 4), dtype=np.uint8)
 
     mocker.patch("anicrop.render.warp_patch", side_effect=fake_render_patch)
 
@@ -95,7 +96,8 @@ def test_render_pipeline_integration_with_parent_group_transforms(mocker):
     """Testa o pipeline real de renderização quando o GroupLayer pai possui translação, rotação e escala."""
 
     def fake_render_patch(image, m_render, dest_region, *args, **kwargs):
-        return np.zeros((dest_region.height, dest_region.width, 4), dtype=np.uint8)
+        w, h = dest_region.size.to_int()
+        return np.zeros((h, w, 4), dtype=np.uint8)
 
     mocker.patch("anicrop.render.warp_patch", side_effect=fake_render_patch)
 
@@ -111,14 +113,15 @@ def test_render_pipeline_integration_with_parent_group_transforms(mocker):
     rendered_image = renderer.render_layer(layer)
 
     plan = CanvasFrame(layer, Canvas(layer.global_region))
-    assert plan.dst_region == Region.from_rect(-51, 57, 213, 213)
+    assert plan.dst_region.top_left.to_int() == (-50, 57)
+    assert plan.dst_region.size.to_int() == (212, 212)
 
     assert rendered_image is not None
-    assert rendered_image.size == plan.dst_region.size
+    assert rendered_image.size == plan.dst_region.size.to_int()
 
     assert spy_view.call_count >= 1
     view_region_arg = spy_view.call_args_list[-1][0][1]
-    assert view_region_arg == Region.from_rect(0, 0, 213, 213)
+    assert view_region_arg.size.to_int() == (212, 212)
 
 
 # ==============================================================================
@@ -169,7 +172,8 @@ def test_fit_geometry_render_pipeline(
     """Testa o pipeline real de renderização com FitGeometry ativo (layout.fit)."""
 
     def fake_render_patch(image, m_render, dest_region, *args, **kwargs):
-        return np.zeros((dest_region.height, dest_region.width, 4), dtype=np.uint8)
+        w, h = dest_region.size.to_int()
+        return np.zeros((h, w, 4), dtype=np.uint8)
 
     mocker.patch("anicrop.render.warp_patch", side_effect=fake_render_patch)
 
@@ -198,7 +202,8 @@ def test_fit_geometry_render_pipeline_with_parent_group_transforms(mocker):
     """Testa o pipeline real com FitGeometry quando a camada pertence a um GroupLayer pai transformado."""
 
     def fake_render_patch(image, m_render, dest_region, *args, **kwargs):
-        return np.zeros((dest_region.height, dest_region.width, 4), dtype=np.uint8)
+        w, h = dest_region.size.to_int()
+        return np.zeros((h, w, 4), dtype=np.uint8)
 
     mocker.patch("anicrop.render.warp_patch", side_effect=fake_render_patch)
 
@@ -209,7 +214,7 @@ def test_fit_geometry_render_pipeline_with_parent_group_transforms(mocker):
     group.append(layer)
 
     layout = Layout()
-    layout.fit(layer, Region.from_rect(-51, 57, 213, 213))
+    layout.fit(layer, layer.global_region)
 
     spy_view = mocker.spy(Image, "view")
 
@@ -217,14 +222,15 @@ def test_fit_geometry_render_pipeline_with_parent_group_transforms(mocker):
     rendered_image = renderer.render_layer(layer)
 
     plan = CanvasFrame(layer, Canvas(layer.global_region))
-    assert plan.dst_region == Region.from_rect(-51, 57, 213, 213)
+    assert plan.dst_region.top_left.to_int() == (-50, 57)
+    assert plan.dst_region.size.to_int() == (212, 212)
 
     assert rendered_image is not None
-    assert rendered_image.size == plan.dst_region.size
+    assert rendered_image.size == plan.dst_region.size.to_int()
 
     assert spy_view.call_count >= 1
     view_region_arg = spy_view.call_args_list[-1][0][1]
-    assert view_region_arg == Region.from_rect(0, 0, 213, 213)
+    assert view_region_arg.size.to_int() == (212, 212)
 
 
 # ==============================================================================
@@ -266,7 +272,8 @@ def test_align_geometry_render_pipeline(
     """Testa o pipeline real de renderização quando layout.align é executado."""
 
     def fake_render_patch(image, m_render, dest_region, *args, **kwargs):
-        return np.zeros((dest_region.height, dest_region.width, 4), dtype=np.uint8)
+        w, h = dest_region.size.to_int()
+        return np.zeros((h, w, 4), dtype=np.uint8)
 
     mocker.patch("anicrop.render.warp_patch", side_effect=fake_render_patch)
 
@@ -296,7 +303,8 @@ def test_fit_and_align_geometry_render_pipeline(mocker):
     """Testa o pipeline real combinando FitGeometry (layout.fit) seguido de layout.align."""
 
     def fake_render_patch(image, m_render, dest_region, *args, **kwargs):
-        return np.zeros((dest_region.height, dest_region.width, 4), dtype=np.uint8)
+        w, h = dest_region.size.to_int()
+        return np.zeros((h, w, 4), dtype=np.uint8)
 
     mocker.patch("anicrop.render.warp_patch", side_effect=fake_render_patch)
 
@@ -337,7 +345,8 @@ def test_fit_content_geometry_render_pipeline(mocker):
     """Testa o pipeline real de renderização quando layout.fit_content é executado em uma imagem de 200x200 com conteúdo ativo de (25, 25) até (175, 175)."""
 
     def fake_render_patch(image, m_render, dest_region, *args, **kwargs):
-        return np.zeros((dest_region.height, dest_region.width, 4), dtype=np.uint8)
+        w, h = dest_region.size.to_int()
+        return np.zeros((h, w, 4), dtype=np.uint8)
 
     mocker.patch("anicrop.render.warp_patch", side_effect=fake_render_patch)
 
@@ -376,7 +385,8 @@ def test_fit_content_and_align_geometry_render_pipeline(mocker):
     """Testa o pipeline real combinando fit_content seguido de layout.align."""
 
     def fake_render_patch(image, m_render, dest_region, *args, **kwargs):
-        return np.zeros((dest_region.height, dest_region.width, 4), dtype=np.uint8)
+        w, h = dest_region.size.to_int()
+        return np.zeros((h, w, 4), dtype=np.uint8)
 
     mocker.patch("anicrop.render.warp_patch", side_effect=fake_render_patch)
     mocker.patch(
@@ -417,7 +427,8 @@ def test_fit_content_with_layer_transform_render_pipeline(mocker):
     """Testa o pipeline real de renderização quando layout.fit_content é executado em uma camada rotacionada 90°."""
 
     def fake_render_patch(image, m_render, dest_region, *args, **kwargs):
-        return np.zeros((dest_region.height, dest_region.width, 4), dtype=np.uint8)
+        w, h = dest_region.size.to_int()
+        return np.zeros((h, w, 4), dtype=np.uint8)
 
     mocker.patch("anicrop.render.warp_patch", side_effect=fake_render_patch)
     mocker.patch(
@@ -453,7 +464,8 @@ def test_fit_content_in_parent_group_render_pipeline(mocker):
     """Testa o pipeline real de renderização quando layout.fit_content é executado em uma camada dentro de um GroupLayer pai transformado."""
 
     def fake_render_patch(image, m_render, dest_region, *args, **kwargs):
-        return np.zeros((dest_region.height, dest_region.width, 4), dtype=np.uint8)
+        w, h = dest_region.size.to_int()
+        return np.zeros((h, w, 4), dtype=np.uint8)
 
     mocker.patch("anicrop.render.warp_patch", side_effect=fake_render_patch)
     mocker.patch(
@@ -535,7 +547,8 @@ def test_resize_bounds_geometry_render_pipeline(
     """Testa o pipeline real de renderização quando layout.resize_bounds é executado com diferentes âncoras na camada."""
 
     def fake_render_patch(image, m_render, dest_region, *args, **kwargs):
-        return np.zeros((dest_region.height, dest_region.width, 4), dtype=np.uint8)
+        w, h = dest_region.size.to_int()
+        return np.zeros((h, w, 4), dtype=np.uint8)
 
     mocker.patch("anicrop.render.warp_patch", side_effect=fake_render_patch)
 
@@ -564,7 +577,8 @@ def test_resize_bounds_in_parent_group_render_pipeline(mocker):
     """Testa o pipeline real de renderização quando layout.resize_bounds é executado em uma camada dentro de um GroupLayer pai transformado."""
 
     def fake_render_patch(image, m_render, dest_region, *args, **kwargs):
-        return np.zeros((dest_region.height, dest_region.width, 4), dtype=np.uint8)
+        w, h = dest_region.size.to_int()
+        return np.zeros((h, w, 4), dtype=np.uint8)
 
     mocker.patch("anicrop.render.warp_patch", side_effect=fake_render_patch)
 
@@ -599,7 +613,8 @@ def test_group_layout_fit_content_render_pipeline(mocker):
     """Testa o pipeline real de renderização quando layout.fit_content é executado em um GroupLayer com múltiplas camadas."""
 
     def fake_render_patch(image, m_render, dest_region, *args, **kwargs):
-        return np.zeros((dest_region.height, dest_region.width, 4), dtype=np.uint8)
+        w, h = dest_region.size.to_int()
+        return np.zeros((h, w, 4), dtype=np.uint8)
 
     mocker.patch("anicrop.render.warp_patch", side_effect=fake_render_patch)
 
@@ -642,7 +657,8 @@ def test_group_layout_align_render_pipeline(mocker):
     """Testa o pipeline real de renderização quando layout.align é executado em um GroupLayer."""
 
     def fake_render_patch(image, m_render, dest_region, *args, **kwargs):
-        return np.zeros((dest_region.height, dest_region.width, 4), dtype=np.uint8)
+        w, h = dest_region.size.to_int()
+        return np.zeros((h, w, 4), dtype=np.uint8)
 
     mocker.patch("anicrop.render.warp_patch", side_effect=fake_render_patch)
 
@@ -668,7 +684,8 @@ def test_group_layout_fit_render_pipeline(mocker):
     """Testa o pipeline real de renderização quando layout.fit é executado em um GroupLayer."""
 
     def fake_render_patch(image, m_render, dest_region, *args, **kwargs):
-        return np.zeros((dest_region.height, dest_region.width, 4), dtype=np.uint8)
+        w, h = dest_region.size.to_int()
+        return np.zeros((h, w, 4), dtype=np.uint8)
 
     mocker.patch("anicrop.render.warp_patch", side_effect=fake_render_patch)
 
@@ -693,7 +710,8 @@ def test_group_layout_resize_bounds_render_pipeline(mocker):
     """Testa o pipeline real de renderização quando layout.resize_bounds é executado em um GroupLayer com ancoras centradas."""
 
     def fake_render_patch(image, m_render, dest_region, *args, **kwargs):
-        return np.zeros((dest_region.height, dest_region.width, 4), dtype=np.uint8)
+        w, h = dest_region.size.to_int()
+        return np.zeros((h, w, 4), dtype=np.uint8)
 
     mocker.patch("anicrop.render.warp_patch", side_effect=fake_render_patch)
 
@@ -716,7 +734,8 @@ def test_canvas_layout_fit_content_render_pipeline(mocker):
     """Testa o pipeline real de renderização quando layout.fit_content é executado em um Canvas contendo camadas com edições."""
 
     def fake_render_patch(image, m_render, dest_region, *args, **kwargs):
-        return np.zeros((dest_region.height, dest_region.width, 4), dtype=np.uint8)
+        w, h = dest_region.size.to_int()
+        return np.zeros((h, w, 4), dtype=np.uint8)
 
     mocker.patch("anicrop.render.warp_patch", side_effect=fake_render_patch)
 

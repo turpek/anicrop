@@ -1,30 +1,71 @@
 from __future__ import annotations
 
+import math
+from collections.abc import Callable, Iterator, Sequence
 from dataclasses import dataclass
+from numbers import Real
 from operator import add, sub
-from typing import Callable, Optional
+from typing import Any, Optional
 
 from ovld import ovld
+
+DEFAULT_EPSILON: float = 1e-4
 
 
 class SpanError(Exception):
     pass
 
 
+@dataclass(frozen=True, slots=True)
+class Point(Sequence[float]):
+    x: float
+    y: float
+
+    def __iter__(self) -> Iterator[float]:
+        return iter((self.x, self.y))
+
+    def __getitem__(self, index: int | slice) -> Any:
+        return (self.x, self.y)[index]
+
+    def __len__(self) -> int:
+        return 2
+
+    def __eq__(self, other: object) -> bool:
+        if isinstance(other, (Point, tuple, list)) and len(other) == 2:
+            return math.isclose(
+                self.x, other[0], abs_tol=DEFAULT_EPSILON
+            ) and math.isclose(self.y, other[1], abs_tol=DEFAULT_EPSILON)
+        return False
+
+    def to_int(self, mode: str = "round") -> tuple[int, int]:
+        """Converte as coordenadas do Point para uma tupla de inteiros discretos (x, y)."""
+        if mode == "round":
+            return (int(round(self.x)), int(round(self.y)))
+        elif mode == "floor":
+            return (int(math.floor(self.x)), int(math.floor(self.y)))
+        elif mode == "ceil":
+            return (int(math.ceil(self.x)), int(math.ceil(self.y)))
+        return (int(self.x), int(self.y))
+
+    def __repr__(self) -> str:
+        return f"({self.x}, {self.y})"
+
+
 class Span:
     """Represents a continuous numerical interval (span) in one dimension.
 
     Defined by a `start` coordinate and a positive `length`.
-    Supports negative coordinates. This class is immutable.
+    Supports negative coordinates and continuous floating-point numbers.
+    This class is immutable.
 
     Attributes:
-        start (int): The starting point of the span.
-        length (int): The length of the span (must be > 0).
-        end (int): The ending point (start + length).
+        start (float | int): The starting point of the span.
+        length (float | int): The length of the span (must be > 0).
+        end (float | int): The ending point (start + length).
     """
 
     @ovld
-    def __init__(self, length: int, /):
+    def __init__(self, length: int | float, /):
         """Initializes a Span with start=0.
 
         Args:
@@ -36,7 +77,7 @@ class Span:
         self._setup(0, length)
 
     @ovld  # type: ignore[no-redef]
-    def __init__(self, start: int, length: int, /):  # noqa: F811
+    def __init__(self, start: int | float, length: int | float, /):  # noqa: F811
         """Initializes a Span.
 
         Args:
@@ -48,29 +89,31 @@ class Span:
         """
         self._setup(start, length)
 
-    def _setup(self, start: int, length: int) -> None:
+    def _setup(self, start: float | Real, length: float | Real) -> None:
         if length <= 0:
             raise ValueError(f"length must be greater than 0 (length={length})")
 
-        self._start = start
-        self._length = length
+        self._start = float(start)
+        self._length = float(length)
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return f"{self.__class__.__name__}(start={self.start}, length={self.length})"
 
     def __eq__(self, span: object) -> bool:
         if not isinstance(span, Span):
             return NotImplemented
 
-        return self.start == span.start and self.length == span.length
+        return math.isclose(
+            self.start, span.start, abs_tol=DEFAULT_EPSILON
+        ) and math.isclose(self.length, span.length, abs_tol=DEFAULT_EPSILON)
 
-    def __add__(self, offset: int | Span) -> Span:
+    def __add__(self, offset: int | float | Span) -> Span:
         """Shifts the span to the right.
 
-        Implements the `Span + int` operation.
+        Implements the `Span + offset` operation.
 
         Args:
-            offset: The integer value to add to the start and end points.
+            offset: The value to add to the start and end points.
 
         Returns:
             A new Span object shifted to the right.
@@ -79,13 +122,13 @@ class Span:
             offset = offset.start
         return Span(self.start + offset, self.length)
 
-    def __sub__(self, offset: int | Span) -> Span:
+    def __sub__(self, offset: int | float | Span) -> Span:
         """Shifts the span to the left.
 
-        Implements the `Span - int` operation.
+        Implements the `Span - offset` operation.
 
         Args:
-            offset: The integer value to subtract from the start.
+            offset: The value to subtract from the start.
 
         Returns:
             A new Span object shifted to the left.
@@ -107,7 +150,6 @@ class Span:
             A new Span representing the union, running from the minimum start
             to the maximum end of both spans.
         """
-
         start = min(self.start, span.start)
         end = max(self.end, span.end)
         return Span(start, end - start)
@@ -126,7 +168,6 @@ class Span:
         Raises:
             SpanError: If there is no overlaps between the spans.
         """
-
         if not self.overlaps(span):
             raise SpanError("no overlap between spans.")
 
@@ -135,25 +176,31 @@ class Span:
         return Span(overlap_start, overlap_end - overlap_start)
 
     @property
-    def length(self) -> int:
+    def length(self) -> int | float:
         """The length of the span."""
         return self._length
 
     @property
-    def start(self) -> int:
+    def start(self) -> int | float:
         """The starting point of the span."""
         return self._start
 
     @property
-    def end(self) -> int:
+    def end(self) -> int | float:
         """The ending point of the span (start + length)."""
         return self.start + self.length
 
     def overlaps(self, other: Span) -> bool:
-        return self.end > other.start and other.end > self.start
+        return (self.end > other.start + DEFAULT_EPSILON) and (
+            other.end > self.start + DEFAULT_EPSILON
+        )
 
     def expand(
-        self, both: Optional[int] = None, *, before: int = 0, after: int = 0
+        self,
+        both: Optional[int | float] = None,
+        *,
+        before: int | float = 0,
+        after: int | float = 0,
     ) -> Span:
         """Expands the span outward.
 
@@ -168,7 +215,6 @@ class Span:
         Raises:
             ValueError: If any margin is negative.
         """
-
         if both:
             before = after = both
 
@@ -180,7 +226,11 @@ class Span:
         return Span(self.start - before, before + self.length + after)
 
     def shrink(
-        self, both: Optional[int] = None, *, before: int = 0, after: int = 0
+        self,
+        both: Optional[int | float] = None,
+        *,
+        before: int | float = 0,
+        after: int | float = 0,
     ) -> Span:
         """Shrinks the span inward.
 
@@ -211,13 +261,13 @@ class Span:
         end = max(self.end - after, self.start)
 
         if start >= self.end:
-            start -= 1
+            start = self.end - 1
         if start >= end:
             end = start + 1
 
         return Span(start, end - start)
 
-    def offset_to(self, span: Span, anchor_end: bool = False) -> int:
+    def offset_to(self, span: Span, anchor_end: bool = False) -> int | float:
         """Calculates the offset distance between this span and another.
 
         When `anchor_end` is False (default), calculates the offset between
@@ -230,14 +280,13 @@ class Span:
             anchor_end: If True, calculates the offset between end points instead of start points.
 
         Returns:
-            An integer representing the signed offset from this span to the target span.
+            A signed offset from this span to the target span.
         """
-
         if anchor_end:
             return span.end - self.end
         return span.start - self.start
 
-    def slack(self, span: Span) -> int:
+    def slack(self, span: Span) -> int | float:
         """Calculates the available free space between this span and a reference span.
 
         The slack is the difference in length between the reference span and this span.
@@ -247,7 +296,7 @@ class Span:
             span: The reference Span to compare against.
 
         Returns:
-            An integer representing the difference in length (`span.length - self.length`).
+            An offset representing the difference in length (`span.length - self.length`).
         """
         return span.length - self.length
 
@@ -266,21 +315,21 @@ class Span:
         Returns:
             A new Span instance with the translated position.
         """
-        start = round(span.start + (self.slack(span)) * factor)
+        start = span.start + (self.slack(span)) * factor
         return Span(start, self.length)
 
-    def replace(self, value: int | Span | None) -> Span:
+    def replace(self, value: float | Span | Real | None) -> Span:
         """Replaces the start coordinate or the entire span.
 
         Args:
-            value: An integer representing a new start position (preserving length),
+            value: A number representing a new start position (preserving length),
                 a replacement Span instance, or None to keep the current span.
 
         Returns:
             A new Span instance if replaced, or the current Span instance if value is None.
         """
-        if isinstance(value, int):
-            return Span(value, self.length)
+        if isinstance(value, (int, float, Real)):
+            return Span(float(value), self.length)
         elif isinstance(value, Span):
             return value
         return self
@@ -292,41 +341,60 @@ class Region:
     y: Span
 
     @classmethod
-    def from_size(cls, width: int, height: int) -> Region:
+    def from_size(cls, width: float | Real, height: float | Real) -> Region:
         return cls(Span(width), Span(height))
 
     @classmethod
-    def from_rect(cls, x: int, y: int, width: int, height: int) -> Region:
+    def from_rect(
+        cls,
+        x: float | Real,
+        y: float | Real,
+        width: float | Real,
+        height: float | Real,
+    ) -> Region:
         return cls(Span(x, width), Span(y, height))
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         start = f"start=({self.x.start},{self.y.start})"
         length = f"length=({self.x.length},{self.y.length})"
         return f"{type(self).__name__}({start}, {length})"
 
+    def __eq__(self, other: object) -> bool:
+        if not isinstance(other, Region):
+            return False
+        return self.x == other.x and self.y == other.y
+
     def __shift(
-        self, operation: Callable, offset: int | tuple[int, int] | Region
+        self,
+        operation: Callable,
+        offset: (float | tuple[float, float] | Point | Region | Real | Sequence[float]),
     ) -> Region:
         if isinstance(offset, Region):
             x, y = offset.x.start, offset.y.start
 
-        elif isinstance(offset, tuple):
-            x, y = offset[0], offset[1]
+        elif isinstance(offset, (tuple, Point)):
+            x, y = float(offset[0]), float(offset[1])
 
-        elif isinstance(offset, int):
-            x = y = offset
+        elif isinstance(offset, (int, float, Real)):
+            x = y = float(offset)
 
         else:
             raise TypeError(
-                "offset must be an int, a (x, y) tuple, or a Region instance "
+                "offset must be a number, a (x, y) tuple, a Point, or a Region instance "
                 f"(got {type(offset).__name__})"
             )
         return Region(operation(self.x, x), operation(self.y, y))
 
-    def __add__(self, offset: int | tuple[int, int] | Region) -> Region:
+    def __add__(
+        self,
+        offset: (float | tuple[float, float] | Point | Region | Real | Sequence[float]),
+    ) -> Region:
         return self.__shift(add, offset)
 
-    def __sub__(self, offset: int | tuple[int, int] | Region) -> Region:
+    def __sub__(
+        self,
+        offset: (float | tuple[float, float] | Point | Region | Real | Sequence[float]),
+    ) -> Region:
         return self.__shift(sub, offset)
 
     def __or__(self, other: Region) -> Region:
@@ -343,61 +411,61 @@ class Region:
         self,
         span_op_x: Callable,
         span_op_y: Callable,
-        all: int | tuple[int, int] | None = None,
+        all: float | tuple[float, float] | None | Real = None,
         *,
-        left: int = 0,
-        right: int = 0,
-        top: int = 0,
-        bottom: int = 0,
+        left: float | Real = 0.0,
+        right: float | Real = 0.0,
+        top: float | Real = 0.0,
+        bottom: float | Real = 0.0,
     ) -> Region:
+        if isinstance(all, (tuple, list)):
+            left = right = float(all[0])
+            top = bottom = float(all[1])
 
-        if isinstance(all, tuple):
-            left = right = all[0]
-            top = bottom = all[1]
-
-        elif isinstance(all, int):
-            left = right = all
-            top = bottom = all
+        elif isinstance(all, (int, float, Real)):
+            left = right = float(all)
+            top = bottom = float(all)
 
         return Region(
-            span_op_x(before=left, after=right), span_op_y(before=top, after=bottom)
+            span_op_x(before=left, after=right),
+            span_op_y(before=top, after=bottom),
         )
 
     @property
-    def area(self) -> int:
+    def area(self) -> float:
         return self.x.length * self.y.length
 
     @property
-    def width(self) -> int:
+    def width(self) -> float:
         return self.x.length
 
     @property
-    def height(self) -> int:
+    def height(self) -> float:
         return self.y.length
 
     @property
-    def size(self) -> tuple[int, int]:
-        """Returns the dimensions of the region as a (width, height) tuple."""
-        return (self.width, self.height)
+    def size(self) -> Point:
+        """Returns the dimensions of the region as a tuple-compatible Point(width, height)."""
+        return Point(self.width, self.height)
 
     @property
-    def top_left(self) -> tuple[int, int]:
-        """Returns the top-left coordinates as an (x, y) tuple."""
-        return (self.x.start, self.y.start)
+    def top_left(self) -> Point:
+        """Returns the top-left coordinates as a tuple-compatible Point(x, y)."""
+        return Point(self.x.start, self.y.start)
 
     @property
-    def bottom_right(self) -> tuple[int, int]:
-        """Returns the bottom-right coordinates as an (x, y) tuple."""
-        return (self.x.end, self.y.end)
+    def bottom_right(self) -> Point:
+        """Returns the bottom-right coordinates as a tuple-compatible Point(x, y)."""
+        return Point(self.x.end, self.y.end)
 
     def expand(
         self,
-        all: int | tuple[int, int] | None = None,
+        all: float | tuple[float, float] | None = None,
         *,
-        left: int = 0,
-        right: int = 0,
-        top: int = 0,
-        bottom: int = 0,
+        left: float = 0.0,
+        right: float = 0.0,
+        top: float = 0.0,
+        bottom: float = 0.0,
     ) -> Region:
         """Expands the region outward."""
         return self._apply_margins(
@@ -412,12 +480,12 @@ class Region:
 
     def shrink(
         self,
-        all: int | tuple[int, int] | None = None,
+        all: float | tuple[float, float] | None = None,
         *,
-        left: int = 0,
-        right: int = 0,
-        top: int = 0,
-        bottom: int = 0,
+        left: float = 0.0,
+        right: float = 0.0,
+        top: float = 0.0,
+        bottom: float = 0.0,
     ) -> Region:
         """Shrinks the region inward."""
         return self._apply_margins(
@@ -430,7 +498,7 @@ class Region:
             bottom=bottom,
         )
 
-    def offset_to(self, other: Region, anchor_end: bool = False) -> tuple[int, int]:
+    def offset_to(self, other: Region, anchor_end: bool = False) -> Point:
         """Calculates the 2D offset (x, y) between this region and another.
 
         When `anchor_end` is False (default), calculates offsets between top-left start points.
@@ -441,9 +509,9 @@ class Region:
             anchor_end: If True, calculates offsets between end points instead of start points.
 
         Returns:
-            A tuple (x, y) containing the offset values.
+            A tuple-compatible Point containing the offset values.
         """
-        return (
+        return Point(
             self.x.offset_to(other.x, anchor_end=anchor_end),
             self.y.offset_to(other.y, anchor_end=anchor_end),
         )
@@ -487,13 +555,16 @@ class Region:
         )
 
     def replace(
-        self, *, x: int | Span | None = None, y: int | Span | None = None
+        self,
+        *,
+        x: float | Span | None = None,
+        y: float | Span | None = None,
     ) -> Region:
         """Creates a new Region with updated horizontal (X) and/or vertical (Y) spans.
 
         Args:
-            x: An integer for a new X start position, a replacement X Span, or None.
-            y: An integer for a new Y start position, a replacement Y Span, or None.
+            x: A number for a new X start position, a replacement X Span, or None.
+            y: A number for a new Y start position, a replacement Y Span, or None.
 
         Returns:
             A new Region instance with the specified span updates.
@@ -517,8 +588,8 @@ class Region:
             A new Region scaled and aligned inside ref.
         """
         scale = min(ref.width / self.width, ref.height / self.height)
-        new_w = int(round(self.width * scale))
-        new_h = int(round(self.height * scale))
+        new_w = self.width * scale
+        new_h = self.height * scale
         scaled_region = Region.from_rect(self.x.start, self.y.start, new_w, new_h)
         return scaled_region.align(ref, x_factor, y_factor)
 
@@ -539,12 +610,12 @@ class Region:
             A new Region scaled and aligned covering ref.
         """
         scale = max(ref.width / self.width, ref.height / self.height)
-        new_w = int(round(self.width * scale))
-        new_h = int(round(self.height * scale))
+        new_w = self.width * scale
+        new_h = self.height * scale
         scaled_region = Region.from_rect(self.x.start, self.y.start, new_w, new_h)
         return scaled_region.align(ref, x_factor, y_factor)
 
-    def scale_width(self, width: int) -> Region:
+    def scale_width(self, width: float) -> Region:
         """Scales this region to a specific width, calculating proportional height and keeping position.
 
         Args:
@@ -555,10 +626,10 @@ class Region:
         """
         if width <= 0:
             raise ValueError(f"Width must be positive, got {width}")
-        height = int(round(self.height * (width / self.width)))
+        height = self.height * (width / self.width)
         return Region.from_rect(self.x.start, self.y.start, width, height)
 
-    def scale_height(self, height: int) -> Region:
+    def scale_height(self, height: float) -> Region:
         """Scales this region to a specific height, calculating proportional width and keeping position.
 
         Args:
@@ -569,10 +640,27 @@ class Region:
         """
         if height <= 0:
             raise ValueError(f"Height must be positive, got {height}")
-        width = int(round(self.width * (height / self.height)))
+        width = self.width * (height / self.height)
         return Region.from_rect(self.x.start, self.y.start, width, height)
 
 
-def rect_to_region(rect: tuple[int, int, int, int]):
-    x, y, w, h = rect
-    return Region(Span(x, w), Span(y, h))
+def rect_to_region(
+    rect: tuple[float, float, float, float] | Sequence[float],
+) -> Region:
+    return Region.from_rect(rect[0], rect[1], rect[2], rect[3])
+
+
+def to_int_span(span: Span, mode: str = "round") -> Span:
+    """Converte os limites de um Span para inteiros discretos."""
+    if mode == "round":
+        return Span(int(round(span.start)), max(1, int(round(span.length))))
+    elif mode == "floor":
+        return Span(int(math.floor(span.start)), max(1, int(math.floor(span.length))))
+    elif mode == "ceil":
+        return Span(int(math.ceil(span.start)), max(1, int(math.ceil(span.length))))
+    return Span(int(span.start), max(1, int(span.length)))
+
+
+def to_int_region(region: Region, mode: str = "round") -> Region:
+    """Converte os Spans X e Y de uma Region para inteiros discretos."""
+    return Region(to_int_span(region.x, mode=mode), to_int_span(region.y, mode=mode))

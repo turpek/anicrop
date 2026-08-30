@@ -7,7 +7,7 @@ from typing import TYPE_CHECKING, Protocol, runtime_checkable
 import numpy as np
 
 from anicrop.canvas import Canvas
-from anicrop.spatial import Region, rect_to_region
+from anicrop.spatial import Point, Region, rect_to_region
 from anicrop.transform import (
     calculate_new_rect,
     calculate_region_rect,
@@ -31,7 +31,7 @@ class SurfaceProtocol(Protocol):
         pass
 
     @property
-    def size(self) -> tuple[int, int]:
+    def size(self) -> Point:
         pass
 
 
@@ -134,7 +134,7 @@ class BaseFrame(ABC):
         return self._dst_region
 
     @property
-    def surface_size(self) -> tuple[int, int]:
+    def surface_size(self) -> Point:
         return self.surface.size
 
     @property

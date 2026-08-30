@@ -21,7 +21,7 @@ def test_geometry_controller_offset_com_rotacao():
     layer.region = Region.from_rect(168, 352, 400, 400)
 
     assert layer.region.top_left == (168, 352)
-    assert layer.base.region.top_left == (133, 246)
+    assert layer.base.region.top_left.to_int() == (133, 246)
     assert layer.base.region.size == (736, 1104)
 
 

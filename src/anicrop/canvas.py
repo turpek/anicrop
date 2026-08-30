@@ -4,7 +4,7 @@ from typing import Self
 
 from anicrop.interfaces.canvas import AbstractCanvas
 from anicrop.layout import CanvasLayoutStrategy
-from anicrop.spatial import Region
+from anicrop.spatial import Point, Region
 
 
 class Canvas(AbstractCanvas):
@@ -20,8 +20,8 @@ class Canvas(AbstractCanvas):
     @classmethod
     def from_size(
         cls,
-        width: int,
-        height: int,
+        width: float,
+        height: float,
         bg_color: tuple[int, ...] | None = None,
     ) -> Self:
         return cls(Region.from_size(width, height), bg_color=bg_color)
@@ -29,24 +29,24 @@ class Canvas(AbstractCanvas):
     @classmethod
     def from_rect(
         cls,
-        x: int,
-        y: int,
-        width: int,
-        height: int,
+        x: float,
+        y: float,
+        width: float,
+        height: float,
         bg_color: tuple[int, ...] | None = None,
     ) -> Self:
         return cls(Region.from_rect(x, y, width, height), bg_color=bg_color)
 
     @property
-    def size(self) -> tuple[int, int]:
+    def size(self) -> Point:
         return self._region.size
 
     @property
-    def width(self) -> int:
+    def width(self) -> float:
         return self._region.width
 
     @property
-    def height(self) -> int:
+    def height(self) -> float:
         return self._region.height
 
     @property

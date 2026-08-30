@@ -255,17 +255,13 @@ def test_Region_deslocamento_negativo_nos_eixos_xy_com_tupla():
 
 
 def test_Region_deslocamento_positivo_com_tipo_errado():
-    expect = (
-        r"offset must be an int, a \(x, y\) tuple, or a Region instance \(got list\)"
-    )
+    expect = r"offset must be a number, a \(x, y\) tuple, a Point, or a Region instance \(got list\)"
     with raises(TypeError, match=expect):
         Region.from_size(10, 5) + [2, 3]
 
 
 def test_Region_deslocamento_negativo_com_tipo_errado():
-    expect = (
-        r"offset must be an int, a \(x, y\) tuple, or a Region instance \(got list\)"
-    )
+    expect = r"offset must be a number, a \(x, y\) tuple, a Point, or a Region instance \(got list\)"
     with raises(TypeError, match=expect):
         Region(Span(2, 10), Span(5, 12)) - [2, 3]
 

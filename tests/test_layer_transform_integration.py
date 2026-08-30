@@ -74,9 +74,8 @@ def test_layer_cenario_complexo_violao(canvas):
     # Esses valores são ligeiramente diferentes do cálculo estático pois o pivô
     # acompanha o Rect em tempo real.
     res = layer.global_region
-    assert res.x.start == 14
-    assert res.y.start == 12
-    assert res.x.length == 26  # Verificando se esticou
+    assert res.top_left.to_int() == (15, 13)
+    assert res.size.to_int() == (24, 14)
 
 
 def test_layer_set_transform_comportamento_absoluto(canvas):
