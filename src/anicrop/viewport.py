@@ -1,5 +1,3 @@
-from collections.abc import Sequence
-
 from numpy import ndarray
 
 from anicrop.spatial import Point, Region, rect_to_region
@@ -12,7 +10,7 @@ class Viewport:
 
     def __init__(
         self,
-        size: tuple[float, float] | Point | Sequence[float],
+        size: tuple[float, float],
         fit_scale: float = 1.0,
         bg_color: tuple[int, ...] | None = None,
     ):
@@ -57,9 +55,7 @@ class Viewport:
         x, y = self._region.top_left
         return mat_pivot(self.scale, self.size) @ mat_translation(-x, -y)
 
-    def fit_matrix(
-        self, layer_size: tuple[float, float] | Point | Sequence[float]
-    ) -> ndarray:
+    def fit_matrix(self, layer_size: tuple[float, float]) -> ndarray:
         # 2. Qual o tamanho do papel DEPOIS de encolher?
         s = self._fit.sx
         scaled_w = layer_size[0] * s

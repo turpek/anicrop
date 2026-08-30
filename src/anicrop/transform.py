@@ -14,8 +14,8 @@ if TYPE_CHECKING:
     from anicrop.layer import EditLayer, Layer
     from anicrop.type import TransformState
 
-Size2D = tuple[float, float] | Point | Sequence[float]
-Point2D = tuple[float, float] | Point | Sequence[float]
+Size2D = tuple[float, float]
+Point2D = tuple[float, float]
 
 
 def corners_to_rect(
@@ -41,12 +41,12 @@ def has_distortion(matrix: np.ndarray) -> bool:
 
 def calculate_new_corners(
     matrix: np.ndarray,
-    Size2D: tuple[float, float] | Sequence[float],
-    top_left: Point2D = (0.0, 0.0),
+    size: tuple[float, float],
+    top_left: tuple[float, float] = (0.0, 0.0),
 ) -> tuple[float, float, float, float]:
     """retorna min_x, min_y, max_x, max_y"""
     x, y = top_left
-    w, h = Size2D[:2]
+    w, h = size
 
     corners = np.array(
         [[x, y, 1.0], [x + w, y, 1.0], [x + w, y + h, 1.0], [x, y + h, 1.0]],
@@ -68,14 +68,14 @@ def calculate_new_corners(
 
 def calculate_new_rect_smart(
     matrix: np.ndarray,
-    size: tuple[int | float, int | float] | Sequence[int | float],
-    top_left: tuple[int | float, int | float] | Sequence[int | float] = (0.0, 0.0),
+    size: tuple[float, float],
+    top_left: tuple[float, float] = (0.0, 0.0),
     eps: float = 1e-5,
 ) -> tuple[float, float, float, float]:
     min_x, min_y, max_x, max_y = calculate_new_corners(
         matrix,
-        (float(size[0]), float(size[1])),
-        (float(top_left[0]), float(top_left[1])),
+        size,
+        top_left,
     )
     new_w = max(1e-6, max_x - min_x)
     new_h = max(1e-6, max_y - min_y)
@@ -84,7 +84,7 @@ def calculate_new_rect_smart(
 
 def calculate_new_rect(
     matrix: np.ndarray,
-    size: tuple[int | float, int | float] | Sequence[int | float],
+    size: tuple[float, float],
     eps: float = 1e-5,
 ) -> tuple[float, float, float, float]:
     return calculate_new_rect_smart(matrix, size, (0.0, 0.0), eps)

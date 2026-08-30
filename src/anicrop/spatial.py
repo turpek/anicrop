@@ -1,11 +1,11 @@
 from __future__ import annotations
 
 import math
-from collections.abc import Callable, Iterator, Sequence
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from numbers import Real
 from operator import add, sub
-from typing import Any, Optional
+from typing import NamedTuple, Optional
 
 from ovld import ovld
 
@@ -16,25 +16,17 @@ class SpanError(Exception):
     pass
 
 
-@dataclass(frozen=True, slots=True)
-class Point(Sequence[float]):
+class Point(NamedTuple):
+    """Representa um ponto ou dimensão 2D contínua em float, compatível com tuple[float, float]."""
+
     x: float
     y: float
 
-    def __iter__(self) -> Iterator[float]:
-        return iter((self.x, self.y))
-
-    def __getitem__(self, index: int | slice) -> Any:
-        return (self.x, self.y)[index]
-
-    def __len__(self) -> int:
-        return 2
-
     def __eq__(self, other: object) -> bool:
-        if isinstance(other, (Point, tuple, list)) and len(other) == 2:
+        if isinstance(other, (tuple, list)) and len(other) == 2:
             return math.isclose(
-                self.x, other[0], abs_tol=DEFAULT_EPSILON
-            ) and math.isclose(self.y, other[1], abs_tol=DEFAULT_EPSILON)
+                self[0], other[0], abs_tol=DEFAULT_EPSILON
+            ) and math.isclose(self[1], other[1], abs_tol=DEFAULT_EPSILON)
         return False
 
     def to_int(self, mode: str = "round") -> tuple[int, int]:
@@ -318,7 +310,7 @@ class Span:
         start = span.start + (self.slack(span)) * factor
         return Span(start, self.length)
 
-    def replace(self, value: float | Span | Real | None) -> Span:
+    def replace(self, value: float | Span | None) -> Span:
         """Replaces the start coordinate or the entire span.
 
         Args:
@@ -341,16 +333,16 @@ class Region:
     y: Span
 
     @classmethod
-    def from_size(cls, width: float | Real, height: float | Real) -> Region:
+    def from_size(cls, width: float, height: float) -> Region:
         return cls(Span(width), Span(height))
 
     @classmethod
     def from_rect(
         cls,
-        x: float | Real,
-        y: float | Real,
-        width: float | Real,
-        height: float | Real,
+        x: float,
+        y: float,
+        width: float,
+        height: float,
     ) -> Region:
         return cls(Span(x, width), Span(y, height))
 
@@ -367,7 +359,7 @@ class Region:
     def __shift(
         self,
         operation: Callable,
-        offset: (float | tuple[float, float] | Point | Region | Real | Sequence[float]),
+        offset: float | tuple[float, float] | Point | Region,
     ) -> Region:
         if isinstance(offset, Region):
             x, y = offset.x.start, offset.y.start
@@ -387,13 +379,13 @@ class Region:
 
     def __add__(
         self,
-        offset: (float | tuple[float, float] | Point | Region | Real | Sequence[float]),
+        offset: float | tuple[float, float] | Point | Region,
     ) -> Region:
         return self.__shift(add, offset)
 
     def __sub__(
         self,
-        offset: (float | tuple[float, float] | Point | Region | Real | Sequence[float]),
+        offset: float | tuple[float, float] | Point | Region,
     ) -> Region:
         return self.__shift(sub, offset)
 
@@ -411,12 +403,12 @@ class Region:
         self,
         span_op_x: Callable,
         span_op_y: Callable,
-        all: float | tuple[float, float] | None | Real = None,
+        all: float | tuple[float, float] | None = None,
         *,
-        left: float | Real = 0.0,
-        right: float | Real = 0.0,
-        top: float | Real = 0.0,
-        bottom: float | Real = 0.0,
+        left: float = 0.0,
+        right: float = 0.0,
+        top: float = 0.0,
+        bottom: float = 0.0,
     ) -> Region:
         if isinstance(all, (tuple, list)):
             left = right = float(all[0])

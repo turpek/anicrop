@@ -1,13 +1,11 @@
 from __future__ import annotations
 
-from collections.abc import Sequence
-
 import numpy as np
 
 from anicrop.enums import ImageFormat
 from anicrop.image import Image
 from anicrop.interfaces.buffer import AbstractScratchBuffer
-from anicrop.spatial import Point, Region
+from anicrop.spatial import Region
 
 
 class ScratchBuffer(AbstractScratchBuffer):
@@ -26,7 +24,7 @@ class ScratchBuffer(AbstractScratchBuffer):
 
     def configure(
         self,
-        size: tuple[float, float] | Point | Sequence[float],
+        size: tuple[float, float],
         fmt: ImageFormat = ImageFormat.RGBA,
     ) -> ScratchBuffer:
         """Configura as dimensões mínimas e o formato desejado para o próximo acesso."""

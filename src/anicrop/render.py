@@ -22,7 +22,7 @@ from anicrop.frame import (
 from anicrop.image import Image, ImageFormat
 from anicrop.interfaces.buffer import AbstractScratchBuffer
 from anicrop.layer import EditLayer, Layer
-from anicrop.spatial import Point, Region, rect_to_region
+from anicrop.spatial import Region, rect_to_region
 from anicrop.transform import (
     calculate_new_rect,
     calculate_region_rect,
@@ -143,8 +143,8 @@ def warp_patch(
 def generate_opacity_mask(
     image: Image,
     render_region: Region,
-    viewport_size: tuple[float, float] | Point | Sequence[float],
-    target_size: tuple[float, float] | Point | Sequence[float] = (32, 32),
+    viewport_size: tuple[float, float],
+    target_size: tuple[float, float] = (32.0, 32.0),
     opacity: float = 1.0,
     blend_mode: BlendMode = BlendMode.NORMAL,
 ) -> np.ndarray:
