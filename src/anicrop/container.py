@@ -37,11 +37,11 @@ class NodeContainerProtocol(Protocol):
 
 
 class NullContainer:
-    def __init__(self):
+    def __init__(self) -> None:
         self.parent: AbstractContainer | NullContainer = self
         self._parent_inverse: np.ndarray = np.identity(3, dtype=np.float32)
         self.__matrix = np.identity(3, dtype=np.float32)
-        self._inner_children = []
+        self._inner_children: list[BaseLayer] = []
 
     @property
     def _children(self) -> list:
