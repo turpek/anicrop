@@ -28,13 +28,10 @@ Este documento centraliza todos os objetivos arquiteturais, otimizações e o pr
 - [ ] 20. Padronizar o comportamento de `Layout.fit_content` quando a camada possui crop (`BlendMode.CLIP`), máscara ativa (`Mask`) ou patches de `EditLayer`.
 - [x] ~~21. Implementar subclasse de `EditLayer` (ou atributo `visible`) para controle de visibilidade de edições/crop e integração no `_flatten_edits` (Modelo GIMP).~~
 - [ ] 22. Implementar `ViewportLayoutStrategy` para gerenciar enquadramento, navegação e foco de câmera (`fit`, `align`, `fit_content`, `resize_bounds`).
-
-
-
-
-
+- [ ] 23. Padronizar herança de propriedades e comportamentos na rasterização plana de camadas (`flatten`, `Combine.flatten`, `Combine.bake`).
 
 ---
+
 
 
 ## 🏗 Detalhamento Arquitetural
@@ -371,6 +368,29 @@ def transform(self) -> Composer:
   1. **Invasão de Encapsulamento:** `BaseLayer` depende de um atributo privado (`_region`) da classe `Composer`.
   2. **Ciclo de Vida do Composer vs. Geometria de Camada:** O objeto `Composer` armazena um estado geométrico imutável no momento da sua instanciação (`self._region = Region.from_size(*size)`), enquanto a geometria de `BaseLayer` é dinâmica e mutável via `GeometryController` (onde `self.region` pode mudar com adição/remoção de filhos em `GroupLayer` ou troca de estratégia para `FitGeometry` / `FitGroupGeometry`).
   3. **Necessidade de Decisão:** É necessário definir formalmente o contrato de sincronização entre a geometria ativa de uma camada (`GeometryController` / `GeometryStrategy`) e o referencial de dimensão/pivô utilizado pelo `Composer` para aplicar transformações relativas.
+
+---
+
+## 🥞 23. Padronização da Herança de Propriedades na Rasterização Plana (`flatten` / `merge down`)
+
+Esta seção documenta a especificação para que a camada plana resultante (`flat_layer`) herde fielmente o comportamento das camadas compostas em relação ao restante do documento.
+
+### 1. Herança de Modo de Mesclagem (`blend_mode`)
+- **Merge Down de Camadas (`Combine.flatten`):**
+  - Ao mesclar a camada alvo (`resolved_target`) com as camadas visíveis abaixo dela (`sequence`), a interação interna entre as camadas é assada nos pixels rasterizados.
+  - A camada resultante `flat_layer` deve herdar o `blend_mode` da **camada base inferior** (`sequence[0].blend_mode`) para preservar como aquele bloco se mescla com o restante da pilha abaixo dele (comportamento padrão de editores como Photoshop/Krita).
+- **Bake de Grupo (`Combine.bake` / `GroupLayer`):**
+  - Ao assar os filhos internos de um `GroupLayer`, o `flat_layer` substituto deve herdar obrigatoriamente o `blend_mode` do próprio grupo (`group.blend_mode`).
+
+### 2. Preservação e Inferência do Formato de Cor (`ImageFormat`)
+- A função pura `flatten()` atualmente assume `ImageFormat.RGBA` como padrão fixo.
+- **Novo Comportamento:** Quando `format=None`, deve inferir automaticamente o formato a partir da camada superior do conjunto (`sequence[-1].format` ou `layers[-1].format`), preservando formatos de cor especializados (`PRGBA`, `RGBX`, `RGB`) sem forçar conversão desnecessária para `RGBA`.
+
+### 3. Preservação de Visibilidade e Opacidade
+- **`visible`:** A camada resultante `flat_layer.visible` deve herdar o estado de visibilidade da camada alvo ou do grupo (`sequence[-1].visible` ou `group.visible`).
+- **`opacity` em Grupos (`Combine.bake`):**
+  - Se o `GroupLayer` possuir `opacity < 1.0`, essa opacidade global do grupo deve ser transferida para `flat_layer.opacity` (mantendo a rasterização interna dos filhos isolada), ou assada diretamente nos pixels caso especificado.
+
 
 
 
