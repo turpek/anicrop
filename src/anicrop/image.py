@@ -302,7 +302,10 @@ class Image:
         width, height = io_backend.get_size(file_path_str)
         if width >= 8192 or height >= 8192:
             resolved_fmt = image_format or ImageFormat.RGBA
-            return cls._open_with_pillow_zarr(file_path_str, resolved_fmt)
+            data, resolved_fmt = io_backend.read_large(
+                file_path_str, format=resolved_fmt
+            )
+            return cls(data, resolved_fmt)
 
         data, resolved_fmt, _ = io_backend.read(
             file_path_str,
@@ -311,51 +314,6 @@ class Image:
             roi=roi,
         )
         return cls(data, resolved_fmt)
-
-    @classmethod
-    def _open_with_pillow_zarr(cls, file_path: str, image_format: ImageFormat) -> Image:
-        mode_map = {
-            ImageFormat.GRAY: "L",
-            ImageFormat.GRAY_ALPHA: "LA",
-            ImageFormat.RGB: "RGB",
-            ImageFormat.RGBA: "RGBA",
-            ImageFormat.CMYK: "CMYK",
-        }
-        mode = mode_map.get(image_format)
-
-        zarr_dir = manager_global.workspace_path / f"{uuid.uuid4().hex}.zarr"
-
-        with PILImage.open(file_path) as opened_img:
-            pil_img = opened_img.convert(mode) if mode else opened_img
-            width, height = pil_img.size
-            channels = image_format.channels
-
-            zarr_shape = (height, width, channels)
-            zarr_chunks = (512, 512, channels)
-
-            z_arr = zarr.open_array(
-                str(zarr_dir),
-                mode="w",
-                shape=zarr_shape,
-                chunks=zarr_chunks,
-                dtype=np.uint8,
-            )
-
-            chunk_size = 512
-            for y in range(0, height, chunk_size):
-                for x in range(0, width, chunk_size):
-                    y_end = min(y + chunk_size, height)
-                    x_end = min(x + chunk_size, width)
-                    box = (x, y, x_end, y_end)
-                    tile = pil_img.crop(box)
-                    tile_np = np.array(tile)
-
-                    if tile_np.ndim == 2:
-                        tile_np = tile_np[..., np.newaxis]
-
-                    z_arr[y:y_end, x:x_end] = tile_np
-
-        return cls(zarr.open_array(str(zarr_dir), mode="r"), image_format)
 
 
 def calculate_content_rect(image: Image) -> Region:

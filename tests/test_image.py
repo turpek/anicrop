@@ -242,48 +242,46 @@ def test_image_open_routes_to_backend(mocker):
         (1000, 1000),
     )
 
-    mock_zarr = mocker.patch("anicrop.image.Image._open_with_pillow_zarr")
-
     img = Image.open("dummy.png", ImageFormat.RGB, backend=mock_backend)
 
     mock_backend.read.assert_called_once_with(
         "dummy.png", format=ImageFormat.RGB, shrink=1, roi=None
     )
-    mock_zarr.assert_not_called()
+    mock_backend.read_large.assert_not_called()
     assert img.size == (1000, 1000)
 
 
-def test_image_open_routes_to_zarr(mocker):
-    """Valida se Image.open chaveia para Zarr quando o tamanho atinge o limiar gigante."""
+def test_image_open_routes_to_read_large(mocker):
+    """Valida se Image.open chaveia para read_large quando o tamanho atinge o limiar gigante."""
     mock_backend = mocker.MagicMock()
     mock_backend.get_size.return_value = (8192, 8192)
-
-    mock_zarr = mocker.patch(
-        "anicrop.image.Image._open_with_pillow_zarr",
-        return_value=mocker.MagicMock(spec=Image),
+    mock_backend.read_large.return_value = (
+        np.zeros((8192, 8192, 3), dtype=np.uint8),
+        ImageFormat.RGB,
     )
 
     Image.open("giant.png", ImageFormat.RGB, backend=mock_backend)
 
-    mock_zarr.assert_called_once_with("giant.png", ImageFormat.RGB)
+    mock_backend.read_large.assert_called_once_with("giant.png", format=ImageFormat.RGB)
     mock_backend.read.assert_not_called()
 
 
-def test_open_with_pillow_zarr_creates_3d_zarr(tmp_path):
-    # Usamos o tmp_path para gerar um PNG real que o OpenCV não vai abrir
+def test_opencv_backend_read_large_creates_3d_zarr(tmp_path):
+    """Valida se OpenCVBackend.read_large converte imagem para array Zarr particionado."""
+    from anicrop.io.opencv import OpenCVBackend
+
     source_path = tmp_path / "source.png"
     pil_img = PILImage.new("RGB", (600, 600), color=(255, 0, 0))
     pil_img.save(source_path)
 
-    # Chamamos o conversor de blocos
-    img = Image._open_with_pillow_zarr(str(source_path), ImageFormat.RGB)
+    backend = OpenCVBackend()
+    data, fmt = backend.read_large(source_path, ImageFormat.RGB)
+    img = Image(data, fmt)
 
-    # Verifica se os dados se comportam corretamente no Wrapper Image
     assert img.shape == (600, 600, 3)
     assert img.channels == 3
     assert img.format == ImageFormat.RGB
 
-    # Verifica se a região específica veio com a cor e dimensões corretas do chunk
     roi = img[Region(Span(100, 10), Span(100, 10))]
     assert isinstance(roi, np.ndarray)
     assert roi.shape == (10, 10, 3)
@@ -291,35 +289,61 @@ def test_open_with_pillow_zarr_creates_3d_zarr(tmp_path):
 
 
 def test_image_open_opencv_converts_format(tmp_path):
-    # Salva uma imagem RGB (vermelha) de teste
+    """Valida conversão de formato no OpenCVBackend padrão."""
     source_path = tmp_path / "rgb.png"
     pil_img = PILImage.new("RGB", (100, 100), color=(255, 0, 0))
     pil_img.save(source_path)
 
-    # 1. Abre solicitando GRAY (deve converter para 1 canal)
     img_gray = Image.open(source_path, ImageFormat.GRAY)
     assert img_gray.shape == (100, 100, 1)
 
-    # 2. Abre solicitando RGBA (deve adicionar canal alfa com 255)
     img_rgba = Image.open(source_path, ImageFormat.RGBA)
     assert img_rgba.shape == (100, 100, 4)
-    # A cor deve estar em RGB (255, 0, 0, 255) e não BGR (0, 0, 255, 255)
     assert np.all(img_rgba[0, 0] == (255, 0, 0, 255))
 
 
-def test_image_open_zarr_converts_format(tmp_path):
-    # Salva uma imagem RGB de teste gigante (simulada)
+def test_opencv_backend_read_large_converts_format(tmp_path):
+    """Valida se OpenCVBackend.read_large converte os canais para GRAY e RGBA."""
+    from anicrop.io.opencv import OpenCVBackend
+
     source_path = tmp_path / "giant_rgb.png"
     pil_img = PILImage.new("RGB", (100, 100), color=(0, 255, 0))
     pil_img.save(source_path)
 
-    # Força abertura via Zarr mockando o limiar de tamanho
-    img_gray = Image._open_with_pillow_zarr(str(source_path), ImageFormat.GRAY)
+    backend = OpenCVBackend()
+    data_gray, fmt_gray = backend.read_large(source_path, ImageFormat.GRAY)
+    img_gray = Image(data_gray, fmt_gray)
     assert img_gray.shape == (100, 100, 1)
 
-    img_rgba = Image._open_with_pillow_zarr(str(source_path), ImageFormat.RGBA)
+    data_rgba, fmt_rgba = backend.read_large(source_path, ImageFormat.RGBA)
+    img_rgba = Image(data_rgba, fmt_rgba)
     assert img_rgba.shape == (100, 100, 4)
     assert np.all(img_rgba[0, 0] == (0, 255, 0, 255))
+
+
+def test_vips_backend_read_large_streaming(tmp_path):
+    """Valida se PyvipsBackend.read_large cria um VipsStreamingBuffer sob demanda."""
+    from anicrop.io.vips import PyvipsBackend, is_vips_available
+
+    if not is_vips_available():
+        return
+
+    source_path = tmp_path / "vips_giant.png"
+    pil_img = PILImage.new("RGB", (500, 500), color=(0, 0, 255))
+    pil_img.save(source_path)
+
+    backend = PyvipsBackend()
+    data, fmt = backend.read_large(source_path, ImageFormat.RGBA)
+    img = Image(data, fmt)
+
+    assert img.shape == (500, 500, 4)
+    assert img.channels == 4
+    assert img.format == ImageFormat.RGBA
+
+    patch = img[Region.from_rect(10, 10, 50, 50)]
+    assert isinstance(patch, np.ndarray)
+    assert patch.shape == (50, 50, 4)
+    assert np.all(patch == (0, 0, 255, 255))
 
 
 def test_image_save_and_reopen(tmp_path):

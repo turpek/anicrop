@@ -1,6 +1,6 @@
 # Relatório Oficial de Benchmarks: anicrop vs Concorrentes
 
-> **Data de Execução:** 2026-08-31 03:04:49
+> **Data de Execução:** 2026-08-31 03:28:51
 > **Ambiente:** Python 3.12+, uv virtualenv, Linux
 > **Competidores:** `anicrop`, `Pillow`, `OpenCV` (NumPy), `Pyvips`
 
@@ -10,45 +10,45 @@
 
 | Biblioteca   | Tempo Médio   | Throughput (FPS)   | Min        | Max        | Pico RAM   |
 |--------------|---------------|--------------------|------------|------------|------------|
-| **anicrop**  | 304.44 ms     | 3.28 FPS           | 301.54 ms  | 305.98 ms  | 171.15 MB  |
-| **Pyvips**   | 465.70 ms     | 2.15 FPS           | 455.77 ms  | 471.52 ms  | 172.95 MB  |
-| **Pillow**   | 777.79 ms     | 1.29 FPS           | 761.50 ms  | 800.96 ms  | 70.12 MB   |
-| **OpenCV**   | 1472.01 ms    | 0.68 FPS           | 1460.06 ms | 1493.84 ms | 355.85 MB  |
+| **anicrop**  | 272.73 ms     | 3.67 FPS           | 267.19 ms  | 284.50 ms  | 176.55 MB  |
+| **Pyvips**   | 466.64 ms     | 2.14 FPS           | 458.60 ms  | 473.84 ms  | 153.09 MB  |
+| **Pillow**   | 762.79 ms     | 1.31 FPS           | 748.96 ms  | 780.78 ms  | 0.01 MB    |
+| **OpenCV**   | 1481.36 ms    | 0.68 FPS           | 1475.58 ms | 1490.44 ms | 442.86 MB  |
 
 
 ### Edição por Retalhos (25 Patches em Imagem 4K)
 
 | Biblioteca   | Tempo Médio   | Throughput (FPS)   | Min       | Max       | Pico RAM   |
 |--------------|---------------|--------------------|-----------|-----------|------------|
-| **anicrop**  | 120.30 ms     | 8.31 FPS           | 100.87 ms | 200.81 ms | 0.02 MB    |
-| **OpenCV**   | 96.67 ms      | 10.34 FPS          | 95.71 ms  | 99.96 ms  | 0.00 MB    |
-| **Pillow**   | 81.14 ms      | 12.32 FPS          | 79.63 ms  | 86.02 ms  | 0.00 MB    |
+| **anicrop**  | 114.29 ms     | 8.75 FPS           | 103.31 ms | 163.06 ms | 0.02 MB    |
+| **OpenCV**   | 97.25 ms      | 10.28 FPS          | 96.12 ms  | 102.62 ms | 0.00 MB    |
+| **Pillow**   | 80.49 ms      | 12.42 FPS          | 79.62 ms  | 82.99 ms  | 0.00 MB    |
 
 
 ### Latência de Viewport Preview em Cena 8K (800x600 sob Zoom 3x)
 
 | Biblioteca   | Tempo Médio   | Throughput (FPS)   | Min        | Max        | Pico RAM   |
 |--------------|---------------|--------------------|------------|------------|------------|
-| **anicrop**  | 514.05 ms     | 1.95 FPS           | 505.32 ms  | 529.01 ms  | 126.57 MB  |
-| **OpenCV**   | 8633.28 ms    | 0.12 FPS           | 8602.89 ms | 8676.46 ms | 1645.29 MB |
-| **Pillow**   | 1222.72 ms    | 0.82 FPS           | 1208.46 ms | 1244.73 ms | 324.61 MB  |
+| **anicrop**  | 523.27 ms     | 1.91 FPS           | 507.43 ms  | 550.85 ms  | 126.59 MB  |
+| **OpenCV**   | 8634.46 ms    | 0.12 FPS           | 8600.43 ms | 8688.13 ms | 1645.30 MB |
+| **Pillow**   | 1269.15 ms    | 0.79 FPS           | 1261.32 ms | 1279.88 ms | 316.99 MB  |
 
 
 ### Processamento Gigapixel 100MP (10000x10000 c/ Rotação e Patch 4K)
 
 | Biblioteca         | Tempo Médio   | Throughput (FPS)   | Min        | Max        | Pico RAM   |
 |--------------------|---------------|--------------------|------------|------------|------------|
-| **anicrop (Zarr)** | 2418.29 ms    | 0.41 FPS           | 2413.13 ms | 2427.43 ms | 476.85 MB  |
-| **Pyvips**         | 91.59 ms      | 10.92 FPS          | 85.86 ms   | 102.98 ms  | 0.02 MB    |
+| **anicrop (Zarr)** | 2424.43 ms    | 0.41 FPS           | 2417.73 ms | 2436.35 ms | 476.85 MB  |
+| **Pyvips**         | 194.00 ms     | 5.15 FPS           | 190.13 ms  | 200.16 ms  | 61.05 MB   |
 
 
 ### Edição e Composição em Foto 100MP Real (moon_10k.jpg)
 
 | Biblioteca   | Tempo Médio   | Throughput (FPS)   | Min        | Max        | Pico RAM   |
 |--------------|---------------|--------------------|------------|------------|------------|
-| **anicrop**  | 5144.41 ms    | 0.19 FPS           | 5129.72 ms | 5153.44 ms | 621.55 MB  |
-| **Pyvips**   | 267.67 ms     | 3.74 FPS           | 264.69 ms  | 271.65 ms  | 210.64 MB  |
-| **Pillow**   | 6195.63 ms    | 0.16 FPS           | 6173.87 ms | 6236.68 ms | 1866.30 MB |
+| **anicrop**  | 3888.80 ms    | 0.26 FPS           | 3862.69 ms | 3904.10 ms | 667.58 MB  |
+| **Pyvips**   | 258.88 ms     | 3.86 FPS           | 246.12 ms  | 267.16 ms  | 210.64 MB  |
+| **Pillow**   | 5781.17 ms    | 0.17 FPS           | 5772.14 ms | 5795.73 ms | 287.75 MB  |
 
 
 ## 📈 Gráficos Comparativos
