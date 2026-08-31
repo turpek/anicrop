@@ -40,30 +40,7 @@ class EditLayer:
         self.name = name
         self.visible = visible
         self._matrix = matrix
-        self._lod_cache: dict[int, Image] = {}
-
-        if self._image.is_zarr:
-            self._prebuild_lod_cache()
-
-    def _resize(self, lod_factor: float) -> Image:
-        new_w = max(1, int(self._image.width * lod_factor))
-        new_h = max(1, int(self._image.height * lod_factor))
-        return self._image.resize((new_w, new_h))
-
-    def _prebuild_lod_cache(self) -> None:
-        """Pré-constrói a pirâmide de LODs para imagens Zarr usando a fábrica inteligente Image.resize."""
-        w, h = self._image.size
-        n = 1
-        while True:
-            lod_factor = 2.0 ** (-n)
-            new_w = max(1, int(w * lod_factor))
-            new_h = max(1, int(h * lod_factor))
-
-            if new_w < 64 or new_h < 64:
-                break
-
-            self._lod_cache[n] = self._image.resize((new_w, new_h))
-            n += 1
+        self._lod_cache: dict[int, tuple[Image, np.ndarray]] = {}
 
     @property
     def region(self) -> Region:
@@ -95,14 +72,15 @@ class EditLayer:
         if scale_factor >= 1.0 or n <= 0:
             return self._image, self.local_matrix
 
+        if n in self._lod_cache:
+            return self._lod_cache[n]
+
         lod_factor = 2.0 ** (-n)
         m_adjust = mat_scale(1.0 / lod_factor, 1.0 / lod_factor)
         m_local = self.local_matrix @ m_adjust
 
-        if n in self._lod_cache:
-            return self._lod_cache[n], m_local
-
-        lod_image = self._resize(lod_factor)
+        lod_image = self._image.get_lod(n)
+        self._lod_cache[n] = (lod_image, m_local)
         return lod_image, m_local
 
     def blend_into(

@@ -58,66 +58,31 @@ def test_edit_layer_lod_level_calculation(
     assert m_local is not None
 
 
-# --- 2. Geração de LOD sob demanda sem cache para Imagens Comuns (<= 4Kx4K) ---
+# --- 2. Geração de LOD sob demanda com Cache Reutilizável ---
 
 
-def test_edit_layer_lod_on_demand_no_cache_for_normal_images():
-    """Garante que para imagens comuns (<= 4Kx4K) o resize com INTER_AREA ocorra sob demanda e sem cache."""
-    edit_layer = make_edit_layer(1000, 1000)  # Imagem comum (1MP <= 16MP)
+def test_edit_layer_lod_lazy_caching():
+    """Garante que o cálculo de LOD ocorre sob demanda e é reutilizado do cache em chamadas subsequentes."""
+    edit_layer = make_edit_layer(1000, 1000)
 
     with patch("cv2.resize", wraps=cv2.resize) as mock_resize:
-        # Primeira chamada
+        # Primeira chamada: calcula sob demanda
         lod_img1, m_local1 = edit_layer.get_lod(0.5)
         assert lod_img1.width == 500
         assert mock_resize.call_count == 1
 
-        # Segunda chamada para a mesma escala em imagem comum -> DEVE chamar resize sob demanda novamente!
+        # Segunda chamada: deve vir do cache de LOD sem chamar resize novamente
         lod_img2, m_local2 = edit_layer.get_lod(0.5)
         assert lod_img2.width == 500
-        assert mock_resize.call_count == 2
+        assert lod_img1 is lod_img2
+        assert mock_resize.call_count == 1
 
         # Verifica se usou a interpolação cv2.INTER_AREA
         _, kwargs = mock_resize.call_args_list[0]
         assert kwargs.get("interpolation") == cv2.INTER_AREA
 
 
-# --- 3. Geração de Cache para Imagens Grandes (> 4Kx4K) ---
-
-
-@pytest.mark.slow
-def test_edit_layer_lod_caching_for_large_images():
-    """Verifica se imagens grandes (> 4Kx4K, ex: 5000x5000) alocam Zarr via Image.new e reutilizam o cache do LOD."""
-    # Imagem grande 5000x5000 criada via Image.new (automaticamente vira Zarr)
-    img_large = Image.new((5000, 5000), ImageFormat.RGBA)
-    region = Region(Span(0, 5000), Span(0, 5000))
-    matrix = np.identity(3, dtype=np.float32)
-    edit_layer = EditLayer(img_large, region, matrix)
-
-    assert edit_layer.image.is_zarr is True
-
-    # O cache é pré-gerado e reutilizado
-    lod_img1, m_local1 = edit_layer.get_lod(0.5)
-    lod_img2, m_local2 = edit_layer.get_lod(0.5)
-    assert lod_img1.width == 2500
-    assert lod_img1 is lod_img2
-
-
-# --- 4. Geração de Cache para Imagens Zarr ---
-
-
-def test_edit_layer_lod_caching_for_zarr_images():
-    """Verifica se imagens Zarr usam cache independente do tamanho."""
-    edit_layer = make_edit_layer(1000, 1000, is_zarr=True)
-
-    lod_img1, m_local1 = edit_layer.get_lod(0.5)
-    lod_img2, m_local2 = edit_layer.get_lod(0.5)
-
-    # Para Zarr, o cache é ativado no __init__ e reutilizado
-    assert lod_img1 is lod_img2
-    assert lod_img1.width == 500
-
-
-# --- 5. Escala >= 1.0 Não Dispara Resize ---
+# --- 3. Escala >= 1.0 Não Dispara Resize ---
 
 
 @pytest.mark.parametrize("scale_factor", [1.0, 2.0, 5.0])

@@ -1,11 +1,123 @@
 from __future__ import annotations
 
+import uuid
+from typing import TYPE_CHECKING, Any
+
+import cv2
 import numpy as np
+import zarr
 
 from anicrop.enums import ImageFormat
-from anicrop.image import Image
-from anicrop.interfaces.buffer import AbstractScratchBuffer
+from anicrop.interfaces.buffer import AbstractImageBuffer, AbstractScratchBuffer
+from anicrop.persistence.manager import manager_global
 from anicrop.spatial import Region
+
+if TYPE_CHECKING:
+    from anicrop.image import Image
+
+
+class ArrayBuffer(AbstractImageBuffer):
+    """Adaptador de buffer para matrizes NumPy em memória RAM."""
+
+    def __init__(self, array: np.ndarray) -> None:
+        self._array = array
+
+    @property
+    def shape(self) -> tuple[int, ...]:
+        return self._array.shape
+
+    @property
+    def dtype(self) -> np.dtype:
+        return self._array.dtype
+
+    @property
+    def ndim(self) -> int:
+        return self._array.ndim
+
+    @property
+    def __array_interface__(self) -> dict[str, Any]:
+        return self._array.__array_interface__
+
+    def __array__(self, dtype: Any = None) -> np.ndarray:
+        return np.asarray(self._array, dtype=dtype)
+
+    def __eq__(self, other: Any) -> Any:
+        other_arr = other._array if isinstance(other, ArrayBuffer) else other
+        return self._array == other_arr
+
+    def __getitem__(self, key: Any) -> np.ndarray:
+        return self._array[key]
+
+    def __setitem__(self, key: Any, value: Any) -> None:
+        self._array[key] = value
+
+    def get_lod(self, level: int) -> ArrayBuffer:
+        """Retorna uma versão reduzida em memória RAM usando cv2.INTER_AREA."""
+        if level <= 0:
+            return self
+        factor = 2.0 ** (-level)
+        new_w = max(1, int(self.width * factor))
+        new_h = max(1, int(self.height * factor))
+        resized = cv2.resize(self._array, (new_w, new_h), interpolation=cv2.INTER_AREA)
+        if resized.ndim == 2 and self.ndim == 3:
+            resized = resized[..., np.newaxis]
+        return ArrayBuffer(resized)
+
+
+class ZarrBuffer(AbstractImageBuffer):
+    """Adaptador de buffer para arrays particionados Zarr out-of-core em disco."""
+
+    def __init__(self, zarr_array: zarr.Array) -> None:
+        self._zarr = zarr_array
+
+    @property
+    def shape(self) -> tuple[int, ...]:
+        return self._zarr.shape
+
+    @property
+    def dtype(self) -> np.dtype:
+        return self._zarr.dtype
+
+    @property
+    def ndim(self) -> int:
+        return self._zarr.ndim
+
+    def __array__(self, dtype: Any = None) -> np.ndarray:
+        return np.asarray(self._zarr[...], dtype=dtype)
+
+    def __getitem__(self, key: Any) -> np.ndarray:
+        return self._zarr[key]
+
+    def __setitem__(self, key: Any, value: Any) -> None:
+        self._zarr[key] = value
+
+    def get_lod(self, level: int) -> AbstractImageBuffer:
+        """Gera um novo nível de resolução (LOD) reduzido sob demanda."""
+        if level <= 0:
+            return self
+        factor = 2.0 ** (-level)
+        new_w = max(1, int(self.width * factor))
+        new_h = max(1, int(self.height * factor))
+
+        raw = self._zarr[...]
+        resized = cv2.resize(raw, (new_w, new_h), interpolation=cv2.INTER_AREA)
+        if resized.ndim == 2 and self.ndim == 3:
+            resized = resized[..., np.newaxis]
+
+        if new_w * new_h > 4096 * 4096:
+            zarr_dir = manager_global.workspace_path / f"{uuid.uuid4().hex}.zarr"
+            channels = resized.shape[2] if resized.ndim == 3 else 1
+            z_arr = zarr.open_array(
+                str(zarr_dir),
+                mode="w",
+                shape=resized.shape,
+                chunks=(min(512, new_h), min(512, new_w), channels),
+                dtype=np.uint8,
+            )
+            z_arr[...] = resized
+            return ZarrBuffer(z_arr)
+
+        return ArrayBuffer(resized)
 
 
 class ScratchBuffer(AbstractScratchBuffer):
@@ -35,6 +147,8 @@ class ScratchBuffer(AbstractScratchBuffer):
 
     def _ensure_allocated(self) -> Image:
         """Aloca ou reaproveita o array de imagem subjacente, expandindo por fator 1.5x."""
+        from anicrop.image import Image
+
         w, h = self._size
         if (
             self._image is None

@@ -14,8 +14,10 @@ import zarr
 from numpy import ndarray
 from PIL import Image as PILImage
 
+from anicrop.buffer import ArrayBuffer, ZarrBuffer
 from anicrop.color import convert_image_format
 from anicrop.enums import ImageFormat
+from anicrop.interfaces.buffer import AbstractImageBuffer
 from anicrop.interfaces.io import AbstractImageIO, SaveOptions
 from anicrop.io.registry import get_backend
 from anicrop.persistence.manager import manager_global
@@ -23,35 +25,44 @@ from anicrop.spatial import Region, Span
 
 
 class Image:
-    """A wrapper around a NumPy ndarray to provide an image-centric API.
+    """A wrapper around an AbstractImageBuffer to provide an image-centric API.
 
     This class facilitates spatial indexing using Region objects and offers
     convenient properties for accessing image dimensions (width, height, channels).
     It ensures that the underlying image data is a valid 2D or 3D array.
     """
 
-    def __init__(self, image: ndarray | zarr.Array, image_format: ImageFormat):
+    def __init__(
+        self,
+        image: AbstractImageBuffer | ndarray | zarr.Array,
+        image_format: ImageFormat,
+    ):
         """Initializes the Image object.
 
         Args:
-            image: A 2D (grayscale) or 3D (color) NumPy ndarray or Zarr Array.
+            image: An AbstractImageBuffer, 2D/3D NumPy ndarray, or Zarr Array.
 
         Raises:
             ValueError: If the image array is not 2D/3D, has zero dimensions,
                         or has no channels in a 3D configuration.
         """
-        if image.ndim not in (2, 3):
+        if isinstance(image, AbstractImageBuffer):
+            self._data = image
+        elif isinstance(image, np.ndarray):
+            arr = image[..., np.newaxis] if image.ndim == 2 else image
+            self._data = ArrayBuffer(arr)
+        else:
+            self._data = ZarrBuffer(image)
+
+        if self._data.ndim not in (2, 3):
             raise ValueError("image array must be 2D or 3D")
 
-        elif image.shape[0] == 0 or image.shape[1] == 0:
+        elif self._data.shape[0] == 0 or self._data.shape[1] == 0:
             raise ValueError("image dimensions must be greater than zero")
-        elif isinstance(image, np.ndarray) and image.ndim == 2:
-            image = image[..., np.newaxis]
-        elif image.ndim == 3 and image.shape[2] == 0:
+        elif self._data.ndim == 3 and self._data.shape[2] == 0:
             raise ValueError("image must have at least one channel")
 
-        self._data = image
-        self._channels = image.shape[2]
+        self._channels = self._data.shape[2] if self._data.ndim == 3 else 1
         self._format = image_format
         self._validate_format()
 
@@ -184,10 +195,18 @@ class Image:
     def has_alpha(self) -> bool:
         return self._format.has_alpha
 
-    @property
-    def is_zarr(self) -> bool:
-        """Indica se os dados da imagem estão armazenados em um array Zarr."""
-        return not isinstance(self._data, np.ndarray)
+    def get_lod(self, level: int) -> Image:
+        """Retorna uma nova Image no nível de resolução solicitado (1/2^level)."""
+        if level <= 0:
+            return self
+
+        if hasattr(self._data, "get_lod"):
+            return Image(self._data.get_lod(level), self.format)
+
+        factor = 2.0 ** (-level)
+        new_w = max(1, int(self.width * factor))
+        new_h = max(1, int(self.height * factor))
+        return self.resize((new_w, new_h))
 
     @classmethod
     def new(

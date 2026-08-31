@@ -22,6 +22,7 @@ except Exception:
 
 from anicrop.color import convert_image_format
 from anicrop.enums import ImageFormat
+from anicrop.interfaces.buffer import AbstractImageBuffer
 from anicrop.interfaces.io import AbstractImageIO, SaveOptions
 
 if TYPE_CHECKING:
@@ -258,7 +259,7 @@ class PyvipsBackend(AbstractImageIO):
         return stream_buf, resolved_fmt
 
 
-class VipsStreamingBuffer:
+class VipsStreamingBuffer(AbstractImageBuffer):
     """Buffer de streaming sob demanda baseado em libvips para imagens gigantes."""
 
     def __init__(
@@ -284,9 +285,41 @@ class VipsStreamingBuffer:
         elif target_format == ImageFormat.RGB and self._vimg.bands == 4:
             self._vimg = self._vimg.extract_band(0, n=3)
 
-        self.shape = (self._vimg.height, self._vimg.width, self._vimg.bands)
-        self.dtype = np.dtype(np.uint8)
-        self.ndim = 3
+    @property
+    def shape(self) -> tuple[int, ...]:
+        return (self._vimg.height, self._vimg.width, self._vimg.bands)
+
+    @property
+    def dtype(self) -> np.dtype:
+        return np.dtype(np.uint8)
+
+    @property
+    def ndim(self) -> int:
+        return 3
+
+    def __array__(self, dtype: Any = None) -> np.ndarray:
+        mem = self._vimg.write_to_memory()
+        arr = np.frombuffer(mem, dtype=np.uint8).reshape(self.shape)
+        return np.asarray(arr, dtype=dtype)
+
+    @classmethod
+    def from_vips_image(
+        cls, vimg: pyvips.Image, target_format: ImageFormat = ImageFormat.RGBA
+    ) -> VipsStreamingBuffer:
+        """Instancia um VipsStreamingBuffer diretamente a partir de um objeto pyvips.Image já processado."""
+        inst = cls.__new__(cls)
+        inst._path = None
+        inst._target_format = target_format
+        inst._vimg = vimg
+        return inst
+
+    def get_lod(self, level: int) -> VipsStreamingBuffer:
+        """Gera um buffer de streaming reduzido em tempo real usando shrink nativo em C."""
+        if level <= 0:
+            return self
+        shrink_factor = 2**level
+        shrunk_vimg = self._vimg.shrink(shrink_factor, shrink_factor)
+        return self.from_vips_image(shrunk_vimg, self._target_format)
 
     @property
     def size(self) -> tuple[int, int]:
