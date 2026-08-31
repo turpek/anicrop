@@ -31,17 +31,17 @@ Este documento consolida as métricas oficiais de desempenho do motor gráfico `
 
 - **Script:** [`scripts/benchmark_canvas_render_stress.py`](file:///home/gui/python/anicrop/scripts/benchmark_canvas_render_stress.py)
 - **Metodologia:** Cena em resolução Full HD ($1920 \times 1080$) com camadas sobrepostas de $400 \times 400$ pixels reais em formato RGBA, contendo rotações aleatórias, escalas, translações e interpolação Lanczos4.
-- **Ambiente:** CPU x86_64, Python 3.12 com OpenCV/NumPy e Extensão C nativa (`_c_blend`).
+- **Ambiente:** CPU x86_64, Python 3.12 com OpenCV/NumPy, `ScratchBuffer` zero-copy e Extensões C nativas (`_cy_blend`, `_cy_color`).
 
 ### Resultados de Renderização (Lanczos4 - 1080p):
 
 | Camadas Ativas | Cena Completa 1080p (s) | FPS (Cena) | Retalho Patch 800x600 (s) | FPS (Patch) |
 | :--- | :--- | :--- | :--- | :--- |
-| **5 camadas** | **0.0753s** | **13.28 FPS** | **0.0371s** | **26.94 FPS** |
-| **10 camadas** | **0.1460s** | **6.85 FPS** | **0.0691s** | **14.46 FPS** |
-| **20 camadas** | **0.3097s** | **3.23 FPS** | **0.1252s** | **7.98 FPS** |
-| **40 camadas** | **0.5556s** | **1.80 FPS** | **0.3184s** | **3.14 FPS** |
-| **80 camadas** | **1.1546s** | **0.87 FPS** | **0.6743s** | **1.48 FPS** |
+| **5 camadas** | **0.0878s** | **11.39 FPS** | **0.0431s** | **23.20 FPS** |
+| **10 camadas** | **0.1108s** | **9.03 FPS** | **0.0490s** | **20.41 FPS** |
+| **20 camadas** | **0.2192s** | **4.56 FPS** | **0.1199s** | **8.34 FPS** |
+| **40 camadas** | **0.3751s** | **2.67 FPS** | **0.2479s** | **4.03 FPS** |
+| **80 camadas** | **0.7191s** | **1.39 FPS** | **0.5116s** | **1.95 FPS** |
 
 ---
 
