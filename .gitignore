@@ -18,11 +18,15 @@ scripts
 scratch
 cont.txt
 
-# Imagens (exceto assets oficiais)
+# Imagens (exceto assets oficiais e benchmarks)
 *.png
 !assets/*.png
+!benchmarks/*.png
+!benchmarks/data/*.png
+benchmarks/data/test_*.png
 
-# Ambientes virtuais e benchmarks
+# Ambientes virtuais e artefatos de benchmark
 .venv_bench/
-benchmarks/data/
 benchmarks/output/
+benchmarks/data/*.zarr/
+
