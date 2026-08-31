@@ -62,16 +62,22 @@ pull-dev:
 	@echo "==> Atualizando branch dev a partir do GitHub..."
 	git pull origin dev
 
-# Sincroniza apenas o código de produção da branch 'dev' para a 'main' (mantendo a main limpa)
+# Sincroniza apenas o código de produção da branch 'dev' para a 'main' (mantendo a main limpa e descritiva)
 sync-main:
 	@echo "==> Sincronizando código de produção com a branch main..."
-	@git checkout main
-	@git checkout dev -- src/ tests/ README.md assets/ pyproject.toml setup.py Makefile
-	@git commit -m "release: sincroniza codigo de producao da dev" || echo "Nenhuma nova alteracao para commitar na main"
-	@git checkout dev
-	@echo "==> Sincronização concluída! Retornado para a branch dev."
+	@CHANGES=$$(git log main..dev --oneline --no-merges --invert-grep --grep="bench" --grep="docs(plano)" src/ tests/ | sed 's/^[a-f0-9]* /- /'); \
+	if [ -z "$$CHANGES" ]; then \
+		echo "Nenhuma alteração de produção para sincronizar."; \
+	else \
+		git checkout main && \
+		git checkout dev -- src/ tests/ README.md assets/ pyproject.toml setup.py Makefile .gitignore .python-version uv.lock && \
+		git commit -m "release: sincroniza código de produção da dev" -m "$$CHANGES" && \
+		git checkout dev && \
+		echo "==> Sincronização concluída! Retornado para a branch dev."; \
+	fi
 
 # Envia a branch main limpa para o GitHub
 push-main:
 	@echo "==> Enviando branch main para o GitHub..."
 	git push origin main
+
