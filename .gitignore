@@ -21,3 +21,8 @@ cont.txt
 # Imagens (exceto assets oficiais)
 *.png
 !assets/*.png
+
+# Ambientes virtuais e benchmarks
+.venv_bench/
+benchmarks/data/
+benchmarks/output/
