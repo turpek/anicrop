@@ -20,6 +20,7 @@ try:
 except Exception:
     pyvips = None
 
+from anicrop.color import convert_image_format
 from anicrop.enums import ImageFormat
 from anicrop.interfaces.io import AbstractImageIO, SaveOptions
 
@@ -199,6 +200,12 @@ class PyvipsBackend(AbstractImageIO):
 
         if format is None:
             vips_img, resolved_format = _vips_auto_detect_format(vips_img)
+        elif format in (ImageFormat.PRGBA, ImageFormat.RGBX):
+            base_req = (
+                ImageFormat.RGBA if format == ImageFormat.PRGBA else ImageFormat.RGB
+            )
+            vips_img = _vips_convert_to_requested_format(vips_img, base_req)
+            resolved_format = base_req
         else:
             vips_img = _vips_convert_to_requested_format(vips_img, format)
             resolved_format = format
@@ -207,6 +214,14 @@ class PyvipsBackend(AbstractImageIO):
             vips_img = vips_img.crop(roi.x.start, roi.y.start, roi.width, roi.height)
 
         data = _vips_to_numpy(vips_img)
+
+        if format == ImageFormat.PRGBA:
+            data = convert_image_format(data, ImageFormat.RGBA, ImageFormat.PRGBA)
+            resolved_format = ImageFormat.PRGBA
+        elif format == ImageFormat.RGBX:
+            data = convert_image_format(data, ImageFormat.RGB, ImageFormat.RGBX)
+            resolved_format = ImageFormat.RGBX
+
         return data, resolved_format, orig_size
 
     def write(
@@ -221,5 +236,13 @@ class PyvipsBackend(AbstractImageIO):
         path = Path(file_path)
 
         img_arr = np.asarray(data)
+
+        if format == ImageFormat.PRGBA:
+            img_arr = convert_image_format(img_arr, ImageFormat.PRGBA, ImageFormat.RGBA)
+            format = ImageFormat.RGBA
+        elif format == ImageFormat.RGBX:
+            img_arr = img_arr[..., :3]
+            format = ImageFormat.RGB
+
         vips_img = _numpy_to_vips(img_arr, format)
         _vips_save_file(vips_img, path, format, options)

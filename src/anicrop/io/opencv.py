@@ -7,6 +7,7 @@ import cv2
 import numpy as np
 from PIL import Image as PILImage
 
+from anicrop.color import convert_image_format
 from anicrop.enums import ImageFormat
 from anicrop.interfaces.io import AbstractImageIO, SaveOptions
 
@@ -94,6 +95,14 @@ def _convert_to_requested_format(
         gray = cv2.cvtColor(data[:, :, :3], cv2.COLOR_BGR2GRAY)
         return np.dstack([gray, data[:, :, 3]])
 
+    elif target_format == ImageFormat.PRGBA:
+        rgba = _convert_to_requested_format(data, channels, ImageFormat.RGBA)
+        return convert_image_format(rgba, ImageFormat.RGBA, ImageFormat.PRGBA)
+
+    elif target_format == ImageFormat.RGBX:
+        rgb = _convert_to_requested_format(data, channels, ImageFormat.RGB)
+        return convert_image_format(rgb, ImageFormat.RGB, ImageFormat.RGBX)
+
     return data
 
 
@@ -154,6 +163,13 @@ def _prepare_bgr_for_export(
 ) -> np.ndarray:
     """Converte a matriz do anicrop para o layout de canais esperado pelo OpenCV."""
     is_jpeg = ext in (".jpg", ".jpeg")
+
+    if format == ImageFormat.PRGBA:
+        rgba = convert_image_format(data, ImageFormat.PRGBA, ImageFormat.RGBA)
+        return _prepare_bgr_for_export(rgba, ImageFormat.RGBA, ext, options)
+
+    if format == ImageFormat.RGBX:
+        return cv2.cvtColor(data[..., :3], cv2.COLOR_RGB2BGR)
 
     if is_jpeg and format in (ImageFormat.RGBA, ImageFormat.GRAY_ALPHA):
         return _flatten_alpha_to_background(data, format, options.bg_color)

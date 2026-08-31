@@ -443,6 +443,190 @@ def blend_normal(
             _blend_normal_f32(base, edit, opacity)
 
 
+cdef void _blend_normal_prgba_u8(
+    uint8_t[:, :, :] base,
+    uint8_t[:, :, :] edit,
+    float opacity,
+) noexcept nogil:
+    cdef int h = min(base.shape[0], edit.shape[0])
+    cdef int w = min(base.shape[1], edit.shape[1])
+    cdef uint32_t op_256 = <uint32_t>(opacity * 256.0)
+    if op_256 > 256:
+        op_256 = 256
+
+    cdef int y, x, idx
+    cdef uint8_t* b_row
+    cdef const uint8_t* e_row
+    cdef uint32_t ae_raw, ae, inv_ae
+
+    if op_256 >= 256:
+        # Fast-Path: Opacidade total (1.0) - Apenas 1 multiplicação/shift por canal
+        for y in prange(h, schedule='static'):
+            b_row = &base[y, 0, 0]
+            e_row = &edit[y, 0, 0]
+            for x in range(w):
+                idx = x << 2
+                ae = e_row[idx + 3]
+                if ae == 0:
+                    continue
+
+                if ae == 255:
+                    (<uint32_t*>&b_row[idx])[0] = (<const uint32_t*>&e_row[idx])[0]
+                    continue
+
+                inv_ae = 255 - ae
+                b_row[idx + 0] = <uint8_t>(e_row[idx + 0] + div255(b_row[idx + 0] * inv_ae))
+                b_row[idx + 1] = <uint8_t>(e_row[idx + 1] + div255(b_row[idx + 1] * inv_ae))
+                b_row[idx + 2] = <uint8_t>(e_row[idx + 2] + div255(b_row[idx + 2] * inv_ae))
+                b_row[idx + 3] = <uint8_t>(ae + div255(b_row[idx + 3] * inv_ae))
+    else:
+        # Opacidade fracionária (< 1.0)
+        for y in prange(h, schedule='static'):
+            b_row = &base[y, 0, 0]
+            e_row = &edit[y, 0, 0]
+            for x in range(w):
+                idx = x << 2
+                ae_raw = e_row[idx + 3]
+                if ae_raw == 0:
+                    continue
+
+                ae = div255(ae_raw * op_256)
+                if ae == 0:
+                    continue
+
+                inv_ae = 255 - ae
+                b_row[idx + 0] = <uint8_t>(div255(e_row[idx + 0] * op_256) + div255(b_row[idx + 0] * inv_ae))
+                b_row[idx + 1] = <uint8_t>(div255(e_row[idx + 1] * op_256) + div255(b_row[idx + 1] * inv_ae))
+                b_row[idx + 2] = <uint8_t>(div255(e_row[idx + 2] * op_256) + div255(b_row[idx + 2] * inv_ae))
+                b_row[idx + 3] = <uint8_t>(ae + div255(b_row[idx + 3] * inv_ae))
+
+
+cdef void _blend_prgba_over_opaque_u8(
+    uint8_t[:, :, :] base,
+    uint8_t[:, :, :] edit,
+    float opacity,
+) noexcept nogil:
+    cdef int h = min(base.shape[0], edit.shape[0])
+    cdef int w = min(base.shape[1], edit.shape[1])
+    cdef int b_ch = base.shape[2]
+    cdef uint32_t op_256 = <uint32_t>(opacity * 256.0)
+    if op_256 > 256:
+        op_256 = 256
+
+    cdef int y, x, idx, b_idx, e_idx
+    cdef uint8_t* b_row
+    cdef const uint8_t* e_row
+    cdef uint32_t ae_raw, ae, inv_ae
+
+    if b_ch == 4:
+        if op_256 >= 256:
+            for y in prange(h, schedule='static'):
+                b_row = &base[y, 0, 0]
+                e_row = &edit[y, 0, 0]
+                for x in range(w):
+                    idx = x << 2
+                    ae = e_row[idx + 3]
+                    if ae == 0:
+                        continue
+
+                    if ae == 255:
+                        b_row[idx + 0] = e_row[idx + 0]
+                        b_row[idx + 1] = e_row[idx + 1]
+                        b_row[idx + 2] = e_row[idx + 2]
+                        b_row[idx + 3] = 255
+                        continue
+
+                    inv_ae = 255 - ae
+                    b_row[idx + 0] = <uint8_t>(e_row[idx + 0] + div255(b_row[idx + 0] * inv_ae))
+                    b_row[idx + 1] = <uint8_t>(e_row[idx + 1] + div255(b_row[idx + 1] * inv_ae))
+                    b_row[idx + 2] = <uint8_t>(e_row[idx + 2] + div255(b_row[idx + 2] * inv_ae))
+                    b_row[idx + 3] = 255
+        else:
+            for y in prange(h, schedule='static'):
+                b_row = &base[y, 0, 0]
+                e_row = &edit[y, 0, 0]
+                for x in range(w):
+                    idx = x << 2
+                    ae_raw = e_row[idx + 3]
+                    if ae_raw == 0:
+                        continue
+
+                    ae = div255(ae_raw * op_256)
+                    if ae == 0:
+                        continue
+
+                    inv_ae = 255 - ae
+                    b_row[idx + 0] = <uint8_t>(div255(e_row[idx + 0] * op_256) + div255(b_row[idx + 0] * inv_ae))
+                    b_row[idx + 1] = <uint8_t>(div255(e_row[idx + 1] * op_256) + div255(b_row[idx + 1] * inv_ae))
+                    b_row[idx + 2] = <uint8_t>(div255(e_row[idx + 2] * op_256) + div255(b_row[idx + 2] * inv_ae))
+                    b_row[idx + 3] = 255
+    elif b_ch == 3:
+        if op_256 >= 256:
+            for y in prange(h, schedule='static'):
+                b_row = &base[y, 0, 0]
+                e_row = &edit[y, 0, 0]
+                for x in range(w):
+                    b_idx = x * 3
+                    e_idx = x << 2
+                    ae = e_row[e_idx + 3]
+                    if ae == 0:
+                        continue
+
+                    if ae == 255:
+                        b_row[b_idx + 0] = e_row[e_idx + 0]
+                        b_row[b_idx + 1] = e_row[e_idx + 1]
+                        b_row[b_idx + 2] = e_row[e_idx + 2]
+                        continue
+
+                    inv_ae = 255 - ae
+                    b_row[b_idx + 0] = <uint8_t>(e_row[e_idx + 0] + div255(b_row[b_idx + 0] * inv_ae))
+                    b_row[b_idx + 1] = <uint8_t>(e_row[e_idx + 1] + div255(b_row[b_idx + 1] * inv_ae))
+                    b_row[b_idx + 2] = <uint8_t>(e_row[e_idx + 2] + div255(b_row[b_idx + 2] * inv_ae))
+        else:
+            for y in prange(h, schedule='static'):
+                b_row = &base[y, 0, 0]
+                e_row = &edit[y, 0, 0]
+                for x in range(w):
+                    b_idx = x * 3
+                    e_idx = x << 2
+                    ae_raw = e_row[e_idx + 3]
+                    if ae_raw == 0:
+                        continue
+
+                    ae = div255(ae_raw * op_256)
+                    if ae == 0:
+                        continue
+
+                    inv_ae = 255 - ae
+                    b_row[b_idx + 0] = <uint8_t>(div255(e_row[e_idx + 0] * op_256) + div255(b_row[b_idx + 0] * inv_ae))
+                    b_row[b_idx + 1] = <uint8_t>(div255(e_row[e_idx + 1] * op_256) + div255(b_row[b_idx + 1] * inv_ae))
+                    b_row[b_idx + 2] = <uint8_t>(div255(e_row[e_idx + 2] * op_256) + div255(b_row[b_idx + 2] * inv_ae))
+
+
+def blend_normal_prgba(
+    uint8_t[:, :, :] base,
+    uint8_t[:, :, :] edit,
+    float opacity = 1.0,
+):
+    """Kernel Cython ultra-rápido para mesclagem de PRGBA sobre PRGBA."""
+    if opacity <= 0.0:
+        return
+    with nogil:
+        _blend_normal_prgba_u8(base, edit, opacity)
+
+
+def blend_prgba_over_opaque(
+    uint8_t[:, :, :] base,
+    uint8_t[:, :, :] edit,
+    float opacity = 1.0,
+):
+    """Kernel Cython ultra-rápido para mesclagem de PRGBA sobre fundos opacos (RGB/RGBX)."""
+    if opacity <= 0.0:
+        return
+    with nogil:
+        _blend_prgba_over_opaque_u8(base, edit, opacity)
+
+
 # =========================================================================
 # 2. BLEND NORMAL LINEAR (Fisicamente Correto em Luz Linear)
 # =========================================================================
