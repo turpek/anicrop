@@ -21,7 +21,7 @@ from anicrop.render import (
     warp_patch,
 )
 from anicrop.spatial import Region
-from anicrop.transform import TransformRel
+from anicrop.transform import TransformRel, mat_translation
 from anicrop.viewport import Viewport
 
 
@@ -808,3 +808,41 @@ def test_render_single_edit_com_distorcao_nao_retorna_referencia_ao_scratch_buff
     assert rendered is not None
     scratch_allocated = renderer._scratch_buffer._ensure_allocated()
     assert not np.shares_memory(rendered[...], scratch_allocated[...])
+
+
+def test_warp_patch_com_padding_nas_quatro_bordas_preenche_transparencia():
+    """Valida se warp_patch com Lanczos sob rotacao preenche bordas externas com transparencia via ScratchBuffer."""
+    img = make_img(w=40, h=40, color=(255, 0, 0, 255))
+    layer = Layer(img)
+    layer.transform.rotate(45)
+    dst_region = layer.global_region
+
+    result = warp_patch(
+        img,
+        layer.transform.matrix,
+        dst_region,
+        interp=InterpMode.LANCZOS,
+    )
+
+    assert result is not None
+    assert result.shape[0] == int(round(dst_region.height))
+    assert result.shape[1] == int(round(dst_region.width))
+    assert result[0, 0, 3] == 0
+
+
+def test_warp_patch_recorte_parcial_posiciona_pixels_corretamente_no_scratch():
+    """Valida se warp_patch posiciona pixels reais no offset correto quando a regiao alvo extrapola a imagem."""
+    img = make_img(w=50, h=50, color=(0, 255, 0, 255))
+    m_global = mat_translation(10, 10)
+    dst_region = Region.from_size(20, 20)
+
+    result = warp_patch(
+        img,
+        m_global,
+        dst_region,
+        interp=InterpMode.LANCZOS,
+    )
+
+    assert result is not None
+    assert result.shape == (20, 20, 4)
+    np.testing.assert_array_equal(result[10, 10], [0, 255, 0, 255])

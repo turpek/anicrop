@@ -85,6 +85,9 @@ WARP_MODE = {
 }
 
 
+_WARP_SRC_SCRATCH = ScratchBuffer()
+
+
 def warp_patch(
     src_image: Image,
     matrix_global: np.ndarray,
@@ -106,24 +109,31 @@ def warp_patch(
         valid_region = image_region & target_region
         src_data = src_image[valid_region]
 
-        # 3. Calcula o padding usando offset_to (inicio e fim)
-        pad_x_start = max(0, int(round(target_region.offset_to(valid_region)[0])))
-        pad_y_start = max(0, int(round(target_region.offset_to(valid_region)[1])))
-        pad_x_end = max(
-            0,
-            int(round(valid_region.offset_to(target_region, anchor_end=True)[0])),
+        # 3. Calcula o padding (início e fim) uma única vez
+        pad_x_start, pad_y_start = target_region.offset_to(valid_region).to_int(
+            mode="round"
         )
-        pad_y_end = max(
-            0,
-            int(round(valid_region.offset_to(target_region, anchor_end=True)[1])),
-        )
+        pad_x_end, pad_y_end = valid_region.offset_to(
+            target_region, anchor_end=True
+        ).to_int(mode="round")
+
+        pad_x_start = max(0, pad_x_start)
+        pad_y_start = max(0, pad_y_start)
+        pad_x_end = max(0, pad_x_end)
+        pad_y_end = max(0, pad_y_end)
 
         if pad_x_start > 0 or pad_y_start > 0 or pad_x_end > 0 or pad_y_end > 0:
-            src_data = np.pad(
-                src_data,
-                ((pad_y_start, pad_y_end), (pad_x_start, pad_x_end), (0, 0)),
-                mode="constant",
+            sh, sw = src_data.shape[:2]
+            out_h = pad_y_start + sh + pad_y_end
+            out_w = pad_x_start + sw + pad_x_end
+            buf = _WARP_SRC_SCRATCH.configure((out_w, out_h), src_image.format)[
+                Region.from_size(out_w, out_h)
+            ]
+            buf.fill(0)
+            buf[pad_y_start : pad_y_start + sh, pad_x_start : pad_x_start + sw] = (
+                src_data
             )
+            src_data = buf
 
         # 4. A origem da matriz da sub-imagem é sempre o top_left da target_region!
         M_src_offset = mat_translation(*target_region.top_left)
