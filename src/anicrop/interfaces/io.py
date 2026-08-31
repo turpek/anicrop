@@ -3,7 +3,7 @@ from __future__ import annotations
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 import numpy as np
 
@@ -71,4 +71,21 @@ class AbstractImageIO(ABC):
     @abstractmethod
     def get_size(self, file_path: str | Path) -> tuple[int, int]:
         """Extrai as dimensões (largura, altura) da imagem lendo apenas o cabeçalho."""
+        pass
+
+    @abstractmethod
+    def read_large(
+        self,
+        file_path: str | Path,
+        format: ImageFormat | None = None,
+    ) -> tuple[Any, ImageFormat]:
+        """Abre imagens de altíssima resolução (>=8192px) utilizando a estratégia especializada do backend.
+
+        Args:
+            file_path: Caminho do arquivo de imagem.
+            format: Formato de cor desejado ou None para auto-detecção.
+
+        Returns:
+            Tupla contendo (buffer de dados ou array, formato resolvido).
+        """
         pass

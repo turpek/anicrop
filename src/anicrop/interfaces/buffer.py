@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 import numpy as np
 
@@ -31,4 +31,48 @@ class AbstractScratchBuffer(ABC):
     @abstractmethod
     def __getitem__(self, region: Region) -> np.ndarray:
         """Retorna uma fatia do buffer subjacente, alocando sob demanda se necessário."""
+        pass
+
+
+class AbstractImageBuffer(ABC):
+    """Contrato abstrato base para backends de armazenamento de dados de imagem."""
+
+    @property
+    @abstractmethod
+    def shape(self) -> tuple[int, ...]:
+        """Dimensões do buffer (altura, largura, canais) ou (altura, largura)."""
+        pass
+
+    @property
+    @abstractmethod
+    def dtype(self) -> np.dtype:
+        """Tipo de dado dos elementos (ex: np.uint8)."""
+        pass
+
+    @property
+    @abstractmethod
+    def ndim(self) -> int:
+        """Número de dimensões (2 ou 3)."""
+        pass
+
+    @property
+    def width(self) -> int:
+        return self.shape[1]
+
+    @property
+    def height(self) -> int:
+        return self.shape[0]
+
+    @property
+    def channels(self) -> int:
+        return self.shape[2] if self.ndim == 3 else 1
+
+    @abstractmethod
+    def __getitem__(self, key: Any) -> np.ndarray:
+        """Fatia e retorna um recorte como array NumPy."""
+        pass
+
+    @abstractmethod
+    def get_lod(self, level: int) -> AbstractImageBuffer:
+        """Gera ou extrai o nível de resolução (LOD = 1/2^level)."""
         pass

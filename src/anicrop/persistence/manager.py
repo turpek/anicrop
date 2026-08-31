@@ -1,3 +1,5 @@
+import os
+import shutil
 import tempfile
 import uuid
 from pathlib import Path
@@ -5,11 +7,29 @@ from pathlib import Path
 import numpy as np
 
 
+def _resolve_optimal_temp_dir() -> str | None:
+    """Detecta se /dev/shm está disponível no Linux com espaço livre suficiente (>512MB)."""
+    shm_path = Path("/dev/shm")
+    if shm_path.exists() and shm_path.is_dir() and os.access(shm_path, os.W_OK):
+        try:
+            usage = shutil.disk_usage(shm_path)
+            if usage.free >= 512 * 1024 * 1024:
+                return str(shm_path)
+        except OSError:
+            pass
+    return None
+
+
 class ScratchDiskManager:
     """Singleton ou instância global por Canvas para gerenciar os arquivos temporários."""
 
-    def __init__(self) -> None:
-        self._temp_dir = tempfile.TemporaryDirectory(prefix="anicrop_scratch_")
+    def __init__(self, base_dir: str | Path | None = None) -> None:
+        resolved_base = (
+            str(base_dir) if base_dir is not None else _resolve_optimal_temp_dir()
+        )
+        self._temp_dir = tempfile.TemporaryDirectory(
+            prefix="anicrop_scratch_", dir=resolved_base
+        )
         self.workspace_path = Path(self._temp_dir.name)
 
     def save_array(self, array: np.ndarray) -> str:

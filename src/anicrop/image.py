@@ -14,8 +14,10 @@ import zarr
 from numpy import ndarray
 from PIL import Image as PILImage
 
+from anicrop.buffer import ArrayBuffer, ZarrBuffer
 from anicrop.color import convert_image_format
 from anicrop.enums import ImageFormat
+from anicrop.interfaces.buffer import AbstractImageBuffer
 from anicrop.interfaces.io import AbstractImageIO, SaveOptions
 from anicrop.io.registry import get_backend
 from anicrop.persistence.manager import manager_global
@@ -23,35 +25,44 @@ from anicrop.spatial import Region, Span
 
 
 class Image:
-    """A wrapper around a NumPy ndarray to provide an image-centric API.
+    """A wrapper around an AbstractImageBuffer to provide an image-centric API.
 
     This class facilitates spatial indexing using Region objects and offers
     convenient properties for accessing image dimensions (width, height, channels).
     It ensures that the underlying image data is a valid 2D or 3D array.
     """
 
-    def __init__(self, image: ndarray | zarr.Array, image_format: ImageFormat):
+    def __init__(
+        self,
+        image: AbstractImageBuffer | ndarray | zarr.Array,
+        image_format: ImageFormat,
+    ):
         """Initializes the Image object.
 
         Args:
-            image: A 2D (grayscale) or 3D (color) NumPy ndarray or Zarr Array.
+            image: An AbstractImageBuffer, 2D/3D NumPy ndarray, or Zarr Array.
 
         Raises:
             ValueError: If the image array is not 2D/3D, has zero dimensions,
                         or has no channels in a 3D configuration.
         """
-        if image.ndim not in (2, 3):
+        if isinstance(image, AbstractImageBuffer):
+            self._data = image
+        elif isinstance(image, np.ndarray):
+            arr = image[..., np.newaxis] if image.ndim == 2 else image
+            self._data = ArrayBuffer(arr)
+        else:
+            self._data = ZarrBuffer(image)
+
+        if self._data.ndim not in (2, 3):
             raise ValueError("image array must be 2D or 3D")
 
-        elif image.shape[0] == 0 or image.shape[1] == 0:
+        elif self._data.shape[0] == 0 or self._data.shape[1] == 0:
             raise ValueError("image dimensions must be greater than zero")
-        elif isinstance(image, np.ndarray) and image.ndim == 2:
-            image = image[..., np.newaxis]
-        elif image.ndim == 3 and image.shape[2] == 0:
+        elif self._data.ndim == 3 and self._data.shape[2] == 0:
             raise ValueError("image must have at least one channel")
 
-        self._data = image
-        self._channels = image.shape[2]
+        self._channels = self._data.shape[2] if self._data.ndim == 3 else 1
         self._format = image_format
         self._validate_format()
 
@@ -184,10 +195,18 @@ class Image:
     def has_alpha(self) -> bool:
         return self._format.has_alpha
 
-    @property
-    def is_zarr(self) -> bool:
-        """Indica se os dados da imagem estão armazenados em um array Zarr."""
-        return not isinstance(self._data, np.ndarray)
+    def get_lod(self, level: int) -> Image:
+        """Retorna uma nova Image no nível de resolução solicitado (1/2^level)."""
+        if level <= 0:
+            return self
+
+        if hasattr(self._data, "get_lod"):
+            return Image(self._data.get_lod(level), self.format)
+
+        factor = 2.0 ** (-level)
+        new_w = max(1, int(self.width * factor))
+        new_h = max(1, int(self.height * factor))
+        return self.resize((new_w, new_h))
 
     @classmethod
     def new(
@@ -302,7 +321,10 @@ class Image:
         width, height = io_backend.get_size(file_path_str)
         if width >= 8192 or height >= 8192:
             resolved_fmt = image_format or ImageFormat.RGBA
-            return cls._open_with_pillow_zarr(file_path_str, resolved_fmt)
+            data, resolved_fmt = io_backend.read_large(
+                file_path_str, format=resolved_fmt
+            )
+            return cls(data, resolved_fmt)
 
         data, resolved_fmt, _ = io_backend.read(
             file_path_str,
@@ -311,51 +333,6 @@ class Image:
             roi=roi,
         )
         return cls(data, resolved_fmt)
-
-    @classmethod
-    def _open_with_pillow_zarr(cls, file_path: str, image_format: ImageFormat) -> Image:
-        mode_map = {
-            ImageFormat.GRAY: "L",
-            ImageFormat.GRAY_ALPHA: "LA",
-            ImageFormat.RGB: "RGB",
-            ImageFormat.RGBA: "RGBA",
-            ImageFormat.CMYK: "CMYK",
-        }
-        mode = mode_map.get(image_format)
-
-        zarr_dir = manager_global.workspace_path / f"{uuid.uuid4().hex}.zarr"
-
-        with PILImage.open(file_path) as opened_img:
-            pil_img = opened_img.convert(mode) if mode else opened_img
-            width, height = pil_img.size
-            channels = image_format.channels
-
-            zarr_shape = (height, width, channels)
-            zarr_chunks = (512, 512, channels)
-
-            z_arr = zarr.open_array(
-                str(zarr_dir),
-                mode="w",
-                shape=zarr_shape,
-                chunks=zarr_chunks,
-                dtype=np.uint8,
-            )
-
-            chunk_size = 512
-            for y in range(0, height, chunk_size):
-                for x in range(0, width, chunk_size):
-                    y_end = min(y + chunk_size, height)
-                    x_end = min(x + chunk_size, width)
-                    box = (x, y, x_end, y_end)
-                    tile = pil_img.crop(box)
-                    tile_np = np.array(tile)
-
-                    if tile_np.ndim == 2:
-                        tile_np = tile_np[..., np.newaxis]
-
-                    z_arr[y:y_end, x:x_end] = tile_np
-
-        return cls(zarr.open_array(str(zarr_dir), mode="r"), image_format)
 
 
 def calculate_content_rect(image: Image) -> Region:

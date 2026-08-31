@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import os
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 import numpy as np
 
@@ -22,6 +22,7 @@ except Exception:
 
 from anicrop.color import convert_image_format
 from anicrop.enums import ImageFormat
+from anicrop.interfaces.buffer import AbstractImageBuffer
 from anicrop.interfaces.io import AbstractImageIO, SaveOptions
 
 if TYPE_CHECKING:
@@ -246,3 +247,111 @@ class PyvipsBackend(AbstractImageIO):
 
         vips_img = _numpy_to_vips(img_arr, format)
         _vips_save_file(vips_img, path, format, options)
+
+    def read_large(
+        self,
+        file_path: str | Path,
+        format: ImageFormat | None = None,
+    ) -> tuple[Any, ImageFormat]:
+        """Abre imagens de altíssima resolução (>=8192px) via streaming sob demanda em C."""
+        resolved_fmt = format or ImageFormat.RGBA
+        stream_buf = VipsStreamingBuffer(file_path, target_format=resolved_fmt)
+        return stream_buf, resolved_fmt
+
+
+class VipsStreamingBuffer(AbstractImageBuffer):
+    """Buffer de streaming sob demanda baseado em libvips para imagens gigantes."""
+
+    def __init__(
+        self, file_path: str | Path, target_format: ImageFormat = ImageFormat.RGBA
+    ) -> None:
+        if pyvips is None:
+            raise RuntimeError("pyvips não está disponível no sistema.")
+
+        self._path = str(file_path)
+        self._target_format = target_format
+        self._vimg = pyvips.Image.new_from_file(self._path, access="random")
+
+        # Converte para sRGB se necessário
+        if self._vimg.bands >= 3 and self._vimg.interpretation != "srgb":
+            self._vimg = self._vimg.colourspace("srgb")
+
+        # Se o formato alvo pedir RGBA e a imagem tiver 3 bandas, adiciona canal alfa
+        if target_format == ImageFormat.RGBA and self._vimg.bands == 3:
+            alpha = (pyvips.Image.black(self._vimg.width, self._vimg.height) + 255).cast(
+                "uchar"
+            )
+            self._vimg = self._vimg.bandjoin(alpha)
+        elif target_format == ImageFormat.RGB and self._vimg.bands == 4:
+            self._vimg = self._vimg.extract_band(0, n=3)
+
+    @property
+    def shape(self) -> tuple[int, ...]:
+        return (self._vimg.height, self._vimg.width, self._vimg.bands)
+
+    @property
+    def dtype(self) -> np.dtype:
+        return np.dtype(np.uint8)
+
+    @property
+    def ndim(self) -> int:
+        return 3
+
+    def __array__(self, dtype: Any = None) -> np.ndarray:
+        mem = self._vimg.write_to_memory()
+        arr = np.frombuffer(mem, dtype=np.uint8).reshape(self.shape)
+        return np.asarray(arr, dtype=dtype)
+
+    @classmethod
+    def from_vips_image(
+        cls, vimg: pyvips.Image, target_format: ImageFormat = ImageFormat.RGBA
+    ) -> VipsStreamingBuffer:
+        """Instancia um VipsStreamingBuffer diretamente a partir de um objeto pyvips.Image já processado."""
+        inst = cls.__new__(cls)
+        inst._path = None
+        inst._target_format = target_format
+        inst._vimg = vimg
+        return inst
+
+    def get_lod(self, level: int) -> VipsStreamingBuffer:
+        """Gera um buffer de streaming reduzido em tempo real usando shrink nativo em C."""
+        if level <= 0:
+            return self
+        shrink_factor = 2**level
+        shrunk_vimg = self._vimg.shrink(shrink_factor, shrink_factor)
+        return self.from_vips_image(shrunk_vimg, self._target_format)
+
+    @property
+    def size(self) -> tuple[int, int]:
+        return (self._vimg.width, self._vimg.height)
+
+    def __getitem__(self, key: Any) -> np.ndarray:
+        from anicrop.spatial import Region
+
+        if isinstance(key, Region):
+            x = int(round(key.x.start))
+            y = int(round(key.y.start))
+            w = int(round(key.width))
+            h = int(round(key.height))
+        elif isinstance(key, tuple) and len(key) >= 2:
+            slice_y, slice_x = key[0], key[1]
+            y = slice_y.start or 0
+            x = slice_x.start or 0
+            h = (slice_y.stop or self.shape[0]) - y
+            w = (slice_x.stop or self.shape[1]) - x
+        elif key is Ellipsis:
+            mem = self._vimg.write_to_memory()
+            return np.frombuffer(mem, dtype=np.uint8).reshape(self.shape)
+        else:
+            raise TypeError(
+                f"Tipo de índice não suportado no VipsStreamingBuffer: {type(key)}"
+            )
+
+        x = max(0, min(x, self._vimg.width - 1))
+        y = max(0, min(y, self._vimg.height - 1))
+        w = max(1, min(w, self._vimg.width - x))
+        h = max(1, min(h, self._vimg.height - y))
+
+        cropped = self._vimg.crop(x, y, w, h)
+        mem = cropped.write_to_memory()
+        return np.frombuffer(mem, dtype=np.uint8).reshape((h, w, self._vimg.bands))
