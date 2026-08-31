@@ -22,7 +22,7 @@ def make_layer(w=100, h=100, x=0, y=0, color=(255, 0, 0, 255)):
 
 
 def test_viewport_frame_full_overlap():
-    viewport = Viewport((800, 600), 1.0)
+    viewport = Viewport((800, 600), canvas=Canvas.from_size(200, 200), fit_scale=1.0)
     layer = make_layer(w=200, h=200, x=100, y=100)
 
     frame = ViewportFrame(layer, viewport)
@@ -32,7 +32,7 @@ def test_viewport_frame_full_overlap():
 
 
 def test_viewport_frame_partial_overlap():
-    viewport = Viewport((800, 600), 1.0)
+    viewport = Viewport((800, 600), canvas=Canvas.from_size(200, 200), fit_scale=1.0)
     layer = make_layer(w=200, h=200, x=-400, y=-300)
 
     frame = ViewportFrame(layer, viewport)
@@ -51,7 +51,7 @@ def test_viewport_frame_local_state():
     img_hat = Image(np.zeros((20, 20, 4), dtype=np.uint8), ImageFormat.RGBA)
     layer.add_edit(img_hat, Region(Span(40, 20), Span(0, 20)))
 
-    viewport = Viewport((800, 600), 1.0)
+    viewport = Viewport((800, 600), canvas=Canvas.from_size(100, 100), fit_scale=1.0)
     frame = ViewportFrame(layer, viewport, local=True)
 
     assert frame.bounds == Region(Span(350, 100), Span(250, 100))
@@ -60,7 +60,7 @@ def test_viewport_frame_local_state():
 
 def test_viewport_frame_with_explicit_view_region_global():
     """Valida se view_region restringe o dst_region na tela da Viewport no modo global."""
-    viewport = Viewport((800, 600), 1.0)
+    viewport = Viewport((800, 600), canvas=Canvas.from_size(200, 200), fit_scale=1.0)
     layer = make_layer(w=200, h=200, x=100, y=100)
 
     # bounds da camada na viewport: (400, 300, 200, 200)
@@ -78,7 +78,7 @@ def test_viewport_frame_with_explicit_view_region_local():
     layer = Layer(img_mexican)
     layer.set_transform(TransformRel().rotate(-90).translate(150, 250))
 
-    viewport = Viewport((800, 600), 1.0)
+    viewport = Viewport((800, 600), canvas=Canvas.from_size(100, 100), fit_scale=1.0)
     # bounds no modo local (100x100 centralizado): (350, 250, 100, 100)
     view_region = Region(Span(370, 30), Span(260, 20))
     frame = ViewportFrame(layer, viewport, view_region=view_region, local=True)
@@ -101,7 +101,7 @@ def test_viewport_frame_culling_layer_outside_viewport():
 
 def test_viewport_frame_culling_view_region_outside_layer():
     """Valida culling quando view_region está na Viewport mas fora da camada."""
-    viewport = Viewport((800, 600), 1.0)
+    viewport = Viewport((800, 600), canvas=Canvas.from_size(200, 200), fit_scale=1.0)
     # bounds na viewport: (300, 200, 200, 200)
     layer = make_layer(w=200, h=200, x=0, y=0)
     view_region = Region(Span(100, 50), Span(100, 50))
@@ -128,7 +128,7 @@ def test_viewport_frame_global_matrix_and_bounds():
     """Valida projeção analítica de pontos de controle pela câmera da Viewport no modo global."""
     layer = make_layer(w=100, h=100, x=10, y=20)
     layer.transform.rotate(90)
-    viewport = Viewport((800, 600), 1.0)
+    viewport = Viewport((800, 600), canvas=Canvas.from_size(100, 100), fit_scale=1.0)
 
     frame = ViewportFrame(layer, viewport, local=False)
 
@@ -148,7 +148,7 @@ def test_viewport_frame_local_matrix_and_bounds():
     """Valida se no modo local a Viewport centraliza a camada no estado unrotated."""
     layer = make_layer(w=100, h=100, x=10, y=20)
     layer.transform.rotate(90)
-    viewport = Viewport((800, 600), 1.0)
+    viewport = Viewport((800, 600), canvas=Canvas.from_size(100, 100), fit_scale=1.0)
 
     frame = ViewportFrame(layer, viewport, local=True)
 
@@ -381,7 +381,7 @@ def test_viewport_frame_view_region_edge_cases(
 ):
     """Testa projeção e recortes de dst_region e src_region na ViewportFrame com view_region explícita."""
     x, y, w, h = layer_rect
-    viewport = Viewport((800, 600), 1.0)
+    viewport = Viewport((800, 600), canvas=Canvas.from_size(w, h), fit_scale=1.0)
     layer = make_layer(w=w, h=h, x=x, y=y)
     view_region = Region.from_rect(*view_rect)
 

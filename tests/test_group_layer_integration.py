@@ -54,16 +54,11 @@ def test_group_layer_integration_transforms():
     min_y, min_x = coords.min(axis=0)
     max_y, max_x = coords.max(axis=0)
 
-    # O pixel (0,0) (Top-Left original) virou a base direita apos rotacao 180
-    # O centro de root era (100, 100).
-    # O ponto (50, 50) global (origem transladada) -> rotacionado em 180 no (100, 100) = (150, 150)
-    # Como as dimensoes originais eram 0 a 9 (10 pixels), a bounding box invertida ficara em torno de 141 a 150.
-
-    # Fazemos a checagem com uma margem de tolerancia (por causa da interpolacao Lanczos4)
-    assert 90 <= min_x <= 92
-    assert 90 <= min_y <= 92
-    assert 98 <= max_x <= 100
-    assert 98 <= max_y <= 100
+    # O pixel (0,0) (Top-Left original) virou a base direita após rotação 180 no Canvas
+    assert 40 <= min_x <= 42
+    assert 40 <= min_y <= 42
+    assert 48 <= max_x <= 50
+    assert 48 <= max_y <= 50
 
 
 def test_layer_estresse_hierarquia_4_niveis_bisavo_avo_pai():

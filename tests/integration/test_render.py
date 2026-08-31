@@ -12,6 +12,7 @@ from anicrop.layer import Layer
 from anicrop.render import BaseRenderer, CanvasRender, ViewportRender
 from anicrop.spatial import Region
 from anicrop.transform import mat_final
+from anicrop.type import Scale
 from anicrop.viewport import Viewport
 
 
@@ -187,7 +188,7 @@ def test_viewport_render_scene_posicionamento_camadas(viewport_render):
 
     assert comp.size == (800, 600)
     np.testing.assert_array_equal(comp[0, 0], [0, 0, 255, 255])
-    np.testing.assert_array_equal(comp[350, 450], [255, 0, 0, 255])
+    np.testing.assert_array_equal(comp[200, 200], [255, 0, 0, 255])
 
 
 # ==============================================================================
@@ -680,3 +681,147 @@ def test_render_group_layer_com_multiplos_filhos_rotacionados_nao_contamina_buff
         & (result[0:60, 0:60, 1] == 255)
         & (result[0:60, 0:60, 2] == 0)
     )
+
+
+# ==============================================================================
+# Testes de Integração com Viewport (Zoom, Pan e Casos de Borda)
+# ==============================================================================
+
+
+def test_viewport_render_zoom_and_pan_focal_centering(viewport_render):
+    """Valida se ViewportRender centraliza perfeitamente um objeto alvo sob zoom de câmera e pan."""
+    fundo = make_layer(w=800, h=600, color=(0, 0, 255, 255))
+    logo = make_layer(w=200, h=200, x=150, y=100, color=(255, 0, 0, 255))
+
+    viewport = Viewport(size=(800, 600), fit_scale=1.0)
+    viewport.scale = Scale(2.5, 2.5)
+    viewport.region = Region.from_rect(-150, -100, 800, 600)
+
+    comp = viewport_render.render_scene([fundo, logo], viewport)
+
+    assert comp.size == (800, 600)
+    np.testing.assert_array_equal(comp[300, 400], [255, 0, 0, 255])
+    np.testing.assert_array_equal(comp[300, 50], [0, 0, 255, 255])
+    np.testing.assert_array_equal(comp[300, 750], [0, 0, 255, 255])
+
+
+@pytest.mark.parametrize(
+    "pan_offset, test_pixel, expected_color",
+    [
+        pytest.param(
+            (200, 0),
+            (250, 150),
+            (255, 0, 0, 255),
+            id="pan_right_shifts_content_left",
+        ),
+        pytest.param(
+            (0, 100),
+            (150, 350),
+            (255, 0, 0, 255),
+            id="pan_down_shifts_content_up",
+        ),
+        pytest.param(
+            (200, 100),
+            (150, 150),
+            (255, 0, 0, 255),
+            id="pan_diagonal_shifts_content_top_left",
+        ),
+    ],
+)
+def test_viewport_render_pan_directional_navigation(
+    viewport_render, pan_offset, test_pixel, expected_color
+):
+    """Valida se o deslocamento (pan) da câmera da Viewport projeta o conteúdo na direção oposta na tela."""
+    fundo = make_layer(w=600, h=600, color=(0, 0, 255, 255))
+    logo = make_layer(w=100, h=100, x=300, y=200, color=(255, 0, 0, 255))
+
+    viewport = Viewport(size=(400, 400), fit_scale=1.0)
+    viewport.region = Region.from_rect(pan_offset[0], pan_offset[1], 400, 400)
+
+    comp = viewport_render.render_scene([fundo, logo], viewport)
+
+    assert comp.size == (400, 400)
+    np.testing.assert_array_equal(
+        comp[test_pixel[0], test_pixel[1]], list(expected_color)
+    )
+
+
+@pytest.mark.parametrize(
+    "zoom_scale, test_pixel, expected_color",
+    [
+        pytest.param(
+            2.0,
+            (200, 200),
+            (255, 0, 0, 255),
+            id="zoom_in_magnifies_target",
+        ),
+        pytest.param(
+            0.5,
+            (200, 200),
+            (255, 0, 0, 255),
+            id="zoom_out_shows_background_margin",
+        ),
+    ],
+)
+def test_viewport_render_zoom_scaling(
+    viewport_render, zoom_scale, test_pixel, expected_color
+):
+    """Valida renderização precisa de cena com diferentes níveis de zoom da Viewport."""
+    layer = make_layer(w=200, h=200, color=(255, 0, 0, 255))
+    viewport = Viewport(
+        size=(400, 400), canvas=Canvas.from_size(200, 200), fit_scale=1.0
+    )
+    viewport.scale = Scale(zoom_scale, zoom_scale)
+
+    comp = viewport_render.render_scene([layer], viewport)
+
+    assert comp.size == (400, 400)
+    np.testing.assert_array_equal(
+        comp[test_pixel[0], test_pixel[1]], list(expected_color)
+    )
+
+
+def test_viewport_render_culling_outside_frustum(viewport_render):
+    """Valida se camadas totalmente fora do campo de visão da câmera são descartadas mantendo o fundo."""
+    layer_outside = make_layer(w=100, h=100, x=3000, y=3000, color=(255, 0, 0, 255))
+    viewport = Viewport(size=(400, 400), fit_scale=1.0)
+
+    comp = viewport_render.render_scene([layer_outside], viewport)
+
+    assert comp.size == (400, 400)
+    np.testing.assert_array_equal(comp[200, 200], [204, 204, 204, 255])
+    np.testing.assert_array_equal(comp[0, 0], [204, 204, 204, 255])
+
+
+def test_viewport_render_partial_boundary_clipping_under_zoom(viewport_render):
+    """Valida se uma camada ampliada com zoom e recortada pelas bordas da janela renderiza com precisão."""
+    layer = make_layer(w=200, h=200, color=(255, 0, 0, 255))
+    viewport = Viewport(size=(400, 400), fit_scale=1.0)
+    viewport.scale = Scale(2.0, 2.0)
+    viewport.region = Region.from_rect(-100, -100, 400, 400)
+
+    comp = viewport_render.render_scene([layer], viewport)
+
+    assert comp.size == (400, 400)
+    np.testing.assert_array_equal(comp[200, 200], [255, 0, 0, 255])
+    np.testing.assert_array_equal(comp[10, 10], [255, 0, 0, 255])
+    np.testing.assert_array_equal(comp[390, 390], [255, 0, 0, 255])
+
+
+def test_viewport_render_patch_under_zoom_and_pan(viewport_render):
+    """Valida se render_patch restringe a renderização com precisão à janela de patch solicitada."""
+    fundo = make_layer(w=800, h=600, color=(0, 0, 255, 255))
+    logo = make_layer(w=200, h=200, x=150, y=100, color=(255, 0, 0, 255))
+
+    viewport = Viewport(size=(800, 600), fit_scale=1.0)
+    viewport.scale = Scale(2.5, 2.5)
+    viewport.region = Region.from_rect(-150, -100, 800, 600)
+
+    patch_region = Region.from_rect(350, 250, 100, 100)
+    patch = viewport_render.render_patch(
+        [fundo, logo], viewport, view_region=patch_region
+    )
+
+    assert patch is not None
+    assert patch.size == (100, 100)
+    np.testing.assert_array_equal(patch[50, 50], [255, 0, 0, 255])

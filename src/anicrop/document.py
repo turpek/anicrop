@@ -315,6 +315,7 @@ class Document:
         """
         Gera o Preview para renderizar na interface de usuário via Viewport e retorna um objeto Image.
         """
+        viewport.set_canvas(self.canvas)
         return self._viewport_render.render_scene(
             self.stack, viewport, format=format, interp=interp
         )

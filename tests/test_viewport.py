@@ -1,5 +1,7 @@
 import numpy as np
+import pytest
 
+from anicrop.canvas import Canvas
 from anicrop.spatial import Region
 from anicrop.transform import mat_pivot, mat_translation
 from anicrop.type import Scale
@@ -42,9 +44,6 @@ def test_viewport_fit_matrix():
     size = (800, 600)
     viewport = Viewport(size=size, fit_scale=fit_scale)
 
-    # Layer with same size as viewport
-    layer_size = size
-
     # scaled_w = 800 * 0.25 = 200
     # offset_x = (800 - 200) / 2 = 300
     # scaled_h = 600 * 0.25 = 150
@@ -54,7 +53,7 @@ def test_viewport_fit_matrix():
         [[0.25, 0.0, 300.0], [0.0, 0.25, 225.0], [0.0, 0.0, 1.0]], dtype=np.float32
     )
 
-    assert np.allclose(viewport.fit_matrix(layer_size), expected_fit)
+    assert np.allclose(viewport.fit_matrix(), expected_fit)
 
 
 def test_viewport_roi_matrix_identity():
@@ -156,3 +155,33 @@ def test_viewport_bg_color_initialization():
 
     viewport_custom = Viewport(size=(400, 300), bg_color=(100, 100, 100))
     assert viewport_custom.bg_color == (100, 100, 100)
+
+
+def test_viewport_canvas_default_initialization():
+    """Valida se a Viewport cria um Canvas padrão com suas próprias dimensões quando nenhum canvas é passado."""
+    viewport = Viewport(size=(800, 600))
+    assert viewport.canvas_size == (800, 600)
+
+
+def test_viewport_canvas_custom_initialization():
+    """Valida se a Viewport adota o Canvas customizado passado no construtor."""
+    canvas = Canvas.from_size(1920, 1080)
+    viewport = Viewport(size=(800, 600), canvas=canvas)
+    assert viewport.canvas_size == (1920, 1080)
+
+
+def test_viewport_set_canvas_updates_canvas_size():
+    """Valida se set_canvas atualiza dinamicamente a dimensão do canvas observado pela Viewport."""
+    viewport = Viewport(size=(800, 600))
+    assert viewport.canvas_size == (800, 600)
+
+    new_canvas = Canvas.from_size(1280, 720)
+    viewport.set_canvas(new_canvas)
+    assert viewport.canvas_size == (1280, 720)
+
+
+def test_viewport_set_canvas_invalid_type_raises_error():
+    """Valida se set_canvas rejeita tipos inválidos com TypeError."""
+    viewport = Viewport(size=(800, 600))
+    with pytest.raises(TypeError, match="Expected AbstractCanvas"):
+        viewport.set_canvas("not_a_canvas")  # type: ignore[arg-type]

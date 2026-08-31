@@ -2,6 +2,7 @@ import numpy as np
 import pytest
 
 import anicrop.render
+from anicrop.canvas import Canvas
 from anicrop.container import GroupLayer
 from anicrop.frame import ViewportFrame
 from anicrop.image import Image, ImageFormat
@@ -60,7 +61,9 @@ def test_viewport_render_scene_composes_visible_layers():
 def test_viewport_render_zoom_and_centering():
     """Valida se ViewportRender centraliza e projeta a camada com fit_scale na tela da Viewport."""
     layer = make_layer(100, 100, (255, 0, 0, 255))
-    viewport = Viewport(size=(200, 200), fit_scale=1.0)
+    viewport = Viewport(
+        size=(200, 200), canvas=Canvas.from_size(100, 100), fit_scale=1.0
+    )
     vr = ViewportRender()
 
     composition = vr.render_scene([layer], viewport)
@@ -109,7 +112,7 @@ def test_viewport_render_com_grouplayer_aninhado():
     child = make_layer(60, 60, (0, 255, 0, 255))
     group.append(child)
 
-    viewport = Viewport(size=(200, 200), fit_scale=1.0)
+    viewport = Viewport(size=(200, 200), canvas=Canvas.from_size(60, 60), fit_scale=1.0)
     vr = ViewportRender()
 
     composition = vr.render_scene([group], viewport)
@@ -139,7 +142,9 @@ def test_viewport_render_com_zoom_pan_e_rotacao():
     layer = make_layer(100, 100, (255, 0, 0, 255))
     layer.transform.rotate(45)
 
-    viewport = Viewport(size=(200, 200), fit_scale=1.0)
+    viewport = Viewport(
+        size=(200, 200), canvas=Canvas.from_size(100, 100), fit_scale=1.0
+    )
     viewport.scale = Scale(1.5, 1.5)
     viewport.region += (10, 10)
 
@@ -173,7 +178,9 @@ def test_viewport_render_with_layer_mask_modulates_viewport_pixels():
     mask_img = Image(mask_data, ImageFormat.GRAY)
     layer.set_mask(mask_img, Region.from_size(100, 100))
 
-    viewport = Viewport(size=(200, 200), fit_scale=1.0)
+    viewport = Viewport(
+        size=(200, 200), canvas=Canvas.from_size(100, 100), fit_scale=1.0
+    )
     vr = ViewportRender()
     comp = vr.render_scene([layer], viewport)
 
@@ -197,7 +204,9 @@ def test_viewport_render_with_group_mask_modulates_grouped_children():
     mask_img = Image(mask_data, ImageFormat.GRAY)
     group.set_mask(mask_img, Region.from_size(100, 100))
 
-    viewport = Viewport(size=(200, 200), fit_scale=1.0)
+    viewport = Viewport(
+        size=(200, 200), canvas=Canvas.from_size(100, 100), fit_scale=1.0
+    )
     vr = ViewportRender()
     comp = vr.render_scene([group], viewport)
 
@@ -216,7 +225,9 @@ def test_viewport_render_with_inverted_mask_under_zoom():
     mask_img = Image(mask_data, ImageFormat.GRAY)
     layer.set_mask(mask_img, Region.from_size(100, 100), invert=True)
 
-    viewport = Viewport(size=(200, 200), fit_scale=1.0)
+    viewport = Viewport(
+        size=(200, 200), canvas=Canvas.from_size(100, 100), fit_scale=1.0
+    )
     viewport.scale = Scale(1.5, 1.5)
 
     vr = ViewportRender()
