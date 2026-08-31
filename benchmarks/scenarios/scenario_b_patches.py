@@ -23,11 +23,11 @@ PATCH_COORDS = [(100 + (i % 5) * 750, 100 + (i // 5) * 400) for i in range(25)]
 # ------------------------------------------------------------------------------
 # 1. anicrop Implementation (abre com ACImage.open)
 # ------------------------------------------------------------------------------
-def run_anicrop() -> Any:
-    base_img = ACImage.open(DATA_DIR / "background_4k.png")
+def run_anicrop(backend: str = "vips") -> Any:
+    base_img = ACImage.open(DATA_DIR / "background_4k.png", backend=backend)
     base_layer = Layer(base_img)
 
-    patch_img = ACImage.open(DATA_DIR / "small_patch.png")
+    patch_img = ACImage.open(DATA_DIR / "small_patch.png", backend=backend)
 
     for x, y in PATCH_COORDS:
         base_layer.add_edit(patch_img, Region.from_rect(x, y, 200, 200))
@@ -76,21 +76,38 @@ def run_benchmark(iterations: int = 10) -> list[BenchmarkResult]:
 
     print(f"\n--- Executando: {scenario_name} ---")
 
-    print("  [1/3] anicrop...")
-    res_anicrop = run_anicrop()
-    save_result_image(dir_name, "anicrop", res_anicrop)
+    print("  [1/4] anicrop (Pyvips Backend)...")
+    res_ac_vips = run_anicrop(backend="vips")
+    save_result_image(dir_name, "anicrop_vips", res_ac_vips)
     results.append(
-        measure_execution("anicrop", scenario_name, run_anicrop, iterations=iterations)
+        measure_execution(
+            "anicrop (Pyvips)",
+            scenario_name,
+            lambda: run_anicrop(backend="vips"),
+            iterations=iterations,
+        )
     )
 
-    print("  [2/3] OpenCV (NumPy)...")
+    print("  [2/4] anicrop (OpenCV Backend)...")
+    res_ac_cv = run_anicrop(backend="opencv")
+    save_result_image(dir_name, "anicrop_opencv", res_ac_cv)
+    results.append(
+        measure_execution(
+            "anicrop (OpenCV)",
+            scenario_name,
+            lambda: run_anicrop(backend="opencv"),
+            iterations=iterations,
+        )
+    )
+
+    print("  [3/4] OpenCV (NumPy)...")
     res_opencv = run_opencv()
     save_result_image(dir_name, "opencv", res_opencv)
     results.append(
         measure_execution("OpenCV", scenario_name, run_opencv, iterations=iterations)
     )
 
-    print("  [3/3] Pillow...")
+    print("  [4/4] Pillow...")
     res_pillow = run_pillow()
     save_result_image(dir_name, "pillow", res_pillow)
     results.append(

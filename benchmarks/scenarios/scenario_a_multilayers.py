@@ -85,10 +85,10 @@ LAYER_CONFIGS = [
 # ------------------------------------------------------------------------------
 # 1. anicrop Implementation
 # ------------------------------------------------------------------------------
-def run_anicrop(interp: InterpMode = InterpMode.LINEAR) -> Any:
-    doc = Document.open(DATA_DIR / "background_4k.png", name="Fundo")
+def run_anicrop(backend: str = "vips", interp: InterpMode = InterpMode.LINEAR) -> Any:
+    doc = Document.open(DATA_DIR / "background_4k.png", name="Fundo", backend=backend)
     for i, cfg in enumerate(LAYER_CONFIGS):
-        layer = doc.load_layer(DATA_DIR / cfg["asset"], name=f"L_{i}")
+        layer = doc.load_layer(DATA_DIR / cfg["asset"], name=f"L_{i}", backend=backend)
         layer.transform.rotate(cfg["rot"]).scale(cfg["scale"], cfg["scale"]).translate(
             cfg["x"], cfg["y"]
         )
@@ -114,8 +114,8 @@ def run_pillow(resample: Any = PILImage.Resampling.BILINEAR) -> Any:
             a = a.point(lambda p: int(p * cfg["opacity"]))
             sprite.putalpha(a)
 
-        cx = cfg["x"] + (orig_w * s) / 2.0
-        cy = cfg["y"] + (orig_h * s) / 2.0
+        cx = cfg["x"] + orig_w / 2.0
+        cy = cfg["y"] + orig_h / 2.0
         paste_x = int(round(cx - sprite.width / 2.0))
         paste_y = int(round(cy - sprite.height / 2.0))
 
@@ -171,11 +171,11 @@ def run_pyvips(interp_name: str = "bilinear") -> Any:
         )
         if cfg["opacity"] < 1.0:
             bands = transformed.bandsplit()
-            alpha = bands[3] * cfg["opacity"]
+            alpha = (bands[3] * cfg["opacity"]).cast("uchar")
             transformed = bands[0].bandjoin([bands[1], bands[2], alpha])
 
-        cx = cfg["x"] + (ws * s) / 2.0
-        cy = cfg["y"] + (hs * s) / 2.0
+        cx = cfg["x"] + ws / 2.0
+        cy = cfg["y"] + hs / 2.0
         paste_x = int(round(cx - transformed.width / 2.0))
         paste_y = int(round(cy - transformed.height / 2.0))
         comp = comp.composite2(transformed, "over", x=paste_x, y=paste_y)
@@ -190,19 +190,31 @@ def run_benchmark(iterations: int = 5) -> list[BenchmarkResult]:
 
     print(f"\n--- Executando: {scenario_name} ---")
 
-    print("  [1/4] anicrop (Linear)...")
-    res_anicrop = run_anicrop(InterpMode.LINEAR)
-    save_result_image(dir_name, "anicrop", res_anicrop)
+    print("  [1/5] anicrop (Pyvips Backend)...")
+    res_ac_vips = run_anicrop(backend="vips", interp=InterpMode.LINEAR)
+    save_result_image(dir_name, "anicrop_vips", res_ac_vips)
     results.append(
         measure_execution(
-            "anicrop",
+            "anicrop (Pyvips)",
             scenario_name,
-            lambda: run_anicrop(InterpMode.LINEAR),
+            lambda: run_anicrop(backend="vips", interp=InterpMode.LINEAR),
             iterations=iterations,
         )
     )
 
-    print("  [2/4] Pyvips (Bilinear)...")
+    print("  [2/5] anicrop (OpenCV Backend)...")
+    res_ac_cv = run_anicrop(backend="opencv", interp=InterpMode.LINEAR)
+    save_result_image(dir_name, "anicrop_opencv", res_ac_cv)
+    results.append(
+        measure_execution(
+            "anicrop (OpenCV)",
+            scenario_name,
+            lambda: run_anicrop(backend="opencv", interp=InterpMode.LINEAR),
+            iterations=iterations,
+        )
+    )
+
+    print("  [3/5] Pyvips (Bilinear)...")
     res_pyvips = run_pyvips("bilinear")
     save_result_image(dir_name, "pyvips", res_pyvips)
     results.append(
@@ -214,7 +226,7 @@ def run_benchmark(iterations: int = 5) -> list[BenchmarkResult]:
         )
     )
 
-    print("  [3/4] Pillow (Bilinear)...")
+    print("  [4/5] Pillow (Bilinear)...")
     res_pillow = run_pillow(PILImage.Resampling.BILINEAR)
     save_result_image(dir_name, "pillow", res_pillow)
     results.append(
@@ -226,7 +238,7 @@ def run_benchmark(iterations: int = 5) -> list[BenchmarkResult]:
         )
     )
 
-    print("  [4/4] OpenCV (Linear)...")
+    print("  [5/5] OpenCV (Linear)...")
     res_opencv = run_opencv(cv2.INTER_LINEAR)
     save_result_image(dir_name, "opencv", res_opencv)
     results.append(

@@ -54,13 +54,13 @@ FOCAL_POINT = (5000, 4500)
 # ------------------------------------------------------------------------------
 # 1. anicrop Implementation (Out-of-Core Zarr + Affine + Sprites + 4K Preview)
 # ------------------------------------------------------------------------------
-def run_anicrop() -> Any:
-    doc = Document.open(MOON_PATH, name="Moon")
+def run_anicrop(backend: str = "vips") -> Any:
+    doc = Document.open(MOON_PATH, name="Moon", backend=backend)
     moon_layer = doc[0]
     moon_layer.transform.rotate(15.0).scale(1.05, 1.05)
 
     for i, cfg in enumerate(LAYERS_CONFIG):
-        layer = doc.load_layer(DATA_DIR / cfg["asset"], name=f"L_{i}")
+        layer = doc.load_layer(DATA_DIR / cfg["asset"], name=f"L_{i}", backend=backend)
         layer.transform.rotate(cfg["rot"]).scale(cfg["scale"], cfg["scale"]).translate(
             cfg["x"], cfg["y"]
         )
@@ -103,17 +103,17 @@ def run_pyvips() -> Any:
         )
         if cfg["opacity"] < 1.0:
             bands = t_sprite.bandsplit()
-            alpha = bands[3] * cfg["opacity"]
+            alpha = (bands[3] * cfg["opacity"]).cast("uchar")
             t_sprite = bands[0].bandjoin([bands[1], bands[2], alpha])
 
-        cx = cfg["x"] + (ws * s) / 2.0
-        cy = cfg["y"] + (hs * s) / 2.0
+        cx = cfg["x"] + ws / 2.0
+        cy = cfg["y"] + hs / 2.0
         paste_x = int(round(cx + dx - t_sprite.width / 2.0))
         paste_y = int(round(cy + dy - t_sprite.height / 2.0))
         comp = comp.composite2(t_sprite, "over", x=paste_x, y=paste_y)
 
-    cx = transformed.width / 2.0
-    cy = transformed.height / 2.0
+    cx = transformed.width / 2.0 + (FOCAL_POINT[0] - 5000)
+    cy = transformed.height / 2.0 + (FOCAL_POINT[1] - 5000)
     crop_x = int(round(cx - VIEWPORT_SIZE[0] / 2.0))
     crop_y = int(round(cy - VIEWPORT_SIZE[1] / 2.0))
     return comp.crop(crop_x, crop_y, VIEWPORT_SIZE[0], VIEWPORT_SIZE[1])
@@ -153,8 +153,8 @@ def run_pillow() -> Any:
             a = a.point(lambda p: int(p * cfg["opacity"]))
             sprite.putalpha(a)
 
-        cx = cfg["x"] + (sw * ss) / 2.0
-        cy = cfg["y"] + (sh * ss) / 2.0
+        cx = cfg["x"] + sw / 2.0
+        cy = cfg["y"] + sh / 2.0
         paste_x = int(round(cx + dx - sprite.width / 2.0))
         paste_y = int(round(cy + dy - sprite.height / 2.0))
 
@@ -162,8 +162,8 @@ def run_pillow() -> Any:
         temp.paste(sprite, (paste_x, paste_y))
         moon = PILImage.alpha_composite(moon, temp)
 
-    cx = moon.width / 2.0
-    cy = moon.height / 2.0
+    cx = moon.width / 2.0 + (FOCAL_POINT[0] - 5000)
+    cy = moon.height / 2.0 + (FOCAL_POINT[1] - 5000)
     crop_box = (
         int(round(cx - VIEWPORT_SIZE[0] / 2.0)),
         int(round(cy - VIEWPORT_SIZE[1] / 2.0)),
@@ -180,14 +180,31 @@ def run_benchmark(iterations: int = 3) -> list[BenchmarkResult]:
 
     print(f"\n--- Executando: {scenario_name} ---")
 
-    print("  [1/3] anicrop (Out-of-Core Zarr + 4K Preview)...")
-    res_anicrop = run_anicrop()
-    save_result_image(dir_name, "anicrop", res_anicrop)
+    print("  [1/4] anicrop (Pyvips Streaming Backend)...")
+    res_ac_vips = run_anicrop(backend="vips")
+    save_result_image(dir_name, "anicrop_vips", res_ac_vips)
     results.append(
-        measure_execution("anicrop", scenario_name, run_anicrop, iterations=iterations)
+        measure_execution(
+            "anicrop (Pyvips)",
+            scenario_name,
+            lambda: run_anicrop(backend="vips"),
+            iterations=iterations,
+        )
     )
 
-    print("  [2/3] Pyvips (Streaming SIMD)...")
+    print("  [2/4] anicrop (OpenCV Zarr Backend)...")
+    res_ac_cv = run_anicrop(backend="opencv")
+    save_result_image(dir_name, "anicrop_opencv", res_ac_cv)
+    results.append(
+        measure_execution(
+            "anicrop (OpenCV Zarr)",
+            scenario_name,
+            lambda: run_anicrop(backend="opencv"),
+            iterations=iterations,
+        )
+    )
+
+    print("  [3/4] Pyvips (Streaming SIMD)...")
     res_pyvips = run_pyvips()
     save_result_image(dir_name, "pyvips", res_pyvips)
     results.append(
@@ -199,11 +216,16 @@ def run_benchmark(iterations: int = 3) -> list[BenchmarkResult]:
         )
     )
 
-    print("  [3/3] Pillow (Full 100MP Decompression)...")
+    print("  [4/4] Pillow (Full 100MP Decompression)...")
     res_pillow = run_pillow()
     save_result_image(dir_name, "pillow", res_pillow)
     results.append(
-        measure_execution("Pillow", scenario_name, run_pillow, iterations=iterations)
+        measure_execution(
+            "Pillow",
+            scenario_name,
+            run_pillow,
+            iterations=iterations,
+        )
     )
 
     return results

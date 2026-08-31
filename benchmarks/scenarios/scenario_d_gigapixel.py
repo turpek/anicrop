@@ -55,7 +55,8 @@ def setup_gigapixel_data() -> None:
 
     if not GIGA_ZARR_PATH.exists():
         print("  - Criando imagem Zarr de 100MP (10000x10000) em disco...")
-        tile = cv2.imread(str(GIGA_TILE_PATH), cv2.IMREAD_UNCHANGED)
+        tile_bgra = cv2.imread(str(GIGA_TILE_PATH), cv2.IMREAD_UNCHANGED)
+        tile_rgba = cv2.cvtColor(tile_bgra, cv2.COLOR_BGRA2RGBA)
         store = zarr.storage.LocalStore(str(GIGA_ZARR_PATH))
         z = zarr.create_array(
             store=store,
@@ -68,7 +69,7 @@ def setup_gigapixel_data() -> None:
             for x in range(0, 10000, 1024):
                 h = min(1024, 10000 - y)
                 w = min(1024, 10000 - x)
-                z[y : y + h, x : x + w, :] = tile[:h, :w, :]
+                z[y : y + h, x : x + w, :] = tile_rgba[:h, :w, :]
 
 
 # ------------------------------------------------------------------------------
