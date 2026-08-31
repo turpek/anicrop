@@ -276,7 +276,7 @@ class OpenCVBackend(AbstractImageIO):
             channels = image_format.channels
 
             zarr_shape = (height, width, channels)
-            zarr_chunks = (512, 512, channels)
+            zarr_chunks = (1024, 1024, channels)
 
             z_arr = zarr.open_array(
                 str(zarr_dir),
@@ -286,18 +286,13 @@ class OpenCVBackend(AbstractImageIO):
                 dtype=np.uint8,
             )
 
-            chunk_size = 512
-            for y in range(0, height, chunk_size):
-                for x in range(0, width, chunk_size):
-                    y_end = min(y + chunk_size, height)
-                    x_end = min(x + chunk_size, width)
-                    box = (x, y, x_end, y_end)
-                    tile = pil_img.crop(box)
-                    tile_np = np.array(tile)
-
-                    if tile_np.ndim == 2:
-                        tile_np = tile_np[..., np.newaxis]
-
-                    z_arr[y:y_end, x:x_end] = tile_np
+            strip_h = 1024
+            for y in range(0, height, strip_h):
+                y_end = min(y + strip_h, height)
+                strip = pil_img.crop((0, y, width, y_end))
+                strip_arr = np.asarray(strip)
+                if strip_arr.ndim == 2:
+                    strip_arr = strip_arr[..., np.newaxis]
+                z_arr[y:y_end, :] = strip_arr
 
         return zarr.open_array(str(zarr_dir), mode="r"), image_format
