@@ -27,6 +27,7 @@ Este documento centraliza todos os objetivos arquiteturais, otimizações e o pr
 - [ ] 19. (Micro-otimização) Multiplicação Especializada de Matrizes Afins 2D ($2 \times 3$).
 - [ ] 20. Padronizar o comportamento de `Layout.fit_content` quando a camada possui crop (`BlendMode.CLIP`), máscara ativa (`Mask`) ou patches de `EditLayer`.
 - [x] ~~21. Implementar subclasse de `EditLayer` (ou atributo `visible`) para controle de visibilidade de edições/crop e integração no `_flatten_edits` (Modelo GIMP).~~
+- [ ] 22. Implementar `ViewportLayoutStrategy` para gerenciar enquadramento, navegação e foco de câmera (`fit`, `align`, `fit_content`, `resize_bounds`).
 
 
 
@@ -119,6 +120,24 @@ O módulo `Layout` opera estritamente sobre a geometria espacial e o enquadramen
   1. **Pipeline de Renderização (`_flatten_edits` / `render_edit`):** Ignora edições com `visible = False`, evitando qualquer custo computacional de warp ou composição de pixels.
   2. **Toggling e Restauração de Crop:** Permite alternar a visibilidade do recorte (`crop_edit.visible = False`) para revelar a imagem base original completa sem remover a edição da fila ou poluir o histórico.
   3. **Integração com `fit_content`:** O cálculo de ROI filtra estritamente as edições ativas (`edit.visible`), permitindo alternar de forma previsível entre o enquadramento do recorte e o enquadramento da imagem base total.
+
+### G) Estratégia de Layout para Viewport (`ViewportLayoutStrategy`)
+- **Objetivo:** Integrar a `Viewport` como uma cidadã de primeira classe no sistema polimórfico de `Layout` (`Layout(viewport)` ou `viewport.layout`), controlando enquadramento, zoom e navegação de câmera de forma expressiva e desacoplada.
+- **Natureza da Câmera (Display Fixo):**
+  - Diferente de uma camada de imagem (onde o *fit* altera a moldura do objeto), na `Viewport` o tamanho físico da janela de exibição ($W_{\text{view}} \times H_{\text{view}}$) permanece **fixo**.
+  - As operações de layout manipulam os controles de Câmera: **Zoom** (`viewport.scale`) e **Pan** (`viewport.region.top_left`).
+- **Comportamento dos Métodos:**
+  1. **`viewport.layout.fit(target)`:**
+     - Calcula a escala uniforme $s = \min(W_{\text{view}} / W_{\text{target}}, H_{\text{view}} / H_{\text{target}})$, preservando o *aspect ratio*.
+     - Aplica o zoom: `viewport.scale = Scale(s, s)`.
+     - Aplica o pan para centralizar o alvo no meio da tela ($\Delta x = X_{\text{target\_centro}} - \text{canvas\_w}/2, \Delta y = Y_{\text{target\_centro}} - \text{canvas\_h}/2$).
+  2. **`viewport.layout.align(target, anchor_x=0.5, anchor_y=0.5)`:**
+     - Mantém o zoom atual intacto (`viewport.scale` inalterado).
+     - Move apenas o Pan da câmera para apontar para a âncora especificada no Canvas.
+  3. **`viewport.layout.fit_content()`:**
+     - Enquadra toda a área útil de pixels visíveis da cena (`global_content_region`).
+  4. **`viewport.layout.resize_bounds(new_w, new_h)`:**
+     - Redimensiona a janela física da Viewport para $(new\_w, new\_h)$ preservando o ponto focal e o zoom atuais.
 
 ---
 
