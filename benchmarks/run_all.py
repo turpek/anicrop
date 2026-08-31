@@ -33,11 +33,16 @@ def plot_results(all_results: list[BenchmarkResult]) -> None:
 
     palette = {
         "anicrop": "#2b5c8f",
+        "anicrop (Pyvips)": "#2b5c8f",
+        "anicrop (Pyvips Streaming)": "#2b5c8f",
+        "anicrop (OpenCV)": "#4a90e2",
+        "anicrop (OpenCV Zarr)": "#4a90e2",
         "anicrop (Zarr)": "#2b5c8f",
         "Pillow": "#e26d5c",
         "OpenCV": "#38b000",
         "Pyvips": "#7209b7",
     }
+
 
     for i, scen in enumerate(scenarios):
         scen_res = [r for r in all_results if r.scenario == scen]
@@ -97,10 +102,10 @@ def generate_markdown_report(all_results: list[BenchmarkResult]) -> None:
     scenarios = list(dict.fromkeys(r.scenario for r in all_results))
 
     md_lines = [
-        "# Relatório Oficial de Benchmarks: anicrop vs Concorrentes",
+        "# Avaliação de Desempenho do anicrop em Pipelines de Renderização 2D",
         f"\n> **Data de Execução:** {now_str}",
         "> **Ambiente:** Python 3.12+, uv virtualenv, Linux",
-        "> **Competidores:** `anicrop`, `Pillow`, `OpenCV` (NumPy), `Pyvips`\n",
+        "> **Bibliotecas Analisadas:** `anicrop`, `Pillow`, `OpenCV` (NumPy), `Pyvips`\n",
         "## 📊 Sumário Executivo por Cenário\n",
     ]
 
@@ -140,9 +145,10 @@ def main() -> None:
     console = Console()
     console.print(
         Panel.fit(
-            "[bold cyan]Bateria Completa de Benchmarks: anicrop vs Concorrentes[/bold cyan]"
+            "[bold cyan]Avaliação de Desempenho do anicrop em Pipelines de Renderização 2D[/bold cyan]"
         )
     )
+
 
     # 1. Garante que os assets de teste existem
     generate_assets_main()
