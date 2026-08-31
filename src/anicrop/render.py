@@ -410,7 +410,11 @@ class BaseRenderer[FrameT: BaseFrame](ABC):
         if not dst.was_used:
             return edit_image
 
-        # 2. Patch com distorção ou parcial: Mescla o resultado já obtido dentro de layer_image
+        # 2. Fast-Path: Se o resultado cobre 100% da área de destino, desvincula do scratch buffer via crop
+        if dst_region.size == plan.dst_region.size:  # type: ignore[union-attr]
+            return edit_image.crop()
+
+        # 3. Patch com distorção ou parcial: Mescla o resultado já obtido dentro de layer_image
         layer_image = Image.new(plan.dst_region.size, layer_format)  # type: ignore[union-attr]
         edit_layer.blend_into(layer_image, edit_image, dst_region)
         return layer_image
