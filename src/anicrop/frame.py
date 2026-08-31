@@ -147,7 +147,7 @@ class BaseFrame(ABC):
             return None
 
         buffer_region = (
-            self._view_region if self._view_region is not None else self.surface.region
+            self._view_region if self._view_region is not None else self.surface_region
         )
 
         if buffer_region.overlaps(self._dst_region):
@@ -175,11 +175,12 @@ class ViewportFrame(BaseFrame):
         self.viewport = viewport
         self.local = local
 
-        m_view = viewport.roi_matrix @ viewport.fit_matrix(base.region.size)
+        m_view = viewport.roi_matrix @ viewport.fit_matrix()
         matrix = m_view if local else m_view @ mat_global(base)
 
+        screen_region = Region.from_size(*viewport.size)
         effective_view = self._effective_view(
-            viewport.region, view_region, base.mask, matrix
+            screen_region, view_region, base.mask, matrix
         )
         bounds = rect_to_region(calculate_new_rect(matrix, base.region.size))
         bounds = self._expand_bounds(bounds, base)
@@ -187,6 +188,10 @@ class ViewportFrame(BaseFrame):
         super().__init__(
             base, bounds, view_region, effective_view, matrix=matrix, surface=viewport
         )
+
+    @property
+    def surface_region(self) -> Region:
+        return Region.from_size(*self.viewport.size)
 
 
 class CanvasFrame(BaseFrame):

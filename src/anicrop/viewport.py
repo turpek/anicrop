@@ -1,5 +1,7 @@
 from numpy import ndarray
 
+from anicrop.canvas import Canvas
+from anicrop.interfaces.canvas import AbstractCanvas
 from anicrop.spatial import Point, Region, rect_to_region
 from anicrop.transform import calculate_new_rect, mat_inverse, mat_pivot, mat_translation
 from anicrop.type import Scale
@@ -7,20 +9,37 @@ from anicrop.type import Scale
 
 class Viewport:
     bg_color: tuple[int, ...]
+    _canvas: AbstractCanvas
 
     def __init__(
         self,
         size: tuple[float, float],
         fit_scale: float = 1.0,
+        canvas: AbstractCanvas | None = None,
         bg_color: tuple[int, ...] | None = None,
     ):
         self._region = Region.from_size(size[0], size[1])
         self._scale = Scale(1, 1)
         self._fit = Scale(fit_scale, fit_scale)
+        if canvas is not None:
+            self.set_canvas(canvas)
+        else:
+            self._canvas = Canvas.from_size(size[0], size[1])
         self.bg_color = bg_color if bg_color is not None else (204, 204, 204)
 
     def __repr__(self) -> str:
         return f"Viewport(region={self.region}, scale={self.scale})"
+
+    def set_canvas(self, canvas: AbstractCanvas) -> None:
+        """Define ou troca o Canvas observado pela Viewport."""
+        if not isinstance(canvas, AbstractCanvas):
+            raise TypeError(f"Expected AbstractCanvas, got {type(canvas).__name__}")
+        self._canvas = canvas
+
+    @property
+    def canvas_size(self) -> Point:
+        """Retorna a dimensão do Canvas atual em tempo real."""
+        return self._canvas.size
 
     @property
     def size(self) -> Point:
@@ -55,20 +74,16 @@ class Viewport:
         x, y = self._region.top_left
         return mat_pivot(self.scale, self.size) @ mat_translation(-x, -y)
 
-    def fit_matrix(self, layer_size: tuple[float, float]) -> ndarray:
-        # 2. Qual o tamanho do papel DEPOIS de encolher?
+    def fit_matrix(self) -> ndarray:
         s = self._fit.sx
-        scaled_w = layer_size[0] * s
-        scaled_h = layer_size[1] * s
+        scaled_w = self._canvas.size[0] * s
+        scaled_h = self._canvas.size[1] * s
 
-        # 3. A CENTRALIZAÇÃO: Calcula o espaço que sobrou e divide por 2
         view_w, view_h = self.size
         offset_x = (view_w - scaled_w) / 2
         offset_y = (view_h - scaled_h) / 2
 
-        # 4. A Matriz: Encolhe primeiro, depois empurra pro centro
         return mat_translation(offset_x, offset_y) @ self._fit.matrix
-        # return self._fit.matrix
 
     def roi(self, region: Region) -> Region:
         mat_tr = mat_inverse(mat_translation(*region.top_left))

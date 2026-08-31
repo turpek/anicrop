@@ -15,6 +15,7 @@ class Viewer:
     def __init__(self, doc: Document, viewport: Viewport):
         self.doc = doc
         self.viewport = viewport
+        self.viewport.set_canvas(self.doc.canvas)
 
         # O título da janela usa o nome do documento
         self.window_name = f"Anicrop: {self.doc.name}"
@@ -27,6 +28,7 @@ class Viewer:
         Calcula a escala exata para que o Canvas do Documento caiba inteiramente
         dentro da Viewport e ajusta o zoom da câmera.
         """
+        self.viewport.set_canvas(self.doc.canvas)
         cw, ch = self.doc.canvas.size
         vw, vh = self.viewport.size
 
