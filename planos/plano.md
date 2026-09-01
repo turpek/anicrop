@@ -19,18 +19,20 @@ Este documento centraliza todos os objetivos arquiteturais, otimizações e o pr
 - [x] ~~11. Tratar Artefatos de Borda (Ringing do Lanczos).~~
 - [x] ~~12. Refatorar o `Layout` para operar via `GeometryController` / `GeometryStrategy` (puramente espacial, sem `crop` de pixels).~~
 - [x] ~~13. Criar teste para validar o dessincronismo entre o cache da máscara (`FitGeometry`) e a geometria estrutural (`base`) após mutação de coordenadas.~~
-- [ ] 14. Implementar Pipeline de Processamento de Pixels e Efeitos (Filtros, Ajustes de Cor e Tom).
+- [x] ~~14. Implementar Pipeline de Processamento de Pixels e Efeitos (Filtros, Ajustes de Cor e Tom).~~
 - [x] ~~15. Decisão Arquitetural: Análise da aplicação de translação em `calculate_new_rect` e `calculate_region_rect` ao consumir `mat_global`.~~
 - [x] ~~16. Consolidação Unificada de Frames (`BaseFrame`, `CanvasFrame`, `ViewportFrame`) e Separação entre `surface` e `view_region`.~~
 - [x] ~~17. Validação e Correção da Máscara de Oclusão (`_opacity_mask` / Early-Exit) em Relação ao `surface_size`.~~
 - [x] ~~18. Decisão Arquitetural: Natureza e Gerenciamento da Transformação em `BaseLayer` (Sincronização de Região no `Composer` via `sync_region`).~~
 - [ ] 19. (Micro-otimização) Multiplicação Especializada de Matrizes Afins 2D ($2 \times 3$).
-- [ ] 20. Padronizar o comportamento de `Layout.fit_content` quando a camada possui crop (`BlendMode.CLIP`), máscara ativa (`Mask`) ou patches de `EditLayer`.
+- [x] ~~20. Padronizar o comportamento de `Layout.fit_content` quando a camada possui crop (`BlendMode.CLIP`), máscara ativa (`Mask`) ou patches de `EditLayer`.~~
 - [ ] 22. Implementar `ViewportLayoutStrategy` para gerenciar enquadramento, navegação e foco de câmera (`fit`, `align`, `fit_content`, `resize_bounds`).
 - [x] ~~23. Padronizar herança de propriedades e comportamentos na rasterização plana de camadas (`flatten`, `Combine.flatten`, `Combine.bake`).~~
 - [x] ~~24. Correção do Erro de Dimensão por Arredondamento Subpixel na Discretização de AABB (`warp_patch` vs `Image.__region_to_slice` / `hard_masking`).~~
+- [ ] 25. Modos Avançados de Fusão e Composição para Fotografia e Transições Suaves (Multi-Band Blending e Feather Blending).
 
 ---
+
 
 
 
@@ -428,17 +430,43 @@ Matematicamente, `round(end - start)` **não é estritamente igual** a `round(en
 
 ### 2. Diretriz Arquitetural de Solução
 
-1. **Padronização da Discretização no `warp_patch`:**
-   O `warp_patch` deve calcular `dest_size` utilizando rigorosamente a mesma regra de discretização dos slices do NumPy:
+1. **Padronização da Discretização no `Image.__region_to_slice`:**
+   O `__region_to_slice` utiliza diretamente `region.top_left.to_int()` e `region.size.to_int()`:
    ```python
-   w = int(round(dest_region.x.end)) - int(round(dest_region.x.start))
-   h = int(round(dest_region.y.end)) - int(round(dest_region.y.start))
-   dest_size = (max(1, w), max(1, h))
+   def __region_to_slice(self, region: Region) -> tuple[slice, slice]:
+       x, y = region.top_left.to_int()
+       w, h = region.size.to_int()
+       return (
+           slice(y, y + max(1, h)),
+           slice(x, x + max(1, w)),
+       )
    ```
-2. **Harmonização em `render_image` e `without_distortion`:**
-   Garantir que todas as rotinas de rasterização e projeção de patch utilizem a discretização baseada em `(round(end) - round(start))`.
-3. **Criação de Teste de Regressão TDD:**
-   Criar teste com rotação e escala fracionárias em `BlendMode.HARD_MASKING` e validar a ausência de exceções de mismatch de tamanho durante `CanvasRender.render_scene` e `flatten`.
+2. **Garantia de Equivalência Dimensional:**
+   O tamanho do slice do NumPy coincide com o tamanho da imagem rasterizada gerada por `warp_patch` e `Image.new(region.size)`.
+3. **Testes de Regressão TDD:**
+   Validados em `tests/test_render.py` cobrindo transformações fracionárias contínuas com `HARD_MASKING` e `SOLID_FILL`.
+
+---
+
+## 🎨 25. Modos Avançados de Fusão e Composição para Fotografia e Transições Suaves
+
+Para além dos modos binários focados em animação (`HARD_MASKING` e `SOLID_FILL`), o pipeline de mesclagem pode ser expandido para acomodar cenários de fotografia e fusão de gradientes contínuos:
+
+### 1. Multi-Band Blending (Pirâmide Laplaciana de Burt & Adelson)
+* **Objetivo:** Fusão contínua de fotografias do mundo real onde existem diferenças de exposição, vinheta de lente ou iluminação natural.
+* **Mecanismo:**
+  * Decompõe cada imagem em uma pirâmide Gaussiana/Laplaciana de frequências espaciais.
+  * **Altas frequências (detalhes, bordas, texturas):** Mescladas com uma transição estreita e nítida para evitar *ghosting* ou borrões.
+  * **Baixas frequências (iluminação geral, cor do céu, gradientes):** Mescladas com uma transição suave e ampla para equalizar a iluminação sem costuras visíveis.
+* **Referência:** Padrão ouro em softwares como Hugin, Photoshop Photomerge e OpenCV `MultiBandBlender`.
+
+### 2. Feather Blending (Gradiente de Distância / Distance Transform)
+* **Objetivo:** Transição linear suave entre frames sobrepostos para superfícies com gradientes contínuos (ex: céu limpo, grama ou neblina).
+* **Mecanismo:**
+  * Aplica *Distance Transform* euclidiano a partir das bordas do frame para gerar uma máscara de rampa suave de $3$ a $8\text{ pixels}$.
+  * Pondera a transição de cores suavemente na zona de sobreposição.
+  * Requer alinhamento afim/subpixel de alta precisão para evitar duplicação de traços finos.
+
 
 
 
