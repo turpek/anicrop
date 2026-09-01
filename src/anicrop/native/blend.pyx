@@ -905,9 +905,10 @@ def solid_fill(
     cdef uint8_t* b_row
     cdef const uint8_t* o_row
     cdef uint8_t o_alpha, b_alpha
+    cdef uint32_t o_pix, b_pix
 
     with nogil:
-        # Fast-Path 1: RGBA -> RGBA
+        # Fast-Path 1: RGBA -> RGBA (Otimizado com Carga/Descarga de Palavra de 32-bit e OpenMP)
         if b_ch == 4 and o_ch == 4:
             for y in prange(h, schedule='static'):
                 b_row = &base[y, 0, 0]
@@ -915,13 +916,11 @@ def solid_fill(
                 for x in range(w):
                     b_idx = x << 2
                     o_idx = x << 2
-                    b_alpha = b_row[b_idx + 3]
-                    o_alpha = o_row[o_idx + 3]
-                    if b_alpha < 250 and o_alpha >= 200:
-                        b_row[b_idx + 0] = o_row[o_idx + 0]
-                        b_row[b_idx + 1] = o_row[o_idx + 1]
-                        b_row[b_idx + 2] = o_row[o_idx + 2]
-                        b_row[b_idx + 3] = 255
+                    b_pix = (<const uint32_t*>&b_row[b_idx])[0]
+                    o_pix = (<const uint32_t*>&o_row[o_idx])[0]
+                    if (b_pix >> 24) < 250 and (o_pix >> 24) >= 200:
+                        (<uint32_t*>&b_row[b_idx])[0] = (o_pix & <uint32_t>0x00FFFFFF) | <uint32_t>0xFF000000
+
 
         # Fast-Path 2: RGB -> RGBA (Overlay RGB opaco sobre Base RGBA)
         elif b_ch == 4 and o_ch == 3:
@@ -931,12 +930,13 @@ def solid_fill(
                 for x in range(w):
                     b_idx = x << 2
                     o_idx = x * 3
-                    b_alpha = b_row[b_idx + 3]
-                    if b_alpha < 250:
+                    b_pix = (<const uint32_t*>&b_row[b_idx])[0]
+                    if (b_pix >> 24) < 250:
                         b_row[b_idx + 0] = o_row[o_idx + 0]
                         b_row[b_idx + 1] = o_row[o_idx + 1]
                         b_row[b_idx + 2] = o_row[o_idx + 2]
                         b_row[b_idx + 3] = 255
+
 
         # Fast-Path 3: RGBA -> RGB (Base RGB opaca, apenas copia onde overlay for sólido)
         elif b_ch == 3 and o_ch == 4:
