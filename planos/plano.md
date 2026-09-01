@@ -26,11 +26,13 @@ Este documento centraliza todos os objetivos arquiteturais, otimizações e o pr
 - [x] ~~18. Decisão Arquitetural: Natureza e Gerenciamento da Transformação em `BaseLayer` (Sincronização de Região no `Composer` via `sync_region`).~~
 - [ ] 19. (Micro-otimização) Multiplicação Especializada de Matrizes Afins 2D ($2 \times 3$).
 - [ ] 20. Padronizar o comportamento de `Layout.fit_content` quando a camada possui crop (`BlendMode.CLIP`), máscara ativa (`Mask`) ou patches de `EditLayer`.
-- [x] ~~21. Implementar subclasse de `EditLayer` (ou atributo `visible`) para controle de visibilidade de edições/crop e integração no `_flatten_edits` (Modelo GIMP).~~
 - [ ] 22. Implementar `ViewportLayoutStrategy` para gerenciar enquadramento, navegação e foco de câmera (`fit`, `align`, `fit_content`, `resize_bounds`).
 - [ ] 23. Padronizar herança de propriedades e comportamentos na rasterização plana de camadas (`flatten`, `Combine.flatten`, `Combine.bake`).
+- [ ] 24. Correção do Erro de Dimensão por Arredondamento Subpixel na Discretização de AABB (`warp_patch` vs `Image.__region_to_slice` / `hard_masking`).
 
 ---
+
+
 
 
 
@@ -390,6 +392,52 @@ Esta seção documenta a especificação para que a camada plana resultante (`fl
 - **`visible`:** A camada resultante `flat_layer.visible` deve herdar o estado de visibilidade da camada alvo ou do grupo (`sequence[-1].visible` ou `group.visible`).
 - **`opacity` em Grupos (`Combine.bake`):**
   - Se o `GroupLayer` possuir `opacity < 1.0`, essa opacidade global do grupo deve ser transferida para `flat_layer.opacity` (mantendo a rasterização interna dos filhos isolada), ou assada diretamente nos pixels caso especificado.
+
+---
+
+## 🐛 24. Correção do Erro de Dimensão por Arredondamento Subpixel na Discretização de AABB (`warp_patch` vs `Image.__region_to_slice` / `hard_masking`)
+
+Esta seção documenta o diagnóstico da causa raiz matemática e a diretriz de solução para o erro de divergência de 1 pixel em transformações afins contínuas.
+
+### 1. Diagnóstico e Causa Raiz Matemática
+
+Ao rasterizar camadas com transformações afins fracionárias (rotação contínua como $15.5^\circ$ ou escalas subpixel como $1.033$), a Bounding Box (`Region`) possui coordenadas `start` e `end` fracionárias em ponto flutuante.
+
+O erro de colisão de dimensões ocorre devido a uma inconsistência de cálculo entre o alocador de destino no warp (`warp_patch`) e o fatiamento de visualização do buffer (`Image.__region_to_slice`):
+
+1. **Alocação no `warp_patch` (`render.py`):**
+   ```python
+   dest_size = (int(round(dest_region.width)), int(round(dest_region.height)))
+   ```
+   Calcula a dimensão a partir do comprimento contínuo: `round(length) = round(end - start)`.
+
+2. **Fatiamento no `Image.__region_to_slice` (`image.py`):**
+   ```python
+   slice(int(round(region.x.start)), int(round(region.x.end)))
+   ```
+   Calcula a dimensão fatiada como: `round(end) - round(start)`.
+
+Matematicamente, `round(end - start)` **não é estritamente igual** a `round(end) - round(start)`.
+* **Exemplo real:**
+  - `start = 100.4`, `end = 5425.7`, `length = 5325.3`.
+  - `round(length) = 5325` $\rightarrow$ `warp_patch` cria imagem com largura **$5325$**.
+  - `round(end) - round(start) = 5426 - 100 = 5326` $\rightarrow$ `buffer.view(region)` fatia com largura **$5326$**.
+  - No `hard_masking` (ou qualquer rotina de blend estrita), `base.size (5326, 4773) != overlay.size (5325, 4773)` $\rightarrow$ **`ValueError: Size mismatch`**.
+
+### 2. Diretriz Arquitetural de Solução
+
+1. **Padronização da Discretização no `warp_patch`:**
+   O `warp_patch` deve calcular `dest_size` utilizando rigorosamente a mesma regra de discretização dos slices do NumPy:
+   ```python
+   w = int(round(dest_region.x.end)) - int(round(dest_region.x.start))
+   h = int(round(dest_region.y.end)) - int(round(dest_region.y.start))
+   dest_size = (max(1, w), max(1, h))
+   ```
+2. **Harmonização em `render_image` e `without_distortion`:**
+   Garantir que todas as rotinas de rasterização e projeção de patch utilizem a discretização baseada em `(round(end) - round(start))`.
+3. **Criação de Teste de Regressão TDD:**
+   Criar teste com rotação e escala fracionárias em `BlendMode.HARD_MASKING` e validar a ausência de exceções de mismatch de tamanho durante `CanvasRender.render_scene` e `flatten`.
+
 
 
 
