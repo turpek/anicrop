@@ -78,11 +78,12 @@ sync-main:
 	else \
 		git checkout main && \
 		git checkout dev -- src/ tests/ docs/ README.md assets/ pyproject.toml setup.py Makefile .gitignore .python-version uv.lock && \
-		MSG=$$'release: sincroniza código de produção da dev\n\n'"$$CHANGES"$'\n\nsync-point: '"$$CURRENT_DEV" && \
-		git commit -m "$$MSG" && \
+		git commit -m "release: sincroniza código de produção da dev" -m "$$CHANGES" -m "sync-point: $$CURRENT_DEV" && \
 		git checkout dev && \
 		echo "==> Sincronização concluída! Retornado para a branch dev."; \
 	fi
+
+
 
 
 # Envia a branch main limpa para o GitHub
