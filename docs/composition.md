@@ -64,12 +64,17 @@ group = merge([layer1, layer2, sub_group], name="ComposicaoPersonagem")
 
 ---
 
-### `flatten(layers: Sequence[BaseLayer] | Container, name: str = "Layer", format: ImageFormat = ImageFormat.RGBA, interp: InterpMode = InterpMode.LANCZOS, bg_color: tuple[int, ...] | None = None) -> Layer`
-- **Descrição**: Renderiza fielmente a composição das camadas fornecidas através de `CanvasRender.render_container` e retorna um único `Layer` plano com a imagem assada e sua região delimitadora calculada.
+#### `flatten(layers: Sequence[BaseLayer] | Container, name: str = "Layer", format: ImageFormat | None = None, interp: InterpMode = InterpMode.LANCZOS, bg_color: tuple[int, ...] | None = None) -> Layer`
+- **Descrição**: Rasteriza o conjunto ou contêiner de camadas calculando automaticamente a região global delimitadora (*ROI*) e gera um `Layer` plano.
+- **Herança de Propriedades**:
+  - `format`: Se `None` (padrão), infere automaticamente o formato da camada superior (`layers[-1].format`).
+  - `blend_mode`: Herda o modo de mesclagem da camada base inferior (`layers[0].blend_mode`) ou do grupo (`group.blend_mode`).
+  - `visible`: Herda o estado de visibilidade da camada de topo (`layers[-1].visible`) ou do grupo.
+  - `opacity`: Se o alvo for um `GroupLayer`, preserva a opacidade global do grupo.
 - **Parâmetros**:
   - `layers` (`Sequence[BaseLayer] | Container`): Lista ou contêiner de camadas a serem rasterizadas.
   - `name` (`str`, opcional): Nome da camada plana resultante (padrão: `"Layer"`).
-  - `format` (`ImageFormat`, opcional): Formato de cores de saída (padrão: `ImageFormat.RGBA`).
+  - `format` (`ImageFormat | None`, opcional): Formato de cores de saída (padrão: infere do topo).
   - `interp` (`InterpMode`, opcional): Modo de interpolação na renderização (padrão: `InterpMode.LANCZOS`).
   - `bg_color` (`tuple[int, ...] | None`, opcional): Cor de fundo opcional para preenchimento.
 - **Retorno**: `Layer` — Uma única camada folha contendo a imagem rasterizada.
@@ -126,7 +131,7 @@ grupo = doc.combine.merge("detalhe", name="GrupoDetalhe", count=1)
 ---
 
 ### `doc.combine.flatten(target: BaseLayer | str, name: str, count: int = 1, format: ImageFormat | None = None, interp: InterpMode = InterpMode.LANCZOS, bg_color: tuple[int, ...] | None = None, remove_source: bool = True) -> Layer`
-- **Descrição**: Rasteriza a camada `target` com até `count` camadas visíveis abaixo dela em uma única camada `Layer` plana. Por padrão, herda o `ImageFormat` da camada `target`.
+- **Descrição**: Rasteriza a camada `target` com até `count` camadas visíveis abaixo dela em uma única camada `Layer` plana. A camada resultante herda o `blend_mode` da camada base inferior (`sequence[0]`) e o `ImageFormat` e visibilidade da camada `target`.
 - **Parâmetros**:
   - `target` (`BaseLayer | str`): Camada de topo.
   - `name` (`str`): Nome obrigatório da camada plana resultante.

@@ -477,3 +477,51 @@ def test_doc_combine_bake_invalid_target_errors():
     unattached_group = GroupLayer(name="Unattached")
     with pytest.raises(ValueError):
         doc.combine.bake(unattached_group)
+
+
+def test_flatten_infers_format_from_top_layer_and_inherits_base_blend():
+    """Valida inferencia automatica de formato do topo e heranca de blend_mode da base no flatten."""
+    l0 = Layer(Image.new((100, 100), ImageFormat.RGBA), name="L0")
+    l0.blend_mode = BlendMode.MULTIPLY
+    l1 = Layer(Image.new((100, 100), ImageFormat.RGB), name="L1")
+    l1.visible = True
+
+    flat = flatten([l0, l1], name="Flat")
+
+    assert flat.format == ImageFormat.RGB
+    assert flat.blend_mode == BlendMode.MULTIPLY
+    assert flat.visible is True
+
+
+def test_doc_combine_flatten_inherits_base_blend_and_target_visibility():
+    """Valida que Combine.flatten herda blend_mode da camada base e visibilidade do target."""
+    doc = Document("TestDoc", 200, 200, history=False)
+    l0 = make_layer((255, 0, 0, 255), name="L0")
+    l0.blend_mode = BlendMode.SOLID_FILL
+    l1 = make_layer((0, 255, 0, 255), name="L1")
+    l1.visible = True
+    doc.add(l0)
+    doc.add(l1)
+
+    flat = doc.combine.flatten("L1", name="FlatResult", count=1)
+
+    assert flat.blend_mode == BlendMode.SOLID_FILL
+    assert flat.visible is True
+
+
+def test_doc_combine_bake_inherits_group_blend_opacity_and_visibility():
+    """Valida que Combine.bake herda blend_mode, opacity e visibility do GroupLayer original."""
+    doc = Document("TestDoc", 200, 200, history=False)
+    group = doc.add_group(name="EffectGroup")
+    group.blend_mode = BlendMode.MULTIPLY
+    group.opacity = 0.75
+    group.visible = True
+
+    sub1 = make_layer((0, 0, 255, 255), name="Sub1")
+    group.append(sub1)
+
+    baked = doc.combine.bake("EffectGroup")
+
+    assert baked.blend_mode == BlendMode.MULTIPLY
+    assert baked.opacity == 0.75
+    assert baked.visible is True
