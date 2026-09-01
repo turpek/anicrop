@@ -12,6 +12,7 @@ class BlendMode(Enum):
     NORMAL_LINEAR = "normal_linear"
     MULTIPLY = "multiply"
     HARD_MASKING = "hard_masking"
+    SOLID_FILL = "solid_fill"
     CLIP = "clip"
 
     @property
@@ -22,6 +23,7 @@ class BlendMode(Enum):
             BlendMode.NORMAL_LINEAR: "EditLayer",
             BlendMode.MULTIPLY: "EditLayer",
             BlendMode.HARD_MASKING: "EditLayer",
+            BlendMode.SOLID_FILL: "EditLayer",
             BlendMode.CLIP: "Crop",
         }[self]
 

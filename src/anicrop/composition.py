@@ -12,7 +12,7 @@ from anicrop.container import (
 )
 from anicrop.edit_layer import EDIT_LAYER_MAP, EditLayer
 from anicrop.effect import BoundEffect
-from anicrop.enums import ImageFormat, InterpMode
+from anicrop.enums import BlendMode, ImageFormat, InterpMode
 from anicrop.image import Image
 from anicrop.layer import Layer
 from anicrop.render import CanvasRender
@@ -163,7 +163,7 @@ def merge(
 def flatten(
     layers: Sequence[BaseLayer] | Container,
     name: str = "Layer",
-    format: ImageFormat = ImageFormat.RGBA,
+    format: ImageFormat | None = None,
     interp: InterpMode = InterpMode.LANCZOS,
     bg_color: tuple[int, ...] | None = None,
 ) -> Layer:
@@ -176,10 +176,11 @@ def flatten(
         raise ValueError("No renderable layers found for flatten.")
 
     roi = reduce(or_, (item.global_region for item in renderable_nodes))
+    resolved_format = format if format is not None else renderable_nodes[-1].format
 
     rendered_image = CanvasRender().render_container(
         layers,
-        format=format,
+        format=resolved_format,
         interp=interp,
         bg_color=bg_color,
     )
@@ -188,6 +189,15 @@ def flatten(
 
     flat_layer = Layer(rendered_image, name=name)
     flat_layer.region = roi
+
+    if isinstance(layers, GroupLayer):
+        flat_layer.blend_mode = layers.blend_mode
+        flat_layer.opacity = layers.opacity
+        flat_layer.visible = layers.visible
+    else:
+        flat_layer.blend_mode = renderable_nodes[0].blend_mode
+        flat_layer.visible = renderable_nodes[-1].visible
+
     return flat_layer
 
 
@@ -205,7 +215,7 @@ class LayerComposition:
     def flatten(
         layers: Sequence[BaseLayer] | Container,
         name: str = "Layer",
-        format: ImageFormat = ImageFormat.RGBA,
+        format: ImageFormat | None = None,
         interp: InterpMode = InterpMode.LANCZOS,
         bg_color: tuple[int, ...] | None = None,
     ) -> Layer:
@@ -324,6 +334,8 @@ class Combine:
             interp=interp,
             bg_color=bg_color,
         )
+        flat_layer.blend_mode = sequence[0].blend_mode
+        flat_layer.visible = sequence[-1].visible
 
         if remove_source:
             for layer in sequence:
@@ -363,6 +375,9 @@ class Combine:
             interp=interp,
             bg_color=bg_color,
         )
+        flat_layer.blend_mode = group.blend_mode
+        flat_layer.opacity = group.opacity
+        flat_layer.visible = group.visible
 
         idx = parent._children.index(group)
         parent.remove(group)
@@ -373,16 +388,33 @@ class Combine:
     def bake_stack(
         self,
         name: str = "Layer",
-        format: ImageFormat = ImageFormat.RGBA,
+        format: ImageFormat | None = None,
         interp: InterpMode = InterpMode.LANCZOS,
         bg_color: tuple[int, ...] | None = None,
     ) -> Layer:
         """Bakes the entire document's LayerStack into a single flat Layer."""
         self._validate_name(name, list(self._doc.stack))
 
-        flat_layer = flatten(
-            self._doc.stack, name=name, format=format, interp=interp, bg_color=bg_color
+        resolved_format = (
+            format
+            if format is not None
+            else (
+                self._doc.stack[-1].format
+                if len(self._doc.stack) > 0
+                else ImageFormat.RGBA
+            )
         )
+
+        flat_layer = flatten(
+            self._doc.stack,
+            name=name,
+            format=resolved_format,
+            interp=interp,
+            bg_color=bg_color,
+        )
+        flat_layer.blend_mode = BlendMode.NORMAL
+        flat_layer.opacity = 1.0
+        flat_layer.visible = True
 
         self._doc.stack.clear()
         self._doc.stack.append(flat_layer)

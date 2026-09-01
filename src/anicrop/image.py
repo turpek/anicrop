@@ -68,9 +68,11 @@ class Image:
 
     def __region_to_slice(self, region: Region) -> tuple[slice, slice]:
         """Converts a Region object to a tuple of slices for NumPy indexing."""
+        x, y = region.top_left.to_int()
+        w, h = region.size.to_int()
         return (
-            slice(int(round(region.y.start)), int(round(region.y.end))),
-            slice(int(round(region.x.start)), int(round(region.x.end))),
+            slice(y, y + max(1, h)),
+            slice(x, x + max(1, w)),
         )
 
     def __to_indexer(self, key: Any) -> Any:

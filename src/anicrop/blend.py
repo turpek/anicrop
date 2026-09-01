@@ -39,6 +39,9 @@ try:
     from anicrop.native.blend import (
         hard_masking as _cy_hard_masking,
     )
+    from anicrop.native.blend import (
+        solid_fill as _cy_solid_fill,
+    )
 
     _HAS_CY_BLEND = True
 except ImportError:
@@ -47,6 +50,7 @@ except ImportError:
     _cy_blend_normal_prgba = None
     _cy_blend_prgba_over_opaque = None
     _cy_hard_masking = None
+    _cy_solid_fill = None
     _HAS_CY_BLEND = False
 
 
@@ -404,6 +408,65 @@ def hard_masking(base: Image, overlay: Image, opacity: float = 1.0) -> Image:
     return _hard_masking_numpy(base, overlay, opacity)
 
 
+def _solid_fill_numpy(base: Image, overlay: Image, opacity: float = 1.0) -> Image:
+    """Preenche áreas transparentes/vazias da base utilizando pixels sólidos do overlay.
+
+    1. Preserva 100% dos pixels sólidos já consolidados na base (base.alpha >= 250).
+    2. Apenas aceita pixels substancialmente sólidos do overlay (overlay.alpha >= 200).
+    3. Binariza o canal alpha resultante em 255 puro, eliminando franjas de antialiasing.
+    """
+    if opacity <= 0.0:
+        return base
+
+    b_arr = base[...]
+    o_arr = overlay[...]
+    color_channels = (
+        1 if overlay.format in (ImageFormat.GRAY, ImageFormat.GRAY_ALPHA) else 3
+    )
+
+    if overlay.has_alpha:
+        solid_overlay = o_arr[..., -1] >= 200
+    else:
+        solid_overlay = np.ones(o_arr.shape[:2], dtype=bool)
+
+    if base.has_alpha:
+        need_fill = b_arr[..., -1] < 250
+        mask = need_fill & solid_overlay
+        if np.any(mask):
+            np.copyto(
+                b_arr[..., :color_channels],
+                o_arr[..., :color_channels],
+                where=mask[..., np.newaxis],
+            )
+            b_arr[mask, -1] = 255
+    else:
+        if np.any(solid_overlay):
+            np.copyto(
+                b_arr[..., :color_channels],
+                o_arr[..., :color_channels],
+                where=solid_overlay[..., np.newaxis],
+            )
+
+    return base
+
+
+def solid_fill(base: Image, overlay: Image, opacity: float = 1.0) -> Image:
+    """Aplica o modo de mesclagem solid_fill com delegação em Cython ou NumPy."""
+    if base.size != overlay.size:
+        raise ValueError(f"Size mismatch: base {base.size} != overlay {overlay.size}.")
+
+    elif not overlay.format.same_spaces(base.format):
+        raise NotImplementedError(
+            f"Format mismatch: cannot blend '{overlay.format}' into '{base.format}'."
+        )
+
+    if _HAS_CY_BLEND and _cy_solid_fill is not None:
+        _cy_solid_fill(base[...], overlay[...], opacity)
+        return base
+
+    return _solid_fill_numpy(base, overlay, opacity)
+
+
 def _blend_clip_numpy(base: Image, overlay: Image, opacity: float = 1.0) -> Image:
     """
     Aplica o recorte de pixels (clip): modula o canal alpha da base onde houver transparência
@@ -451,5 +514,6 @@ BLEND_MODE = {
     BlendMode.NORMAL: blend_normal,
     BlendMode.NORMAL_LINEAR: blend_normal_linear,
     BlendMode.HARD_MASKING: hard_masking,
+    BlendMode.SOLID_FILL: solid_fill,
     BlendMode.CLIP: blend_clip,
 }

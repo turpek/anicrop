@@ -62,16 +62,33 @@ pull-dev:
 	@echo "==> Atualizando branch dev a partir do GitHub..."
 	git pull origin dev
 
-# Sincroniza apenas o código de produção da branch 'dev' para a 'main' (mantendo a main limpa)
+# Sincroniza apenas o código de produção da branch 'dev' para a 'main' (mantendo a main limpa e descritiva)
 sync-main:
 	@echo "==> Sincronizando código de produção com a branch main..."
-	@git checkout main
-	@git checkout dev -- src/ tests/ README.md assets/ pyproject.toml setup.py Makefile
-	@git commit -m "release: sincroniza codigo de producao da dev" || echo "Nenhuma nova alteracao para commitar na main"
-	@git checkout dev
-	@echo "==> Sincronização concluída! Retornado para a branch dev."
+	@LAST_POINT=$$(git log -1 --format="%b" main 2>/dev/null | grep -oE 'sync-point: [a-f0-9]+' | cut -d' ' -f2); \
+	CURRENT_DEV=$$(git rev-parse --short dev); \
+	if [ -n "$$LAST_POINT" ]; then \
+		RANGE="$$LAST_POINT..dev"; \
+	else \
+		RANGE="main..dev"; \
+	fi; \
+	CHANGES=$$(git log $$RANGE --oneline --no-merges --invert-grep --grep="bench" --grep="docs(plano)" src/ tests/ README.md pyproject.toml setup.py | sed 's/^[a-f0-9]* /- /'); \
+	if [ -z "$$CHANGES" ]; then \
+		echo "Nenhuma alteração de produção para sincronizar."; \
+	else \
+		git checkout main && \
+		git checkout dev -- src/ tests/ README.md assets/ pyproject.toml setup.py Makefile .gitignore .python-version uv.lock && \
+		git commit -m "release: sincroniza código de produção da dev" -m "$$CHANGES" -m "sync-point: $$CURRENT_DEV" && \
+		git checkout dev && \
+		echo "==> Sincronização concluída! Retornado para a branch dev."; \
+	fi
+
+
+
+
 
 # Envia a branch main limpa para o GitHub
 push-main:
 	@echo "==> Enviando branch main para o GitHub..."
 	git push origin main
+

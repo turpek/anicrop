@@ -880,6 +880,102 @@ def hard_masking(
 
 
 # =========================================================================
+# 3.1 SOLID FILL (Preenchimento de Costuras / Stitching Sem Franjas)
+# =========================================================================
+
+def solid_fill(
+    uint8_t[:, :, :] base,
+    uint8_t[:, :, :] overlay,
+    float opacity = 1.0,
+):
+    """Implementação em Cython de solid_fill com OpenMP para fusão de costuras sem franjas."""
+    if opacity <= 0.0:
+        return
+
+    cdef int h = min(base.shape[0], overlay.shape[0])
+    cdef int w = min(base.shape[1], overlay.shape[1])
+    cdef int b_ch = base.shape[2]
+    cdef int o_ch = overlay.shape[2]
+
+    cdef bint b_has_alpha = (b_ch == 2 or b_ch == 4)
+    cdef bint o_has_alpha = (o_ch == 2 or o_ch == 4)
+    cdef int color_channels = 1 if (o_ch == 1 or o_ch == 2) else 3
+
+    cdef int y, x, c, b_idx, o_idx
+    cdef uint8_t* b_row
+    cdef const uint8_t* o_row
+    cdef uint8_t o_alpha, b_alpha
+    cdef uint32_t o_pix, b_pix
+
+    with nogil:
+        # Fast-Path 1: RGBA -> RGBA (Otimizado com Carga/Descarga de Palavra de 32-bit e OpenMP)
+        if b_ch == 4 and o_ch == 4:
+            for y in prange(h, schedule='static'):
+                b_row = &base[y, 0, 0]
+                o_row = &overlay[y, 0, 0]
+                for x in range(w):
+                    b_idx = x << 2
+                    o_idx = x << 2
+                    b_pix = (<const uint32_t*>&b_row[b_idx])[0]
+                    o_pix = (<const uint32_t*>&o_row[o_idx])[0]
+                    if (b_pix >> 24) < 250 and (o_pix >> 24) >= 200:
+                        (<uint32_t*>&b_row[b_idx])[0] = (o_pix & <uint32_t>0x00FFFFFF) | <uint32_t>0xFF000000
+
+
+        # Fast-Path 2: RGB -> RGBA (Overlay RGB opaco sobre Base RGBA)
+        elif b_ch == 4 and o_ch == 3:
+            for y in prange(h, schedule='static'):
+                b_row = &base[y, 0, 0]
+                o_row = &overlay[y, 0, 0]
+                for x in range(w):
+                    b_idx = x << 2
+                    o_idx = x * 3
+                    b_pix = (<const uint32_t*>&b_row[b_idx])[0]
+                    if (b_pix >> 24) < 250:
+                        b_row[b_idx + 0] = o_row[o_idx + 0]
+                        b_row[b_idx + 1] = o_row[o_idx + 1]
+                        b_row[b_idx + 2] = o_row[o_idx + 2]
+                        b_row[b_idx + 3] = 255
+
+
+        # Fast-Path 3: RGBA -> RGB (Base RGB opaca, apenas copia onde overlay for sólido)
+        elif b_ch == 3 and o_ch == 4:
+            for y in prange(h, schedule='static'):
+                b_row = &base[y, 0, 0]
+                o_row = &overlay[y, 0, 0]
+                for x in range(w):
+                    b_idx = x * 3
+                    o_idx = x << 2
+                    o_alpha = o_row[o_idx + 3]
+                    if o_alpha >= 200:
+                        b_row[b_idx + 0] = o_row[o_idx + 0]
+                        b_row[b_idx + 1] = o_row[o_idx + 1]
+                        b_row[b_idx + 2] = o_row[o_idx + 2]
+
+        # Fast-Path 4: RGB -> RGB
+        elif b_ch == 3 and o_ch == 3:
+            for y in prange(h, schedule='static'):
+                memcpy(&base[y, 0, 0], &overlay[y, 0, 0], w * 3)
+
+        else:
+            # Caminho geral cobrindo Grayscale e Gray-Alpha
+            for y in prange(h, schedule='static'):
+                b_row = &base[y, 0, 0]
+                o_row = &overlay[y, 0, 0]
+                for x in range(w):
+                    b_idx = x * b_ch
+                    o_idx = x * o_ch
+                    b_alpha = b_row[b_idx + b_ch - 1] if b_has_alpha else 255
+                    o_alpha = o_row[o_idx + o_ch - 1] if o_has_alpha else 255
+
+                    if (not b_has_alpha or b_alpha < 250) and (not o_has_alpha or o_alpha >= 200):
+                        for c in range(color_channels):
+                            b_row[b_idx + c] = o_row[o_idx + c]
+                        if b_has_alpha:
+                            b_row[b_idx + b_ch - 1] = 255
+
+
+# =========================================================================
 # 4. MIN-POOLING CONSERVADOR (Máscara de Oclusão / Early-Exit)
 # =========================================================================
 

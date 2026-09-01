@@ -846,3 +846,33 @@ def test_warp_patch_recorte_parcial_posiciona_pixels_corretamente_no_scratch():
     assert result is not None
     assert result.shape == (20, 20, 4)
     np.testing.assert_array_equal(result[10, 10], [0, 255, 0, 255])
+
+
+def test_render_scene_rotacao_fracionaria_hard_masking_sem_size_mismatch():
+    """Valida se transformações fracionárias contínuas não causam divergência de 1px em hard_masking."""
+    l1 = make_layer(w=200, h=200, color=(255, 0, 0, 255))
+    l2 = make_layer(w=200, h=200, color=(0, 255, 0, 255))
+    l2.blend_mode = BlendMode.HARD_MASKING
+    l2.transform.rotate(15.5).scale(1.033, 1.033).translate(50.3, 20.7)
+
+    renderer = CanvasRender()
+    rendered = renderer.render_container([l1, l2])
+
+    assert rendered is not None
+    assert rendered.width > 200
+    assert rendered.height > 200
+
+
+def test_render_scene_rotacao_fracionaria_solid_fill_sem_size_mismatch():
+    """Valida se transformações fracionárias contínuas funcionam perfeitamente com BlendMode.SOLID_FILL."""
+    l1 = make_layer(w=200, h=200, color=(255, 0, 0, 255))
+    l2 = make_layer(w=200, h=200, color=(0, 255, 0, 255))
+    l2.blend_mode = BlendMode.SOLID_FILL
+    l2.transform.rotate(15.5).scale(1.033, 1.033).translate(50.3, 20.7)
+
+    renderer = CanvasRender()
+    rendered = renderer.render_container([l1, l2])
+
+    assert rendered is not None
+    assert rendered.width > 200
+    assert rendered.height > 200
