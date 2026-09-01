@@ -39,6 +39,11 @@ Ao rotacionar frames com algoritmos de interpolação contínua (`LANCZOS`, `CUB
 * No `HARD_MASKING`: esses pixels fracos sobrescreviam o canvas sólido anterior, degradando a opacidade acumulada em dezenas de frames.
 * No `SOLID_FILL`: o canvas opaco consolidado é bloqueado contra alterações, a penumbra fraca ($\alpha < 200$) é descartada e os novos pixels válidos recebem $\alpha = 255$ puro, gerando costuras perfeitamente contínuas e sólidas.
 
+### Tolerância Subpixel e Alinhamento Automático de Bordas
+Em transformações contínuas e translações subpixel (ex: $x=10.4, y=20.6$), a projeção de regiões pode gerar variações dimensionais mínimas de $\pm 1\text{px}$ entre o fatiamento fonte e o destino no canvas (ex: $1921 \times 1082$ vs $1921 \times 1083$).
+Tanto o kernel Cython nativo quanto as rotinas NumPy do `anicrop.blend` implementam alinhamento pela área de interseção comum (`min(w), min(h)`) com tolerância de até $2\text{px}$, garantindo que loops de renderização em lote rodem com estabilidade contínua sem abortar.
+
+
 ---
 
 ## 3. Arquitetura e Aceleração de Performance

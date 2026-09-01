@@ -32,14 +32,37 @@ A classe `Image` garante a integridade dos dados de imagem (validação de forma
   - `backend` (`AbstractImageIO | str | None`): Backend específico para a gravação (`"vips"`, `"opencv"` ou instância).
 - **Retorno**: `None`.
 
-#### `new(size: tuple[int, int], fmt: ImageFormat, color: int | tuple[int, ...] = 0, threshold_pixels: int = 4096 * 4096) -> Image` *(Class Method)*
-- **Descrição**: Cria uma nova imagem em memória preenchida com uma cor constante. Se o total de pixels (`width * height`) ultrapassar `threshold_pixels`, aloca automaticamente um array empacotado em disco via **Zarr**; caso contrário, aloca um `numpy.ndarray`.
+#### `new(size: tuple[int, int], fmt: ImageFormat, color: int | tuple[int, ...] = 0, threshold_pixels: int | None = ...) -> Image` *(Class Method)*
+- **Descrição**: Cria uma nova imagem em memória preenchida com uma cor constante. Se o total de pixels (`width * height`) ultrapassar o limite configurado (padrão de **64 Megapixels** / $8192 \times 8192\text{px}$), aloca automaticamente um array empacotado em disco via **Zarr**; caso contrário, aloca um `numpy.ndarray` em memória RAM de alta velocidade. Passe `threshold_pixels=None` para forçar 100% de alocação em RAM.
 - **Parâmetros**:
-{{ ... }}
+  - `size` (`tuple[int, int]`): Dimensões `(width, height)` da imagem.
+  - `fmt` (`ImageFormat`): Formato de cor da imagem (`RGBA`, `RGB`, `GRAY`, etc.).
+  - `color` (`int | tuple[int, ...]`): Valor ou tupla de cor para preenchimento inicial (padrão `0` transparente/preto).
+  - `threshold_pixels` (`int | None`): Limite de pixels antes de paginar em disco. Se omitido, herda o valor global de `get_memory_threshold()`.
+- **Retorno**: `Image` — Nova instância alocada.
+
+#### `set_memory_threshold(threshold_pixels: int | None) -> None` / `get_memory_threshold() -> int | None`
+- **Descrição**: Configura ou consulta globalmente o limite de pixels para alocação de buffers em RAM antes de usar paginação em disco.
+- **Exemplo de Uso**:
+  ```python
+  from anicrop import get_memory_threshold, set_memory_threshold
+
+  # Desativa a paginação em disco (tudo alocado 100% em RAM pura):
+  set_memory_threshold(None)
+
+  # Define um limite customizado (ex: 100 Megapixels):
+  set_memory_threshold(100_000_000)
+
+  # Consulta o limite ativo em pixels (padrão inicial: 67.108.864 pixels = 8K x 8K):
+  threshold = get_memory_threshold()
+  ```
+
+#### `bgr(region: Ellipsis | Region = ...) -> np.ndarray`
 - **Descrição**: Extrai a matriz NumPy da sub-região especificada convertendo automaticamente os canais de cor para a ordem **BGR / BGRA** esperada pelas funções do OpenCV (`cv2.imshow`, `cv2.imwrite`, processamento de visão).
 - **Parâmetros**:
   - `region` (`Ellipsis | Region`): A sub-região espacial a ser extraída (padrão `...` para a imagem inteira).
 - **Retorno**: `np.ndarray` — Matriz NumPy pronta para o OpenCV.
+
 
 #### `to_format(target_format: ImageFormat) -> Image`
 - **Descrição**: Converte a imagem para o formato de canais e espaço de cores especificado (`RGBA`, `PRGBA`, `RGBX`, `RGB`, `GRAY`, `GRAY_ALPHA`) utilizando a tabela de despacho de estratégias de conversão do módulo `anicrop.color`.
