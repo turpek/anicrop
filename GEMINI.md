@@ -63,7 +63,9 @@ Para detalhes de métodos, tipos de retorno e exemplos de uso de cada classe, co
 - **[docs/anicrop_guide.md](file:///home/gui/python/anicrop/docs/anicrop_guide.md)** — Guia de `Document` e `Viewer`.
 - **[docs/layout.md](file:///home/gui/python/anicrop/docs/layout.md)** — Operações espaciais do motor de `Layout` (`fit`, `align`, `resize_bounds`, `fit_content`).
 - [docs/content.md](file:///home/gui/python/anicrop/docs/content.md) — Operações de manipulação e transformação de pixels/conteúdo (`crop`, `resize`, `fit`, `flip_x`, `flip_y`, `FitContext`).
+- [docs/blend.md](file:///home/gui/python/anicrop/docs/blend.md) — Modos de mesclagem (`BlendMode`), `SOLID_FILL` vs `HARD_MASKING` e aceleração Cython/OpenMP.
 - [docs/composition.md](file:///home/gui/python/anicrop/docs/composition.md) — Composição de camadas, agrupamento (`merge`), rasterização (`flatten`) e clonagem profunda (`clone_node`, `LayerComposition`).
+
 - [docs/layer.md](file:///home/gui/python/anicrop/docs/layer.md) — Detalhes de `BaseLayer`, `Layer` e `EditLayer`.
 - **[docs/spatial.md](file:///home/gui/python/anicrop/docs/spatial.md)** — Operações de geometria 2D e uso da classe `Region`.
 - **[docs/container.md](file:///home/gui/python/anicrop/docs/container.md)** — Estrutura de `LayerStack`, `GroupLayer` e `NodeContainerProtocol`.
