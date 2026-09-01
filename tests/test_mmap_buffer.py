@@ -46,7 +46,6 @@ def test_mmap_buffer_numpy_array_protocol(tmp_path: Path):
     assert np.all(buf == arr)
 
 
-
 def test_mmap_buffer_image_integration(tmp_path: Path):
     """Valida o encapsulamento de MMapBuffer dentro de Image e renderizacao."""
     arr = np.full((100, 100, 4), 255, dtype=np.uint8)

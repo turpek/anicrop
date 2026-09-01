@@ -43,7 +43,6 @@ def plot_results(all_results: list[BenchmarkResult]) -> None:
         "Pyvips": "#7209b7",
     }
 
-
     for i, scen in enumerate(scenarios):
         scen_res = [r for r in all_results if r.scenario == scen]
         libs = [r.library for r in scen_res]
@@ -148,7 +147,6 @@ def main() -> None:
             "[bold cyan]Avaliação de Desempenho do anicrop em Pipelines de Renderização 2D[/bold cyan]"
         )
     )
-
 
     # 1. Garante que os assets de teste existem
     generate_assets_main()

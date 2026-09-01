@@ -1,7 +1,7 @@
 import numpy as np
 import pytest
 
-from anicrop.blend import blend_clip, blend_normal, hard_masking
+from anicrop.blend import blend_clip, blend_normal, hard_masking, solid_fill
 from anicrop.image import Image, ImageFormat
 
 
@@ -386,3 +386,37 @@ def test_blend_clip_gray_sets_solid_white_outside_crop():
     assert base[5, 2, 0] == 0
     # Metade direita cortada (branco 255)
     assert base[5, 8, 0] == 255
+
+
+def test_solid_fill_preserves_solid_base_and_fills_transparent():
+    """Valida se solid_fill preserva a base solida intacta e preenche apenas as areas vazias."""
+    base_data = np.zeros((10, 10, 4), dtype=np.uint8)
+    base_data[:, :5] = [0, 0, 255, 255]  # Esquerda: Azul sólido
+    base = Image(base_data, ImageFormat.RGBA)
+
+    over_data = np.full(
+        (10, 10, 4), [255, 0, 0, 255], dtype=np.uint8
+    )  # Overlay: Vermelho sólido
+    overlay = Image(over_data, ImageFormat.RGBA)
+
+    solid_fill(base, overlay)
+
+    # Esquerda: Permanece Azul sólido da base (intocado)
+    np.testing.assert_array_equal(base[5, 2], [0, 0, 255, 255])
+    # Direita: Preenchido com Vermelho sólido do overlay
+    np.testing.assert_array_equal(base[5, 8], [255, 0, 0, 255])
+
+
+def test_solid_fill_rejects_antialiasing_fringe():
+    """Valida se solid_fill rejeita pixels de penumbra (alpha < 200) do overlay para evitar franjas."""
+    base_data = np.zeros((10, 10, 4), dtype=np.uint8)
+    base = Image(base_data, ImageFormat.RGBA)
+
+    # Overlay com pixel de antialiasing semitransparente (alpha = 100)
+    over_data = np.full((10, 10, 4), [255, 0, 0, 100], dtype=np.uint8)
+    overlay = Image(over_data, ImageFormat.RGBA)
+
+    solid_fill(base, overlay)
+
+    # Não deve ter sido copiado (permanece transparente 0)
+    np.testing.assert_array_equal(base[5, 5], [0, 0, 0, 0])
