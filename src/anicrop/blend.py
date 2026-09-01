@@ -349,19 +349,25 @@ def hard_masking_overlay_with_alpha(
     color_channels: int,
     opacity: float,
 ) -> None:
-
     if opacity == 0:
         return
 
-    mask = overlay[..., -1:] > 0
-    np.copyto(base[..., :color_channels], overlay[..., :color_channels], where=mask)
+    b_arr = base[...]
+    o_arr = overlay[...]
+    h = min(b_arr.shape[0], o_arr.shape[0])
+    w = min(b_arr.shape[1], o_arr.shape[1])
+    b_view = b_arr[:h, :w]
+    o_view = o_arr[:h, :w]
+
+    mask = o_view[..., -1:] > 0
+    np.copyto(b_view[..., :color_channels], o_view[..., :color_channels], where=mask)
 
     if base.has_alpha:
         if opacity < 1.0:
-            alpha_modificado = (overlay[..., -1:] * opacity).astype(np.uint8)
-            np.copyto(base[..., -1:], alpha_modificado, where=mask)
+            alpha_modificado = (o_view[..., -1:] * opacity).astype(np.uint8)
+            np.copyto(b_view[..., -1:], alpha_modificado, where=mask)
         else:
-            np.copyto(base[..., -1:], overlay[..., -1:], where=mask)
+            np.copyto(b_view[..., -1:], o_view[..., -1:], where=mask)
 
 
 def hard_masking_overlay_without_alpha(
@@ -370,14 +376,20 @@ def hard_masking_overlay_without_alpha(
     color_channels: int,
     opacity: float,
 ) -> None:
-
     if opacity == 0:
         return
 
-    base[..., :color_channels] = overlay[..., :color_channels]
+    b_arr = base[...]
+    o_arr = overlay[...]
+    h = min(b_arr.shape[0], o_arr.shape[0])
+    w = min(b_arr.shape[1], o_arr.shape[1])
+    b_view = b_arr[:h, :w]
+    o_view = o_arr[:h, :w]
+
+    b_view[..., :color_channels] = o_view[..., :color_channels]
     if base.has_alpha:
         alpha_value = int(255 * opacity) if opacity < 1 else 255
-        base[..., -1] = alpha_value
+        b_view[..., -1] = alpha_value
 
 
 def _hard_masking_numpy(base: Image, overlay: Image, opacity: float = 1.0) -> Image:
@@ -392,8 +404,7 @@ def _hard_masking_numpy(base: Image, overlay: Image, opacity: float = 1.0) -> Im
 
 
 def hard_masking(base: Image, overlay: Image, opacity: float = 1.0) -> Image:
-
-    if base.size != overlay.size:
+    if abs(base.width - overlay.width) > 2 or abs(base.height - overlay.height) > 2:
         raise ValueError(f"Size mismatch: base {base.size} != overlay {overlay.size}.")
 
     elif not overlay.format.same_spaces(base.format):
@@ -420,30 +431,35 @@ def _solid_fill_numpy(base: Image, overlay: Image, opacity: float = 1.0) -> Imag
 
     b_arr = base[...]
     o_arr = overlay[...]
+    h = min(b_arr.shape[0], o_arr.shape[0])
+    w = min(b_arr.shape[1], o_arr.shape[1])
+    b_view = b_arr[:h, :w]
+    o_view = o_arr[:h, :w]
+
     color_channels = (
         1 if overlay.format in (ImageFormat.GRAY, ImageFormat.GRAY_ALPHA) else 3
     )
 
     if overlay.has_alpha:
-        solid_overlay = o_arr[..., -1] >= 200
+        solid_overlay = o_view[..., -1] >= 200
     else:
-        solid_overlay = np.ones(o_arr.shape[:2], dtype=bool)
+        solid_overlay = np.ones((h, w), dtype=bool)
 
     if base.has_alpha:
-        need_fill = b_arr[..., -1] < 250
+        need_fill = b_view[..., -1] < 250
         mask = need_fill & solid_overlay
         if np.any(mask):
             np.copyto(
-                b_arr[..., :color_channels],
-                o_arr[..., :color_channels],
+                b_view[..., :color_channels],
+                o_view[..., :color_channels],
                 where=mask[..., np.newaxis],
             )
-            b_arr[mask, -1] = 255
+            b_view[mask, -1] = 255
     else:
         if np.any(solid_overlay):
             np.copyto(
-                b_arr[..., :color_channels],
-                o_arr[..., :color_channels],
+                b_view[..., :color_channels],
+                o_view[..., :color_channels],
                 where=solid_overlay[..., np.newaxis],
             )
 
@@ -452,7 +468,7 @@ def _solid_fill_numpy(base: Image, overlay: Image, opacity: float = 1.0) -> Imag
 
 def solid_fill(base: Image, overlay: Image, opacity: float = 1.0) -> Image:
     """Aplica o modo de mesclagem solid_fill com delegação em Cython ou NumPy."""
-    if base.size != overlay.size:
+    if abs(base.width - overlay.width) > 2 or abs(base.height - overlay.height) > 2:
         raise ValueError(f"Size mismatch: base {base.size} != overlay {overlay.size}.")
 
     elif not overlay.format.same_spaces(base.format):

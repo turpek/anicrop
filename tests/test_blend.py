@@ -420,3 +420,26 @@ def test_solid_fill_rejects_antialiasing_fringe():
 
     # Não deve ter sido copiado (permanece transparente 0)
     np.testing.assert_array_equal(base[5, 5], [0, 0, 0, 0])
+
+
+def test_hard_masking_subpixel_tolerance():
+    """Valida se hard_masking absorve variacao subpixel de ate 2px na intersecao."""
+    base = Image(np.zeros((10, 10, 3), dtype=np.uint8), ImageFormat.RGB)
+    overlay = Image(np.ones((10, 11, 3), dtype=np.uint8) * 255, ImageFormat.RGB)
+
+    # Nao deve levantar ValueError por diferenca de 1px
+    hard_masking(base, overlay)
+    assert np.all(base[...] == 255)
+
+
+def test_solid_fill_subpixel_tolerance():
+    """Valida se solid_fill absorve variacao subpixel de ate 2px na costura de panoramas."""
+    base = Image(np.zeros((1083, 1921, 4), dtype=np.uint8), ImageFormat.RGBA)
+    overlay = Image(
+        np.full((1082, 1921, 4), [200, 100, 50, 255], dtype=np.uint8),
+        ImageFormat.RGBA,
+    )
+
+    # Nao deve levantar ValueError por diferenca de 1px
+    solid_fill(base, overlay)
+    assert np.all(base[:1082, :1921] == [200, 100, 50, 255])

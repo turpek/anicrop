@@ -23,6 +23,24 @@ from anicrop.io.registry import get_backend
 from anicrop.persistence.manager import manager_global
 from anicrop.spatial import Region, Span
 
+DEFAULT_IMAGE_THRESHOLD_PIXELS: int | None = (
+    8192 * 8192
+)  # 64 MP (8K x 8K) (~256 MB em RGBA)
+
+
+def set_memory_threshold(threshold_pixels: int | None) -> None:
+    """Define o threshold global de pixels para alocação em RAM antes de usar paginação em disco.
+
+    Passe None para desativar a paginação em disco e forçar 100% de alocação em memória RAM.
+    """
+    global DEFAULT_IMAGE_THRESHOLD_PIXELS
+    DEFAULT_IMAGE_THRESHOLD_PIXELS = threshold_pixels
+
+
+def get_memory_threshold() -> int | None:
+    """Retorna o threshold global de pixels configurado atualmente."""
+    return DEFAULT_IMAGE_THRESHOLD_PIXELS
+
 
 class Image:
     """A wrapper around an AbstractImageBuffer to provide an image-centric API.
@@ -216,18 +234,24 @@ class Image:
         size: tuple[int | float, int | float] | Sequence[int | float],
         fmt: ImageFormat,
         color: int | tuple[int, ...] = 0,
-        threshold_pixels: int = 4096 * 4096,
+        threshold_pixels: int | None | EllipsisType = ...,
     ) -> Image:
         """Creates a new Image with the specified dimensions and format.
 
-        Uses Zarr if width * height > threshold_pixels, or NumPy ndarray otherwise.
+        Uses Zarr if threshold is configured and width * height > threshold,
+        or NumPy ndarray (RAM) otherwise.
         """
+        threshold = (
+            DEFAULT_IMAGE_THRESHOLD_PIXELS
+            if threshold_pixels is ...
+            else threshold_pixels
+        )
         width = int(round(size[0]))
         height = int(round(size[1]))
         channels = fmt.channels
         shape = (height, width, channels)
 
-        if width * height > threshold_pixels:
+        if threshold is not None and width * height > threshold:
             zarr_dir = manager_global.workspace_path / f"{uuid.uuid4().hex}.zarr"
 
             zarr_chunks = (min(512, height), min(512, width), channels)
