@@ -1,0 +1,227 @@
+\documentclass[12pt,a4paper]{article}
+\usepackage[utf8]{inputenc}
+\usepackage[portuguese]{babel}
+\usepackage{amsmath,amssymb,amsfonts}
+\usepackage{geometry}
+\usepackage{xcolor}
+\usepackage{tcolorbox}
+\usepackage{tikz}
+\usepackage{booktabs}
+\usepackage{hyperref}
+
+\geometry{
+  top=2.5cm,
+  bottom=2.5cm,
+  left=2.5cm,
+  right=2.5cm
+}
+
+\definecolor{primaryblue}{RGB}{24, 76, 120}
+\definecolor{accentorange}{RGB}{204, 85, 0}
+\definecolor{bgcode}{RGB}{245, 247, 250}
+
+\tcbset{
+  colback=bgcode,
+  colframe=primaryblue,
+  fonttitle=\bfseries,
+  arc=3mm
+}
+
+\title{\textbf{\huge Compreendendo o \textit{Drift} em Transformações Afins 2D}\\[0.5em]
+\large A Origem Geométrica, o Sanduíche de Pivô e a Invariância Espacial em Motores Gráficos}
+\author{\textbf{anicrop Engine} — Documentação Teórica}
+\date{\today}
+
+\begin{document}
+
+\maketitle
+\tableofcontents
+\newpage
+
+\section{Introdução: O que é o \textit{Drift}?}
+
+No contexto de motores de composição gráfica 2D (como o \texttt{anicrop}, Photoshop, Figma ou After Effects), o termo \textbf{\textit{Drift}} refere-se a:
+
+\begin{tcolorbox}[title=Definição Formal de \textit{Drift}]
+O deslocamento angular e translacional espúrio que surge na caixa delimitadora (\textit{Bounding Box}) de uma camada quando uma transformação afim (rotação, escala ou cisalhamento) é aplicada em torno de um ponto de pivô, fazendo com que os cantos transformados não comecem na origem $(0, 0)$ do espaço local.
+\end{tcolorbox}
+
+O \textit{drift} \textbf{não é um erro de arredondamento de ponto flutuante} nem um bug de código. Ele é uma consequência geométrica e trigonométrica fundamental da projeção de retângulos rotacionados em coordenadas cartesianas discretas.
+
+---
+
+\section{A Álgebra das Matrizes Afins e o Sanduíche de Pivô}
+
+\subsection{Representação por Coordenadas Homogêneas $3 \times 3$}
+
+Em computação gráfica 2D, qualquer transformação afim sobre um ponto $\mathbf{p} = \begin{bmatrix} x \\ y \end{bmatrix}$ é expressa na forma homogênea:
+\begin{equation}
+\begin{bmatrix} x' \\ y' \\ 1 \end{bmatrix} = \mathbf{M} \begin{bmatrix} x \\ y \\ 1 \end{bmatrix} = \begin{bmatrix} m_{00} & m_{01} & t_x \\ m_{10} & m_{11} & t_y \\ 0 & 0 & 1 \end{bmatrix} \begin{bmatrix} x \\ y \\ 1 \end{bmatrix}
+\end{equation}
+
+Onde a submatriz $2 \times 2$ superior esquerda controla rotação, escala e cisalhamento (\textit{distorção}), e o vetor $\begin{bmatrix} t_x \\ t_y \end{bmatrix}$ controla a translação.
+
+\subsection{O Sanduíche de Pivô (\textit{Pivot Sandwich})}
+
+A rotação pura padrão $\mathbf{R}(\theta)$ gira em torno da origem $(0, 0)$:
+\begin{equation}
+\mathbf{R}(\theta) = \begin{bmatrix} \cos\theta & -\sin\theta & 0 \\ \sin\theta & \cos\theta & 0 \\ 0 & 0 & 1 \end{bmatrix}
+\end{equation}
+
+Para girar uma imagem de tamanho $W \times H$ em torno de um pivô arbitrário $\mathbf{P} = (p_x, p_y)$ (por exemplo, seu centro $(\frac{W}{2}, \frac{H}{2})$), o motor gráfico deve:
+\begin{enumerate}
+    \item Transladar o pivô $\mathbf{P}$ para a origem: $\mathbf{T}(-\mathbf{P}) = \begin{bmatrix} 1 & 0 & -p_x \\ 0 & 1 & -p_y \\ 0 & 0 & 1 \end{bmatrix}$
+    \item Aplicar a rotação pura: $\mathbf{R}(\theta)$
+    \item Transladar a origem de volta para o pivô: $\mathbf{T}(\mathbf{P}) = \begin{bmatrix} 1 & 0 & p_x \\ 0 & 1 & p_y \\ 0 & 0 & 1 \end{bmatrix}$
+\end{enumerate}
+
+A matriz resultante da rotação com pivô é o produto:
+\begin{equation}
+\mathbf{M}_{\text{pivô}} = \mathbf{T}(\mathbf{P}) \cdot \mathbf{R}(\theta) \cdot \mathbf{T}(-\mathbf{P})
+\end{equation}
+
+Expandindo algebricamente:
+\begin{equation}
+\mathbf{M}_{\text{pivô}} = \begin{bmatrix} 
+\cos\theta & -\sin\theta & p_x(1 - \cos\theta) + p_y\sin\theta \\
+\sin\theta & \cos\theta & p_y(1 - \cos\theta) - p_x\sin\theta \\
+0 & 0 & 1
+\end{bmatrix}
+\end{equation}
+
+\begin{tcolorbox}[title=A Origem Algébrica do Drift]
+Observe o vetor de translação introduzido automaticamente pelo sanduíche de pivô:
+\begin{align*}
+t_x(\mathbf{P}, \theta) &= p_x(1 - \cos\theta) + p_y\sin\theta \\
+t_y(\mathbf{P}, \theta) &= p_y(1 - \cos\theta) - p_x\sin\theta
+\end{align*}
+Esse vetor \textbf{muda drasticamente} conforme o tamanho da imagem ou a posição do pivô varia!
+\end{tcolorbox}
+
+---
+
+\section{A Geometria dos 4 Cantos e a Bounding Box (AABB)}
+
+Considere um retângulo alinhado aos eixos com vértices:
+\begin{equation}
+C_0 = (0, 0), \quad C_1 = (W, 0), \quad C_2 = (W, H), \quad C_3 = (0, H)
+\end{equation}
+
+Quando multiplicamos esses 4 vértices pela matriz $\mathbf{M}_{\text{pivô}}$, obtemos 4 novos pontos no espaço 2D: $C'_0, C'_1, C'_2, C'_3$.
+
+A \textit{Axis-Aligned Bounding Box} (AABB) resultante no Canvas é definida pelos extremos:
+\begin{align}
+X_{\min} &= \min(C'_{0x}, C'_{1x}, C'_{2x}, C'_{3x}) \\
+Y_{\min} &= \min(C'_{0y}, C'_{1y}, C'_{2y}, C'_{3y}) \\
+X_{\max} &= \max(C'_{0x}, C'_{1x}, C'_{2x}, C'_{3x}) \\
+Y_{\max} &= \max(C'_{0y}, C'_{1y}, C'_{2y}, C'_{3y})
+\end{align}
+
+\subsection{O Vetor de Drift Intrínseco: $(\Delta X_{\text{drift}}, \Delta Y_{\text{drift}})$}
+
+O vetor de \textit{drift} é exatamente a coordenada do canto superior esquerdo da Bounding Box no espaço transformado local:
+\begin{equation}
+\mathbf{Drift}(\mathbf{M}, W, H) = (X_{\min}, Y_{\min})
+\end{equation}
+
+\textbf{Exemplo Numérico Prático ($W=400, H=400, \theta=45^\circ$):}
+\begin{itemize}
+    \item Pivô central: $\mathbf{P} = (200, 200)$
+    \item $\cos(45^\circ) = \sin(45^\circ) = \frac{\sqrt{2}}{2} \approx 0.7071$
+    \item Os cantos transformados são:
+    \begin{align*}
+    C'_0 &= (200 - 200\sqrt{2}, 200) \approx (-82.84, 200) \\
+    C'_1 &= (200, 200 - 200\sqrt{2}) \approx (200, -82.84) \\
+    C'_2 &= (200 + 200\sqrt{2}, 200) \approx (482.84, 200) \\
+    C'_3 &= (200, 200 + 200\sqrt{2}) \approx (200, 482.84)
+    \end{align*}
+    \item $X_{\min} = -82.84 \approx -83\text{px}$
+    \item $Y_{\min} = -82.84 \approx -83\text{px}$
+    \item Largura da Bounding Box: $482.84 - (-82.84) = 400\sqrt{2} \approx 565.68 \approx 566\text{px}$.
+\end{itemize}
+
+O \textit{drift} dessa rotação é $\mathbf{Drift} = (-83, -83)$. Se você posicionar a moldura em $(X, Y)$, a Bounding Box no Canvas começará em $(X - 83, Y - 83)$!
+
+---
+
+\section{O Caso Crítico: Crop, Rotação e Desdobramento (\textit{Uncrop / Fit Content})}
+
+Aqui está a anatomia exata do problema que investigamos no cenário Mariachi.
+
+\subsection{Cenário 1: Camada Cropada e Rotacionada}
+\begin{enumerate}
+    \item Imagem base: $736 \times 1104$.
+    \item Recorte (ROI): $(100, 50, 400, 400)$.
+    \item Rotação: $\theta = 45^\circ$. O pivô é o centro do recorte: $\mathbf{P}_{\text{crop}} = (200, 200)$.
+    \item Alinhamento ao Canvas: A moldura vai para $(168, 352)$.
+    \item O \textit{offset} da base em relação ao recorte é:
+    $$\mathbf{Offset} = \mathbf{Base}_{\text{pos}} - \mathbf{Layout}_{\text{pos}} = (68, 302) - (168, 352) = (-100, -50)$$
+    \item A matriz física que renderiza os pixels da imagem no Canvas é:
+    \begin{equation}
+    \mathbf{M}_{\text{content}} = \mathbf{T}(168, 352) \cdot \mathbf{M}_{\text{pivô}}(400, 400, 45^\circ) \cdot \mathbf{T}(-100, -50)
+    \end{equation}
+    Calculando numericamente a translação dos pixels no Canvas:
+    $$\mathbf{M}_{\text{content}}[0, 2] = 332.64\text{px}, \quad \mathbf{M}_{\text{content}}[1, 2] = 163.09\text{px}$$
+\end{enumerate}
+
+\subsection{Cenário 2: O Que Acontecia no \textit{Fit Content} Sem Compensação}
+
+Ao chamar \texttt{fit\_content}, o recorte é desfeito. O tamanho de referência passa de $400 \times 400$ para $736 \times 1104$.
+
+\begin{enumerate}
+    \item O novo pivô na imagem base passa a ser: $\mathbf{P}_{\text{base}} = (368, 552)$.
+    \item O sanduíche de pivô para a base calcula um novo vetor de translação intrínseca:
+    $$t_x(\mathbf{P}_{\text{base}}, 45^\circ) \approx 498.14, \quad t_y(\mathbf{P}_{\text{base}}, 45^\circ) \approx -139.19$$
+    \item Se a moldura for colocada em $(132, 246)$, mas a base continuar com $\mathbf{Offset} = (-64, +56)$, a matriz de renderização dos pixels é corrompida:
+    $$\mathbf{M}_{\text{novo}}[0, 2] = 247.15\text{px} \quad (\Delta X = 332.64 - 247.15 = \mathbf{85.5\text{px}})$$
+    $$\mathbf{M}_{\text{novo}}[1, 2] = 157.50\text{px} \quad (\Delta Y = 163.09 - 157.50 = \mathbf{5.6\text{px}})$$
+\end{enumerate}
+
+\textbf{Resultado Visual:} A imagem no GIMP salta $85.5\text{px}$ para o lado, quebrando o alinhamento visual!
+
+---
+
+\section{A Solução Algébrica Definitiva: Invariância via Matriz Inversa}
+
+Para que nenhum pixel se mova no Canvas durante uma mudança de enquadramento, impomos a \textbf{Condição de Invariância Global}:
+\begin{equation}
+\mathbf{M}_{\text{content\_depois}} \equiv \mathbf{M}_{\text{content\_antes}}
+\end{equation}
+
+Como a nova camada deve operar sob a matriz de distorção da nova referência $\mathbf{M}_{\text{transform}}$:
+\begin{equation}
+\mathbf{T}(x, y) \cdot \mathbf{M}_{\text{transform}} = \mathbf{M}_{\text{content\_alvo}}
+\end{equation}
+
+Multiplicando à direita pela matriz inversa $\mathbf{M}_{\text{transform}}^{-1}$:
+\begin{equation}
+\mathbf{T}(x, y) = \mathbf{M}_{\text{content\_alvo}} \cdot \mathbf{M}_{\text{transform}}^{-1}
+\end{equation}
+
+\begin{tcolorbox}[title=Propriedade Fundamental da Inversão Afim]
+Como ambas as matrizes compartilham o mesmo bloco de rotação $\mathbf{R}(45^\circ)$, o produto $\mathbf{R}(45^\circ) \cdot \mathbf{R}(-45^\circ) = \mathbf{I}$ anula a rotação completamente!
+O produto resultante é uma \textbf{Matriz de Translação Pura}:
+\begin{equation}
+\begin{bmatrix} 1 & 0 & x \\ 0 & 1 & y \\ 0 & 0 & 1 \end{bmatrix}
+\end{equation}
+Onde $x$ e $y$ são exatamente as coordenadas onde a nova moldura deve ser ancorada para zerar o \textit{drift} e o \textit{offset} residual.
+\end{tcolorbox}
+
+---
+
+\section{Resumo dos Princípios Arquiteturais Consolidados}
+
+\begin{table}[h!]
+\centering
+\begin{tabular}{@{}lll@{}}
+\toprule
+\textbf{Conceito} & \textbf{Responsabilidade} & \textbf{Regra de Ouro} \\ \midrule
+\texttt{Transform} & Distorção Afim Intrínseca & Sanduíche de pivô local imutável \\
+\texttt{Layout} & Enquadramento e Posição & Compensa o drift angular via $\mathbf{T} = \mathbf{M} \cdot \mathbf{M}_{\text{trans}}^{-1}$ \\
+\texttt{BaseLayer.\_region} & Geometria Canônica da Imagem & Sincronizada ao zerar o crop (\textit{offset} $= 0$) \\
+\texttt{Content Matrix} & Projeção dos Pixels no Canvas & Imutável durante operações puras de layout \\ \bottomrule
+\end{tabular}
+\caption{Separação de responsabilidades no motor geométrico do \texttt{anicrop}.}
+\end{table}
+
+\end{document}
