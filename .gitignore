@@ -29,4 +29,6 @@ benchmarks/data/test_*.png
 .venv_bench/
 benchmarks/output/
 benchmarks/data/*.zarr/
+benchmarks/data/*.raw
+*.raw
 
