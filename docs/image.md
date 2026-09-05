@@ -108,19 +108,29 @@ options = SaveOptions(
 img.save("export.jpg", options=options)
 ```
 
-### 2.3. Gerenciamento Global de Backends
+### 2.3. Gerenciamento Global de Configurações (`anicrop.config`)
+
+O `anicrop.config` é o objeto centralizado para gerenciar opções globais do motor (backend de decodificação/gravação e limites de alocação de memória RAM):
+
 ```python
-from anicrop.io import set_default_backend, get_default_backend
+import anicrop
 
-# Define o OpenCV como backend padrão
-set_default_backend("opencv")
+# Consulta as configurações atuais:
+print(anicrop.config.backend)  # Padrão: "opencv" (ou "vips")
+print(anicrop.config.memory_threshold)  # Padrão: 67108864 pixels (64 MP)
 
-# Define o Pyvips como backend padrão
-set_default_backend("vips")
+# 1. Configuração permanente no script:
+anicrop.config.backend = "vips"  # Chaveia para o Pyvips
+anicrop.config.memory_threshold = None  # Desativa paginação em disco (100% RAM pura)
 
-# Consulta o backend ativo
-backend_atual = get_default_backend()
+# 2. Configuração temporária e segura via Context Manager (com restauração automática ao sair):
+with anicrop.config(backend="vips", memory_threshold=None):
+    img = anicrop.Image.open("foto_pesada.png")
+    # ... processamento de alta performance ...
+
+# Fora do bloco, o backend e threshold voltam automaticamente aos valores anteriores!
 ```
+
 
 ---
 

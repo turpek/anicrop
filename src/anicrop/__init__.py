@@ -1,3 +1,4 @@
+from .config import config
 from .container import GroupLayer
 from .document import Document
 from .enums import BlendMode, ImageFormat
@@ -9,6 +10,7 @@ from .viewer import Viewer
 from .viewport import Viewport
 
 __all__ = [
+    "config",
     "Document",
     "Viewport",
     "BlendMode",

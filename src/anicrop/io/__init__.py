@@ -8,13 +8,12 @@ from anicrop.io.registry import (
 )
 from anicrop.io.vips import PyvipsBackend, is_vips_available
 
-# Registra os backends disponíveis
 register_backend("opencv", OpenCVBackend())
 
 if is_vips_available():
     vips_backend = PyvipsBackend()
     register_backend("vips", vips_backend)
-    set_default_backend("vips")
+
 
 __all__ = [
     "AbstractImageIO",

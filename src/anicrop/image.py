@@ -17,15 +17,12 @@ from PIL import Image as PILImage
 from anicrop.buffer import ArrayBuffer, ZarrBuffer
 from anicrop.color import convert_image_format
 from anicrop.enums import ImageFormat
+from anicrop.config import config
 from anicrop.interfaces.buffer import AbstractImageBuffer
 from anicrop.interfaces.io import AbstractImageIO, SaveOptions
 from anicrop.io.registry import get_backend
 from anicrop.persistence.manager import manager_global
 from anicrop.spatial import Region, Span
-
-DEFAULT_IMAGE_THRESHOLD_PIXELS: int | None = (
-    8192 * 8192
-)  # 64 MP (8K x 8K) (~256 MB em RGBA)
 
 
 def set_memory_threshold(threshold_pixels: int | None) -> None:
@@ -33,13 +30,12 @@ def set_memory_threshold(threshold_pixels: int | None) -> None:
 
     Passe None para desativar a paginação em disco e forçar 100% de alocação em memória RAM.
     """
-    global DEFAULT_IMAGE_THRESHOLD_PIXELS
-    DEFAULT_IMAGE_THRESHOLD_PIXELS = threshold_pixels
+    config.memory_threshold = threshold_pixels
 
 
 def get_memory_threshold() -> int | None:
     """Retorna o threshold global de pixels configurado atualmente."""
-    return DEFAULT_IMAGE_THRESHOLD_PIXELS
+    return config.memory_threshold
 
 
 class Image:
@@ -237,10 +233,9 @@ class Image:
         or NumPy ndarray (RAM) otherwise.
         """
         threshold = (
-            DEFAULT_IMAGE_THRESHOLD_PIXELS
-            if threshold_pixels is ...
-            else threshold_pixels
+            config.memory_threshold if threshold_pixels is ... else threshold_pixels
         )
+
         width = int(round(size[0]))
         height = int(round(size[1]))
         channels = fmt.channels

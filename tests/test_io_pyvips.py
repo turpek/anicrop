@@ -18,11 +18,10 @@ def temp_dir(tmp_path: Path) -> Path:
     return tmp_path
 
 
-def test_vips_default_backend_when_available():
-    """Valida se PyvipsBackend e definido como backend padrao quando pyvips esta disponivel."""
-    backend = get_default_backend()
-    assert isinstance(backend, PyvipsBackend)
-    assert get_backend("vips") is backend
+def test_vips_backend_registration():
+    """Valida se PyvipsBackend está registrado no sistema quando pyvips está disponível."""
+    vips_backend = get_backend("vips")
+    assert isinstance(vips_backend, PyvipsBackend)
 
 
 def test_vips_get_size(temp_dir: Path):
