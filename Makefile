@@ -72,7 +72,7 @@ sync-main:
 	else \
 		RANGE="main..dev"; \
 	fi; \
-	CHANGES=$$(git log $$RANGE --oneline --no-merges --invert-grep --grep="bench" --grep="docs(plano)" src/ tests/ README.md pyproject.toml setup.py | sed 's/^[a-f0-9]* /- /'); \
+	CHANGES=$$(git log $$RANGE --oneline --no-merges --invert-grep --grep="bench" --grep="docs(plano)" src/ tests/ README.md pyproject.toml setup.py Makefile uv.lock | sed 's/^[a-f0-9]* /- /'); \
 	if [ -z "$$CHANGES" ]; then \
 		echo "Nenhuma alteração de produção para sincronizar."; \
 	else \
