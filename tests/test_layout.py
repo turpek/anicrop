@@ -697,12 +697,12 @@ def test_fit_group_geometry_rotacionado_mantem_global_region_solicitada():
     assert group.global_region == ref_frame
 
 
-def test_viewport_layout_fit_default_canvas():
-    """Valida que fit sem argumentos na Viewport enquadra seu próprio Canvas perfeitamente."""
+def test_viewport_layout_fit_canvas():
+    """Valida que fit na Viewport enquadra uma referência de Canvas perfeitamente."""
     canvas = Canvas.from_size(1600, 1200)
     viewport = Viewport(size=(800, 600), canvas=canvas)
 
-    result = viewport.layout.fit()
+    result = viewport.layout.fit(canvas)
 
     assert result is True
     assert viewport.scale == Scale(0.5, 0.5)

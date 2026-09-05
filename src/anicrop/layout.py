@@ -329,10 +329,8 @@ class ViewportLayoutStrategy(LayoutStrategy):
 
     def fit(
         self,
-        ref: LayoutRef | None = None,
+        ref: LayoutRef,
     ) -> bool:
-        if ref is None:
-            ref = self.target._canvas
         ref_region = resolve_region(ref)
         w_ref, h_ref = ref_region.size
         if w_ref <= 0 or h_ref <= 0:
