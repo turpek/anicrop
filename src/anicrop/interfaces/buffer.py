@@ -72,6 +72,10 @@ class AbstractImageBuffer(ABC):
         """Fatia e retorna um recorte como array NumPy."""
         pass
 
+    def __setitem__(self, key: Any, value: Any) -> None:
+        """Modifica uma fatia do buffer. Backends somente-leitura devem lançar TypeError."""
+        raise TypeError(f"{type(self).__name__} does not support item assignment")
+
     @abstractmethod
     def get_lod(self, level: int) -> AbstractImageBuffer:
         """Gera ou extrai o nível de resolução (LOD = 1/2^level)."""

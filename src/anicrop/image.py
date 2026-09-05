@@ -37,6 +37,9 @@ def get_memory_threshold() -> int | None:
     return config.memory_threshold
 
 
+type ImageIndexer = Region | slice | tuple[Any, ...] | EllipsisType | int
+
+
 class Image:
     """A wrapper around an AbstractImageBuffer to provide an image-centric API.
 
@@ -79,25 +82,23 @@ class Image:
         self._format = image_format
         self._validate_format()
 
-    def __region_to_slice(self, region: Region) -> tuple[slice, slice]:
-        """Converts a Region object to a tuple of slices for NumPy indexing."""
-        return region.to_slice()
-
-    def __to_indexer(self, key: Any) -> Any:
-        """Translates a key, potentially a Region, into a valid NumPy indexer."""
+    @staticmethod
+    def _normalize_key(
+        key: ImageIndexer,
+    ) -> tuple[slice | int | EllipsisType, ...] | slice | int | EllipsisType:
+        """Normaliza chaves de fatiamento convertendo instâncias de Region em tuplas de slice."""
         if isinstance(key, Region):
             return key.to_slice()
 
-        elif isinstance(key, tuple):
+        if isinstance(key, tuple):
             if any(isinstance(arg, Region) for arg in key[1:]):
                 raise TypeError("Region argument is only valid at the first position")
-
-            elif isinstance(key[0], Region):
+            if isinstance(key[0], Region):
                 return key[0].to_slice() + key[1:]
 
         return key
 
-    def __getitem__(self, key: Region | Any) -> ndarray:
+    def __getitem__(self, key: ImageIndexer) -> ndarray:
         """Retrieves a part of the image using indexing.
 
         Supports standard NumPy indexing and spatial indexing with a Region object.
@@ -111,9 +112,9 @@ class Image:
         Returns:
             The selected ndarray slice of the image data.
         """
-        return cast(ndarray, self._data[self.__to_indexer(key)])
+        return cast(ndarray, self._data[self._normalize_key(key)])
 
-    def __setitem__(self, key: Region | Any, value: Any) -> None:
+    def __setitem__(self, key: ImageIndexer, value: Any) -> None:
         """Sets a part of the image using indexing.
 
         Supports standard NumPy indexing and spatial indexing with a Region object.
@@ -125,7 +126,7 @@ class Image:
                  starting with a Region.
             value: The value or ndarray to assign to the specified slice.
         """
-        self._data[self.__to_indexer(key)] = value
+        self._data[self._normalize_key(key)] = value
 
     def clear_rect(
         self,
@@ -156,10 +157,10 @@ class Image:
             x1, y1 = clipped.top_left.to_int()
             x2, y2 = clipped.bottom_right.to_int()
 
-            self._data[:y1, :] = fill_value
-            self._data[y2:, :] = fill_value
-            self._data[y1:y2, :x1] = fill_value
-            self._data[y1:y2, x2:] = fill_value
+            self[:y1, :] = fill_value
+            self[y2:, :] = fill_value
+            self[y1:y2, :x1] = fill_value
+            self[y1:y2, x2:] = fill_value
 
         return True
 

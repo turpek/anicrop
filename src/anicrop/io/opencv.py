@@ -1,19 +1,21 @@
 from __future__ import annotations
 
+import uuid
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 import cv2
+import imagesize  # type: ignore[import-untyped]
 import numpy as np
-from PIL import Image as PILImage
+import zarr
 
 from anicrop.color import convert_image_format
 from anicrop.enums import ImageFormat
 from anicrop.interfaces.io import AbstractImageIO, SaveOptions
+from anicrop.persistence.manager import manager_global
 
 if TYPE_CHECKING:
-    import zarr
-
+    from anicrop.interfaces.buffer import AbstractImageBuffer
     from anicrop.spatial import Region
 
 
@@ -205,8 +207,13 @@ class OpenCVBackend(AbstractImageIO):
 
     def get_size(self, file_path: str | Path) -> tuple[int, int]:
         """Extrai as dimensões lendo apenas o cabeçalho do arquivo."""
-        with PILImage.open(str(file_path)) as pil_img:
-            return pil_img.size
+        width, height = imagesize.get(str(file_path))
+        if width > 0 and height > 0:
+            return (width, height)
+
+        # Fallback: decodifica via OpenCV caso seja formato não suportado pelo imagesize
+        raw_data, _ = _decode_raw(file_path)
+        return (raw_data.shape[1], raw_data.shape[0])
 
     def read(
         self,
@@ -231,7 +238,7 @@ class OpenCVBackend(AbstractImageIO):
     def write(
         self,
         file_path: str | Path,
-        data: np.ndarray | zarr.Array,
+        data: AbstractImageBuffer | np.ndarray | zarr.Array,
         format: ImageFormat,
         options: SaveOptions | None = None,
     ) -> None:
@@ -254,47 +261,28 @@ class OpenCVBackend(AbstractImageIO):
         format: ImageFormat | None = None,
     ) -> tuple[Any, ImageFormat]:
         """Abre imagens de altíssima resolução (>=8192px) convertendo para Zarr em disco."""
-        import uuid
-
-        import zarr
-
-        from anicrop.persistence.manager import manager_global
-
         image_format = format or ImageFormat.RGBA
-        mode_map = {
-            ImageFormat.GRAY: "L",
-            ImageFormat.GRAY_ALPHA: "LA",
-            ImageFormat.RGB: "RGB",
-            ImageFormat.RGBA: "RGBA",
-            ImageFormat.CMYK: "CMYK",
-        }
-        mode = mode_map.get(image_format)
-
         zarr_dir = manager_global.workspace_path / f"{uuid.uuid4().hex}.zarr"
 
-        with PILImage.open(str(file_path)) as opened_img:
-            pil_img = opened_img.convert(mode) if mode else opened_img
-            width, height = pil_img.size
-            channels = image_format.channels
+        raw_data, native_channels = _decode_raw(file_path)
+        data = _convert_to_requested_format(raw_data, native_channels, image_format)
+        height, width = data.shape[:2]
+        channels = image_format.channels
 
-            zarr_shape = (height, width, channels)
-            zarr_chunks = (1024, 1024, channels)
+        zarr_shape = (height, width, channels)
+        zarr_chunks = (1024, 1024, channels)
 
-            z_arr = zarr.open_array(
-                str(zarr_dir),
-                mode="w",
-                shape=zarr_shape,
-                chunks=zarr_chunks,
-                dtype=np.uint8,
-            )
+        z_arr = zarr.open_array(
+            str(zarr_dir),
+            mode="w",
+            shape=zarr_shape,
+            chunks=zarr_chunks,
+            dtype=np.uint8,
+        )
 
-            strip_h = 1024
-            for y in range(0, height, strip_h):
-                y_end = min(y + strip_h, height)
-                strip = pil_img.crop((0, y, width, y_end))
-                strip_arr = np.asarray(strip)
-                if strip_arr.ndim == 2:
-                    strip_arr = strip_arr[..., np.newaxis]
-                z_arr[y:y_end, :] = strip_arr
+        strip_h = 1024
+        for y in range(0, height, strip_h):
+            y_end = min(y + strip_h, height)
+            z_arr[y:y_end, :] = data[y:y_end, :]
 
         return zarr.open_array(str(zarr_dir), mode="r"), image_format

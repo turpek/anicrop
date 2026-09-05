@@ -2,8 +2,8 @@ from __future__ import annotations
 
 import numpy as np
 
-from anicrop.buffer import ScratchBuffer
 from anicrop.enums import ImageFormat
+from anicrop.scratch import ScratchBuffer
 from anicrop.spatial import Region
 
 

@@ -38,7 +38,6 @@ class Config:
             name = value.__class__.__name__.lower().replace("backend", "")
             self._backend = "vips" if name == "pyvips" else name
 
-
     @property
     def memory_threshold(self) -> int | None:
         """Threshold global de pixels para alocação em RAM antes de usar paginação em disco.

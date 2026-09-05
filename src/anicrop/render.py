@@ -9,7 +9,6 @@ import cv2
 import numpy as np
 
 from anicrop.blend import blend_rendered_images
-from anicrop.buffer import ScratchBuffer
 from anicrop.canvas import Canvas
 from anicrop.container import BaseLayer, Container, GroupLayer, freeze_geometry
 from anicrop.enums import BlendMode, InterpMode, WarpMode
@@ -22,6 +21,7 @@ from anicrop.frame import (
 from anicrop.image import Image, ImageFormat
 from anicrop.interfaces.buffer import AbstractScratchBuffer
 from anicrop.layer import EditLayer, Layer
+from anicrop.scratch import ScratchBuffer
 from anicrop.spatial import Region, rect_to_region
 from anicrop.transform import (
     calculate_new_rect,

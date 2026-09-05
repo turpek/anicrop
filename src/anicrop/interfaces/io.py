@@ -11,6 +11,7 @@ if TYPE_CHECKING:
     import zarr
 
     from anicrop.enums import ImageFormat
+    from anicrop.interfaces.buffer import AbstractImageBuffer
     from anicrop.spatial import Region
 
 
@@ -54,7 +55,7 @@ class AbstractImageIO(ABC):
     def write(
         self,
         file_path: str | Path,
-        data: np.ndarray | zarr.Array,
+        data: AbstractImageBuffer | np.ndarray | zarr.Array,
         format: ImageFormat,
         options: SaveOptions | None = None,
     ) -> None:

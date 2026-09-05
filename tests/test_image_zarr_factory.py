@@ -2,7 +2,12 @@ import numpy as np
 import pytest
 
 from anicrop.buffer import ArrayBuffer, ZarrBuffer
-from anicrop.image import Image, ImageFormat
+from anicrop.image import (
+    Image,
+    ImageFormat,
+    get_memory_threshold,
+    set_memory_threshold,
+)
 from anicrop.layer import EditLayer
 from anicrop.spatial import Region, Span
 
@@ -62,8 +67,6 @@ def test_edit_layer_lazy_lod_cache_for_large_images():
 
 def test_set_memory_threshold_disables_zarr():
     """Valida que set_memory_threshold(None) desativa a criação de Zarr em disco."""
-    from anicrop.image import get_memory_threshold, set_memory_threshold
-
     original = get_memory_threshold()
     try:
         set_memory_threshold(None)
@@ -75,8 +78,6 @@ def test_set_memory_threshold_disables_zarr():
 
 def test_set_memory_threshold_custom_value():
     """Valida a definição de um threshold customizado via set_memory_threshold."""
-    from anicrop.image import get_memory_threshold, set_memory_threshold
-
     original = get_memory_threshold()
     try:
         set_memory_threshold(500 * 500)
