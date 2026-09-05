@@ -1,10 +1,14 @@
-from dataclasses import dataclass
 import gc
-from pathlib import Path
+import os
+import threading
 import time
-import tracemalloc
-from typing import Callable, Any
+from dataclasses import dataclass
+from pathlib import Path
+from typing import Any, Callable
+
+import cv2
 import numpy as np
+import psutil
 
 DATA_DIR = Path(__file__).parent / "data"
 OUTPUT_DIR = Path(__file__).parent / "output"
@@ -22,8 +26,6 @@ def save_result_image(scenario_dir_name: str, library_name: str, result: Any) ->
         result.save(out_path)
     elif isinstance(result, np.ndarray):
         # OpenCV numpy array
-        import cv2
-
         cv2.imwrite(str(out_path), result)
     elif hasattr(result, "write_to_file"):
         # pyvips.Image
@@ -47,10 +49,6 @@ class BenchmarkResult:
 
 def measure_peak_rss(func: Callable[[], Any], samples_interval: float = 0.001) -> float:
     """Executa func() monitorando em background o pico real de RSS do processo no SO."""
-    import os
-    import psutil
-    import threading
-
     gc.collect()
     proc = psutil.Process(os.getpid())
     base_rss = proc.memory_info().rss

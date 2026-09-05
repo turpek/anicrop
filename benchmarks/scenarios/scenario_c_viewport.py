@@ -1,10 +1,10 @@
-from pathlib import Path
 from typing import Any
+
 import cv2
 import numpy as np
 from PIL import Image as PILImage
 
-from anicrop import Document, Viewport
+from anicrop import Document, Viewport, config
 from anicrop.enums import InterpMode
 from anicrop.spatial import Region
 from anicrop.type import Scale
@@ -41,10 +41,10 @@ ZOOM = 3.0
 # ------------------------------------------------------------------------------
 # 1. anicrop Implementation (Culling + Sub-pixel Patch Rendering)
 # ------------------------------------------------------------------------------
-def run_anicrop(backend: str = "vips") -> Any:
-    doc = Document.open(DATA_DIR / "background_8k.png", name="Fundo", backend=backend)
+def run_anicrop() -> Any:
+    doc = Document.open(DATA_DIR / "background_8k.png", name="Fundo")
     for i, cfg in enumerate(SCENE_LAYERS):
-        l = doc.load_layer(DATA_DIR / cfg["asset"], name=f"L_{i}", backend=backend)
+        l = doc.load_layer(DATA_DIR / cfg["asset"], name=f"L_{i}")
         l.transform.rotate(cfg["rot"]).scale(cfg["scale"], cfg["scale"]).translate(
             cfg["x"], cfg["y"]
         )
@@ -139,28 +139,30 @@ def run_benchmark(iterations: int = 3) -> list[BenchmarkResult]:
     print(f"\n--- Executando: {scenario_name} ---")
 
     print("  [1/4] anicrop (Pyvips Backend)...")
-    res_ac_vips = run_anicrop(backend="vips")
-    save_result_image(dir_name, "anicrop_vips", res_ac_vips)
-    results.append(
-        measure_execution(
-            "anicrop (Pyvips)",
-            scenario_name,
-            lambda: run_anicrop(backend="vips"),
-            iterations=iterations,
+    with config(backend="vips"):
+        res_ac_vips = run_anicrop()
+        save_result_image(dir_name, "anicrop_vips", res_ac_vips)
+        results.append(
+            measure_execution(
+                "anicrop (Pyvips)",
+                scenario_name,
+                run_anicrop,
+                iterations=iterations,
+            )
         )
-    )
 
     print("  [2/4] anicrop (OpenCV Backend)...")
-    res_ac_cv = run_anicrop(backend="opencv")
-    save_result_image(dir_name, "anicrop_opencv", res_ac_cv)
-    results.append(
-        measure_execution(
-            "anicrop (OpenCV)",
-            scenario_name,
-            lambda: run_anicrop(backend="opencv"),
-            iterations=iterations,
+    with config(backend="opencv"):
+        res_ac_cv = run_anicrop()
+        save_result_image(dir_name, "anicrop_opencv", res_ac_cv)
+        results.append(
+            measure_execution(
+                "anicrop (OpenCV)",
+                scenario_name,
+                run_anicrop,
+                iterations=iterations,
+            )
         )
-    )
 
     print("  [3/4] OpenCV (Full Warp + Crop)...")
     res_opencv = run_opencv()

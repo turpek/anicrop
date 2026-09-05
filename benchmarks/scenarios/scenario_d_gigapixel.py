@@ -1,5 +1,6 @@
-from pathlib import Path
 from typing import Any
+
+import cv2
 import numpy as np
 import pyvips
 import zarr
@@ -17,8 +18,6 @@ from benchmarks.common import (
     measure_execution,
     save_result_image,
 )
-
-import cv2
 
 GIGA_ZARR_PATH = DATA_DIR / "gigapixel_100mp.zarr"
 GIGA_TILE_PATH = DATA_DIR / "gigapixel_tile.png"

@@ -85,6 +85,9 @@ Para detalhes de métodos, tipos de retorno e exemplos de uso de cada classe, co
   ```
 
 - **Arquivos Temporários e Scratch:** Scripts de teste temporários ou de debug DEVEM ser gerados em `scratch/` ou `scripts/`, nunca na raiz do projeto.
+- **Imports Estritamente no Top-Level:** Todo e qualquer `import` ou `from ... import ...` DEVE residir obrigatoriamente no topo do arquivo (`top-level`).
+  - É **estritamente proibido** colocar declarações de `import` dentro de funções, métodos ou blocos de controle de fluxo (prevenindo violações da regra `PLC0415` do Ruff).
+  - Para anotações de tipo que poderiam introduzir dependências circulares em tempo de execução, utilize obrigatoriamente o bloco `if TYPE_CHECKING:` no topo do arquivo acompanhado de `from __future__ import annotations`.
 
 ### 6.1. Diretrizes Estritas para Criação de Testes (Pytest):
 1. **Docstring Concisa:** Exatamente 1 linha limpa na primeira linha de cada função de teste.

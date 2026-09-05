@@ -1,9 +1,10 @@
-from pathlib import Path
 from typing import Any
+
 import cv2
 import numpy as np
 from PIL import Image as PILImage
 
+from anicrop import config
 from anicrop.canvas import Canvas
 from anicrop.image import Image as ACImage
 from anicrop.layer import Layer
@@ -23,11 +24,11 @@ PATCH_COORDS = [(100 + (i % 5) * 750, 100 + (i // 5) * 400) for i in range(25)]
 # ------------------------------------------------------------------------------
 # 1. anicrop Implementation (abre com ACImage.open)
 # ------------------------------------------------------------------------------
-def run_anicrop(backend: str = "vips") -> Any:
-    base_img = ACImage.open(DATA_DIR / "background_4k.png", backend=backend)
+def run_anicrop() -> Any:
+    base_img = ACImage.open(DATA_DIR / "background_4k.png")
     base_layer = Layer(base_img)
 
-    patch_img = ACImage.open(DATA_DIR / "small_patch.png", backend=backend)
+    patch_img = ACImage.open(DATA_DIR / "small_patch.png")
 
     for x, y in PATCH_COORDS:
         base_layer.add_edit(patch_img, Region.from_rect(x, y, 200, 200))
@@ -77,28 +78,30 @@ def run_benchmark(iterations: int = 10) -> list[BenchmarkResult]:
     print(f"\n--- Executando: {scenario_name} ---")
 
     print("  [1/4] anicrop (Pyvips Backend)...")
-    res_ac_vips = run_anicrop(backend="vips")
-    save_result_image(dir_name, "anicrop_vips", res_ac_vips)
-    results.append(
-        measure_execution(
-            "anicrop (Pyvips)",
-            scenario_name,
-            lambda: run_anicrop(backend="vips"),
-            iterations=iterations,
+    with config(backend="vips"):
+        res_ac_vips = run_anicrop()
+        save_result_image(dir_name, "anicrop_vips", res_ac_vips)
+        results.append(
+            measure_execution(
+                "anicrop (Pyvips)",
+                scenario_name,
+                run_anicrop,
+                iterations=iterations,
+            )
         )
-    )
 
     print("  [2/4] anicrop (OpenCV Backend)...")
-    res_ac_cv = run_anicrop(backend="opencv")
-    save_result_image(dir_name, "anicrop_opencv", res_ac_cv)
-    results.append(
-        measure_execution(
-            "anicrop (OpenCV)",
-            scenario_name,
-            lambda: run_anicrop(backend="opencv"),
-            iterations=iterations,
+    with config(backend="opencv"):
+        res_ac_cv = run_anicrop()
+        save_result_image(dir_name, "anicrop_opencv", res_ac_cv)
+        results.append(
+            measure_execution(
+                "anicrop (OpenCV)",
+                scenario_name,
+                run_anicrop,
+                iterations=iterations,
+            )
         )
-    )
 
     print("  [3/4] OpenCV (NumPy)...")
     res_opencv = run_opencv()

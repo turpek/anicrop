@@ -1,5 +1,6 @@
 from datetime import datetime
 from pathlib import Path
+
 import matplotlib.pyplot as plt
 import numpy as np
 from rich.console import Console
@@ -7,7 +8,7 @@ from rich.panel import Panel
 from rich.table import Table
 from tabulate import tabulate
 
-from benchmarks.common import DATA_DIR, BenchmarkResult
+from benchmarks.common import BenchmarkResult
 from benchmarks.generate_assets import main as generate_assets_main
 from benchmarks.scenarios.scenario_a_multilayers import run_benchmark as run_scenario_a
 from benchmarks.scenarios.scenario_b_patches import run_benchmark as run_scenario_b

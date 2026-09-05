@@ -1,11 +1,11 @@
-from pathlib import Path
 from typing import Any
+
 import cv2
 import numpy as np
-from PIL import Image as PILImage
 import pyvips
+from PIL import Image as PILImage
 
-from anicrop import Document, ImageFormat
+from anicrop import Document, ImageFormat, config
 from anicrop.enums import InterpMode
 from benchmarks.common import (
     DATA_DIR,
@@ -25,58 +25,58 @@ LAYER_CONFIGS = [
     },
     {
         "asset": "character_2.png",
-        "x": 1800,
-        "y": 200,
-        "scale": 0.9,
-        "rot": -25.0,
+        "x": 1200,
+        "y": 400,
+        "scale": 0.8,
+        "rot": -30.0,
         "opacity": 0.85,
     },
     {
         "asset": "props.png",
-        "x": 800,
-        "y": 900,
-        "scale": 1.2,
+        "x": 2200,
+        "y": 800,
+        "scale": 1.4,
         "rot": 45.0,
         "opacity": 1.0,
     },
     {
         "asset": "character_1.png",
-        "x": 2400,
-        "y": 400,
-        "scale": 0.8,
-        "rot": 10.0,
-        "opacity": 0.75,
-    },
-    {
-        "asset": "props.png",
-        "x": 1200,
-        "y": 300,
-        "scale": 1.0,
-        "rot": -15.0,
-        "opacity": 0.95,
+        "x": 500,
+        "y": 1000,
+        "scale": 0.6,
+        "rot": -10.0,
+        "opacity": 0.7,
     },
     {
         "asset": "character_2.png",
-        "x": 500,
-        "y": 600,
-        "scale": 1.05,
-        "rot": 30.0,
-        "opacity": 0.8,
+        "x": 1800,
+        "y": 200,
+        "scale": 1.2,
+        "rot": 60.0,
+        "opacity": 0.95,
     },
     {
         "asset": "props.png",
-        "x": 2800,
-        "y": 800,
-        "scale": 1.3,
-        "rot": -40.0,
+        "x": 800,
+        "y": 1200,
+        "scale": 0.9,
+        "rot": -45.0,
         "opacity": 1.0,
     },
     {
         "asset": "character_1.png",
+        "x": 2500,
+        "y": 1100,
+        "scale": 1.0,
+        "rot": 0.0,
+        "opacity": 1.0,
+    },
+    {
+        "asset": "character_2.png",
         "x": 1500,
-        "y": 700,
-        "scale": 0.95,
-        "rot": 5.0,
+        "y": 900,
+        "scale": 0.75,
+        "rot": 20.0,
         "opacity": 0.9,
     },
 ]
@@ -85,10 +85,10 @@ LAYER_CONFIGS = [
 # ------------------------------------------------------------------------------
 # 1. anicrop Implementation
 # ------------------------------------------------------------------------------
-def run_anicrop(backend: str = "vips", interp: InterpMode = InterpMode.LINEAR) -> Any:
-    doc = Document.open(DATA_DIR / "background_4k.png", name="Fundo", backend=backend)
+def run_anicrop(interp: InterpMode = InterpMode.LINEAR) -> Any:
+    doc = Document.open(DATA_DIR / "background_4k.png", name="Fundo")
     for i, cfg in enumerate(LAYER_CONFIGS):
-        layer = doc.load_layer(DATA_DIR / cfg["asset"], name=f"L_{i}", backend=backend)
+        layer = doc.load_layer(DATA_DIR / cfg["asset"], name=f"L_{i}")
         layer.transform.rotate(cfg["rot"]).scale(cfg["scale"], cfg["scale"]).translate(
             cfg["x"], cfg["y"]
         )
@@ -191,28 +191,30 @@ def run_benchmark(iterations: int = 5) -> list[BenchmarkResult]:
     print(f"\n--- Executando: {scenario_name} ---")
 
     print("  [1/5] anicrop (Pyvips Backend)...")
-    res_ac_vips = run_anicrop(backend="vips", interp=InterpMode.LINEAR)
-    save_result_image(dir_name, "anicrop_vips", res_ac_vips)
-    results.append(
-        measure_execution(
-            "anicrop (Pyvips)",
-            scenario_name,
-            lambda: run_anicrop(backend="vips", interp=InterpMode.LINEAR),
-            iterations=iterations,
+    with config(backend="vips"):
+        res_ac_vips = run_anicrop(interp=InterpMode.LINEAR)
+        save_result_image(dir_name, "anicrop_vips", res_ac_vips)
+        results.append(
+            measure_execution(
+                "anicrop (Pyvips)",
+                scenario_name,
+                lambda: run_anicrop(interp=InterpMode.LINEAR),
+                iterations=iterations,
+            )
         )
-    )
 
     print("  [2/5] anicrop (OpenCV Backend)...")
-    res_ac_cv = run_anicrop(backend="opencv", interp=InterpMode.LINEAR)
-    save_result_image(dir_name, "anicrop_opencv", res_ac_cv)
-    results.append(
-        measure_execution(
-            "anicrop (OpenCV)",
-            scenario_name,
-            lambda: run_anicrop(backend="opencv", interp=InterpMode.LINEAR),
-            iterations=iterations,
+    with config(backend="opencv"):
+        res_ac_cv = run_anicrop(interp=InterpMode.LINEAR)
+        save_result_image(dir_name, "anicrop_opencv", res_ac_cv)
+        results.append(
+            measure_execution(
+                "anicrop (OpenCV)",
+                scenario_name,
+                lambda: run_anicrop(interp=InterpMode.LINEAR),
+                iterations=iterations,
+            )
         )
-    )
 
     print("  [3/5] Pyvips (Bilinear)...")
     res_pyvips = run_pyvips("bilinear")
