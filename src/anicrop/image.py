@@ -86,24 +86,19 @@ class Image:
 
     def __region_to_slice(self, region: Region) -> tuple[slice, slice]:
         """Converts a Region object to a tuple of slices for NumPy indexing."""
-        x, y = region.top_left.to_int()
-        w, h = region.size.to_int()
-        return (
-            slice(y, y + max(1, h)),
-            slice(x, x + max(1, w)),
-        )
+        return region.to_slice()
 
     def __to_indexer(self, key: Any) -> Any:
         """Translates a key, potentially a Region, into a valid NumPy indexer."""
         if isinstance(key, Region):
-            return self.__region_to_slice(key)
+            return key.to_slice()
 
         elif isinstance(key, tuple):
             if any(isinstance(arg, Region) for arg in key[1:]):
                 raise TypeError("Region argument is only valid at the first position")
 
             elif isinstance(key[0], Region):
-                return self.__region_to_slice(key[0]) + key[1:]
+                return key[0].to_slice() + key[1:]
 
         return key
 

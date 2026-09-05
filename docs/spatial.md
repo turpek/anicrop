@@ -43,11 +43,13 @@ print(p.to_int("floor"))  # (10, 20)
 - **`@property start -> float`**: Posição inicial do intervalo (suporta coordenadas negativas).
 - **`@property length -> float`**: Comprimento do intervalo (deve ser $> 0$).
 - **`@property end -> float`**: Posição final (`start + length`).
-- **`to_int(mode: str = 'round') -> tuple[int, int]`**: Retorna `(start_int, length_int)` discretizados.
+- **`to_int(mode: str = 'round') -> Span`**: Retorna uma nova instância de `Span` com coordenadas e comprimento discretizados em inteiros.
+- **`to_slice(mode: str = 'round') -> slice`**: Converte o intervalo contínuo em um `slice(start_idx, start_idx + len_idx)` nativo do Python, garantindo que o tamanho fatiado seja exatamente `max(1, round(length))` sem desvios de subpixel.
 - **Operadores**:
   - `span + offset` / `span - offset`: Deslocamento puro preservando rigorosamente o `length` original.
   - `span & other`: Interseção global entre intervalos.
   - `span | other`: União mínima envolvente entre intervalos.
+
 
 ---
 
@@ -151,16 +153,18 @@ print(p.to_int("floor"))  # (10, 20)
 - **Descrição**: Contrai as margens da região para dentro (garantindo dimensão mínima de 1e-4 e impedindo *drift* de coordenadas).
 - **Retorno**: Nova `Region` contraída.
 
+#### `to_int(mode: str = 'round') -> Region`
+- **Descrição**: Converte ambos os Spans X e Y em inteiros discretos, retornando uma nova instância de `Region`.
+
+#### `to_slice(mode: str = 'round') -> tuple[slice, slice]`
+- **Descrição**: Converte a região 2D em uma tupla `(slice_y, slice_x)` para fatiamento matricial direto no NumPy (`array[region.to_slice()]`).
+- **Garantia Dimensional**: A altura do slice (`slice_y.stop - slice_y.start`) e a largura (`slice_x.stop - slice_x.start`) casam **exatamente** com `round(region.height)` e `round(region.width)`, eliminando inconsistências subpixel.
+
 ---
 
-### Funções Utilitárias e de Quantização
+### Funções Utilitárias
 
 #### `rect_to_region(rect: tuple[float, float, float, float]) -> Region`
 - **Descrição**: Converte uma tupla no formato OpenCV/PIL `(x, y, width, height)` em um objeto `Region`.
 - **Retorno**: `Region`.
 
-#### `to_int_span(span: Span, mode: str = "round") -> tuple[int, int]`
-- **Descrição**: Converte um `Span` contínuo para inteiros discretos `(start, length)`.
-
-#### `to_int_region(region: Region, mode: str = "round") -> tuple[int, int, int, int]`
-- **Descrição**: Converte uma `Region` contínua para uma tupla de inteiros discretos `(x, y, width, height)`.
