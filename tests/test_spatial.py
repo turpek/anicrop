@@ -1,5 +1,6 @@
 import re
 
+import numpy as np
 import pytest
 from pytest import raises
 
@@ -634,10 +635,9 @@ def test_region_to_slice_tuple_order():
 
 def test_region_to_slice_numpy_direct_indexing():
     """Valida a indexacao direta de array NumPy utilizando region.to_slice()."""
-    import numpy as np
-
     arr = np.zeros((100, 100), dtype=np.uint8)
     region = Region.from_rect(10.4, 20.2, 30.3, 40.4)
+
     sliced = arr[region.to_slice()]
     assert sliced.shape == (40, 30)
 

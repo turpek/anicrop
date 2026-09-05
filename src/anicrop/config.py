@@ -7,6 +7,8 @@ from typing import TYPE_CHECKING, Any
 if TYPE_CHECKING:
     from anicrop.interfaces.io import AbstractImageIO
 
+from anicrop.io.registry import get_default_backend_name, set_default_backend
+
 DEFAULT_MEMORY_THRESHOLD: int = 8192 * 8192  # 64 MP (8K x 8K)
 DEFAULT_BACKEND: str = "opencv"
 
@@ -21,8 +23,6 @@ class Config:
     @property
     def backend(self) -> str:
         """Nome do backend de I/O padrão ('opencv' ou 'vips')."""
-        from anicrop.io.registry import get_default_backend_name
-
         try:
             return get_default_backend_name()
         except (RuntimeError, KeyError):
@@ -30,8 +30,6 @@ class Config:
 
     @backend.setter
     def backend(self, value: str | AbstractImageIO) -> None:
-        from anicrop.io.registry import set_default_backend
-
         set_default_backend(value)
         if isinstance(value, str):
             val_lower = value.lower()
@@ -39,6 +37,7 @@ class Config:
         else:
             name = value.__class__.__name__.lower().replace("backend", "")
             self._backend = "vips" if name == "pyvips" else name
+
 
     @property
     def memory_threshold(self) -> int | None:

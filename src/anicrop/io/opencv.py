@@ -255,7 +255,9 @@ class OpenCVBackend(AbstractImageIO):
     ) -> tuple[Any, ImageFormat]:
         """Abre imagens de altíssima resolução (>=8192px) convertendo para Zarr em disco."""
         import uuid
+
         import zarr
+
         from anicrop.persistence.manager import manager_global
 
         image_format = format or ImageFormat.RGBA

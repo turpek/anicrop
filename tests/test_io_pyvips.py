@@ -7,7 +7,7 @@ import pytest
 
 from anicrop.enums import ImageFormat
 from anicrop.interfaces.io import SaveOptions
-from anicrop.io import PyvipsBackend, get_backend, get_default_backend, is_vips_available
+from anicrop.io import PyvipsBackend, get_backend, is_vips_available
 from anicrop.spatial import Region
 
 pytestmark = pytest.mark.skipif(not is_vips_available(), reason="pyvips não instalado")

@@ -10,10 +10,20 @@ from anicrop.enums import ImageFormat
 try:
     from anicrop.native.color import (  # type: ignore[import-untyped]
         prgba_to_rgb as _cy_prgba_to_rgb,
+    )
+    from anicrop.native.color import (
         prgba_to_rgba as _cy_prgba_to_rgba,
+    )
+    from anicrop.native.color import (
         prgba_to_rgbx as _cy_prgba_to_rgbx,
-        rgba_to_prgba as _cy_rgba_to_prgba,
+    )
+    from anicrop.native.color import (
         rgb_to_rgbx as _cy_rgb_to_rgbx,
+    )
+    from anicrop.native.color import (
+        rgba_to_prgba as _cy_rgba_to_prgba,
+    )
+    from anicrop.native.color import (
         rgbx_to_rgb as _cy_rgbx_to_rgb,
     )
 

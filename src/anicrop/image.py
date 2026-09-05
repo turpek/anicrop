@@ -12,12 +12,11 @@ import cv2
 import numpy as np
 import zarr
 from numpy import ndarray
-from PIL import Image as PILImage
 
 from anicrop.buffer import ArrayBuffer, ZarrBuffer
 from anicrop.color import convert_image_format
-from anicrop.enums import ImageFormat
 from anicrop.config import config
+from anicrop.enums import ImageFormat
 from anicrop.interfaces.buffer import AbstractImageBuffer
 from anicrop.interfaces.io import AbstractImageIO, SaveOptions
 from anicrop.io.registry import get_backend
