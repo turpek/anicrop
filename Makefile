@@ -72,11 +72,12 @@ sync-main:
 	else \
 		RANGE="main..dev"; \
 	fi; \
-	CHANGES=$$(git log $$RANGE --oneline --no-merges --invert-grep --grep="bench" --grep="docs(plano)" src/ tests/ README.md pyproject.toml setup.py | sed 's/^[a-f0-9]* /- /'); \
+	CHANGES=$$(git log $$RANGE --oneline --no-merges --invert-grep --grep="bench" --grep="docs(plano)" src/ tests/ README.md pyproject.toml setup.py Makefile uv.lock | sed 's/^[a-f0-9]* /- /'); \
 	if [ -z "$$CHANGES" ]; then \
 		echo "Nenhuma alteração de produção para sincronizar."; \
 	else \
 		git checkout main && \
+		git rm -rf --ignore-unmatch src/ tests/ assets/ >/dev/null 2>&1 || true; \
 		git checkout dev -- src/ tests/ README.md assets/ pyproject.toml setup.py Makefile .gitignore .python-version uv.lock && \
 		git commit -m "release: sincroniza código de produção da dev" -m "$$CHANGES" -m "sync-point: $$CURRENT_DEV" && \
 		git checkout dev && \
