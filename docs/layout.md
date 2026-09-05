@@ -116,6 +116,7 @@ doc.layout.align(doc["avatar"], doc.canvas.region, anchor_x=0.5, anchor_y=0.5)
 doc["avatar"].layout.align(doc.canvas.region, anchor_x=0.5, anchor_y=0.5)
 
 # Diretamente pela Viewport:
-viewport.layout.fit()
+viewport.layout.fit(doc.canvas)
+viewport.layout.fit_content()
 viewport.layout.align(doc["avatar"], anchor_x=0.5, anchor_y=0.5)
 ```
