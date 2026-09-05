@@ -46,9 +46,28 @@ A classe `Viewport` representa o retângulo da janela de exibição (ex: um pain
 - **Descrição**: Acessa ou altera a `Region` retangular da Viewport.
 - **Retorno**: `Region`.
 
+#### `@property zoom -> float` / `@zoom.setter`
+- **Descrição**: Acessa ou altera o fator de zoom uniforme da câmera ($S_x = S_y$). O valor `1.0` representa 100%, `2.0` representa 200%, etc.
+- **Suporte In-Place**: Permite operações relativas diretas: `viewport.zoom *= 1.2` (+20% de zoom).
+- **Retorno**: `float`.
+
 #### `@property scale -> Scale` / `@scale.setter`
 - **Descrição**: Acessa ou altera o objeto `Scale` representando o zoom atual da câmera.
+- **Coerção Flexível**: O setter aceita diretamente escalares numéricos (`float | int`), tuplas `(sx, sy)` ou instâncias explícitas de `Scale`.
+  ```python
+  viewport.scale = 2.0        # Zoom uniforme 2x
+  viewport.scale = (2.0, 1.5)  # Escala anisotrópica
+  viewport.scale *= 1.5        # Multiplicação in-place
+  ```
 - **Retorno**: `Scale`.
+
+#### `@property layout -> ViewportLayoutStrategy`
+- **Descrição**: Retorna o controlador de estratégias espaciais e enquadramento de câmera da Viewport (`ViewportLayoutStrategy`).
+- **Operações Principais**:
+  - `fit(ref: LayoutRef) -> bool`: Enquadra a câmera para abranger a região de referência preservando proporções.
+  - `fit_content(container: Container | Sequence[BaseLayer] | None = None) -> bool`: Enquadra o Canvas associado quando `container=None`, ou a ROI de conteúdo visível do contêiner restrita à área do Canvas.
+  - `align(ref: LayoutRef, anchor_x: float = 0.5, anchor_y: float = 0.5) -> bool`: Desloca a câmera para alinhar a janela visível sobre a referência sem alterar o zoom atual.
+  - `resize_bounds(new_width: float, new_height: float, anchor_x: float = 0.5, anchor_y: float = 0.5) -> bool`: Redimensiona a janela de exibição da Viewport preservando o ponto focal ancorado.
 
 #### `@property roi_matrix -> ndarray`
 - **Descrição**: Calcula e retorna a matriz de transformação 3x3 para a Região de Interesse (ROI - Region of Interest), combinando a escala com a translação do topo-esquerdo: `mat_pivot(scale, size) @ mat_translation(-x, -y)`.
@@ -63,3 +82,33 @@ A classe `Viewport` representa o retângulo da janela de exibição (ex: um pain
 - **Parâmetros**:
   - `region` (`Region`): Região no espaço do Canvas.
 - **Retorno**: `Region` — A região correspondente no espaço da Viewport.
+
+---
+
+## 2. Exemplo Prático de Navegação e Câmera
+
+```python
+from anicrop import Document, Viewport
+
+# 1. Carrega o documento
+doc = Document.open("cena.png", name="Cena")
+
+# 2. Inicializa a Viewport vinculada ao Canvas do Documento
+viewport = Viewport(size=(800, 600), canvas=doc.canvas)
+
+# 3. Enquadra o Canvas inteiro na Viewport (zoom ajustado automaticamente):
+viewport.layout.fit_content()
+
+# 4. Ajusta o Zoom para 250% (2.5x):
+viewport.zoom = 2.5
+
+# 5. Centraliza a visualização em uma camada de detalhe preservando o zoom:
+viewport.layout.align(doc["personagem"], anchor_x=0.5, anchor_y=0.5)
+
+# 6. Aplica zoom in de 20% in-place:
+viewport.zoom *= 1.2
+
+# 7. Renderiza o preview final da janela:
+preview = doc.preview(viewport)
+preview.save("preview_camera.png")
+```
