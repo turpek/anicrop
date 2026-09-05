@@ -130,9 +130,7 @@ def warp_patch(
                 Region.from_size(out_w, out_h)
             ]
             buf.fill(0)
-            buf[pad_y_start : pad_y_start + sh, pad_x_start : pad_x_start + sw] = (
-                src_data
-            )
+            buf[pad_y_start:pad_y_start + sh, pad_x_start:pad_x_start + sw] = src_data
             src_data = buf
 
         # 4. A origem da matriz da sub-imagem é sempre o top_left da target_region!

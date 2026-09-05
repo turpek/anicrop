@@ -18,6 +18,7 @@ dependencies = [
 
 [dependency-groups]
 dev = [
+    "autopep8>=2.3.2",
     "cython>=3.2.9",
     "ipdb>=0.13.13",
     "ipython>=9.9.0",
@@ -45,6 +46,8 @@ select = ["E", "F", "W", "I"]
 extend-select = ["PLC0415"]
 ignore = ["E501", "E741"]
 
-[tool.ruff.format]
-quote-style = "double"
-indent-style = "space"
+[tool.autopep8]
+max_line_length = 89
+ignore = ["E501", "E402", "W503", "W504"]
+in_place = true
+recursive = true
