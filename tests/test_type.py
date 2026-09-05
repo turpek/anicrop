@@ -113,6 +113,45 @@ def test_Scale_tipo_invalido():
         _ = s - {"set", "invalido"}
 
 
+def test_Scale_multiplicacao_por_escalar():
+    """Valida multiplicacao e multiplicacao reversa por escalar numerico."""
+    s = Scale(2.0, 3.0)
+
+    res = s * 2.0
+    rmul = 2.0 * s
+
+    assert res == Scale(4.0, 6.0)
+    assert rmul == Scale(4.0, 6.0)
+
+
+def test_Scale_multiplicacao_por_tupla():
+    """Valida multiplicacao de Scale por tupla (sx, sy)."""
+    s = Scale(2.0, 3.0)
+
+    res = s * (2.0, 0.5)
+
+    assert res == Scale(4.0, 1.5)
+
+
+def test_Scale_multiplicacao_por_outro_scale():
+    """Valida multiplicacao entre duas instancias de Scale."""
+    s1 = Scale(2.0, 3.0)
+    s2 = Scale(1.5, 2.0)
+
+    res = s1 * s2
+
+    assert res == Scale(3.0, 6.0)
+
+
+def test_Scale_divisao_por_escalar():
+    """Valida divisao de Scale por escalar numerico."""
+    s = Scale(4.0, 6.0)
+
+    res = s / 2.0
+
+    assert res == Scale(2.0, 3.0)
+
+
 def test_Rotation_matrix_identidade():
     rot = Rotation(0.0)
     m = rot.matrix

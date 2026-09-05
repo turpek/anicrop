@@ -1,7 +1,6 @@
 from pathlib import Path
 
 from anicrop import Document, Viewport
-from anicrop.type import Scale
 
 ASSETS_DIR = Path(__file__).parent
 
@@ -16,8 +15,8 @@ ZOOM_FACTOR = 4.10  # 410% de zoom (escala 4.1x)
 # 3. Inicializa a Viewport com a dimensão solicitada observando o Canvas do documento
 viewport = Viewport(size=VIEWPORT_SIZE, canvas=doc.canvas)
 
-# 4. Aplica o Zoom de 410% (Scale 4.1x)
-viewport.scale = Scale(ZOOM_FACTOR, ZOOM_FACTOR)
+# 4. Aplica o Zoom de 410% (4.1x) diretamente
+viewport.zoom = ZOOM_FACTOR
 
 # 5. Move a Câmera (Pan) centralizando o ponto focal no centro da Viewport usando o Layout
 # O ViewportLayoutStrategy calcula automaticamente a projeção exata considerando a escala e o centro do Canvas:

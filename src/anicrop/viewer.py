@@ -2,7 +2,6 @@ import cv2
 import numpy as np
 
 from anicrop.document import Document
-from anicrop.type import Scale
 from anicrop.viewport import Viewport
 
 
@@ -29,14 +28,7 @@ class Viewer:
         dentro da Viewport e ajusta o zoom da câmera.
         """
         self.viewport.set_canvas(self.doc.canvas)
-        cw, ch = self.doc.canvas.size
-        vw, vh = self.viewport.size
-
-        # Qual a escala máxima que podemos aplicar sem estourar as bordas?
-        fit_scale = min(vw / cw, vh / ch)
-
-        # Aplica a escala na viewport. O método interno de fit já vai centralizar tudo.
-        self.viewport._fit = Scale(fit_scale, fit_scale)
+        self.viewport.layout.fit_content()
 
     def show(self) -> None:
         """

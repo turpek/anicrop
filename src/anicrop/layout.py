@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import math
 from collections.abc import Iterator
 from functools import reduce
 from operator import or_
@@ -19,7 +20,6 @@ from anicrop.transform import (
     mat_inverse,
     transform_vector,
 )
-from anicrop.type import Scale
 
 if TYPE_CHECKING:
     from anicrop.canvas import Canvas
@@ -339,8 +339,7 @@ class ViewportLayoutStrategy(LayoutStrategy):
         w_view, h_view = self.target.size
         s = min(w_view / w_ref, h_view / h_ref)
         fit_sx = self.target._fit.sx if self.target._fit.sx > 0 else 1.0
-        fit_sy = self.target._fit.sy if self.target._fit.sy > 0 else 1.0
-        new_scale = Scale(s / fit_sx, s / fit_sy)
+        new_zoom = s / fit_sx
 
         ref_center_x = ref_region.x.start + w_ref / 2.0
         ref_center_y = ref_region.y.start + h_ref / 2.0
@@ -350,10 +349,10 @@ class ViewportLayoutStrategy(LayoutStrategy):
         pan_y = self.target._fit.sy * (ref_center_y - canvas_center_y)
         new_region = Region.from_rect(pan_x, pan_y, w_view, h_view)
 
-        if self.target.scale == new_scale and self.target.region == new_region:
+        if math.isclose(self.target.zoom, new_zoom) and self.target.region == new_region:
             return False
 
-        self.target.scale = new_scale
+        self.target.zoom = new_zoom
         self.target.region = new_region
         return True
 

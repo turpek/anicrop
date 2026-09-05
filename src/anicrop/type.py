@@ -3,8 +3,8 @@ from __future__ import annotations
 from collections.abc import Callable, Iterator
 from dataclasses import dataclass
 from itertools import count
-from operator import add, sub
-from typing import Protocol
+from operator import add, mul, sub, truediv
+from typing import Any, Protocol
 
 import numpy as np
 
@@ -106,41 +106,48 @@ class Scale:
     pivot_x: float = 0.5
     pivot_y: float = 0.5
 
-    def _apply_operation(
-        self, value: ScaleInput, op: Callable
-    ) -> tuple[float, float, float, float]:
-        """
-        Centraliza a matemática:
-        - Se for número: Aplica operação no valor, MANTÉM pivô.
-        - Se for tupla: Aplica operação no valor (índice 0), SUBSTITUI pivô
-        - (índices 1,2).
-        """
-        if isinstance(value, (float, int)):
-            return (op(self.sx, value), op(self.sy, value), self.pivot_x, self.pivot_y)
-
+    def _apply_operation(self, value: Scale | ScaleInput, op: Callable) -> Scale | Any:
+        if isinstance(value, Scale):
+            return Scale(
+                op(self.sx, value.sx),
+                op(self.sy, value.sy),
+                self.pivot_x,
+                self.pivot_y,
+            )
+        elif isinstance(value, (float, int)):
+            return Scale(
+                op(self.sx, value), op(self.sy, value), self.pivot_x, self.pivot_y
+            )
         elif isinstance(value, tuple) and len(value) == 4:
-            return (
+            return Scale(
                 op(self.sx, value[0]),
                 op(self.sy, value[1]),
                 float(value[2]),
                 float(value[3]),
             )
-
         elif isinstance(value, tuple) and len(value) == 2:
-            return (
+            return Scale(
                 op(self.sx, value[0]),
                 op(self.sy, value[1]),
                 self.pivot_x,
                 self.pivot_y,
             )
-
         return NotImplemented
 
-    def __add__(self, value: ScaleInput) -> Scale:
-        return Scale(*self._apply_operation(value, add))
+    def __add__(self, value: Scale | ScaleInput) -> Scale:
+        return self._apply_operation(value, add)
 
-    def __sub__(self, value: ScaleInput) -> Scale:
-        return Scale(*self._apply_operation(value, sub))
+    def __sub__(self, value: Scale | ScaleInput) -> Scale:
+        return self._apply_operation(value, sub)
+
+    def __mul__(self, value: Scale | ScaleInput) -> Scale:
+        return self._apply_operation(value, mul)
+
+    def __rmul__(self, value: Scale | ScaleInput) -> Scale:
+        return self._apply_operation(value, mul)
+
+    def __truediv__(self, value: Scale | ScaleInput) -> Scale:
+        return self._apply_operation(value, truediv)
 
     @property
     def pivot(self) -> tuple[float, float]:

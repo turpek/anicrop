@@ -30,6 +30,33 @@ def test_viewport_scale_update():
     assert viewport.scale_factor == 0.5
 
 
+def test_viewport_scale_coercion_and_in_place_mul():
+    """Valida que o setter de scale aceita numeros, tuplas e multiplicacao in-place."""
+    viewport = Viewport(size=(800, 600))
+
+    viewport.scale = 2.5
+    assert viewport.scale == Scale(2.5, 2.5)
+
+    viewport.scale = (3.0, 1.5)
+    assert viewport.scale == Scale(3.0, 1.5)
+
+    viewport.scale *= 2.0
+    assert viewport.scale == Scale(6.0, 3.0)
+
+
+def test_viewport_zoom_property():
+    """Valida leitura e escrita da propriedade zoom uniforme."""
+    viewport = Viewport(size=(800, 600))
+
+    viewport.zoom = 4.0
+    assert viewport.zoom == 4.0
+    assert viewport.scale == Scale(4.0, 4.0)
+
+    viewport.zoom *= 1.5
+    assert viewport.zoom == 6.0
+    assert viewport.scale == Scale(6.0, 6.0)
+
+
 def test_viewport_region_update():
     """Grupo 1: Scenario 3 - Region Update (Pan)."""
     viewport = Viewport(size=(800, 600), fit_scale=0.25)

@@ -5,7 +5,7 @@ from anicrop.interfaces.canvas import AbstractCanvas
 from anicrop.layout import ViewportLayoutStrategy
 from anicrop.spatial import Point, Region, rect_to_region
 from anicrop.transform import calculate_new_rect, mat_inverse, mat_pivot, mat_translation
-from anicrop.type import Scale
+from anicrop.type import Scale, ScaleInput
 
 
 class Viewport:
@@ -74,8 +74,18 @@ class Viewport:
         return self._scale
 
     @scale.setter
-    def scale(self, value) -> None:
-        self._scale = value
+    def scale(self, value: Scale | ScaleInput) -> None:
+        self._scale = self._scale.from_input(value)
+
+    @property
+    def zoom(self) -> float:
+        """Fator de zoom uniforme da Viewport (1.0 = 100%)."""
+        return self._scale.sx
+
+    @zoom.setter
+    def zoom(self, value: float) -> None:
+        """Define o fator de zoom uniforme da Viewport."""
+        self.scale = float(value)
 
     @property
     def roi_matrix(self) -> ndarray:
