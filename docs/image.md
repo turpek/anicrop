@@ -1,6 +1,6 @@
 # Guia de Dados de Imagem — Classe `Image` e Subsistema de I/O (`anicrop.image` / `anicrop.io`)
 
-O módulo `anicrop.image` fornece o wrapper `Image`, que encapsula matrizes de pixels em formato `numpy.ndarray` ou arranjos em disco `zarr.core.Array` sob uma API padronizada e expressiva para manipulação e edição gráfica.
+O módulo `anicrop.image` fornece o wrapper `Image`, que encapsula matrizes de pixels em formato `numpy.ndarray` ou buffers mapeados em memória virtual no disco `np.memmap` (`MMapBuffer`) sob uma API padronizada e expressiva para manipulação e edição gráfica.
 
 As operações de leitura e gravação em disco são gerenciadas de forma modular pelo subsistema `anicrop.io`.
 
@@ -15,7 +15,7 @@ A classe `Image` garante a integridade dos dados de imagem (validação de forma
 ### Principais Métodos e Propriedades de `Image`
 
 #### `open(file_path: str | Path, image_format: ImageFormat | None = None, backend: AbstractImageIO | str | None = None, shrink: int = 1, roi: Region | None = None) -> Image` *(Class Method)*
-- **Descrição**: Abre e decodifica uma imagem a partir do disco utilizando o backend de I/O ativo (padrão `PyvipsBackend` ou `OpenCVBackend`). Suporta auto-detecção de formato de canais, subamostragem direta no decoder (`shrink`) e recorte de ROI sem carregar a imagem inteira. Para imagens gigantes ($\ge 8192 \times 8192\text{px}$), chaveia automaticamente para backend em disco **Zarr**.
+- **Descrição**: Abre e decodifica uma imagem a partir do disco utilizando o backend de I/O ativo (padrão `PyvipsBackend` ou `OpenCVBackend`). Suporta auto-detecção de formato de canais, subamostragem direta no decoder (`shrink`) e recorte de ROI sem carregar a imagem inteira. Para imagens gigantes ($\ge 8192 \times 8192\text{px}$), chaveia automaticamente para backend em disco **`MMapBuffer`** (`np.memmap`) ou streaming via `Pyvips`.
 - **Parâmetros**:
   - `file_path` (`str | Path`): Caminho do arquivo no disco.
   - `image_format` (`ImageFormat | None`): Formato alvo desejado (`RGBA`, `RGB`, `GRAY`, `GRAY_ALPHA`). Se `None`, auto-detecta o formato nativo da imagem no disco.
@@ -33,7 +33,7 @@ A classe `Image` garante a integridade dos dados de imagem (validação de forma
 - **Retorno**: `None`.
 
 #### `new(size: tuple[int, int], fmt: ImageFormat, color: int | tuple[int, ...] = 0, threshold_pixels: int | None = ...) -> Image` *(Class Method)*
-- **Descrição**: Cria uma nova imagem em memória preenchida com uma cor constante. Se o total de pixels (`width * height`) ultrapassar o limite configurado (padrão de **64 Megapixels** / $8192 \times 8192\text{px}$), aloca automaticamente um array empacotado em disco via **Zarr**; caso contrário, aloca um `numpy.ndarray` em memória RAM de alta velocidade. Passe `threshold_pixels=None` para forçar 100% de alocação em RAM.
+- **Descrição**: Cria uma nova imagem em memória preenchida com uma cor constante. Se o total de pixels (`width * height`) ultrapassar o limite configurado (padrão de **64 Megapixels** / $8192 \times 8192\text{px}$), aloca automaticamente um buffer mapeado em memória virtual no disco via **`np.memmap`** (`MMapBuffer`); caso contrário, aloca um `numpy.ndarray` em memória RAM de alta velocidade. Passe `threshold_pixels=None` para forçar 100% de alocação em RAM.
 - **Parâmetros**:
   - `size` (`tuple[int, int]`): Dimensões `(width, height)` da imagem.
   - `fmt` (`ImageFormat`): Formato de cor da imagem (`RGBA`, `RGB`, `GRAY`, etc.).
@@ -77,7 +77,6 @@ A classe `Image` garante a integridade dos dados de imagem (validação de forma
 - `@property channels -> int`: Retorna o número de canais da imagem (ex: `4` para RGBA/PRGBA/RGBX, `3` para RGB, `1` para GRAY).
 - `@property format -> ImageFormat`: Retorna o enum `ImageFormat` associado (`RGBA`, `PRGBA`, `RGBX`, `RGB`, `GRAY`, `GRAY_ALPHA`, `CMYK`, `CMYK_ALPHA`).
 - `@property has_alpha -> bool`: Retorna `True` se o formato da imagem incluir canal de transparência (Alpha ativo em `RGBA`, `PRGBA`, `GRAY_ALPHA`, `CMYK_ALPHA`).
-- `@property is_zarr -> bool`: Retorna `True` se os dados estiverem armazenados em um array Zarr no disco.
 
 ---
 

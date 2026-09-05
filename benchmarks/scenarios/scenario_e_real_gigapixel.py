@@ -51,7 +51,7 @@ FOCAL_POINT = (5000, 4500)
 
 
 # ------------------------------------------------------------------------------
-# 1. anicrop Implementation (Out-of-Core Zarr + Affine + Sprites + 4K Preview)
+# 1. anicrop Implementation (Out-of-Core MMap/Vips + Affine + Sprites + 4K Preview)
 # ------------------------------------------------------------------------------
 def run_anicrop() -> Any:
     doc = Document.open(MOON_PATH, name="Moon")
@@ -192,13 +192,13 @@ def run_benchmark(iterations: int = 3) -> list[BenchmarkResult]:
             )
         )
 
-    print("  [2/4] anicrop (OpenCV Zarr Backend)...")
+    print("  [2/4] anicrop (OpenCV MMap Backend)...")
     with config(backend="opencv"):
         res_ac_cv = run_anicrop()
         save_result_image(dir_name, "anicrop_opencv", res_ac_cv)
         results.append(
             measure_execution(
-                "anicrop (OpenCV Zarr)",
+                "anicrop (OpenCV MMap)",
                 scenario_name,
                 run_anicrop,
                 iterations=iterations,

@@ -6,9 +6,9 @@
 
 ## 1. Visão Geral
 
-- **Descrição curta:** Biblioteca/engine em Python para composição não-destrutiva de imagens 2D baseada em camadas (`Layer`, `GroupLayer`), suporte a transformações espaciais (matrizes homogêneas 3x3), mesclagem (*blend modes*), backend híbrido de memória (NumPy / Zarr para imagens gigantes) e renderização por patch.
+- **Descrição curta:** Biblioteca/engine em Python para composição não-destrutiva de imagens 2D baseada em camadas (`Layer`, `GroupLayer`), suporte a transformações espaciais (matrizes homogêneas 3x3), mesclagem (*blend modes*), backend híbrido de memória (NumPy / `np.memmap` para imagens gigantes) e renderização por patch.
 - **Motivação:** Fornecer um *backend* de edição gráfica robusto, matematicamente preciso e de alta performance que possa alimentar scripts de automação complexos ou servir de motor gráfico para interfaces de usuário (GUIs).
-- **Status Atual:** Desenvolvimento ativo. Estrutura de transformações, contêineres compostos, proxies reativos para histórico (Undo/Redo), suporte a Zarr/LOD em `EditLayer` e renderização via `CanvasRender` e `ViewportRender` estabelecidas. A abordagem atual do módulo `Layout` será reformulada.
+- **Status Atual:** Desenvolvimento ativo. Estrutura de transformações, contêineres compostos, proxies reativos para histórico (Undo/Redo), suporte a MMap/LOD em `EditLayer` e renderização via `CanvasRender` e `ViewportRender` estabelecidas. A abordagem atual do módulo `Layout` será reformulada.
 
 ---
 
@@ -27,7 +27,7 @@
 - **Navegação e Matrizes Relativas:** Protocolo de nós (`NodeContainerProtocol`) permitindo recomposição de coordenadas pai-filho (`parent`, `_parent_inverse`).
 - **Transformações Espaciais de Alta Precisão:** Matrizes 3x3 homogêneas para Rotação, Escala, Translação e "Sanduíches de Pivô" sem acúmulo de erro de arredondamento (*Size Drift*).
 - **Edição Não-Destrutiva e Patches:** Fila de edições locais (`EditLayer`) preservando os pixels originais da imagem.
-- **Backend Híbrido de Imagem & LOD:** Chaveamento transparente de dados de imagem (`Image`) entre `numpy.ndarray` (memória) e `zarr.core.Array` (disco) para imagens gigantes ($\ge 8192\text{px}$), com pirâmide de nível de detalhe (*Level of Detail* - LOD) em `EditLayer`.
+- **Backend Híbrido de Imagem & LOD:** Chaveamento transparente de dados de imagem (`Image`) entre `numpy.ndarray` (memória) e `MMapBuffer` (`np.memmap` no disco) para imagens gigantes ($\ge 8192\text{px}$), com pirâmide de nível de detalhe (*Level of Detail* - LOD) em `EditLayer`.
 - **Fachada & Histórico Reativo:** Classe Facade `Document` oferecendo políticas reativas com histórico (`GlobalHistory` via `ProxyLayer` e `GroupProxy`) ou modo direto de alta performance (`DirectDocumentPolicy`).
 - **Motor de Renderização:** Renderização por patch (`ViewportRender` para previews interativos e `CanvasRender` para exportações finais em alta resolução) e visualizador OpenCV (`Viewer`).
 
@@ -44,7 +44,7 @@
 ## 4. Stack Tecnológica e Decisões Arquiteturais
 
 - **Linguagem:** Python 3.12+ (gerenciado via `uv`).
-- **Dependências Principais:** `numpy`, `opencv-python`, `pyvips`, `zarr`, `pillow`, `loguru`, `pytest`.
+- **Dependências Principais:** `numpy`, `opencv-python`, `pyvips`, `pillow`, `loguru`, `pytest`.
 - **Padrões de Projeto Aplicados:** Facade (`Document`), Composite (`GroupLayer` / `Container`), Proxy (`ProxyLayer`, `GroupProxy`), Command/Memento (`GlobalHistory`).
 
 ### Estrutura das Abstrações Principais:
@@ -69,9 +69,9 @@ Para detalhes de métodos, tipos de retorno e exemplos de uso de cada classe, co
 - [docs/layer.md](file:///home/gui/python/anicrop/docs/layer.md) — Detalhes de `BaseLayer`, `Layer` e `EditLayer`.
 - **[docs/spatial.md](file:///home/gui/python/anicrop/docs/spatial.md)** — Operações de geometria 2D e uso da classe `Region`.
 - **[docs/container.md](file:///home/gui/python/anicrop/docs/container.md)** — Estrutura de `LayerStack`, `GroupLayer` e `NodeContainerProtocol`.
-- **[docs/transform.md](file:///home/gui/python/anicrop/docs/transform.md)** — Matrizes 3x3, `Composer` mutável e intenções `Transform`.
-- **[docs/image.md](file:///home/gui/python/anicrop/docs/image.md)** — Manipulação de pixels com `Image`, NumPy, subsistema `anicrop.io` e backend Zarr/LOD.
-- **[docs/viewport.md](file:///home/gui/python/anicrop/docs/viewport.md)** — Projeções de câmera e janela de exibição `Viewport`.
+- [docs/transform.md](file:///home/gui/python/anicrop/docs/transform.md) — Matrizes 3x3, `Composer` mutável e intenções `Transform`.
+- [docs/image.md](file:///home/gui/python/anicrop/docs/image.md) — Manipulação de pixels com `Image`, NumPy, subsistema `anicrop.io` e backend MMap/LOD.
+- [docs/viewport.md](file:///home/gui/python/anicrop/docs/viewport.md) — Projeções de câmera e janela de exibição `Viewport`.
 - **[docs/benchmark.md](file:///home/gui/python/anicrop/docs/benchmark.md)** — Métricas oficiais de estresse de renderização, I/O e freeze de matrizes.
 
 ---
@@ -180,8 +180,15 @@ Para detalhes de métodos, tipos de retorno e exemplos de uso de cada classe, co
   - **Pipeline Contínuo e Imunidade a Size Drift:** Toda a álgebra de `Span`, `Region`, `Composer`, `Layout` e `Content` opera estritamente em ponto flutuante analítico (`float`). A quantização para inteiros ocorre exclusivamente na fronteira física de buffers de imagem (`Image`, `ScratchBuffer`).
   - **Padronização Estrita de Tipagem e Sobrecargas:** Sobrecargas polimórficas padronizadas com `@overload` sob `if TYPE_CHECKING:` (com `pass` em linha dedicada) e `@ovld` em `else:` para despacho dinâmico em tempo de execução (`Span.__init__`, `Content.fit`, `Layer.__init__`).
 
+- **Arquitetura de Buffers Out-of-Core (`MMapBuffer` & `VipsStreamingBuffer`):**
+  - **Zero Dependência de Zarr:** O motor foi completamente desacoplado de `zarr` e `numcodecs`. A paginação out-of-core é tratada nativamente pelo SO via memória virtual (`np.memmap`) e pelo decoder C de Pyvips (`pyvips.Image`).
+  - **Encapsulamento Unificado (`AbstractImageBuffer`):** `ArrayBuffer` (RAM), `MMapBuffer` (disco virtual) e `VipsStreamingBuffer` (streaming com subamostragem `shrink` sob demanda) implementam `AbstractImageBuffer`.
+  - **Auto-Offload Transparente:** `Image.__init__` e `Image.new` redirecionam matrizes para `MMapBuffer.from_array` ou `MMapBuffer.create_empty` quando as dimensões excedem `config.memory_threshold` (padrão 64 MP / 8K x 8K). Instâncias de `np.memmap` recebidas diretamente são encapsuladas sem cópia (*zero-copy*).
+  - **Gerenciamento Seguro de Ciclo de Vida:** O descritor e mapeamento do mmap são gerenciados pela contagem de referências do NumPy (`.base`), evitando destruidores manuais que causariam falhas de segmentação em views efêmeras.
+  - **LOD com Injeção de Dependência:** O método `get_lod(level, threshold_pixels=...)` recebe o limiar injetado por `Image`, prevenindo dependências circulares entre `buffer.py` e `config.py`.
+
 - **Fachada `Document` e Tipagem Estrita:**
   - **Parâmetro Semântico `history: bool = False`:** Configura `DirectDocumentPolicy` (padrão de alta performance) vs `ReactiveDocumentPolicy` (experimental).
   - **Tipagem Pura de Domínio:** Referências diretas a `LayerStack`, `BaseLayer`, `Layer`, `GroupLayer` e remoção limpa via protocolo de contêineres e `NullContainer`. Sobrecargas `@overload` em `Document.__getitem__` para inferência precisa.
-  - **Qualidade de Código:** 100% de conformidade estrita no `mypy` (0 erros com `--check-untyped-defs`) e **958 testes passando** (0 falhas, 0 pulados) no `pytest`.
+  - **Qualidade de Código:** 100% de conformidade estrita no `mypy` (0 erros com `--check-untyped-defs`) e suíte completa passando no `pytest`.
 

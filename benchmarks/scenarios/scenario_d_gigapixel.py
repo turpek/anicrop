@@ -3,9 +3,9 @@ from typing import Any
 import cv2
 import numpy as np
 import pyvips
-import zarr
 
 from anicrop import Document, ImageFormat
+from anicrop.buffer import MMapBuffer
 from anicrop.enums import InterpMode
 from anicrop.frame import CanvasFrame
 from anicrop.image import Image as ACImage
@@ -19,12 +19,12 @@ from benchmarks.common import (
     save_result_image,
 )
 
-GIGA_ZARR_PATH = DATA_DIR / "gigapixel_100mp.zarr"
+GIGA_MMAP_PATH = DATA_DIR / "gigapixel_100mp.raw"
 GIGA_TILE_PATH = DATA_DIR / "gigapixel_tile.png"
 
 
 def setup_gigapixel_data() -> None:
-    """Cria o tile procedural rico e a matriz Zarr de 100MP em disco se não existirem."""
+    """Cria o tile procedural rico e o buffer MMap de 100MP em disco se não existirem."""
     if not GIGA_TILE_PATH.exists():
         tile_w, tile_h = 1024, 1024
         tile = np.zeros((tile_h, tile_w, 4), dtype=np.uint8)
@@ -52,31 +52,29 @@ def setup_gigapixel_data() -> None:
         )
         cv2.imwrite(str(GIGA_TILE_PATH), tile)
 
-    if not GIGA_ZARR_PATH.exists():
-        print("  - Criando imagem Zarr de 100MP (10000x10000) em disco...")
+    if not GIGA_MMAP_PATH.exists():
+        print("  - Criando imagem MMap de 100MP (10000x10000) em disco...")
         tile_bgra = cv2.imread(str(GIGA_TILE_PATH), cv2.IMREAD_UNCHANGED)
         tile_rgba = cv2.cvtColor(tile_bgra, cv2.COLOR_BGRA2RGBA)
-        store = zarr.storage.LocalStore(str(GIGA_ZARR_PATH))
-        z = zarr.create_array(
-            store=store,
-            shape=(10000, 10000, 4),
-            chunks=(1024, 1024, 4),
-            dtype="uint8",
-            fill_value=0,
+        mmap_buf = MMapBuffer.create_empty(
+            shape=(10000, 10000, 4), dtype=np.uint8, file_path=GIGA_MMAP_PATH
         )
         for y in range(0, 10000, 1024):
             for x in range(0, 10000, 1024):
                 h = min(1024, 10000 - y)
                 w = min(1024, 10000 - x)
-                z[y : y + h, x : x + w, :] = tile_rgba[:h, :w, :]
+                mmap_buf[y : y + h, x : x + w, :] = tile_rgba[:h, :w, :]
+        mmap_buf.flush()
 
 
 # ------------------------------------------------------------------------------
-# 1. anicrop Implementation (Zarr Out-of-Core + Patch Rendering)
+# 1. anicrop Implementation (MMap Out-of-Core + Patch Rendering)
 # ------------------------------------------------------------------------------
 def run_anicrop() -> Any:
-    z = zarr.open(store=zarr.storage.LocalStore(str(GIGA_ZARR_PATH)), mode="r")
-    img = ACImage(z, ImageFormat.RGBA)
+    buf = MMapBuffer.open_existing(
+        GIGA_MMAP_PATH, shape=(10000, 10000, 4), dtype=np.uint8, mode="r"
+    )
+    img = ACImage(buf, ImageFormat.RGBA)
     doc = Document("Gigapixel", width=10000, height=10000)
     layer = Layer(img, name="Gigapixel")
     doc.add(layer)
@@ -110,12 +108,12 @@ def run_benchmark(iterations: int = 3) -> list[BenchmarkResult]:
 
     print(f"\n--- Executando: {scenario_name} ---")
 
-    print("  [1/2] anicrop (Zarr Out-of-Core)...")
+    print("  [1/2] anicrop (MMap Out-of-Core)...")
     res_anicrop = run_anicrop()
     save_result_image(dir_name, "anicrop", res_anicrop)
     results.append(
         measure_execution(
-            "anicrop (Zarr)", scenario_name, run_anicrop, iterations=iterations
+            "anicrop (MMap)", scenario_name, run_anicrop, iterations=iterations
         )
     )
 

@@ -174,4 +174,4 @@ O `EditLayer` representa uma alteração pontual (patch) ou sub-camada aplicada 
 - **`image` (`Image`)**: Pixel data do patch local.
 - **`region` (`Region`)**: Região local relativa ao Layer pai.
 - **`local_matrix` (`np.ndarray`)**: Matriz de transformação combinando a matriz do edit com a posição da região (`matrix @ mat_position(region)`).
-- **`get_lod(scale_factor: float) -> tuple[Image, np.ndarray]`**: Gera/retorna a pirâmide de nível de detalhe (LOD - Level of Detail) apropriada para otimizar a renderização de imagens de altíssima resolução (ex: Zarr).
+- **`get_lod(scale_factor: float) -> tuple[Image, np.ndarray]`**: Gera/retorna a pirâmide de nível de detalhe (LOD - Level of Detail) apropriada para otimizar a renderização de imagens de altíssima resolução (ex: MMap / Out-of-Core).
