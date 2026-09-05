@@ -443,3 +443,13 @@ def test_solid_fill_subpixel_tolerance():
     # Nao deve levantar ValueError por diferenca de 1px
     solid_fill(base, overlay)
     assert np.all(base[:1082, :1921] == [200, 100, 50, 255])
+
+
+def test_blend_clip_subpixel_tolerance():
+    """Valida se blend_clip absorve variacao subpixel de ate 2px no recorte de camadas."""
+    base = Image(np.full((10, 10, 4), 255, dtype=np.uint8), ImageFormat.RGBA)
+    overlay = Image(np.full((10, 11, 4), 128, dtype=np.uint8), ImageFormat.RGBA)
+
+    # Nao deve levantar ValueError por diferenca de 1px
+    blend_clip(base, overlay)
+    assert np.all(base[:10, :10, -1] == 128)
