@@ -2,19 +2,14 @@ from __future__ import annotations
 
 import uuid
 from pathlib import Path
-from typing import TYPE_CHECKING, Any
+from typing import Any
 
 import cv2
 import numpy as np
 import zarr
 
-from anicrop.enums import ImageFormat
-from anicrop.interfaces.buffer import AbstractImageBuffer, AbstractScratchBuffer
+from anicrop.interfaces.buffer import AbstractImageBuffer
 from anicrop.persistence.manager import manager_global
-from anicrop.spatial import Region
-
-if TYPE_CHECKING:
-    from anicrop.image import Image
 
 
 class ArrayBuffer(AbstractImageBuffer):
@@ -87,7 +82,7 @@ class ZarrBuffer(AbstractImageBuffer):
         return np.asarray(self._zarr[...], dtype=dtype)
 
     def __getitem__(self, key: Any) -> np.ndarray:
-        return self._zarr[key]
+        return np.asarray(self._zarr[key])
 
     def __setitem__(self, key: Any, value: Any) -> None:
         self._zarr[key] = value
@@ -100,7 +95,7 @@ class ZarrBuffer(AbstractImageBuffer):
         new_w = max(1, int(self.width * factor))
         new_h = max(1, int(self.height * factor))
 
-        raw = self._zarr[...]
+        raw = np.asarray(self._zarr[...])
         resized = cv2.resize(raw, (new_w, new_h), interpolation=cv2.INTER_AREA)
         if resized.ndim == 2 and self.ndim == 3:
             resized = resized[..., np.newaxis]
@@ -230,54 +225,3 @@ class MMapBuffer(AbstractImageBuffer):
             return MMapBuffer.from_array(resized)
 
         return ArrayBuffer(resized)
-
-
-class ScratchBuffer(AbstractScratchBuffer):
-    """Buffer temporário reutilizável com alocação preguiçosa sob demanda."""
-
-    def __init__(self) -> None:
-        self._image: Image | None = None
-        self._size: tuple[int, int] = (0, 0)
-        self._format: ImageFormat = ImageFormat.RGBA
-        self._used: bool = False
-
-    @property
-    def was_used(self) -> bool:
-        """Indica se o buffer foi acessado desde a última chamada a configure."""
-        return self._used
-
-    def configure(
-        self,
-        size: tuple[float, float],
-        fmt: ImageFormat = ImageFormat.RGBA,
-    ) -> ScratchBuffer:
-        """Configura as dimensões mínimas e o formato desejado para o próximo acesso."""
-        self._size = (int(round(size[0])), int(round(size[1])))
-        self._format = fmt
-        self._used = False
-        return self
-
-    def _ensure_allocated(self) -> Image:
-        """Aloca ou reaproveita o array de imagem subjacente, expandindo por fator 1.5x."""
-        from anicrop.image import Image
-
-        w, h = self._size
-        if (
-            self._image is None
-            or self._image.height < h
-            or self._image.width < w
-            or self._image.format != self._format
-        ):
-            current_h = self._image.height if self._image is not None else 0
-            current_w = self._image.width if self._image is not None else 0
-            new_h = max(h, int(current_h * 1.5))
-            new_w = max(w, int(current_w * 1.5))
-            self._image = Image.new((new_w, new_h), self._format)
-
-        return self._image.view(Region.from_size(w, h))
-
-    def __getitem__(self, region: Region) -> np.ndarray:
-        """Retorna o slice NumPy da região requisitada após garantir a alocação."""
-        self._used = True
-        view = self._ensure_allocated()
-        return view[region]

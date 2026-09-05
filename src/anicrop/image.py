@@ -12,10 +12,10 @@ import cv2
 import numpy as np
 import zarr
 from numpy import ndarray
-from PIL import Image as PILImage
 
 from anicrop.buffer import ArrayBuffer, ZarrBuffer
 from anicrop.color import convert_image_format
+from anicrop.config import config
 from anicrop.enums import ImageFormat
 from anicrop.interfaces.buffer import AbstractImageBuffer
 from anicrop.interfaces.io import AbstractImageIO, SaveOptions
@@ -23,23 +23,21 @@ from anicrop.io.registry import get_backend
 from anicrop.persistence.manager import manager_global
 from anicrop.spatial import Region, Span
 
-DEFAULT_IMAGE_THRESHOLD_PIXELS: int | None = (
-    8192 * 8192
-)  # 64 MP (8K x 8K) (~256 MB em RGBA)
-
 
 def set_memory_threshold(threshold_pixels: int | None) -> None:
     """Define o threshold global de pixels para alocação em RAM antes de usar paginação em disco.
 
     Passe None para desativar a paginação em disco e forçar 100% de alocação em memória RAM.
     """
-    global DEFAULT_IMAGE_THRESHOLD_PIXELS
-    DEFAULT_IMAGE_THRESHOLD_PIXELS = threshold_pixels
+    config.memory_threshold = threshold_pixels
 
 
 def get_memory_threshold() -> int | None:
     """Retorna o threshold global de pixels configurado atualmente."""
-    return DEFAULT_IMAGE_THRESHOLD_PIXELS
+    return config.memory_threshold
+
+
+type ImageIndexer = Region | slice | tuple[Any, ...] | EllipsisType | int
 
 
 class Image:
@@ -84,30 +82,23 @@ class Image:
         self._format = image_format
         self._validate_format()
 
-    def __region_to_slice(self, region: Region) -> tuple[slice, slice]:
-        """Converts a Region object to a tuple of slices for NumPy indexing."""
-        x, y = region.top_left.to_int()
-        w, h = region.size.to_int()
-        return (
-            slice(y, y + max(1, h)),
-            slice(x, x + max(1, w)),
-        )
-
-    def __to_indexer(self, key: Any) -> Any:
-        """Translates a key, potentially a Region, into a valid NumPy indexer."""
+    @staticmethod
+    def _normalize_key(
+        key: ImageIndexer,
+    ) -> tuple[slice | int | EllipsisType, ...] | slice | int | EllipsisType:
+        """Normaliza chaves de fatiamento convertendo instâncias de Region em tuplas de slice."""
         if isinstance(key, Region):
-            return self.__region_to_slice(key)
+            return key.to_slice()
 
-        elif isinstance(key, tuple):
+        if isinstance(key, tuple):
             if any(isinstance(arg, Region) for arg in key[1:]):
                 raise TypeError("Region argument is only valid at the first position")
-
-            elif isinstance(key[0], Region):
-                return self.__region_to_slice(key[0]) + key[1:]
+            if isinstance(key[0], Region):
+                return key[0].to_slice() + key[1:]
 
         return key
 
-    def __getitem__(self, key: Region | Any) -> ndarray:
+    def __getitem__(self, key: ImageIndexer) -> ndarray:
         """Retrieves a part of the image using indexing.
 
         Supports standard NumPy indexing and spatial indexing with a Region object.
@@ -121,9 +112,9 @@ class Image:
         Returns:
             The selected ndarray slice of the image data.
         """
-        return cast(ndarray, self._data[self.__to_indexer(key)])
+        return cast(ndarray, self._data[self._normalize_key(key)])
 
-    def __setitem__(self, key: Region | Any, value: Any) -> None:
+    def __setitem__(self, key: ImageIndexer, value: Any) -> None:
         """Sets a part of the image using indexing.
 
         Supports standard NumPy indexing and spatial indexing with a Region object.
@@ -135,7 +126,7 @@ class Image:
                  starting with a Region.
             value: The value or ndarray to assign to the specified slice.
         """
-        self._data[self.__to_indexer(key)] = value
+        self._data[self._normalize_key(key)] = value
 
     def clear_rect(
         self,
@@ -166,10 +157,10 @@ class Image:
             x1, y1 = clipped.top_left.to_int()
             x2, y2 = clipped.bottom_right.to_int()
 
-            self._data[:y1, :] = fill_value
-            self._data[y2:, :] = fill_value
-            self._data[y1:y2, :x1] = fill_value
-            self._data[y1:y2, x2:] = fill_value
+            self[:y1, :] = fill_value
+            self[y2:, :] = fill_value
+            self[y1:y2, :x1] = fill_value
+            self[y1:y2, x2:] = fill_value
 
         return True
 
@@ -242,10 +233,9 @@ class Image:
         or NumPy ndarray (RAM) otherwise.
         """
         threshold = (
-            DEFAULT_IMAGE_THRESHOLD_PIXELS
-            if threshold_pixels is ...
-            else threshold_pixels
+            config.memory_threshold if threshold_pixels is ... else threshold_pixels
         )
+
         width = int(round(size[0]))
         height = int(round(size[1]))
         channels = fmt.channels

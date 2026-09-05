@@ -1,8 +1,9 @@
 from pathlib import Path
+
 import numpy as np
 import pytest
 
-from anicrop.buffer import MMapBuffer, ArrayBuffer
+from anicrop.buffer import MMapBuffer
 from anicrop.image import Image, ImageFormat
 
 

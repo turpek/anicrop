@@ -341,6 +341,28 @@ class Span:
             return value
         return self
 
+    def to_int(self, mode: str = "round") -> Span:
+        """Converts this span's start and length into discrete integers."""
+        if mode == "round":
+            return Span(int(round(self.start)), max(1, int(round(self.length))))
+        elif mode == "floor":
+            return Span(
+                int(math.floor(self.start)), max(1, int(math.floor(self.length)))
+            )
+        elif mode == "ceil":
+            return Span(int(math.ceil(self.start)), max(1, int(math.ceil(self.length))))
+        return Span(int(self.start), max(1, int(self.length)))
+
+    def to_slice(self, mode: str = "round") -> slice:
+        """Converts this continuous span into a discrete Python slice.
+
+        Uses start and length to guarantee that the discrete slice has an exact
+        length of max(1, quantize(length)) without subpixel size drift.
+        """
+        int_span = self.to_int(mode=mode)
+        start_idx = int(int_span.start)
+        return slice(start_idx, start_idx + int(int_span.length))
+
 
 @dataclass(frozen=True)
 class Region:
@@ -650,24 +672,16 @@ class Region:
         width = self.width * (height / self.height)
         return Region.from_rect(self.x.start, self.y.start, width, height)
 
+    def to_int(self, mode: str = "round") -> Region:
+        """Converts both X and Y spans into discrete integer spans."""
+        return Region(self.x.to_int(mode=mode), self.y.to_int(mode=mode))
+
+    def to_slice(self, mode: str = "round") -> tuple[slice, slice]:
+        """Returns a (slice_y, slice_x) tuple for direct 2D matrix indexing in NumPy."""
+        return (self.y.to_slice(mode=mode), self.x.to_slice(mode=mode))
+
 
 def rect_to_region(
     rect: tuple[float, float, float, float] | Sequence[float],
 ) -> Region:
     return Region.from_rect(rect[0], rect[1], rect[2], rect[3])
-
-
-def to_int_span(span: Span, mode: str = "round") -> Span:
-    """Converte os limites de um Span para inteiros discretos."""
-    if mode == "round":
-        return Span(int(round(span.start)), max(1, int(round(span.length))))
-    elif mode == "floor":
-        return Span(int(math.floor(span.start)), max(1, int(math.floor(span.length))))
-    elif mode == "ceil":
-        return Span(int(math.ceil(span.start)), max(1, int(math.ceil(span.length))))
-    return Span(int(span.start), max(1, int(span.length)))
-
-
-def to_int_region(region: Region, mode: str = "round") -> Region:
-    """Converte os Spans X e Y de uma Region para inteiros discretos."""
-    return Region(to_int_span(region.x, mode=mode), to_int_span(region.y, mode=mode))

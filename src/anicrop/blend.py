@@ -484,34 +484,38 @@ def solid_fill(base: Image, overlay: Image, opacity: float = 1.0) -> Image:
 
 
 def _blend_clip_numpy(base: Image, overlay: Image, opacity: float = 1.0) -> Image:
-    """
-    Aplica o recorte de pixels (clip): modula o canal alpha da base onde houver transparência
+    """Aplica o recorte de pixels (clip): modula o canal alpha da base onde houver transparência
+
     e preenche com fundo branco (255) as áreas cortadas de camadas sem canal alpha.
     """
     b_arr = base[...]
     o_arr = overlay[...]
+    h = min(b_arr.shape[0], o_arr.shape[0])
+    w = min(b_arr.shape[1], o_arr.shape[1])
+    b_view = b_arr[:h, :w]
+    o_view = o_arr[:h, :w]
 
     if overlay.has_alpha:
-        factor = (o_arr[..., -1:].astype(np.float32) / 255.0) * opacity
+        factor = (o_view[..., -1:].astype(np.float32) / 255.0) * opacity
     else:
         if overlay.format in (ImageFormat.GRAY, ImageFormat.GRAY_ALPHA):
-            luma = o_arr[..., 0:1].astype(np.float32) / 255.0
+            luma = o_view[..., 0:1].astype(np.float32) / 255.0
         else:
             luma = (
-                0.299 * o_arr[..., 0:1]
-                + 0.587 * o_arr[..., 1:2]
-                + 0.114 * o_arr[..., 2:3]
+                0.299 * o_view[..., 0:1]
+                + 0.587 * o_view[..., 1:2]
+                + 0.114 * o_view[..., 2:3]
             ).astype(np.float32) / 255.0
         factor = luma * opacity
 
     if base.has_alpha:
-        b_arr[..., -1:] = np.clip(b_arr[..., -1:] * factor, 0, 255).astype(np.uint8)
-        mask_zero = b_arr[..., -1] == 0
-        b_arr[mask_zero, :-1] = 255
+        b_view[..., -1:] = np.clip(b_view[..., -1:] * factor, 0, 255).astype(np.uint8)
+        mask_zero = b_view[..., -1] == 0
+        b_view[mask_zero, :-1] = 255
     else:
         color_channels = 1 if base.format == ImageFormat.GRAY else 3
-        b_arr[..., :color_channels] = np.clip(
-            b_arr[..., :color_channels] * factor + 255.0 * (1.0 - factor),
+        b_view[..., :color_channels] = np.clip(
+            b_view[..., :color_channels] * factor + 255.0 * (1.0 - factor),
             0,
             255,
         ).astype(np.uint8)
@@ -520,7 +524,7 @@ def _blend_clip_numpy(base: Image, overlay: Image, opacity: float = 1.0) -> Imag
 
 
 def blend_clip(base: Image, overlay: Image, opacity: float = 1.0) -> Image:
-    if base.size != overlay.size:
+    if abs(base.width - overlay.width) > 2 or abs(base.height - overlay.height) > 2:
         raise ValueError(f"Size mismatch: base {base.size} != overlay {overlay.size}.")
 
     return _blend_clip_numpy(base, overlay, opacity)

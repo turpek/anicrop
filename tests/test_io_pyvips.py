@@ -6,8 +6,10 @@ import numpy as np
 import pytest
 
 from anicrop.enums import ImageFormat
+from anicrop.image import Image
 from anicrop.interfaces.io import SaveOptions
-from anicrop.io import PyvipsBackend, get_backend, get_default_backend, is_vips_available
+from anicrop.io import PyvipsBackend, get_backend, is_vips_available
+from anicrop.io.vips import VipsStreamingBuffer
 from anicrop.spatial import Region
 
 pytestmark = pytest.mark.skipif(not is_vips_available(), reason="pyvips não instalado")
@@ -18,11 +20,10 @@ def temp_dir(tmp_path: Path) -> Path:
     return tmp_path
 
 
-def test_vips_default_backend_when_available():
-    """Valida se PyvipsBackend e definido como backend padrao quando pyvips esta disponivel."""
-    backend = get_default_backend()
-    assert isinstance(backend, PyvipsBackend)
-    assert get_backend("vips") is backend
+def test_vips_backend_registration():
+    """Valida se PyvipsBackend está registrado no sistema quando pyvips está disponível."""
+    vips_backend = get_backend("vips")
+    assert isinstance(vips_backend, PyvipsBackend)
 
 
 def test_vips_get_size(temp_dir: Path):
@@ -125,3 +126,35 @@ def test_vips_read_non_existent_file_raises_error(temp_dir: Path):
     backend = PyvipsBackend()
     with pytest.raises(FileNotFoundError):
         backend.read(temp_dir / "nao_existe.png")
+
+
+def test_vips_streaming_buffer_slice(temp_dir: Path):
+    """Valida fatiamento do VipsStreamingBuffer via slices e adaptado por Image com Region."""
+    img_path = temp_dir / "test_stream.png"
+    data = np.full((100, 100, 4), (10, 20, 30, 255), dtype=np.uint8)
+    backend = PyvipsBackend()
+    backend.write(img_path, data, format=ImageFormat.RGBA)
+
+    stream = VipsStreamingBuffer(img_path, target_format=ImageFormat.RGBA)
+    sliced = stream[20:60, 10:40]
+
+    assert sliced.shape == (40, 30, 4)
+    assert np.all(sliced == (10, 20, 30, 255))
+
+    img = Image(stream, ImageFormat.RGBA)
+    img_sliced = img[Region.from_rect(10, 20, 30, 40)]
+    assert img_sliced.shape == (40, 30, 4)
+    assert np.all(img_sliced == (10, 20, 30, 255))
+
+
+def test_vips_streaming_buffer_out_of_bounds_returns_empty(temp_dir: Path):
+    """Valida se slice completamente fora dos limites retorna array vazio sem erro."""
+    img_path = temp_dir / "test_stream_bounds.png"
+    data = np.full((50, 50, 4), 255, dtype=np.uint8)
+    backend = PyvipsBackend()
+    backend.write(img_path, data, format=ImageFormat.RGBA)
+
+    stream = VipsStreamingBuffer(img_path, target_format=ImageFormat.RGBA)
+    empty_slice = stream[100:200, 100:200]
+
+    assert empty_slice.shape == (0, 0, 4)

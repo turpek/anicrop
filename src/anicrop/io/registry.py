@@ -23,6 +23,8 @@ def set_default_backend(backend: str | AbstractImageIO) -> None:
     global _DEFAULT_BACKEND_NAME
     if isinstance(backend, str):
         key = backend.lower()
+        if key == "pyvips":
+            key = "vips"
         if key not in _BACKENDS:
             raise KeyError(
                 f"Backend '{backend}' não está registrado. Disponíveis: {list(_BACKENDS.keys())}"
@@ -31,8 +33,15 @@ def set_default_backend(backend: str | AbstractImageIO) -> None:
     else:
         # Se foi passado um objeto direto
         name = backend.__class__.__name__.lower().replace("backend", "")
+        if name == "pyvips":
+            name = "vips"
         _BACKENDS[name] = backend
         _DEFAULT_BACKEND_NAME = name
+
+
+def get_default_backend_name() -> str:
+    """Retorna o identificador do backend padrão ativo."""
+    return _DEFAULT_BACKEND_NAME or "opencv"
 
 
 def get_backend(

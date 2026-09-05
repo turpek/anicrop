@@ -228,7 +228,7 @@ class PyvipsBackend(AbstractImageIO):
     def write(
         self,
         file_path: str | Path,
-        data: np.ndarray | zarr.Array,
+        data: AbstractImageBuffer | np.ndarray | zarr.Array,
         format: ImageFormat,
         options: SaveOptions | None = None,
     ) -> None:
@@ -268,7 +268,7 @@ class VipsStreamingBuffer(AbstractImageBuffer):
         if pyvips is None:
             raise RuntimeError("pyvips não está disponível no sistema.")
 
-        self._path = str(file_path)
+        self._path: str | None = str(file_path)
         self._target_format = target_format
         self._vimg = pyvips.Image.new_from_file(self._path, access="random")
 
@@ -326,32 +326,47 @@ class VipsStreamingBuffer(AbstractImageBuffer):
         return (self._vimg.width, self._vimg.height)
 
     def __getitem__(self, key: Any) -> np.ndarray:
-        from anicrop.spatial import Region
-
-        if isinstance(key, Region):
-            x = int(round(key.x.start))
-            y = int(round(key.y.start))
-            w = int(round(key.width))
-            h = int(round(key.height))
-        elif isinstance(key, tuple) and len(key) >= 2:
-            slice_y, slice_x = key[0], key[1]
-            y = slice_y.start or 0
-            x = slice_x.start or 0
-            h = (slice_y.stop or self.shape[0]) - y
-            w = (slice_x.stop or self.shape[1]) - x
-        elif key is Ellipsis:
+        if key is Ellipsis:
             mem = self._vimg.write_to_memory()
             return np.frombuffer(mem, dtype=np.uint8).reshape(self.shape)
-        else:
-            raise TypeError(
-                f"Tipo de índice não suportado no VipsStreamingBuffer: {type(key)}"
-            )
 
-        x = max(0, min(x, self._vimg.width - 1))
-        y = max(0, min(y, self._vimg.height - 1))
-        w = max(1, min(w, self._vimg.width - x))
-        h = max(1, min(h, self._vimg.height - y))
+        if isinstance(key, tuple) and len(key) >= 2:
+            slice_y, slice_x = key[0], key[1]
+            if not isinstance(slice_y, slice) or not isinstance(slice_x, slice):
+                raise TypeError(
+                    f"Índices de VipsStreamingBuffer devem ser slices, recebeu: {type(slice_y)}, {type(slice_x)}"
+                )
 
-        cropped = self._vimg.crop(x, y, w, h)
-        mem = cropped.write_to_memory()
-        return np.frombuffer(mem, dtype=np.uint8).reshape((h, w, self._vimg.bands))
+            y_start = 0 if slice_y.start is None else int(round(slice_y.start))
+            y_stop = self.shape[0] if slice_y.stop is None else int(round(slice_y.stop))
+            x_start = 0 if slice_x.start is None else int(round(slice_x.start))
+            x_stop = self.shape[1] if slice_x.stop is None else int(round(slice_x.stop))
+
+            valid_x0 = max(0, min(x_start, self._vimg.width))
+            valid_x1 = max(0, min(x_stop, self._vimg.width))
+            valid_y0 = max(0, min(y_start, self._vimg.height))
+            valid_y1 = max(0, min(y_stop, self._vimg.height))
+
+            w = valid_x1 - valid_x0
+            h = valid_y1 - valid_y0
+
+            if w <= 0 or h <= 0:
+                out_channels = self._vimg.bands
+                if len(key) >= 3 and isinstance(key[2], slice):
+                    c_slice = key[2]
+                    c_start = 0 if c_slice.start is None else c_slice.start
+                    c_stop = out_channels if c_slice.stop is None else c_slice.stop
+                    out_channels = max(0, c_stop - c_start)
+                return np.zeros((0, 0, out_channels), dtype=np.uint8)
+
+            cropped = self._vimg.crop(valid_x0, valid_y0, w, h)
+            mem = cropped.write_to_memory()
+            arr = np.frombuffer(mem, dtype=np.uint8).reshape((h, w, self._vimg.bands))
+
+            if len(key) >= 3:
+                return arr[:, :, key[2]]
+            return arr
+
+        raise TypeError(
+            f"Tipo de índice não suportado no VipsStreamingBuffer: {type(key)}"
+        )

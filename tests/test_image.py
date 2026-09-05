@@ -1,10 +1,12 @@
+import cv2
 import numpy as np
 import pytest
 import zarr
-from PIL import Image as PILImage
 from pytest import raises
 
 from anicrop.image import Image, ImageFormat
+from anicrop.io.opencv import OpenCVBackend
+from anicrop.io.vips import PyvipsBackend, is_vips_available
 from anicrop.spatial import Region, Span
 
 
@@ -268,11 +270,8 @@ def test_image_open_routes_to_read_large(mocker):
 
 def test_opencv_backend_read_large_creates_3d_zarr(tmp_path):
     """Valida se OpenCVBackend.read_large converte imagem para array Zarr particionado."""
-    from anicrop.io.opencv import OpenCVBackend
-
     source_path = tmp_path / "source.png"
-    pil_img = PILImage.new("RGB", (600, 600), color=(255, 0, 0))
-    pil_img.save(source_path)
+    cv2.imwrite(str(source_path), np.full((600, 600, 3), (0, 0, 255), dtype=np.uint8))
 
     backend = OpenCVBackend()
     data, fmt = backend.read_large(source_path, ImageFormat.RGB)
@@ -291,8 +290,7 @@ def test_opencv_backend_read_large_creates_3d_zarr(tmp_path):
 def test_image_open_opencv_converts_format(tmp_path):
     """Valida conversão de formato no OpenCVBackend padrão."""
     source_path = tmp_path / "rgb.png"
-    pil_img = PILImage.new("RGB", (100, 100), color=(255, 0, 0))
-    pil_img.save(source_path)
+    cv2.imwrite(str(source_path), np.full((100, 100, 3), (0, 0, 255), dtype=np.uint8))
 
     img_gray = Image.open(source_path, ImageFormat.GRAY)
     assert img_gray.shape == (100, 100, 1)
@@ -304,11 +302,8 @@ def test_image_open_opencv_converts_format(tmp_path):
 
 def test_opencv_backend_read_large_converts_format(tmp_path):
     """Valida se OpenCVBackend.read_large converte os canais para GRAY e RGBA."""
-    from anicrop.io.opencv import OpenCVBackend
-
     source_path = tmp_path / "giant_rgb.png"
-    pil_img = PILImage.new("RGB", (100, 100), color=(0, 255, 0))
-    pil_img.save(source_path)
+    cv2.imwrite(str(source_path), np.full((100, 100, 3), (0, 255, 0), dtype=np.uint8))
 
     backend = OpenCVBackend()
     data_gray, fmt_gray = backend.read_large(source_path, ImageFormat.GRAY)
@@ -323,14 +318,11 @@ def test_opencv_backend_read_large_converts_format(tmp_path):
 
 def test_vips_backend_read_large_streaming(tmp_path):
     """Valida se PyvipsBackend.read_large cria um VipsStreamingBuffer sob demanda."""
-    from anicrop.io.vips import PyvipsBackend, is_vips_available
-
     if not is_vips_available():
         return
 
     source_path = tmp_path / "vips_giant.png"
-    pil_img = PILImage.new("RGB", (500, 500), color=(0, 0, 255))
-    pil_img.save(source_path)
+    cv2.imwrite(str(source_path), np.full((500, 500, 3), (255, 0, 0), dtype=np.uint8))
 
     backend = PyvipsBackend()
     data, fmt = backend.read_large(source_path, ImageFormat.RGBA)

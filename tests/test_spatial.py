@@ -1,5 +1,6 @@
 import re
 
+import numpy as np
 import pytest
 from pytest import raises
 
@@ -589,3 +590,67 @@ def test_region_scale_height_invalid_raises_value_error():
     region = Region.from_size(100, 100)
     with pytest.raises(ValueError, match="Height must be positive"):
         region.scale_height(-10)
+
+
+@pytest.mark.parametrize(
+    "start, length, expected_start, expected_stop",
+    [
+        pytest.param(10, 50, 10, 60, id="pure_integers"),
+        pytest.param(10.4, 20.3, 10, 30, id="subpixel_round_down"),
+        pytest.param(10.6, 20.7, 11, 32, id="subpixel_round_up"),
+        pytest.param(5.0, 0.2, 5, 6, id="subpixel_minimum_length_one"),
+        pytest.param(-5.2, 10.0, -5, 5, id="negative_start_coordinate"),
+    ],
+)
+def test_span_to_slice(start, length, expected_start, expected_stop):
+    """Valida que Span.to_slice gera slices discretos garantindo length exato."""
+    span = Span(start, length)
+    sl = span.to_slice()
+    assert sl == slice(expected_start, expected_stop)
+    assert (sl.stop - sl.start) == (expected_stop - expected_start)
+
+
+@pytest.mark.parametrize(
+    "mode, expected_start, expected_stop",
+    [
+        pytest.param("round", 10, 30, id="mode_round"),
+        pytest.param("floor", 10, 30, id="mode_floor"),
+        pytest.param("ceil", 11, 32, id="mode_ceil"),
+    ],
+)
+def test_span_to_slice_modes(mode, expected_start, expected_stop):
+    """Valida que Span.to_slice respeita o modo de quantizacao solicitado."""
+    span = Span(10.4, 20.3)
+    sl = span.to_slice(mode=mode)
+    assert sl == slice(expected_start, expected_stop)
+
+
+def test_region_to_slice_tuple_order():
+    """Valida que Region.to_slice retorna a tupla (slice_y, slice_x) no padrao matricial."""
+    region = Region(Span(10.4, 30.2), Span(20.6, 40.8))
+    slice_y, slice_x = region.to_slice()
+    assert slice_y == slice(21, 62)
+    assert slice_x == slice(10, 40)
+
+
+def test_region_to_slice_numpy_direct_indexing():
+    """Valida a indexacao direta de array NumPy utilizando region.to_slice()."""
+    arr = np.zeros((100, 100), dtype=np.uint8)
+    region = Region.from_rect(10.4, 20.2, 30.3, 40.4)
+
+    sliced = arr[region.to_slice()]
+    assert sliced.shape == (40, 30)
+
+
+def test_span_to_int_method():
+    """Valida o metodo to_int em Span retornando instancia com inteiros discretos."""
+    span = Span(10.4, 20.7)
+    int_span = span.to_int()
+    assert int_span == Span(10, 21)
+
+
+def test_region_to_int_method():
+    """Valida o metodo to_int em Region retornando instancia com Spans inteiros discretos."""
+    region = Region(Span(10.4, 20.7), Span(30.2, 40.9))
+    int_region = region.to_int()
+    assert int_region == Region(Span(10, 21), Span(30, 41))
