@@ -24,6 +24,7 @@ cont.txt
 !benchmarks/*.png
 !benchmarks/data/*.png
 benchmarks/data/test_*.png
+benchmarks/data/photo_*
 
 # Ambientes virtuais e artefatos de benchmark
 .venv_bench/
