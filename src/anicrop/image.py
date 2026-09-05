@@ -352,7 +352,13 @@ class Image:
         io_backend = get_backend(backend)
 
         width, height = io_backend.get_size(file_path_str)
-        if width >= 8192 or height >= 8192:
+        target_w = roi.width if roi is not None else width
+        target_h = roi.height if roi is not None else height
+        effective_w = int(round(target_w / max(1, shrink)))
+        effective_h = int(round(target_h / max(1, shrink)))
+
+        threshold = config.memory_threshold
+        if threshold is not None and (effective_w * effective_h) >= threshold:
             resolved_fmt = image_format or ImageFormat.RGBA
             data, resolved_fmt = io_backend.read_large(
                 file_path_str, format=resolved_fmt
