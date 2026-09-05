@@ -77,6 +77,8 @@ class AbstractImageBuffer(ABC):
         raise TypeError(f"{type(self).__name__} does not support item assignment")
 
     @abstractmethod
-    def get_lod(self, level: int) -> AbstractImageBuffer:
+    def get_lod(
+        self, level: int, threshold_pixels: int | None = None
+    ) -> AbstractImageBuffer:
         """Gera ou extrai o nível de resolução (LOD = 1/2^level)."""
         pass

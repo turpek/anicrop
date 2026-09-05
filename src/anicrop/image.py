@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import uuid
 from collections.abc import Sequence
 from pathlib import Path
 from types import EllipsisType
@@ -10,17 +9,15 @@ from typing import Any, cast
 
 import cv2
 import numpy as np
-import zarr
 from numpy import ndarray
 
-from anicrop.buffer import ArrayBuffer, ZarrBuffer
+from anicrop.buffer import ArrayBuffer, MMapBuffer
 from anicrop.color import convert_image_format
 from anicrop.config import config
 from anicrop.enums import ImageFormat
 from anicrop.interfaces.buffer import AbstractImageBuffer
 from anicrop.interfaces.io import AbstractImageIO, SaveOptions
 from anicrop.io.registry import get_backend
-from anicrop.persistence.manager import manager_global
 from anicrop.spatial import Region, Span
 
 
@@ -50,29 +47,49 @@ class Image:
 
     def __init__(
         self,
-        image: AbstractImageBuffer | ndarray | zarr.Array,
+        image: AbstractImageBuffer | ndarray,
         image_format: ImageFormat,
+        threshold_pixels: int | None | EllipsisType = ...,
     ):
         """Initializes the Image object.
 
         Args:
-            image: An AbstractImageBuffer, 2D/3D NumPy ndarray, or Zarr Array.
+            image: An AbstractImageBuffer or 2D/3D NumPy ndarray.
+            image_format: The color format of the image.
+            threshold_pixels: Pixel threshold to offload ndarray to MMapBuffer in disk.
 
         Raises:
+            TypeError: If image is not an AbstractImageBuffer or ndarray.
             ValueError: If the image array is not 2D/3D, has zero dimensions,
                         or has no channels in a 3D configuration.
         """
         if isinstance(image, AbstractImageBuffer):
             self._data = image
         elif isinstance(image, np.ndarray):
+            if image.ndim not in (2, 3):
+                raise ValueError("image array must be 2D or 3D")
+            if image.shape[0] == 0 or image.shape[1] == 0:
+                raise ValueError("image dimensions must be greater than zero")
+            if image.ndim == 3 and image.shape[2] == 0:
+                raise ValueError("image must have at least one channel")
+
             arr = image[..., np.newaxis] if image.ndim == 2 else image
-            self._data = ArrayBuffer(arr)
+            threshold = (
+                config.memory_threshold if threshold_pixels is ... else threshold_pixels
+            )
+            if isinstance(image, np.memmap):
+                self._data = MMapBuffer(cast(np.memmap, arr))
+            elif threshold is not None and (arr.shape[0] * arr.shape[1] > threshold):
+                self._data = MMapBuffer.from_array(arr)
+            else:
+                self._data = ArrayBuffer(arr)
         else:
-            self._data = ZarrBuffer(image)
+            raise TypeError(
+                f"image must be an AbstractImageBuffer or ndarray, got {type(image).__name__}"
+            )
 
         if self._data.ndim not in (2, 3):
             raise ValueError("image array must be 2D or 3D")
-
         elif self._data.shape[0] == 0 or self._data.shape[1] == 0:
             raise ValueError("image dimensions must be greater than zero")
         elif self._data.ndim == 3 and self._data.shape[2] == 0:
@@ -212,7 +229,10 @@ class Image:
             return self
 
         if hasattr(self._data, "get_lod"):
-            return Image(self._data.get_lod(level), self.format)
+            threshold = config.memory_threshold
+            return Image(
+                self._data.get_lod(level, threshold_pixels=threshold), self.format
+            )
 
         factor = 2.0 ** (-level)
         new_w = max(1, int(self.width * factor))
@@ -229,7 +249,7 @@ class Image:
     ) -> Image:
         """Creates a new Image with the specified dimensions and format.
 
-        Uses Zarr if threshold is configured and width * height > threshold,
+        Uses MMapBuffer if threshold is configured and width * height > threshold,
         or NumPy ndarray (RAM) otherwise.
         """
         threshold = (
@@ -242,19 +262,16 @@ class Image:
         shape = (height, width, channels)
 
         if threshold is not None and width * height > threshold:
-            zarr_dir = manager_global.workspace_path / f"{uuid.uuid4().hex}.zarr"
-
-            zarr_chunks = (min(512, height), min(512, width), channels)
-            z_arr = zarr.open_array(
-                str(zarr_dir),
-                mode="w",
-                shape=shape,
-                chunks=zarr_chunks,
-                dtype=np.uint8,
-            )
+            mmap_buf = MMapBuffer.create_empty(shape, dtype=np.uint8)
             if color != 0:
-                z_arr[...] = color
-            return cls(z_arr, fmt)
+                if isinstance(color, (tuple, list)) and len(color) != channels:
+                    if len(color) < channels:
+                        color = tuple(color) + (255,) * (channels - len(color))
+                    else:
+                        color = tuple(color[:channels])
+                mmap_buf[...] = color
+                mmap_buf.flush()
+            return cls(mmap_buf, fmt)
 
         if color == 0 or (isinstance(color, (tuple, list)) and not any(color)):
             buffer = np.zeros(shape, dtype=np.uint8)

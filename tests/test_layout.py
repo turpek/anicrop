@@ -16,8 +16,10 @@ from anicrop.layout import (
     global_content_region,
     resolve_region,
 )
-from anicrop.spatial import Region
+from anicrop.spatial import Point, Region
 from anicrop.transform import TransformRel
+from anicrop.type import Scale
+from anicrop.viewport import Viewport
 
 
 def make_mock_image(
@@ -693,3 +695,151 @@ def test_fit_group_geometry_rotacionado_mantem_global_region_solicitada():
 
     # A moldura global no Canvas deve ser exatamente o ref_frame solicitado
     assert group.global_region == ref_frame
+
+
+def test_viewport_layout_fit_canvas():
+    """Valida que fit na Viewport enquadra uma referência de Canvas perfeitamente."""
+    canvas = Canvas.from_size(1600, 1200)
+    viewport = Viewport(size=(800, 600), canvas=canvas)
+
+    result = viewport.layout.fit(canvas)
+
+    assert result is True
+    assert viewport.scale == Scale(0.5, 0.5)
+    assert viewport.region == Region.from_rect(0.0, 0.0, 800.0, 600.0)
+
+
+@pytest.mark.parametrize(
+    "ref, expected_scale, expected_pan",
+    [
+        pytest.param(
+            (200, 150, 400, 300), Scale(2.0, 2.0), (0.0, 0.0), id="tuple_center"
+        ),
+        pytest.param(
+            Region.from_rect(100, 50, 200, 200),
+            Scale(3.0, 3.0),
+            (-200.0, -150.0),
+            id="region_offcenter",
+        ),
+        pytest.param(
+            Canvas.from_size(1600, 1200),
+            Scale(0.5, 0.5),
+            (400.0, 300.0),
+            id="canvas_larger",
+        ),
+    ],
+)
+def test_viewport_layout_fit_parametrized(ref, expected_scale, expected_pan):
+    """Valida o cálculo de escala e pan do ViewportLayoutStrategy.fit para diferentes tipos de referência."""
+    viewport = Viewport(size=(800, 600), canvas=Canvas.from_size(800, 600))
+
+    result = viewport.layout.fit(ref)
+
+    assert result is True
+    assert viewport.scale == expected_scale
+    assert viewport.region.top_left == Point(*expected_pan)
+
+
+@pytest.mark.parametrize(
+    "anchor_x, anchor_y, expected_pan",
+    [
+        pytest.param(0.5, 0.5, (0.0, 0.0), id="anchor_center"),
+        pytest.param(0.0, 0.0, (-600.0, -700.0), id="anchor_top_left"),
+        pytest.param(1.0, 1.0, (600.0, 700.0), id="anchor_bottom_right"),
+    ],
+)
+def test_viewport_layout_align_parametrized(anchor_x, anchor_y, expected_pan):
+    """Valida o alinhamento da janela visível da Viewport para diferentes âncoras mantendo o zoom."""
+    viewport = Viewport(size=(800, 600), canvas=Canvas.from_size(2000, 2000))
+    viewport.region = Region.from_rect(100.0, 100.0, 800.0, 600.0)
+    ref = Region.from_rect(0, 0, 2000, 2000)
+
+    result = viewport.layout.align(ref, anchor_x=anchor_x, anchor_y=anchor_y)
+
+    assert result is True
+    assert viewport.region.top_left == Point(*expected_pan)
+
+
+def test_viewport_layout_resize_bounds_centralizado():
+    """Valida o redimensionamento da janela da Viewport preservando o ponto focal no centro."""
+    viewport = Viewport(size=(800, 600), canvas=Canvas.from_size(1000, 1000))
+
+    result = viewport.layout.resize_bounds(1000, 800, anchor_x=0.5, anchor_y=0.5)
+
+    assert result is True
+    assert viewport.size == Point(1000.0, 800.0)
+    assert viewport.region.top_left == Point(0.0, 0.0)
+
+
+def test_viewport_layout_fit_content_sem_container():
+    """Valida que fit_content sem container ajusta a câmera ao Canvas da própria Viewport."""
+    viewport = Viewport(size=(800, 600), canvas=Canvas.from_size(1600, 1200))
+
+    result = viewport.layout.fit_content()
+
+    assert result is True
+    assert viewport.scale == Scale(0.5, 0.5)
+
+
+def test_viewport_layout_fit_content_com_container(mocker):
+    """Valida que fit_content com container enquadra a ROI visível do conteúdo contida no Canvas."""
+    viewport = Viewport(size=(800, 600), canvas=Canvas.from_size(2000, 2000))
+    layer = Layer(make_mock_image((400, 300)))
+    layer.region = Region.from_rect(800, 850, 400, 300)
+
+    mocker.patch(
+        "anicrop.layout.calculate_content_rect",
+        return_value=Region.from_size(400, 300),
+    )
+
+    result = viewport.layout.fit_content([layer])
+
+    assert result is True
+    assert viewport.scale == Scale(2.0, 2.0)
+
+
+def test_viewport_layout_fit_content_fora_do_canvas_retorna_false(mocker):
+    """Valida que fit_content com conteúdo fora do Canvas retorna False e não altera a câmera."""
+    viewport = Viewport(size=(800, 600), canvas=Canvas.from_size(1000, 1000))
+    layer = Layer(make_mock_image((100, 100)))
+    layer.region = Region.from_rect(2000, 2000, 100, 100)
+
+    mocker.patch(
+        "anicrop.layout.calculate_content_rect",
+        return_value=Region.from_size(100, 100),
+    )
+
+    result = viewport.layout.fit_content([layer])
+
+    assert result is False
+
+
+def test_viewport_layout_mesmo_estado_retorna_false():
+    """Valida que operações de layout repetidas que não alteram o estado da Viewport retornam False."""
+    viewport = Viewport(size=(800, 600), canvas=Canvas.from_size(1000, 1000))
+    ref = (0, 0, 1000, 1000)
+
+    viewport.layout.fit(ref)
+    fit_repeat = viewport.layout.fit(ref)
+    align_repeat = viewport.layout.align(ref, 0.5, 0.5)
+    resize_repeat = viewport.layout.resize_bounds(800, 600)
+
+    assert fit_repeat is False
+    assert align_repeat is False
+    assert resize_repeat is False
+
+
+def test_layout_facade_polimorfismo_viewport():
+    """Valida o polimorfismo da fachada Layout ao operar sobre uma instância de Viewport."""
+    layout = Layout()
+    viewport = Viewport(size=(800, 600), canvas=Canvas.from_size(1600, 1200))
+
+    fit_ok = layout.fit(viewport, (0, 0, 800, 600))
+    align_ok = layout.align(viewport, (0, 0, 1600, 1200), 0.5, 0.5)
+    resize_ok = layout.resize_bounds(viewport, 1000, 700)
+    fit_content_ok = layout.fit_content(viewport)
+
+    assert fit_ok is True
+    assert align_ok is True
+    assert resize_ok is True
+    assert fit_content_ok is True

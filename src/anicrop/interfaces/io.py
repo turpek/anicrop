@@ -8,8 +8,6 @@ from typing import TYPE_CHECKING, Any
 import numpy as np
 
 if TYPE_CHECKING:
-    import zarr
-
     from anicrop.enums import ImageFormat
     from anicrop.interfaces.buffer import AbstractImageBuffer
     from anicrop.spatial import Region
@@ -37,7 +35,7 @@ class AbstractImageIO(ABC):
         format: ImageFormat | None = None,
         shrink: int = 1,
         roi: Region | None = None,
-    ) -> tuple[np.ndarray | zarr.Array, ImageFormat, tuple[int, int]]:
+    ) -> tuple[np.ndarray, ImageFormat, tuple[int, int]]:
         """Lê e decodifica uma imagem a partir do disco.
 
         Args:
@@ -55,7 +53,7 @@ class AbstractImageIO(ABC):
     def write(
         self,
         file_path: str | Path,
-        data: AbstractImageBuffer | np.ndarray | zarr.Array,
+        data: AbstractImageBuffer | np.ndarray,
         format: ImageFormat,
         options: SaveOptions | None = None,
     ) -> None:

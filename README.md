@@ -2,7 +2,7 @@
 
 **anicrop** é um motor gráfico (*engine/core*) em Python para manipulação, composição e edição não-destrutiva de imagens 2D de alta performance.
 
-Projetado com rigor matemático e precisão geométrica, o motor utiliza uma árvore de camadas baseada no padrão *Composite*, transformações afins 3x3 sem acúmulo de erro (*Size Drift*), sistema modular de I/O acelerado por SIMD via `libvips`, backend híbrido de memória (NumPy / Zarr para imagens gigantes) e pipeline de renderização flexível.
+Projetado com rigor matemático e precisão geométrica, o motor utiliza uma árvore de camadas baseada no padrão *Composite*, transformações afins 3x3 sem acúmulo de erro (*Size Drift*), sistema modular de I/O acelerado por SIMD via `libvips`, backend híbrido de memória (NumPy / `np.memmap` para imagens gigantes) e pipeline de renderização flexível.
 
 ---
 
@@ -15,7 +15,7 @@ Projetado com rigor matemático e precisão geométrica, o motor utiliza uma ár
   - **`doc.content`**: Manipulação e corte não-destrutivo de pixels (`crop` via `BlendMode.CLIP`, `resize`, `fit`, `flip_x`, `flip_y`).
   - **`doc.combine`**: Orquestrador de composição e fusão na árvore de camadas (`merge`, `flatten`, `bake`, `bake_stack`).
 - ⚡ **I/O Modular de Alta Performance:** Decodificação e subamostragem direta (*shrink-on-load*) nativa em C/SIMD via `PyvipsBackend` (até **58× mais rápido**) com fallback transparente para `OpenCVBackend`.
-- 💾 **Backend Híbrido & LOD:** Chaveamento transparente de buffers para Zarr em imagens gigantes ($\ge 8192\text{px}$) com pirâmide de nível de detalhe (*Level of Detail*).
+- 💾 **Backend Híbrido & LOD:** Chaveamento transparente de buffers para memória virtual em disco (`np.memmap` / `MMapBuffer`) em imagens gigantes ($\ge 8192\text{px}$) com pirâmide de nível de detalhe (*Level of Detail*).
 - 🎭 **Máscaras e Filtros Anisotrópicos:** Efeitos ancorados à matriz da camada (`BoundEffect`), filtros Gaussianos com fusão de tensores de covariância 2D (`BlurFilter`) e máscaras atômicas.
 - 🔄 **Organização Fluida da Pilha:** Métodos declarativos no contêiner (`move_relative`, `move_to_front`, `move_to_back`, `swap`, `reverse`).
 - 👁️ **Pipeline de Renderização & Visualizador:** `CanvasRender` para exportações em alta resolução, `ViewportRender` para previews interativos e visualizador OpenCV `Viewer`.

@@ -25,8 +25,8 @@ class LayoutStrategy(ABC):
     @abstractmethod
     def resize_bounds(
         self,
-        new_width: int,
-        new_height: int,
+        new_width: float,
+        new_height: float,
         anchor_x: float = 0.5,
         anchor_y: float = 0.5,
     ) -> bool:

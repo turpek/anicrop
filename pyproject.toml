@@ -10,12 +10,10 @@ readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
     "imagesize>=2.0.1",
-    "numcodecs>=0.16.5",
     "numpy>=2.4.2",
     "opencv-python>=4.13.0.92",
     "ovld>=0.5.14",
     "pyvips>=2.2.3",
-    "zarr>=3.2.1",
 ]
 
 [dependency-groups]
@@ -35,7 +33,7 @@ dev = [
 [tool.pytest.ini_options]
 pythonpath = ["src"]
 markers = [
-    "slow: marca testes pesados ou demorados com Zarr/LOD (desselecione com '-m \"not slow\"')",
+    "slow: marca testes pesados ou demorados com MMap/LOD (desselecione com '-m \"not slow\"')",
 ]
 
 [tool.ruff]

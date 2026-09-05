@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import pytest
 
-from anicrop.buffer import ArrayBuffer, ZarrBuffer
+from anicrop.buffer import ArrayBuffer, MMapBuffer
 from anicrop.config import config
 from anicrop.enums import ImageFormat
 from anicrop.image import Image
@@ -103,7 +103,7 @@ def test_config_integration_with_image_new():
     """Valida se Image.new consulta o threshold do config dentro de um bloco with."""
     with config(memory_threshold=1_000_000):
         img = Image.new((2000, 2000), ImageFormat.RGBA)
-        assert isinstance(img._data, ZarrBuffer)
+        assert isinstance(img._data, MMapBuffer)
 
     with config(memory_threshold=None):
         img2 = Image.new((2000, 2000), ImageFormat.RGBA)

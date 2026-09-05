@@ -26,8 +26,6 @@ from anicrop.interfaces.buffer import AbstractImageBuffer
 from anicrop.interfaces.io import AbstractImageIO, SaveOptions
 
 if TYPE_CHECKING:
-    import zarr
-
     from anicrop.spatial import Region
 
 
@@ -228,7 +226,7 @@ class PyvipsBackend(AbstractImageIO):
     def write(
         self,
         file_path: str | Path,
-        data: AbstractImageBuffer | np.ndarray | zarr.Array,
+        data: AbstractImageBuffer | np.ndarray,
         format: ImageFormat,
         options: SaveOptions | None = None,
     ) -> None:
@@ -313,7 +311,9 @@ class VipsStreamingBuffer(AbstractImageBuffer):
         inst._vimg = vimg
         return inst
 
-    def get_lod(self, level: int) -> VipsStreamingBuffer:
+    def get_lod(
+        self, level: int, threshold_pixels: int | None = None
+    ) -> VipsStreamingBuffer:
         """Gera um buffer de streaming reduzido em tempo real usando shrink nativo em C."""
         if level <= 0:
             return self
