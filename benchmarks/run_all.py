@@ -17,6 +17,9 @@ from benchmarks.scenarios.scenario_d_gigapixel import run_benchmark as run_scena
 from benchmarks.scenarios.scenario_e_real_gigapixel import (
     run_benchmark as run_scenario_e,
 )
+from benchmarks.scenarios.scenario_f_imread import (
+    run_benchmark as run_scenario_f,
+)
 
 BENCHMARK_DIR = Path(__file__).parent
 RESULTS_MD = BENCHMARK_DIR / "RESULTS.md"
@@ -162,6 +165,7 @@ def main() -> None:
     all_results.extend(run_scenario_c(iterations=3))
     all_results.extend(run_scenario_d(iterations=3))
     all_results.extend(run_scenario_e(iterations=3))
+    all_results.extend(run_scenario_f(iterations=5))
 
     # 3. Exibe tabela consolidada no terminal via Rich
     console.print("\n[bold green]=== RESULTADOS CONSOLIDADOS ===[/bold green]\n")

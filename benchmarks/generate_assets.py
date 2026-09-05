@@ -134,6 +134,35 @@ def main() -> None:
         patch = create_patch(200, 200)
         cv2.imwrite(str(patch_path), patch)
 
+    # 3. Formatos Variados para Benchmark de I/O (JPEG, WebP, PNG)
+    photo_4k_jpg = DATA_DIR / "photo_4k.jpg"
+    photo_4k_webp = DATA_DIR / "photo_4k.webp"
+    photo_1080p_jpg = DATA_DIR / "photo_1080p.jpg"
+    photo_1080p_png = DATA_DIR / "photo_1080p.png"
+    photo_1080p_webp = DATA_DIR / "photo_1080p.webp"
+
+    bg_4k = None
+    if not photo_4k_jpg.exists() or not photo_4k_webp.exists():
+        bg_4k = create_gradient_background(3840, 2160)
+        if not photo_4k_jpg.exists():
+            print("  - Gerando photo_4k.jpg...")
+            cv2.imwrite(str(photo_4k_jpg), bg_4k[..., :3], [cv2.IMWRITE_JPEG_QUALITY, 90])
+        if not photo_4k_webp.exists():
+            print("  - Gerando photo_4k.webp...")
+            cv2.imwrite(str(photo_4k_webp), bg_4k[..., :3], [cv2.IMWRITE_WEBP_QUALITY, 90])
+
+    if not photo_1080p_jpg.exists() or not photo_1080p_png.exists() or not photo_1080p_webp.exists():
+        bg_1080 = create_gradient_background(1920, 1080)
+        if not photo_1080p_png.exists():
+            print("  - Gerando photo_1080p.png...")
+            cv2.imwrite(str(photo_1080p_png), bg_1080)
+        if not photo_1080p_jpg.exists():
+            print("  - Gerando photo_1080p.jpg...")
+            cv2.imwrite(str(photo_1080p_jpg), bg_1080[..., :3], [cv2.IMWRITE_JPEG_QUALITY, 90])
+        if not photo_1080p_webp.exists():
+            print("  - Gerando photo_1080p.webp...")
+            cv2.imwrite(str(photo_1080p_webp), bg_1080[..., :3], [cv2.IMWRITE_WEBP_QUALITY, 90])
+
     print("✅ Assets de teste gerados com sucesso!")
 
 
