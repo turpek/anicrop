@@ -1,4 +1,4 @@
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 import cv2
 import numpy as np
@@ -9,21 +9,10 @@ from anicrop.layer import EditLayer
 from anicrop.spatial import Region, Span
 
 
-def make_edit_layer(
-    width: int = 100, height: int = 100, is_zarr: bool = False
-) -> EditLayer:
-    """Função utilitária para criar EditLayers com suporte a Zarr ou ndarray."""
-    if is_zarr:
-        mock_zarr = MagicMock()
-        mock_zarr.ndim = 3
-        mock_zarr.shape = (height, width, 4)
-        mock_zarr.dtype = np.uint8
-        mock_zarr.__getitem__.return_value = np.zeros((height, width, 4), dtype=np.uint8)
-        img = Image(mock_zarr, ImageFormat.RGBA)
-    else:
-        data = np.zeros((height, width, 4), dtype=np.uint8)
-        img = Image(data, ImageFormat.RGBA)
-
+def make_edit_layer(width: int = 100, height: int = 100) -> EditLayer:
+    """Função utilitária para criar EditLayers para testes de LOD."""
+    data = np.zeros((height, width, 4), dtype=np.uint8)
+    img = Image(data, ImageFormat.RGBA)
     region = Region(Span(0, width), Span(0, height))
     matrix = np.identity(3, dtype=np.float32)
     return EditLayer(img, region, matrix)

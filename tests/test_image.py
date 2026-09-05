@@ -1,9 +1,9 @@
 import cv2
 import numpy as np
 import pytest
-import zarr
 from pytest import raises
 
+from anicrop.buffer import MMapBuffer
 from anicrop.image import Image, ImageFormat
 from anicrop.io.opencv import OpenCVBackend
 from anicrop.io.vips import PyvipsBackend, is_vips_available
@@ -197,13 +197,9 @@ def test_invalid_channel_count(shape, fmt):
         Image(data, fmt)
 
 
-def test_image_accepts_zarr_array():
-    z_array = zarr.zeros(
-        shape=(1000, 1000, 3),
-        chunks=(128, 128, 3),
-        dtype=np.uint8,
-    )
-    img = Image(z_array, ImageFormat.RGB)
+def test_image_accepts_mmap_buffer():
+    mmap_buf = MMapBuffer.create_empty((1000, 1000, 3), dtype=np.uint8)
+    img = Image(mmap_buf, ImageFormat.RGB)
     assert img.width == 1000
     assert img.height == 1000
     assert img.size == (1000, 1000)
@@ -211,10 +207,10 @@ def test_image_accepts_zarr_array():
     assert img.shape == (1000, 1000, 3)
 
 
-def test_image_zarr_getitem_with_region():
-    z_array = zarr.zeros(shape=(100, 100, 3), chunks=(50, 50, 3), dtype=np.uint8)
-    z_array[10:20, 10:20, :] = 128
-    img = Image(z_array, ImageFormat.RGB)
+def test_image_mmap_getitem_with_region():
+    mmap_buf = MMapBuffer.create_empty((100, 100, 3), dtype=np.uint8)
+    mmap_buf[10:20, 10:20, :] = 128
+    img = Image(mmap_buf, ImageFormat.RGB)
     region = Region(Span(10, 10), Span(10, 10))
     roi = img[region]
     assert isinstance(roi, np.ndarray)
@@ -222,10 +218,10 @@ def test_image_zarr_getitem_with_region():
     assert np.all(roi == 128)
 
 
-def test_image_zarr_grayscale_is_always_3d():
-    z_array = zarr.zeros(shape=(100, 100, 1), chunks=(50, 50, 1), dtype=np.uint8)
-    z_array[5:10, 5:10, 0] = 255
-    img = Image(z_array, ImageFormat.GRAY)
+def test_image_mmap_grayscale_is_always_3d():
+    mmap_buf = MMapBuffer.create_empty((100, 100, 1), dtype=np.uint8)
+    mmap_buf[5:10, 5:10, 0] = 255
+    img = Image(mmap_buf, ImageFormat.GRAY)
     assert img.shape == (100, 100, 1)
     region = Region(Span(5, 5), Span(5, 5))
     roi = img[region]
@@ -268,13 +264,14 @@ def test_image_open_routes_to_read_large(mocker):
     mock_backend.read.assert_not_called()
 
 
-def test_opencv_backend_read_large_creates_3d_zarr(tmp_path):
-    """Valida se OpenCVBackend.read_large converte imagem para array Zarr particionado."""
+def test_opencv_backend_read_large_creates_3d_mmap(tmp_path):
+    """Valida se OpenCVBackend.read_large converte imagem para MMapBuffer em disco."""
     source_path = tmp_path / "source.png"
     cv2.imwrite(str(source_path), np.full((600, 600, 3), (0, 0, 255), dtype=np.uint8))
 
     backend = OpenCVBackend()
     data, fmt = backend.read_large(source_path, ImageFormat.RGB)
+    assert isinstance(data, MMapBuffer)
     img = Image(data, fmt)
 
     assert img.shape == (600, 600, 3)

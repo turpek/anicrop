@@ -1,18 +1,16 @@
 from __future__ import annotations
 
-import uuid
 from pathlib import Path
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
 
 import cv2
 import imagesize  # type: ignore[import-untyped]
 import numpy as np
-import zarr
 
+from anicrop.buffer import MMapBuffer
 from anicrop.color import convert_image_format
 from anicrop.enums import ImageFormat
 from anicrop.interfaces.io import AbstractImageIO, SaveOptions
-from anicrop.persistence.manager import manager_global
 
 if TYPE_CHECKING:
     from anicrop.interfaces.buffer import AbstractImageBuffer
@@ -238,7 +236,7 @@ class OpenCVBackend(AbstractImageIO):
     def write(
         self,
         file_path: str | Path,
-        data: AbstractImageBuffer | np.ndarray | zarr.Array,
+        data: AbstractImageBuffer | np.ndarray,
         format: ImageFormat,
         options: SaveOptions | None = None,
     ) -> None:
@@ -259,30 +257,11 @@ class OpenCVBackend(AbstractImageIO):
         self,
         file_path: str | Path,
         format: ImageFormat | None = None,
-    ) -> tuple[Any, ImageFormat]:
-        """Abre imagens de altíssima resolução (>=8192px) convertendo para Zarr em disco."""
+    ) -> tuple[MMapBuffer, ImageFormat]:
+        """Abre imagens de altíssima resolução (>=8192px) convertendo para MMapBuffer em disco."""
         image_format = format or ImageFormat.RGBA
-        zarr_dir = manager_global.workspace_path / f"{uuid.uuid4().hex}.zarr"
 
         raw_data, native_channels = _decode_raw(file_path)
         data = _convert_to_requested_format(raw_data, native_channels, image_format)
-        height, width = data.shape[:2]
-        channels = image_format.channels
-
-        zarr_shape = (height, width, channels)
-        zarr_chunks = (1024, 1024, channels)
-
-        z_arr = zarr.open_array(
-            str(zarr_dir),
-            mode="w",
-            shape=zarr_shape,
-            chunks=zarr_chunks,
-            dtype=np.uint8,
-        )
-
-        strip_h = 1024
-        for y in range(0, height, strip_h):
-            y_end = min(y + strip_h, height)
-            z_arr[y:y_end, :] = data[y:y_end, :]
-
-        return zarr.open_array(str(zarr_dir), mode="r"), image_format
+        mmap_buffer = MMapBuffer.from_array(data)
+        return mmap_buffer, image_format
