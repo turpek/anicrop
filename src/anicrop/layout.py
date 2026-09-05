@@ -19,11 +19,15 @@ from anicrop.transform import (
     mat_inverse,
     transform_vector,
 )
+from anicrop.type import Scale
 
 if TYPE_CHECKING:
     from anicrop.canvas import Canvas
     from anicrop.container import Container, GroupLayer
     from anicrop.layer import Layer
+    from anicrop.viewport import Viewport
+
+LayoutRef = tuple[int, int, int, int] | Region | AbstractCanvas | AbstractBaseLayer
 
 
 def _compute_layer_local_roi(target: AbstractLayer) -> Region | None:
@@ -91,7 +95,7 @@ def global_content_region(
 
 
 def resolve_region(
-    ref: tuple[int, int, int, int] | Region | AbstractCanvas | AbstractBaseLayer,
+    ref: LayoutRef,
 ) -> Region:
     if isinstance(ref, tuple):
         return Region.from_rect(*ref)
@@ -135,7 +139,7 @@ class LayerLayoutStrategy(LayoutStrategy):
 
     def fit(
         self,
-        ref: tuple[int, int, int, int] | Region | AbstractCanvas | AbstractBaseLayer,
+        ref: LayoutRef,
     ) -> bool:
         ref_region = resolve_region(ref)
         if self.target.global_region == ref_region:
@@ -148,7 +152,7 @@ class LayerLayoutStrategy(LayoutStrategy):
 
     def align(
         self,
-        ref: tuple[int, int, int, int] | Region | AbstractCanvas | AbstractBaseLayer,
+        ref: LayoutRef,
         anchor_x: float = 0.5,
         anchor_y: float = 0.5,
     ) -> bool:
@@ -169,8 +173,8 @@ class LayerLayoutStrategy(LayoutStrategy):
 
     def resize_bounds(
         self,
-        new_width: int,
-        new_height: int,
+        new_width: float,
+        new_height: float,
         anchor_x: float = 0.5,
         anchor_y: float = 0.5,
     ) -> bool:
@@ -206,7 +210,7 @@ class GroupLayoutStrategy(LayoutStrategy):
 
     def fit(
         self,
-        ref: tuple[int, int, int, int] | Region | AbstractCanvas | AbstractBaseLayer,
+        ref: LayoutRef,
     ) -> bool:
         ref_region = resolve_region(ref)
         if self.target.global_region == ref_region:
@@ -217,7 +221,7 @@ class GroupLayoutStrategy(LayoutStrategy):
 
     def align(
         self,
-        ref: tuple[int, int, int, int] | Region | AbstractCanvas | AbstractBaseLayer,
+        ref: LayoutRef,
         anchor_x: float = 0.5,
         anchor_y: float = 0.5,
     ) -> bool:
@@ -238,8 +242,8 @@ class GroupLayoutStrategy(LayoutStrategy):
 
     def resize_bounds(
         self,
-        new_width: int,
-        new_height: int,
+        new_width: float,
+        new_height: float,
         anchor_x: float = 0.5,
         anchor_y: float = 0.5,
     ) -> bool:
@@ -262,13 +266,11 @@ class CanvasLayoutStrategy(LayoutStrategy):
 
     def fit(
         self,
-        ref: tuple[int, int, int, int] | Region | AbstractCanvas | AbstractBaseLayer,
+        ref: LayoutRef,
     ) -> bool:
         ref_region = resolve_region(ref)
-        if (
-            not ref_region.overlaps(self.target.region)
-            or self.target.region == ref_region
-        ):
+        t_region = self.target.region
+        if not ref_region.overlaps(t_region) or t_region == ref_region:
             return False
 
         self.target.region = ref_region
@@ -276,7 +278,7 @@ class CanvasLayoutStrategy(LayoutStrategy):
 
     def align(
         self,
-        ref: tuple[int, int, int, int] | Region | AbstractCanvas | AbstractBaseLayer,
+        ref: LayoutRef,
         anchor_x: float = 0.5,
         anchor_y: float = 0.5,
     ) -> bool:
@@ -289,8 +291,8 @@ class CanvasLayoutStrategy(LayoutStrategy):
 
     def resize_bounds(
         self,
-        new_width: int,
-        new_height: int,
+        new_width: float,
+        new_height: float,
         anchor_x: float = 0.5,
         anchor_y: float = 0.5,
     ) -> bool:
@@ -319,20 +321,132 @@ class CanvasLayoutStrategy(LayoutStrategy):
         return True
 
 
+class ViewportLayoutStrategy(LayoutStrategy):
+    """Estratégia de layout para a moldura da Viewport (Câmera)."""
+
+    def __init__(self, target: Viewport) -> None:
+        self.target = target
+
+    def fit(
+        self,
+        ref: LayoutRef | None = None,
+    ) -> bool:
+        if ref is None:
+            ref = self.target._canvas
+        ref_region = resolve_region(ref)
+        w_ref, h_ref = ref_region.size
+        if w_ref <= 0 or h_ref <= 0:
+            return False
+
+        w_view, h_view = self.target.size
+        s = min(w_view / w_ref, h_view / h_ref)
+        fit_sx = self.target._fit.sx if self.target._fit.sx > 0 else 1.0
+        fit_sy = self.target._fit.sy if self.target._fit.sy > 0 else 1.0
+        new_scale = Scale(s / fit_sx, s / fit_sy)
+
+        ref_center_x = ref_region.x.start + w_ref / 2.0
+        ref_center_y = ref_region.y.start + h_ref / 2.0
+        canvas_center_x = self.target.canvas_size[0] / 2.0
+        canvas_center_y = self.target.canvas_size[1] / 2.0
+        pan_x = self.target._fit.sx * (ref_center_x - canvas_center_x)
+        pan_y = self.target._fit.sy * (ref_center_y - canvas_center_y)
+        new_region = Region.from_rect(pan_x, pan_y, w_view, h_view)
+
+        if self.target.scale == new_scale and self.target.region == new_region:
+            return False
+
+        self.target.scale = new_scale
+        self.target.region = new_region
+        return True
+
+    def align(
+        self,
+        ref: LayoutRef,
+        anchor_x: float = 0.5,
+        anchor_y: float = 0.5,
+    ) -> bool:
+        ref_region = resolve_region(ref)
+        w_view, h_view = self.target.size
+        s_total_x = self.target.scale_factor
+        s_total_y = self.target.scale.sy * self.target._fit.sy
+        if s_total_x <= 0 or s_total_y <= 0:
+            return False
+
+        w_visible = w_view / s_total_x
+        h_visible = h_view / s_total_y
+
+        vis_start_x = ref_region.x.start + (ref_region.width - w_visible) * anchor_x
+        vis_start_y = ref_region.y.start + (ref_region.height - h_visible) * anchor_y
+        vis_center_x = vis_start_x + w_visible / 2.0
+        vis_center_y = vis_start_y + h_visible / 2.0
+
+        canvas_center_x = self.target.canvas_size[0] / 2.0
+        canvas_center_y = self.target.canvas_size[1] / 2.0
+        pan_x = self.target._fit.sx * (vis_center_x - canvas_center_x)
+        pan_y = self.target._fit.sy * (vis_center_y - canvas_center_y)
+        new_region = Region.from_rect(pan_x, pan_y, w_view, h_view)
+
+        if self.target.region == new_region:
+            return False
+
+        self.target.region = new_region
+        return True
+
+    def resize_bounds(
+        self,
+        new_width: float,
+        new_height: float,
+        anchor_x: float = 0.5,
+        anchor_y: float = 0.5,
+    ) -> bool:
+        old_w, old_h = self.target.size
+        if new_width == old_w and new_height == old_h:
+            return False
+
+        scale_x = self.target.scale.sx if self.target.scale.sx > 0 else 1.0
+        scale_y = self.target.scale.sy if self.target.scale.sy > 0 else 1.0
+
+        delta_pan_x = (anchor_x - 0.5) * (new_width - old_w) / scale_x
+        delta_pan_y = (anchor_y - 0.5) * (new_height - old_h) / scale_y
+
+        cur_pan_x, cur_pan_y = self.target.region.top_left
+        new_pan_x = cur_pan_x + delta_pan_x
+        new_pan_y = cur_pan_y + delta_pan_y
+
+        self.target.region = Region.from_rect(
+            new_pan_x, new_pan_y, new_width, new_height
+        )
+        return True
+
+    def fit_content(
+        self,
+        container: AbstractContainer | Sequence[AbstractBaseLayer] | None = None,
+    ) -> bool:
+        if container is None:
+            return self.fit(self.target._canvas)
+
+        roi = global_content_region(container)
+        if roi is None or not roi.overlaps(self.target._canvas.region):
+            return False
+
+        effective_roi = roi & self.target._canvas.region
+        return self.fit(effective_roi)
+
+
 class Layout:
     """Motor central de operações de layout e enquadramento espacial."""
 
     def fit(
         self,
-        target: AbstractCanvas | AbstractBaseLayer,
-        ref: tuple[int, int, int, int] | Region | AbstractCanvas | AbstractBaseLayer,
+        target: AbstractCanvas | AbstractBaseLayer | Viewport,
+        ref: LayoutRef,
     ) -> bool:
         return target.layout.fit(ref)
 
     def align(
         self,
-        target: AbstractCanvas | AbstractBaseLayer,
-        ref: tuple[int, int, int, int] | Region | AbstractCanvas | AbstractBaseLayer,
+        target: AbstractCanvas | AbstractBaseLayer | Viewport,
+        ref: LayoutRef,
         anchor_x: float = 0.5,
         anchor_y: float = 0.5,
     ) -> bool:
@@ -340,9 +454,9 @@ class Layout:
 
     def resize_bounds(
         self,
-        target: AbstractCanvas | AbstractBaseLayer,
-        new_width: int,
-        new_height: int,
+        target: AbstractCanvas | AbstractBaseLayer | Viewport,
+        new_width: float,
+        new_height: float,
         anchor_x: float = 0.5,
         anchor_y: float = 0.5,
     ) -> bool:
@@ -350,7 +464,7 @@ class Layout:
 
     def fit_content(
         self,
-        target: AbstractCanvas | AbstractBaseLayer,
+        target: AbstractCanvas | AbstractBaseLayer | Viewport,
         *args: Any,
         **kwargs: Any,
     ) -> bool:

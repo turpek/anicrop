@@ -2,6 +2,7 @@ from numpy import ndarray
 
 from anicrop.canvas import Canvas
 from anicrop.interfaces.canvas import AbstractCanvas
+from anicrop.layout import ViewportLayoutStrategy
 from anicrop.spatial import Point, Region, rect_to_region
 from anicrop.transform import calculate_new_rect, mat_inverse, mat_pivot, mat_translation
 from anicrop.type import Scale
@@ -10,6 +11,7 @@ from anicrop.type import Scale
 class Viewport:
     bg_color: tuple[int, ...]
     _canvas: AbstractCanvas
+    _layout: ViewportLayoutStrategy
 
     def __init__(
         self,
@@ -26,6 +28,7 @@ class Viewport:
         else:
             self._canvas = Canvas.from_size(size[0], size[1])
         self.bg_color = bg_color if bg_color is not None else (204, 204, 204)
+        self._layout = ViewportLayoutStrategy(self)
 
     def __repr__(self) -> str:
         return f"Viewport(region={self.region}, scale={self.scale})"
@@ -35,6 +38,11 @@ class Viewport:
         if not isinstance(canvas, AbstractCanvas):
             raise TypeError(f"Expected AbstractCanvas, got {type(canvas).__name__}")
         self._canvas = canvas
+
+    @property
+    def layout(self) -> ViewportLayoutStrategy:
+        """Estratégia de layout para a moldura e câmera da Viewport."""
+        return self._layout
 
     @property
     def canvas_size(self) -> Point:
