@@ -119,6 +119,17 @@ Para detalhes de métodos, tipos de retorno e exemplos de uso de cada classe, co
     - Por que essa solução foi escolhida?
     - Existe impacto ou efeito colateral?
 
+### 6.2.1. Separação Estrita de Commits (Produção vs. Dev-Only):
+- **Regra Fundamental:** É estritamente proibido misturar arquivos de produção com arquivos exclusivos de desenvolvimento em um mesmo commit.
+- **Commits de Produção (Core / Release):**
+  - **Arquivos:** `src/`, `tests/`, `README.md`, `pyproject.toml`, `uv.lock`, `setup.py`, `Makefile`, `assets/`.
+  - **Prefixos:** `feat:`, `fix:`, `refactor:`, `perf:`, `test:`, `style:`.
+  - **Objetivo:** Manter a branch `main` e o changelog automático do `make sync-main` limpos, rastreáveis e focados no motor.
+- **Commits de Desenvolvimento (Ambiente / Metadados / Benchmarks):**
+  - **Arquivos:** `GEMINI.md`, `docs/` (guias técnicos e documentação interna), `benchmarks/`, `planos/`, `scratch/`.
+  - **Prefixos:** `docs(dev):`, `bench:`, `chore(dev):`, `docs(plano):`.
+  - **Objetivo:** Preservar a rastreabilidade de instruções da IA, planos de refatoração e métricas de estresse na `dev` sem contaminar os commits de produto.
+
 
 
 ### 6.3. Fluxo de Git e Sincronização Multi-PC (`dev` <-> `main`):
