@@ -4,8 +4,8 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "anicrop"
-version = "0.1.0"
-description = "Programa para fazer stitch de animes"
+version = "0.4.0"
+description = "A Python engine for non-destructive 2D image composition and editing"
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
