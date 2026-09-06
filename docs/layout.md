@@ -59,6 +59,45 @@ doc.layout.align(viewport, doc.canvas.region, anchor_x=0.0, anchor_y=0.0)
 
 ---
 
+### `pin(target: Canvas | Layer | GroupLayer | Viewport, point: tuple[float, float] | Point, anchor_x: float = 0.5, anchor_y: float = 0.5) -> bool`
+- **Descrição**: Posiciona o alvo de modo que sua âncora interna (`anchor_x, anchor_y`) coincida exatamente com a coordenada global (`point`). Na `Viewport`, move a visualização (Pan) centralizando ou ancorando a janela de exibição sobre o ponto focal informado, sem necessidade de definir caixas delimitadoras artificiais.
+- **Parâmetros**:
+  - `target` (`Canvas | Layer | GroupLayer | Viewport`): Alvo a ser posicionado.
+  - `point` (`tuple[float, float] | Point`): Coordenada global `(x, y)` no Canvas.
+  - `anchor_x` (`float`): Ponto de ancoragem horizontal no alvo (`0.0` esquerda, `0.5` centro, `1.0` direita). Padrão `0.5`.
+  - `anchor_y` (`float`): Ponto de ancoragem vertical no alvo (`0.0` topo, `0.5` centro, `1.0` base). Padrão `0.5`.
+- **Retorno**: `bool` — `True` se a posição ou pan foi alterado.
+
+```python
+# Fixa a base inferior central do chapéu (0.5, 1.0) na coordenada da cabeça (520, 196)
+chapeu.layout.pin((520, 196), anchor_x=0.5, anchor_y=1.0)
+
+# Centraliza a câmera da Viewport diretamente no ponto focal global (anchor=(0.5, 0.5) por padrão)
+viewport.layout.pin((920, 130))
+```
+
+---
+
+### Função Auxiliar: `anchor_point(ref: LayoutRef, anchor_x: float = 0.5, anchor_y: float = 0.5) -> Point`
+- **Descrição**: Função utilitária pura que calcula e retorna a coordenada global `Point(x, y)` correspondente a uma âncora normalizada em uma referência espacial (camada, grupo, Canvas, Region ou tupla).
+- **Parâmetros**:
+  - `ref` (`LayoutRef`): Entidade de referência espacial.
+  - `anchor_x` (`float`): Fator horizontal normalizado (`0.0` a `1.0`).
+  - `anchor_y` (`float`): Fator vertical normalizado (`0.0` a `1.0`).
+- **Retorno**: `Point` — Coordenada `(x, y)` projetada no Espaço Global.
+
+```python
+from anicrop.layout import anchor_point
+
+# Descobre o ponto global correspondente ao topo central de uma personagem
+topo_cabeca = anchor_point(doc["personagem"], anchor_x=0.5, anchor_y=0.0)
+
+# Posiciona um acessório diretamente nesse ponto
+doc["coroa"].layout.pin(topo_cabeca, anchor_x=0.5, anchor_y=1.0)
+```
+
+---
+
 ### `resize_bounds(target: Canvas | Layer | GroupLayer | Viewport, new_width: float, new_height: float, anchor_x: float = 0.5, anchor_y: float = 0.5) -> bool`
 - **Descrição**: Redimensiona a moldura lógica do alvo para as novas dimensões especificadas mantendo o alinhamento ancorado. Em camadas, **não distorce** a escala dos pixels internos. Na `Viewport`, redimensiona a janela de exibição preservando o ponto focal.
 - **Parâmetros**:

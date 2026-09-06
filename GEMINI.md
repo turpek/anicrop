@@ -150,6 +150,7 @@ Para detalhes de métodos, tipos de retorno e exemplos de uso de cada classe, co
   - **Escopo Puramente Espacial ("Retrato" / Moldura):** O módulo `Layout` opera exclusivamente sobre a geometria espacial e o enquadramento lógico das camadas. **Não lida com manipulação de pixels, imagens ou máscaras.**
   - **Operações via `GeometryController` e `GeometryStrategy`:** Estratégias como `fit` e `resize_bounds` atuam gerenciando a `GeometryStrategy` no `GeometryController` (ex: `FitGeometry`). A `base.region` original permanece **intacta**, preservando a geometria estrutural e o pivô de rotação (imunidade contra o "Efeito Pêndulo").
   - **Projeção Global Unificada (`global_region`):** As referências e alinhamentos (`_resolve_region`, `align`, `fit_content`) utilizam a projeção em **Espaço Global** (`global_region` / `mat_global`), imunizando o sistema contra distorções por rotação, escala e *skew*.
+  - **Posicionamento por Ponto (`pin` & `anchor_point`):** O método `pin(point, anchor_x, anchor_y)` ancora diretamente uma âncora interna do elemento em uma coordenada global $(X, Y)$ no Canvas (ou centraliza a câmera na `Viewport`). A função utilitária `anchor_point(ref, anchor_x, anchor_y)` traduz âncoras normalizadas de qualquer referência para coordenadas globais.
   - **Protocolo Estrutural `LayoutStrategy(Protocol)`:** Tipagem estática elegante via *duck typing* estrutural no `_resolve_strategy`.
 
 - **Arquitetura de Máscaras (`Mask` & `ProxyMask`):**
