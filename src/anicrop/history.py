@@ -187,7 +187,8 @@ class GlobalHistory:
             raise IndexError("Undo stack is empty")
 
         cmd = self._undo_stack.pop()
-        cmd.undo()
+        with self.disabled():
+            cmd.undo()
         self._redo_stack.append(cmd)
 
     def redo(self) -> None:
@@ -196,7 +197,8 @@ class GlobalHistory:
             raise IndexError("Redo stack is empty")
 
         cmd = self._redo_stack.pop()
-        cmd.execute()
+        with self.disabled():
+            cmd.execute()
         self._undo_stack.append(cmd)
 
     def undo_empty(self) -> bool:
@@ -268,5 +270,9 @@ class GlobalHistory:
     @contextmanager
     def disabled(self):
         """Contexto que desativa temporariamente a gravação de ações no histórico."""
-        with self.use_policy(DisabledPolicy()):
+        old_policy = self._policy
+        self._policy = DisabledPolicy()
+        try:
             yield
+        finally:
+            self._policy = old_policy

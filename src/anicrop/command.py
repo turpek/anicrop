@@ -264,6 +264,10 @@ class AdaptiveCommand(Command):
         self._target = getattr(item, "_target", item)
         self._deltas: dict[str, tuple[Any, Any]] = {}
 
+        if name and hasattr(self._target, name) and value is not None:
+            old_val = getattr(self._target, name)
+            self.record_change(name, old_val, value)
+
     def record_change(self, prop_name: str, old_val: Any, new_val: Any) -> None:
         """Registra a transição de valor de uma propriedade específica."""
         old_stored = np.copy(old_val) if isinstance(old_val, np.ndarray) else old_val
@@ -406,10 +410,11 @@ class MaskStateSnapshot(StateSnapshot):
     """Snapshot para atributos escalares de estado da Máscara."""
 
     def __init__(self, item: Mask, value: Any = None):
-        self._item = item
-        self._visible = item.visible
-        self._invert = item.invert
-        self._matrix = np.copy(item.matrix)
+        target = getattr(item, "_target", item)
+        self._item = target
+        self._visible = target.visible
+        self._invert = target.invert
+        self._matrix = np.copy(target.matrix)
 
     def restore(self) -> None:
         self._item.visible = self._visible
@@ -430,9 +435,10 @@ class MaskImageSnapshot(StateSnapshot):
     """Snapshot atômico de pixels da Máscara (usa value como a chave/slice do ndarray)."""
 
     def __init__(self, item: Mask, value: Any = None):
-        self._item = item
+        target = getattr(item, "_target", item)
+        self._item = target
         self._key = value
-        self._data = np.copy(item[value])
+        self._data = np.copy(target[value])
 
     def restore(self) -> None:
         self._item[self._key] = self._data
@@ -452,10 +458,11 @@ class MaskCommand(Command):
     DEFAULT_SNAPSHOT = MaskStateSnapshot
 
     def __init__(self, name: str, item: Mask, value: Any = None):
-        super().__init__(name, item, value)
+        target = getattr(item, "_target", item)
+        super().__init__(name, target, value)
         snapshot_cls = self.SNAPSHOT_MAP.get(name, self.DEFAULT_SNAPSHOT)
         self._snapshot_cls = snapshot_cls
-        self._old_item = snapshot_cls(item, value)
+        self._old_item = snapshot_cls(target, value)
 
     def seal(self) -> None:
         if not self._sealed:
