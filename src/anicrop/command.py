@@ -256,8 +256,62 @@ class ReparentCommand(Command):
         )
 
 
-class BaseLayerCommand(Command):
-    """Gerencia mutações em propriedades da classe BaseLayer."""
+class AdaptiveCommand(Command):
+    """Comando adaptativo que rastreia deltas O(1) de propriedades sob demanda."""
+
+    def __init__(self, name: str, item: Any, value: Any = None):
+        super().__init__(name, item, value)
+        self._target = getattr(item, "_target", item)
+        self._deltas: dict[str, tuple[Any, Any]] = {}
+
+        if name and hasattr(self._target, name) and value is not None:
+            old_val = getattr(self._target, name)
+            self.record_change(name, old_val, value)
+
+    def record_change(self, prop_name: str, old_val: Any, new_val: Any) -> None:
+        """Registra a transição de valor de uma propriedade específica."""
+        old_stored = np.copy(old_val) if isinstance(old_val, np.ndarray) else old_val
+        new_stored = np.copy(new_val) if isinstance(new_val, np.ndarray) else new_val
+
+        if prop_name in self._deltas:
+            initial_old, _ = self._deltas[prop_name]
+            self._deltas[prop_name] = (initial_old, new_stored)
+        else:
+            self._deltas[prop_name] = (old_stored, new_stored)
+
+    def seal(self) -> None:
+        self._sealed = True
+
+    def undo(self) -> None:
+        if not self._sealed:
+            self.seal()
+        for prop_name, (old_val, _) in reversed(list(self._deltas.items())):
+            val = np.copy(old_val) if isinstance(old_val, np.ndarray) else old_val
+            setattr(self._target, prop_name, val)
+
+    def execute(self) -> None:
+        if not self._sealed:
+            return
+        for prop_name, (_, new_val) in self._deltas.items():
+            val = np.copy(new_val) if isinstance(new_val, np.ndarray) else new_val
+            setattr(self._target, prop_name, val)
+
+    def has_changes(self) -> bool:
+        if not self._deltas:
+            return False
+        for old_val, new_val in self._deltas.values():
+            if isinstance(old_val, np.ndarray) and isinstance(new_val, np.ndarray):
+                if not np.array_equal(old_val, new_val):
+                    return True
+            elif isinstance(old_val, np.ndarray) or isinstance(new_val, np.ndarray):
+                return True
+            elif old_val != new_val:
+                return True
+        return False
+
+
+class BaseLayerCommand(AdaptiveCommand):
+    """Gerencia mutações em propriedades da classe BaseLayer com suporte a deltas adaptativos e snapshots."""
 
     SNAPSHOT_REGISTRY = ((BaseLayer, BaseLayerSnapshot),)
 
@@ -267,22 +321,31 @@ class BaseLayerCommand(Command):
 
     def seal(self) -> None:
         if not self._sealed:
-            self._new_item = _create_snapshot(self.item, self.SNAPSHOT_REGISTRY)
+            if not self._deltas:
+                self._new_item = _create_snapshot(self.item, self.SNAPSHOT_REGISTRY)
             self._sealed = True
 
     def execute(self) -> None:
         if not self._sealed:
             return
-        self._new_item.restore()
+        if self._deltas:
+            super().execute()
+        else:
+            self._new_item.restore()
 
     def undo(self) -> None:
         if not self._sealed:
             self.seal()
-        self._old_item.restore()
+        if self._deltas:
+            super().undo()
+        else:
+            self._old_item.restore()
 
     def has_changes(self) -> bool:
         if not self._sealed:
             return True
+        if self._deltas:
+            return super().has_changes()
         return self._old_item.has_change(self._new_item)
 
 
@@ -349,10 +412,11 @@ class MaskStateSnapshot(StateSnapshot):
     """Snapshot para atributos escalares de estado da Máscara."""
 
     def __init__(self, item: Mask, value: Any = None):
-        self._item = item
-        self._visible = item.visible
-        self._invert = item.invert
-        self._matrix = np.copy(item.matrix)
+        target = getattr(item, "_target", item)
+        self._item = target
+        self._visible = target.visible
+        self._invert = target.invert
+        self._matrix = np.copy(target.matrix)
 
     def restore(self) -> None:
         self._item.visible = self._visible
@@ -373,9 +437,10 @@ class MaskImageSnapshot(StateSnapshot):
     """Snapshot atômico de pixels da Máscara (usa value como a chave/slice do ndarray)."""
 
     def __init__(self, item: Mask, value: Any = None):
-        self._item = item
+        target = getattr(item, "_target", item)
+        self._item = target
         self._key = value
-        self._data = np.copy(item[value])
+        self._data = np.copy(target[value])
 
     def restore(self) -> None:
         self._item[self._key] = self._data
@@ -395,10 +460,11 @@ class MaskCommand(Command):
     DEFAULT_SNAPSHOT = MaskStateSnapshot
 
     def __init__(self, name: str, item: Mask, value: Any = None):
-        super().__init__(name, item, value)
+        target = getattr(item, "_target", item)
+        super().__init__(name, target, value)
         snapshot_cls = self.SNAPSHOT_MAP.get(name, self.DEFAULT_SNAPSHOT)
         self._snapshot_cls = snapshot_cls
-        self._old_item = snapshot_cls(item, value)
+        self._old_item = snapshot_cls(target, value)
 
     def seal(self) -> None:
         if not self._sealed:

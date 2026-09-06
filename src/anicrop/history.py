@@ -38,7 +38,6 @@ class NormalPolicy(ActionPolicy):
         target: Any = None,
         value: Any = None,
     ) -> None:
-        history._clear_redo()
         history.commit()
         cmd = command_cls(name, target, value)
         history._undo_stack.append(cmd)
@@ -50,6 +49,8 @@ class NormalPolicy(ActionPolicy):
                 last_cmd.seal()
                 if not last_cmd.has_changes():
                     history._undo_stack.pop()
+                    return True
+                history._clear_redo()
                 return True
         return False
 
@@ -70,7 +71,6 @@ class MergeContinuousPolicy(ActionPolicy):
             if type(last_cmd) is command_cls and last_cmd.can_merge(name, target):
                 return
 
-        history._clear_redo()
         history.commit()
         cmd = command_cls(name, target, value)
         history._undo_stack.append(cmd)
@@ -95,7 +95,6 @@ class GroupActionPolicy(ActionPolicy):
             if type(last_cmd) is command_cls:
                 return
 
-        history._clear_redo()
         history.commit()
         cmd = command_cls(name, target, value)
         history._undo_stack.append(cmd)
@@ -138,12 +137,20 @@ class AtomicPolicy(ActionPolicy):
                 last_cmd.add_command(command_cls(name, target, value))
                 return
 
-        history._clear_redo()
         history.commit()
         cmd = command_cls(name, target, value)
         history._undo_stack.append(cmd)
 
     def commit(self, history: GlobalHistory) -> bool:
+        if len(history._undo_stack) > 0:
+            last_cmd = history._undo_stack[-1]
+            if isinstance(last_cmd, MacroCommand) and last_cmd._commands:
+                sub_cmd = last_cmd._commands[-1]
+                if not sub_cmd._sealed:
+                    sub_cmd.seal()
+                    if not sub_cmd.has_changes():
+                        last_cmd._commands.pop()
+                    return True
         return False
 
 
@@ -152,6 +159,7 @@ class GlobalHistory:
         self._undo_stack: deque[Command] = deque()
         self._redo_stack: deque[Command] = deque()
         self._policy: ActionPolicy = NormalPolicy()
+        self._policy_depth: int = 0
 
     @property
     def is_active(self) -> bool:
@@ -179,7 +187,8 @@ class GlobalHistory:
             raise IndexError("Undo stack is empty")
 
         cmd = self._undo_stack.pop()
-        cmd.undo()
+        with self.disabled():
+            cmd.undo()
         self._redo_stack.append(cmd)
 
     def redo(self) -> None:
@@ -188,7 +197,8 @@ class GlobalHistory:
             raise IndexError("Redo stack is empty")
 
         cmd = self._redo_stack.pop()
-        cmd.execute()
+        with self.disabled():
+            cmd.execute()
         self._undo_stack.append(cmd)
 
     def undo_empty(self) -> bool:
@@ -196,30 +206,54 @@ class GlobalHistory:
         return len(self._undo_stack) == 0
 
     def redo_empty(self) -> bool:
+        self.commit()
         return len(self._redo_stack) == 0
 
     @contextmanager
     def use_policy(self, policy: ActionPolicy):
+        self._policy_depth += 1
         old_policy = self._policy
         self._policy = policy
         try:
             yield
         finally:
             self._policy = old_policy
-            self.commit()
-
-    @contextmanager
-    def transaction(self):
-        """Contexto de transação padrão."""
-        with self.use_policy(NormalPolicy()):
-            yield
+            self._policy_depth -= 1
+            if self._policy_depth == 0:
+                self.commit()
 
     @contextmanager
     def atomic(self, name: str = "Atomic"):
-        """Contexto atômico que agrupa comandos em um MacroCommand usando AtomicPolicy."""
-        with self.use_policy(AtomicPolicy()):
-            self.start_action(MacroCommand, name)
-            yield
+        """Contexto atômico reentrante que agrupa comandos em um MacroCommand com suporte a rollback."""
+        already_atomic = isinstance(self._policy, AtomicPolicy)
+        macro: MacroCommand | None = None
+
+        if not already_atomic:
+            self.commit()
+            macro = MacroCommand(name)
+            self._undo_stack.append(macro)
+
+        try:
+            with self.use_policy(AtomicPolicy()):
+                yield macro
+        except Exception:
+            if not already_atomic and macro is not None:
+                while macro._commands:
+                    cmd = macro._commands.pop()
+                    cmd.undo()
+                if self._undo_stack and self._undo_stack[-1] is macro:
+                    self._undo_stack.pop()
+            raise
+
+    @contextmanager
+    def transaction(self, name: str | None = None):
+        """Contexto de transação. Se um nome for informado, opera atomicamente agrupando em MacroCommand."""
+        if name is not None:
+            with self.atomic(name=name) as macro:
+                yield macro
+        else:
+            with self.use_policy(NormalPolicy()):
+                yield
 
     @contextmanager
     def merge_continuous(self):
@@ -236,5 +270,9 @@ class GlobalHistory:
     @contextmanager
     def disabled(self):
         """Contexto que desativa temporariamente a gravação de ações no histórico."""
-        with self.use_policy(DisabledPolicy()):
+        old_policy = self._policy
+        self._policy = DisabledPolicy()
+        try:
             yield
+        finally:
+            self._policy = old_policy

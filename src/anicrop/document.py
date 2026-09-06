@@ -14,7 +14,11 @@ from anicrop.image import Image
 from anicrop.interfaces.io import AbstractImageIO, SaveOptions
 from anicrop.layer import Layer
 from anicrop.layout import Layout
-from anicrop.proxy import BaseHistoryProxy, GroupProxy, LayerStackProxy, ProxyLayer
+from anicrop.proxy import (
+    BaseHistoryProxy,
+    LayerStackProxy,
+    get_registry_for_history,
+)
 from anicrop.render import CanvasRender, ViewportRender
 from anicrop.viewport import Viewport
 
@@ -30,6 +34,10 @@ class DocumentPolicy(ABC):
     def process_layer(self, layer: LayerT, history: GlobalHistory | None) -> LayerT:
         pass
 
+    @abstractmethod
+    def process_canvas(self, canvas: Canvas, history: GlobalHistory | None) -> Canvas:
+        pass
+
 
 class ReactiveDocumentPolicy(DocumentPolicy):
     """Política com Histórico e Proxies ativados."""
@@ -43,9 +51,15 @@ class ReactiveDocumentPolicy(DocumentPolicy):
         if isinstance(layer, BaseHistoryProxy):
             return layer
         assert history is not None
-        if isinstance(layer, GroupLayer):
-            return GroupProxy(layer, history)  # type: ignore[return-value]
-        return ProxyLayer(layer, history)  # type: ignore[return-value]
+        registry = get_registry_for_history(history)
+        return registry.get_or_create(layer)  # type: ignore[return-value]
+
+    def process_canvas(self, canvas: Canvas, history: GlobalHistory | None) -> Canvas:
+        if isinstance(canvas, BaseHistoryProxy):
+            return canvas
+        assert history is not None
+        registry = get_registry_for_history(history)
+        return registry.get_or_create(canvas)  # type: ignore[return-value]
 
 
 class DirectDocumentPolicy(DocumentPolicy):
@@ -56,6 +70,9 @@ class DirectDocumentPolicy(DocumentPolicy):
 
     def process_layer(self, layer: LayerT, history: GlobalHistory | None) -> LayerT:
         return getattr(layer, "_target", layer)
+
+    def process_canvas(self, canvas: Canvas, history: GlobalHistory | None) -> Canvas:
+        return getattr(canvas, "_target", canvas)
 
 
 class Document:
@@ -90,11 +107,11 @@ class Document:
             bg_color: Cor de fundo opcional do canvas.
         """
         self.name = name
-        self.canvas = Canvas.from_size(width, height, bg_color=bg_color)
         self.history_enabled = history
 
         self._policy = self._POLICIES[history]
         self.history, self.stack = self._policy.setup()
+        self.canvas = Canvas.from_size(width, height, bg_color=bg_color)
 
         self._viewport_render = ViewportRender()
         self._canvas_render = CanvasRender()
@@ -135,6 +152,15 @@ class Document:
         doc = cls(name=name, width=w, height=h, history=history, bg_color=bg_color)
         doc.add(layer)
         return doc
+
+    @property
+    def canvas(self) -> Canvas:
+        """Instância do Canvas (moldura de composição) configurado no documento."""
+        return self._canvas
+
+    @canvas.setter
+    def canvas(self, value: Canvas) -> None:
+        self._canvas = self._policy.process_canvas(value, self.history)
 
     @property
     def layout(self) -> Layout:

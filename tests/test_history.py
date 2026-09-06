@@ -220,3 +220,73 @@ def test_undo_discards_unmutated_command_at_top_of_stack(history):
     history.undo()
     assert history.undo_empty()
     assert target.state == 0
+
+
+def test_history_safe_redo_preserves_stack_on_no_change_action(history):
+    """Valida se uma ação sem mutação após um undo preserva o redo stack intacto."""
+    layer = make_layer()
+    history.start_action(FakeCommand, "real_action", layer, value=10)
+    layer.state = 10
+    history.commit()
+    history.undo()
+
+    history.start_action(FakeNoChangeCommand, "passive_read", layer)
+
+    assert not history.redo_empty()
+    history.redo()
+    assert layer.state == 10
+
+
+def test_history_atomic_nested_accumulates_into_single_macro(history):
+    """Valida se chamadas aninhadas a atomic agregam comandos no macro raiz sem fechar prematuramente."""
+    layer = make_layer()
+    with history.atomic("parent_op"):
+        history.start_action(FakeCommand, "step1", layer, value=1)
+        layer.state = 1
+        with history.atomic("child_op"):
+            history.start_action(FakeCommand, "step2", layer, value=2)
+            layer.state = 2
+        history.start_action(FakeCommand, "step3", layer, value=3)
+        layer.state = 3
+
+    assert len(history._undo_stack) == 1
+    assert history._policy_depth == 0
+    history.undo()
+    assert layer.state == 0
+
+
+def test_history_atomic_rollback_on_exception(history):
+    """Valida se uma exceção dentro de atomic desfaz as ações registradas e descarta o macro."""
+    layer = make_layer()
+    history.start_action(FakeCommand, "initial", layer, value=100)
+    layer.state = 100
+    history.commit()
+
+    with pytest.raises(RuntimeError, match="Failure in atomic operation"):
+        with history.atomic("failing_op"):
+            history.start_action(FakeCommand, "step1", layer, value=200)
+            layer.state = 200
+            raise RuntimeError("Failure in atomic operation")
+
+    assert layer.state == 100
+    assert len(history._undo_stack) == 1
+    assert history._policy_depth == 0
+
+
+def test_history_disabled_within_atomic_does_not_commit_prematurely(history):
+    """Valida se history.disabled dentro de atomic não dispara commit precoce e ignora ações internas."""
+    layer = make_layer()
+    with history.atomic("macro_op"):
+        history.start_action(FakeCommand, "step1", layer, value=1)
+        layer.state = 1
+        with history.disabled():
+            history.start_action(FakeCommand, "silent_step", layer, value=999)
+            layer.state = 999
+        history.start_action(FakeCommand, "step2", layer, value=2)
+        layer.state = 2
+
+    assert len(history._undo_stack) == 1
+    macro = history._undo_stack[0]
+    assert len(macro._commands) == 2
+    history.undo()
+    assert layer.state == 0

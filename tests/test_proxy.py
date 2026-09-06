@@ -8,6 +8,7 @@ from anicrop.image import Image, ImageFormat
 from anicrop.layer import Layer
 from anicrop.proxy import GroupProxy, ProxyLayer, ProxyMask, is_property_with_setter
 from anicrop.spatial import Region
+from anicrop.transform import Composer
 
 
 def make_img(w=10, h=10):
@@ -71,7 +72,8 @@ def test_ProxyLayer_encadeamento_retorna_o_proprio_composer(proxy, layer):
     ret = proxy.transform.translate(10, 20)
 
     # O método devolve o Composer para permitir o encadeamento das matrizes
-    assert ret is layer.transform
+    assert ret == layer.transform
+    assert isinstance(ret, Composer)
 
     # A transformação real deve ter sido aplicada
     assert layer.transform.matrix[0, 2] == 10
@@ -137,7 +139,8 @@ def test_ProxyLayer_bypass_de_historico_desativado(proxy, layer, history):
     ret = proxy.transform.translate(50, 50)
 
     # Devolve o Composer
-    assert ret is layer.transform
+    assert ret == layer.transform
+    assert isinstance(ret, Composer)
 
     # Ação gravou no objeto real
     assert layer.transform.matrix[0, 2] == 50
