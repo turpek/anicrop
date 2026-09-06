@@ -18,9 +18,9 @@ def make_checkerboard_image(w: int = 40, h: int = 40) -> Image:
     """Cria imagem de teste com padrão xadrez de alto contraste para testar suavização."""
     data = np.zeros((h, w, 4), dtype=np.uint8)
     data[: h // 2, : w // 2] = [255, 255, 255, 255]
-    data[h // 2 :, w // 2 :] = [255, 255, 255, 255]
-    data[: h // 2, w // 2 :] = [0, 0, 0, 255]
-    data[h // 2 :, : w // 2] = [0, 0, 0, 255]
+    data[h // 2:, w // 2:] = [255, 255, 255, 255]
+    data[: h // 2, w // 2:] = [0, 0, 0, 255]
+    data[h // 2:, : w // 2] = [0, 0, 0, 255]
     return Image(data, ImageFormat.RGBA)
 
 

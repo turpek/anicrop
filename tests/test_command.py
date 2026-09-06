@@ -2,6 +2,7 @@ import numpy as np
 import pytest
 
 from anicrop.command import (
+    AdaptiveCommand,
     BaseLayerCommand,
     GeometryControllerSnapshot,
     LayerImageCommand,
@@ -402,3 +403,94 @@ def test_geometry_controller_snapshot_has_change():
     snap3 = GeometryControllerSnapshot(controller)
     assert snap1.has_change(snap3) is True
     assert snap1._instance_changed(snap3) is True
+
+
+# ============================================================================
+# Testes de Cobertura do AdaptiveCommand
+# ============================================================================
+
+
+def test_adaptive_command_single_property_undo_redo():
+    """Valida gravação sob demanda, undo e redo de uma única propriedade."""
+    layer = Layer(make_img(10, 10), name="L1", opacity=1.0)
+    cmd = AdaptiveCommand("opacity", layer)
+    cmd.record_change("opacity", 1.0, 0.5)
+    layer.opacity = 0.5
+    cmd.seal()
+
+    assert cmd.has_changes() is True
+
+    cmd.undo()
+    assert layer.opacity == 1.0
+
+    cmd.execute()
+    assert layer.opacity == 0.5
+
+
+def test_adaptive_command_multiple_properties_accumulated():
+    """Valida acumulação de múltiplas propriedades distintas no mesmo comando."""
+    layer = Layer(make_img(10, 10), name="Initial", opacity=1.0)
+    cmd = AdaptiveCommand("multi", layer)
+    cmd.record_change("opacity", 1.0, 0.3)
+    layer.opacity = 0.3
+    cmd.record_change("name", "Initial", "Modified")
+    layer.name = "Modified"
+    cmd.seal()
+
+    assert cmd.has_changes() is True
+
+    cmd.undo()
+    assert layer.opacity == 1.0
+    assert layer.name == "Initial"
+
+    cmd.execute()
+    assert layer.opacity == 0.3
+    assert layer.name == "Modified"
+
+
+def test_adaptive_command_merge_consecutive_updates_preserves_initial_value():
+    """Valida preservação do valor inicial em atualizações consecutivas da mesma propriedade."""
+    layer = Layer(make_img(10, 10), opacity=1.0)
+    cmd = AdaptiveCommand("opacity", layer)
+    cmd.record_change("opacity", 1.0, 0.7)
+    cmd.record_change("opacity", 0.7, 0.4)
+    cmd.record_change("opacity", 0.4, 0.2)
+    layer.opacity = 0.2
+    cmd.seal()
+
+    cmd.undo()
+    assert layer.opacity == 1.0
+
+    cmd.execute()
+    assert layer.opacity == 0.2
+
+
+def test_adaptive_command_no_change_returns_false():
+    """Valida que gravação com mesmo valor inicial e final resulta em has_changes False."""
+    layer = Layer(make_img(10, 10), opacity=1.0)
+    cmd = AdaptiveCommand("opacity", layer)
+    cmd.record_change("opacity", 1.0, 1.0)
+    cmd.seal()
+
+    assert cmd.has_changes() is False
+
+
+def test_adaptive_command_numpy_array_delta():
+    """Valida gravação, comparação e restauração de array NumPy via AdaptiveCommand."""
+    layer = Layer(make_img(10, 10))
+    initial_mask = np.zeros((10, 10), dtype=np.uint8)
+    new_mask = np.ones((10, 10), dtype=np.uint8) * 255
+    layer._opacity_mask = initial_mask
+
+    cmd = AdaptiveCommand("_opacity_mask", layer)
+    cmd.record_change("_opacity_mask", initial_mask, new_mask)
+    layer._opacity_mask = new_mask
+    cmd.seal()
+
+    assert cmd.has_changes() is True
+
+    cmd.undo()
+    assert np.array_equal(layer._opacity_mask, initial_mask)
+
+    cmd.execute()
+    assert np.array_equal(layer._opacity_mask, new_mask)
