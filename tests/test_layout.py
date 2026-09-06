@@ -12,6 +12,7 @@ from anicrop.layer import EditLayer, Layer
 from anicrop.layout import (
     Layout,
     _compute_layer_local_roi,
+    anchor_point,
     content_region,
     global_content_region,
     resolve_region,
@@ -75,6 +76,36 @@ def make_transformed_layer(
 def test_resolve_region(ref, expected_rect):
     resolved = resolve_region(ref)
     assert resolved == Region.from_rect(*expected_rect)
+
+
+@pytest.mark.parametrize(
+    "ref, anchor_x, anchor_y, expected_point",
+    [
+        pytest.param(
+            (10, 20, 100, 50), 0.0, 0.0, Point(10.0, 20.0), id="rect_top_left"
+        ),
+        pytest.param(
+            (10, 20, 100, 50), 0.5, 0.5, Point(60.0, 45.0), id="rect_center"
+        ),
+        pytest.param(
+            (10, 20, 100, 50), 1.0, 1.0, Point(110.0, 70.0), id="rect_bottom_right"
+        ),
+        pytest.param(
+            Canvas.from_size(200, 100), 0.5, 0.0, Point(100.0, 0.0), id="canvas_top_center"
+        ),
+        pytest.param(
+            make_transformed_layer(x=30, y=40, w=100, h=50),
+            0.5,
+            1.0,
+            Point(80.0, 90.0),
+            id="layer_bottom_center",
+        ),
+    ],
+)
+def test_anchor_point(ref, anchor_x, anchor_y, expected_point):
+    """Valida o cálculo do ponto global correspondente à âncora na referência."""
+    point = anchor_point(ref, anchor_x, anchor_y)
+    assert point == expected_point
 
 
 @pytest.mark.parametrize(
@@ -187,6 +218,125 @@ def test_group_layout_align(ref, anchor_x, anchor_y, expected_global_rect):
     assert group.global_region == Region.from_rect(*expected_global_rect)
     assert layer1.region == Region.from_rect(10, 20, 100, 50)
     assert layer2.region == Region.from_rect(110, 70, 100, 50)
+
+
+@pytest.mark.parametrize(
+    "point, anchor_x, anchor_y, expected_rect",
+    [
+        pytest.param((100, 100), 0.0, 0.0, (100, 100, 100, 50), id="pin_top_left"),
+        pytest.param((100, 100), 0.5, 0.5, (50, 75, 100, 50), id="pin_center"),
+        pytest.param((100, 100), 0.5, 1.0, (50, 50, 100, 50), id="pin_bottom_center"),
+        pytest.param((100, 100), 1.0, 1.0, (0, 50, 100, 50), id="pin_bottom_right"),
+    ],
+)
+def test_layer_layout_pin(point, anchor_x, anchor_y, expected_rect):
+    """Valida a fixação da camada com base no ponto de ancoragem."""
+    target = make_transformed_layer(x=10, y=20, w=100, h=50)
+    layout = Layout()
+
+    result = layout.pin(target, point, anchor_x=anchor_x, anchor_y=anchor_y)
+
+    assert result is True
+    assert target.global_region == Region.from_rect(*expected_rect)
+
+
+def test_layer_layout_pin_no_op():
+    """Valida que fixar no ponto já coincidente com a âncora retorna False e não altera a posição."""
+    target = make_transformed_layer(x=10, y=20, w=100, h=50)
+    layout = Layout()
+
+    result = layout.pin(target, (10, 20), anchor_x=0.0, anchor_y=0.0)
+
+    assert result is False
+    assert target.global_region == Region.from_rect(10, 20, 100, 50)
+
+
+def test_layer_layout_pin_com_rotacao_90_deg():
+    """Valida fixação de camada com rotação de 90 graus considerando sua bounding box global."""
+    target = make_transformed_layer(
+        x=50, y=50, w=100, h=50, transform=TransformRel().rotate(90)
+    )
+    layout = Layout()
+
+    result = layout.pin(target, (200, 200), anchor_x=0.5, anchor_y=0.5)
+
+    assert result is True
+    assert target.global_region == Region.from_rect(175, 150, 50, 100)
+
+
+def test_layer_layout_pin_dentro_de_grupo_rotacionado():
+    """Valida fixação de camada filha cujo grupo pai possui rotação."""
+    group = GroupLayer()
+    group.set_transform(TransformRel().rotate(45, 0.5, 0.5))
+    target = make_transformed_layer(x=50, y=50, w=100, h=50)
+    group.append(target)
+    layout = Layout()
+
+    result = layout.pin(target, (100, 100), anchor_x=0.0, anchor_y=0.0)
+
+    assert result is True
+    assert target.global_region.top_left == Point(100.0, 100.0)
+
+
+@pytest.mark.parametrize(
+    "point, anchor_x, anchor_y, expected_global_rect",
+    [
+        pytest.param(
+            (300, 300), 0.0, 0.0, (300, 300, 200, 100), id="pin_group_top_left"
+        ),
+        pytest.param((300, 300), 0.5, 0.5, (200, 250, 200, 100), id="pin_group_center"),
+    ],
+)
+def test_group_layout_pin(point, anchor_x, anchor_y, expected_global_rect):
+    """Valida fixação de GroupLayer preservando posições relativas dos filhos."""
+    group = GroupLayer()
+    layer1 = make_transformed_layer(x=10, y=20, w=100, h=50)
+    layer2 = make_transformed_layer(x=110, y=70, w=100, h=50)
+    group.append(layer1)
+    group.append(layer2)
+    layout = Layout()
+
+    result = layout.pin(group, point, anchor_x=anchor_x, anchor_y=anchor_y)
+
+    assert result is True
+    assert group.global_region == Region.from_rect(*expected_global_rect)
+    assert layer1.region == Region.from_rect(10, 20, 100, 50)
+    assert layer2.region == Region.from_rect(110, 70, 100, 50)
+
+
+def test_group_layout_pin_no_op():
+    """Valida que fixar GroupLayer na mesma posição existente retorna False."""
+    group = GroupLayer()
+    layer1 = make_transformed_layer(x=10, y=20, w=100, h=50)
+    group.append(layer1)
+    layout = Layout()
+
+    result = layout.pin(group, (10, 20), anchor_x=0.0, anchor_y=0.0)
+
+    assert result is False
+    assert group.global_region == Region.from_rect(10, 20, 100, 50)
+
+
+def test_canvas_layout_pin():
+    """Valida que Canvas.layout.pin translada o Canvas para o ponto especificado."""
+    canvas = Canvas.from_size(500, 300)
+    layout = Layout()
+
+    result = layout.pin(canvas, (100, 100), anchor_x=0.5, anchor_y=0.5)
+
+    assert result is True
+    assert canvas.region == Region.from_rect(-150, -50, 500, 300)
+
+
+def test_canvas_layout_pin_no_op():
+    """Valida que fixar Canvas na mesma posição existente retorna False."""
+    canvas = Canvas.from_size(500, 300)
+    layout = Layout()
+
+    result = layout.pin(canvas, (0, 0), anchor_x=0.0, anchor_y=0.0)
+
+    assert result is False
+    assert canvas.region == Region.from_rect(0, 0, 500, 300)
 
 
 @pytest.mark.parametrize(
@@ -843,3 +993,63 @@ def test_layout_facade_polimorfismo_viewport():
     assert align_ok is True
     assert resize_ok is True
     assert fit_content_ok is True
+
+
+@pytest.mark.parametrize(
+    "anchor_x, anchor_y, expected_pan",
+    [
+        pytest.param(0.5, 0.5, (0.0, 0.0), id="pin_center"),
+        pytest.param(0.0, 0.0, (400.0, 300.0), id="pin_top_left"),
+        pytest.param(1.0, 1.0, (-400.0, -300.0), id="pin_bottom_right"),
+    ],
+)
+def test_viewport_layout_pin_parametrized(anchor_x, anchor_y, expected_pan):
+    """Valida o enquadramento do ponto focal na janela da Viewport sob diferentes âncoras."""
+    viewport = Viewport(size=(800, 600), canvas=Canvas.from_size(2000, 2000))
+    viewport.region = Region.from_rect(100.0, 100.0, 800.0, 600.0)
+    target_point = (1000.0, 1000.0)
+
+    result = viewport.layout.pin(target_point, anchor_x=anchor_x, anchor_y=anchor_y)
+
+    assert result is True
+    assert viewport.region.top_left == Point(*expected_pan)
+
+
+def test_viewport_layout_pin_with_zoom():
+    """Valida que Viewport.layout.pin centraliza o ponto focal sob zoom de 2x."""
+    viewport = Viewport(size=(800, 600), canvas=Canvas.from_size(2000, 2000))
+    viewport.zoom = 2.0
+    viewport.region = Region.from_rect(50.0, 50.0, 800.0, 600.0)
+    focal_point = (1000.0, 1000.0)
+
+    result = viewport.layout.pin(focal_point, anchor_x=0.5, anchor_y=0.5)
+
+    assert result is True
+    assert viewport.region.top_left == Point(0.0, 0.0)
+
+
+def test_viewport_layout_pin_no_op():
+    """Valida que fixar a Viewport no mesmo ponto focal existente retorna False."""
+    viewport = Viewport(size=(800, 600), canvas=Canvas.from_size(2000, 2000))
+    focal_point = (1000.0, 1000.0)
+
+    viewport.layout.pin(focal_point, 0.5, 0.5)
+    repeat_result = viewport.layout.pin(focal_point, 0.5, 0.5)
+
+    assert repeat_result is False
+
+
+def test_layout_facade_polimorfismo_pin():
+    """Valida o polimorfismo da fachada Layout.pin sobre Layer, GroupLayer, Canvas e Viewport."""
+    layout = Layout()
+    layer = make_transformed_layer(x=0, y=0, w=100, h=50)
+    group = GroupLayer()
+    group.append(make_transformed_layer(x=0, y=0, w=100, h=50))
+    canvas = Canvas.from_size(400, 400)
+    viewport = Viewport(size=(400, 300), canvas=canvas)
+    viewport.region = Region.from_rect(50.0, 50.0, 400.0, 300.0)
+
+    assert layout.pin(layer, (50, 50)) is True
+    assert layout.pin(group, (50, 50)) is True
+    assert layout.pin(canvas, (300, 300)) is True
+    assert layout.pin(viewport, (200, 200)) is True

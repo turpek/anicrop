@@ -13,7 +13,7 @@ from anicrop.interfaces.canvas import AbstractCanvas
 from anicrop.interfaces.container import AbstractContainer
 from anicrop.interfaces.layer import AbstractBaseLayer, AbstractLayer
 from anicrop.interfaces.layout import LayoutStrategy
-from anicrop.spatial import Region
+from anicrop.spatial import Point, Region
 from anicrop.transform import (
     calculate_new_rect,
     calculate_region_rect,
@@ -106,6 +106,19 @@ def resolve_region(
     return ref
 
 
+def anchor_point(
+    ref: LayoutRef,
+    anchor_x: float = 0.5,
+    anchor_y: float = 0.5,
+) -> Point:
+    """Calcula a coordenada global (X, Y) correspondente à âncora na referência."""
+    region = resolve_region(ref)
+    return Point(
+        region.x.start + region.width * anchor_x,
+        region.y.start + region.height * anchor_y,
+    )
+
+
 def _resolve_target_fit_region(target: AbstractLayer, global_ref: Region) -> Region:
     """
     Calcula a região de enquadramento da camada no Canvas,
@@ -159,6 +172,29 @@ class LayerLayoutStrategy(LayoutStrategy):
         ref_region = resolve_region(ref)
         new_global_region = self.target.global_region.align(
             ref_region, anchor_x, anchor_y
+        )
+        if self.target.global_region == new_global_region:
+            return False
+
+        dx, dy = transform_vector(
+            mat_inverse(self.target.parent.matrix),
+            self.target.global_region,
+            new_global_region,
+        )
+        self.target.region += (dx, dy)
+        return True
+
+    def pin(
+        self,
+        point: tuple[float, float] | Point,
+        anchor_x: float = 0.5,
+        anchor_y: float = 0.5,
+    ) -> bool:
+        cur_region = self.target.global_region
+        new_global_x = point[0] - cur_region.width * anchor_x
+        new_global_y = point[1] - cur_region.height * anchor_y
+        new_global_region = Region.from_rect(
+            new_global_x, new_global_y, cur_region.width, cur_region.height
         )
         if self.target.global_region == new_global_region:
             return False
@@ -240,6 +276,29 @@ class GroupLayoutStrategy(LayoutStrategy):
         self.target.transform.translate(dx, dy)
         return True
 
+    def pin(
+        self,
+        point: tuple[float, float] | Point,
+        anchor_x: float = 0.5,
+        anchor_y: float = 0.5,
+    ) -> bool:
+        cur_region = self.target.global_region
+        new_global_x = point[0] - cur_region.width * anchor_x
+        new_global_y = point[1] - cur_region.height * anchor_y
+        new_global_region = Region.from_rect(
+            new_global_x, new_global_y, cur_region.width, cur_region.height
+        )
+        if self.target.global_region == new_global_region:
+            return False
+
+        dx, dy = transform_vector(
+            mat_inverse(self.target.parent.matrix),
+            self.target.global_region,
+            new_global_region,
+        )
+        self.target.transform.translate(dx, dy)
+        return True
+
     def resize_bounds(
         self,
         new_width: float,
@@ -284,6 +343,23 @@ class CanvasLayoutStrategy(LayoutStrategy):
     ) -> bool:
         ref_region = resolve_region(ref)
         new_region = self.target.region.align(ref_region, anchor_x, anchor_y)
+        if self.target.region == new_region:
+            return False
+        self.target.region = new_region
+        return True
+
+    def pin(
+        self,
+        point: tuple[float, float] | Point,
+        anchor_x: float = 0.5,
+        anchor_y: float = 0.5,
+    ) -> bool:
+        cur_region = self.target.region
+        new_x = point[0] - cur_region.width * anchor_x
+        new_y = point[1] - cur_region.height * anchor_y
+        new_region = Region.from_rect(
+            new_x, new_y, cur_region.width, cur_region.height
+        )
         if self.target.region == new_region:
             return False
         self.target.region = new_region
@@ -389,6 +465,38 @@ class ViewportLayoutStrategy(LayoutStrategy):
         self.target.region = new_region
         return True
 
+    def pin(
+        self,
+        point: tuple[float, float] | Point,
+        anchor_x: float = 0.5,
+        anchor_y: float = 0.5,
+    ) -> bool:
+        w_view, h_view = self.target.size
+        s_total_x = self.target.scale_factor
+        s_total_y = self.target.scale.sy * self.target._fit.sy
+        if s_total_x <= 0 or s_total_y <= 0:
+            return False
+
+        w_visible = w_view / s_total_x
+        h_visible = h_view / s_total_y
+
+        vis_start_x = point[0] - w_visible * anchor_x
+        vis_start_y = point[1] - h_visible * anchor_y
+        vis_center_x = vis_start_x + w_visible / 2.0
+        vis_center_y = vis_start_y + h_visible / 2.0
+
+        canvas_center_x = self.target.canvas_size[0] / 2.0
+        canvas_center_y = self.target.canvas_size[1] / 2.0
+        pan_x = self.target._fit.sx * (vis_center_x - canvas_center_x)
+        pan_y = self.target._fit.sy * (vis_center_y - canvas_center_y)
+        new_region = Region.from_rect(pan_x, pan_y, w_view, h_view)
+
+        if self.target.region == new_region:
+            return False
+
+        self.target.region = new_region
+        return True
+
     def resize_bounds(
         self,
         new_width: float,
@@ -448,6 +556,15 @@ class Layout:
         anchor_y: float = 0.5,
     ) -> bool:
         return target.layout.align(ref, anchor_x, anchor_y)
+
+    def pin(
+        self,
+        target: AbstractCanvas | AbstractBaseLayer | Viewport,
+        point: tuple[float, float] | Point,
+        anchor_x: float = 0.5,
+        anchor_y: float = 0.5,
+    ) -> bool:
+        return target.layout.pin(point, anchor_x, anchor_y)
 
     def resize_bounds(
         self,

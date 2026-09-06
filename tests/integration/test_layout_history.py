@@ -91,6 +91,28 @@ def test_layout_align_proxy_layer_undo_redo(make_doc_with_layer):
     assert len(doc.history._redo_stack) == 0
 
 
+def test_layout_pin_proxy_layer_undo_redo(make_doc_with_layer):
+    """Valida se layout.pin em ProxyLayer grava histórico e suporta ciclo completo de Undo/Redo."""
+    doc, layer_proxy = make_doc_with_layer(1000, 1000, 200, 200)
+    layout = Layout()
+    initial_stack_size = len(doc.history._undo_stack)
+
+    layout.pin(layer_proxy, (500, 500), anchor_x=0.5, anchor_y=0.5)
+
+    assert len(doc.history._undo_stack) == initial_stack_size + 1
+    assert layer_proxy.region == Region.from_rect(400, 400, 200, 200)
+
+    doc.history.undo()
+
+    assert layer_proxy.region == Region.from_size(200, 200)
+    assert len(doc.history._redo_stack) == 1
+
+    doc.history.redo()
+
+    assert layer_proxy.region == Region.from_rect(400, 400, 200, 200)
+    assert len(doc.history._redo_stack) == 0
+
+
 def test_layout_resize_bounds_proxy_layer_undo_redo(make_doc_with_layer):
     """Valida se layout.resize_bounds em ProxyLayer grava histórico e suporta Undo/Redo."""
     doc, layer_proxy = make_doc_with_layer(1000, 1000, 200, 200)
@@ -155,6 +177,27 @@ def test_layout_align_group_proxy_undo_redo(make_doc_with_group):
     doc.history.redo()
 
     assert group_proxy.global_region == Region.from_rect(600, 600, 400, 400)
+
+
+def test_layout_pin_group_proxy_undo_redo(make_doc_with_group):
+    """Valida se layout.pin em GroupProxy grava histórico e suporta Undo/Redo."""
+    doc, group_proxy = make_doc_with_group(1000, 1000)
+    layout = Layout()
+    initial_stack_size = len(doc.history._undo_stack)
+
+    layout.pin(group_proxy, (500, 500), anchor_x=0.5, anchor_y=0.5)
+
+    assert len(doc.history._undo_stack) == initial_stack_size + 1
+    assert group_proxy.global_region == Region.from_rect(300, 300, 400, 400)
+
+    doc.history.undo()
+
+    assert group_proxy.global_region == Region.from_rect(0, 0, 400, 400)
+    assert len(doc.history._redo_stack) == 1
+
+    doc.history.redo()
+
+    assert group_proxy.global_region == Region.from_rect(300, 300, 400, 400)
 
 
 def test_layout_resize_bounds_group_proxy_undo_redo(make_doc_with_group):

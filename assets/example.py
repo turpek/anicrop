@@ -16,8 +16,9 @@ chapeu = doc.load_layer(ASSETS_DIR / "hat.png", name="Chapeu")
 # 3. Redimensiona o chapéu diretamente via .content da camada
 chapeu.content.resize(250, 250)
 
-# 4. Alinha o chapéu no topo da cabeça da personagem diretamente via .layout
-chapeu.layout.align(personagem, anchor_x=0.51, anchor_y=-0.07)
+# 4. Alinha a base inferior do chapéu no ponto global da cabeça via .layout.pin
+PONTO_CABECA = (520, 196)
+chapeu.layout.pin(PONTO_CABECA, anchor_x=0.5, anchor_y=1.0)
 
 # 5. Agrupa o chapéu com a personagem em um grupo não-destrutivo (Merge Down: Chapéu + 1 camada abaixo)
 heroina = doc.combine.merge("Chapeu", name="Heroina", count=1)
