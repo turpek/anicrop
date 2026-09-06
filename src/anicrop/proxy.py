@@ -4,8 +4,14 @@ from anicrop.reactive import (
     BaseContainerProxy,
     BaseFluentProxy,
     BaseHistoryProxy,
+    CanvasLayoutProxy,
+    GroupContentProxy,
+    GroupLayoutProxy,
     GroupProxy,
+    LayerContentProxy,
+    LayerLayoutProxy,
     LayerStackProxy,
+    ProxyCanvas,
     ProxyComposer,
     ProxyLayer,
     ProxyMask,
@@ -18,18 +24,26 @@ from anicrop.reactive import (
     wrap_domain_result,
 )
 
-# Alias para compatibilidade retroativa
+# Aliases para compatibilidade retroativa
 ProxyContent = StrategyProxy
+ProxyLayout = StrategyProxy
 
 __all__ = [
     "BaseContainerProxy",
     "BaseFluentProxy",
     "BaseHistoryProxy",
+    "CanvasLayoutProxy",
+    "GroupContentProxy",
+    "GroupLayoutProxy",
     "GroupProxy",
+    "LayerContentProxy",
+    "LayerLayoutProxy",
     "LayerStackProxy",
+    "ProxyCanvas",
     "ProxyComposer",
     "ProxyContent",
     "ProxyLayer",
+    "ProxyLayout",
     "ProxyMask",
     "ProxyRegistry",
     "StrategyProxy",

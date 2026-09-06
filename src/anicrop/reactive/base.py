@@ -7,6 +7,7 @@ from anicrop.reactive.fluent import BaseFluentProxy
 from anicrop.reactive.registry import (
     get_registry_for_history,
     is_property_with_setter,
+    is_readonly_property,
     unwrap_call_args,
     unwrap_target,
     wrap_domain_result,
@@ -22,6 +23,7 @@ _INTERNAL_PROXY_ATTRS = frozenset({
     "_target",
     "_history",
     "_registry",
+    "_special_instances",
     "_IGNORED_ATTRIBUTES",
     "_SPECIAL_WRAPPERS",
     "_ACTION_ROUTER",
@@ -57,6 +59,8 @@ def resolve_setattr_command(
     """Identifica a classe de comando para o atributo ou None se não for rastreável."""
     if name in action_router:
         return action_router[name]
+    if is_readonly_property(type(target), name):
+        return None
     if is_property_with_setter(type(target), name) or hasattr(target, name):
         return default_cmd
     return None
@@ -106,16 +110,18 @@ def build_action_wrapper(
 
 
 def resolve_special_wrapper(
-    wrapper_cls: type,
-    attr: Any,
+    wrapper_cls: Any,
+    name: str,
+    target: Any,
     history: GlobalHistory,
     registry: ProxyRegistry,
     owner: Any,
 ) -> Any:
     """Instancia o wrapper especialista correto (ProxyComposer ou StrategyProxy)."""
     if issubclass(wrapper_cls, BaseFluentProxy):
+        attr = getattr(target, name)
         return wrapper_cls(attr, history, owner=owner)
-    return wrapper_cls(attr, history, registry=registry)
+    return wrapper_cls(owner, history, registry=registry)
 
 
 class BaseHistoryProxy(Generic[TargetT]):
@@ -151,6 +157,7 @@ class BaseHistoryProxy(Generic[TargetT]):
         super().__setattr__("_target", target)
         super().__setattr__("_history", history)
         super().__setattr__("_registry", registry)
+        super().__setattr__("_special_instances", {})
         registry._cache[id(target)] = self
 
     def __eq__(self, other: Any) -> bool:
@@ -190,10 +197,17 @@ class BaseHistoryProxy(Generic[TargetT]):
 
         special_wrappers = object.__getattribute__(self, "_SPECIAL_WRAPPERS")
         if name in special_wrappers:
-            attr = getattr(target, name)
-            return resolve_special_wrapper(
-                special_wrappers[name], attr, history, registry, owner=self
+            special_instances = object.__getattribute__(self, "_special_instances")
+            if name in special_instances:
+                return special_instances[name]
+
+            wrapper_cls = special_wrappers[name]
+            wrapper = resolve_special_wrapper(
+                wrapper_cls, name, target, history, registry, owner=self
             )
+            if not issubclass(wrapper_cls, BaseFluentProxy):
+                special_instances[name] = wrapper
+            return wrapper
 
         attr = getattr(target, name)
         action_router = object.__getattribute__(self, "_ACTION_ROUTER")

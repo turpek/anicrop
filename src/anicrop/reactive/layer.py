@@ -1,14 +1,17 @@
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any, cast
+from typing import TYPE_CHECKING, Any
 
 from anicrop.command import BaseLayerCommand, Command, LayerImageCommand
-from anicrop.content import GroupContentStrategy, LayerContentStrategy
-from anicrop.layout import GroupLayoutStrategy, LayerLayoutStrategy
 from anicrop.reactive.base import BaseHistoryProxy
 from anicrop.reactive.container import BaseContainerProxy
 from anicrop.reactive.fluent import ProxyComposer
-from anicrop.reactive.strategy import StrategyProxy
+from anicrop.reactive.strategy import (
+    GroupContentProxy,
+    GroupLayoutProxy,
+    LayerContentProxy,
+    LayerLayoutProxy,
+)
 
 if TYPE_CHECKING:
     pass
@@ -39,28 +42,9 @@ class ProxyLayer(BaseHistoryProxy["Layer"]):
     }
     _SPECIAL_WRAPPERS: dict[str, type] = {
         "transform": ProxyComposer,
+        "layout": LayerLayoutProxy,
+        "content": LayerContentProxy,
     }
-
-    def _create_layout_strategy(self) -> Any:
-        return LayerLayoutStrategy(cast(Any, self))
-
-    def _create_content_strategy(self) -> Any:
-        return LayerContentStrategy(cast(Any, self))
-
-    def __getattribute__(self, name: str) -> Any:
-        if name == "layout":
-            history = object.__getattribute__(self, "_history")
-            registry = object.__getattribute__(self, "_registry")
-            strategy = self._create_layout_strategy()
-            return StrategyProxy(strategy, history, registry=registry)
-
-        if name == "content":
-            history = object.__getattribute__(self, "_history")
-            registry = object.__getattribute__(self, "_registry")
-            strategy = self._create_content_strategy()
-            return StrategyProxy(strategy, history, registry=registry)
-
-        return super().__getattribute__(name)
 
     def __setattr__(self, name: str, value: Any) -> None:
         if name == "parent":
@@ -84,13 +68,9 @@ class GroupProxy(BaseContainerProxy, ProxyLayer):
     }
     _SPECIAL_WRAPPERS: dict[str, type] = {
         "transform": ProxyComposer,
+        "layout": GroupLayoutProxy,
+        "content": GroupContentProxy,
     }
-
-    def _create_layout_strategy(self) -> Any:
-        return GroupLayoutStrategy(cast(Any, self))
-
-    def _create_content_strategy(self) -> Any:
-        return GroupContentStrategy(cast(Any, self))
 
     def __repr__(self) -> str:
         name = getattr(self, "name", "Group")

@@ -2,15 +2,21 @@ from __future__ import annotations
 
 import numpy as np
 
+from anicrop.canvas import Canvas
 from anicrop.container import GroupLayer, LayerStack, NullContainer
+from anicrop.content import Content
+from anicrop.document import Document
 from anicrop.enums import ImageFormat
 from anicrop.history import GlobalHistory
 from anicrop.image import Image
 from anicrop.layer import Layer
+from anicrop.layout import Layout
 from anicrop.mask import Mask
 from anicrop.reactive import (
+    BaseHistoryProxy,
     GroupProxy,
     LayerStackProxy,
+    ProxyCanvas,
     ProxyLayer,
     ProxyMask,
     get_registry_for_history,
@@ -222,3 +228,132 @@ def test_group_proxy_combines_container_and_layer_operations():
     history.undo()
     assert len(group_proxy) == 0
     assert isinstance(layer_proxy.parent, NullContainer)
+
+
+def test_proxy_instances_identity_stability():
+    """Garante que acessos sucessivos a layout e content em proxies mantêm a mesma identidade de instância."""
+    history = GlobalHistory()
+    registry = get_registry_for_history(history)
+    layer = make_layer()
+    group = GroupLayer(name="G1")
+    canvas = Canvas.from_size(800, 600)
+
+    lp: ProxyLayer = registry.get_or_create(layer)
+    gp: GroupProxy = registry.get_or_create(group)
+    cp: ProxyCanvas = registry.get_or_create(canvas)
+
+    assert lp.layout is lp.layout
+    assert lp.content is lp.content
+    assert gp.layout is gp.layout
+    assert gp.content is gp.content
+    assert cp.layout is cp.layout
+
+
+def test_proxy_canvas_scalar_and_region_properties_undo_redo():
+    """Garante que alteracoes de bg_color e region em ProxyCanvas suportam ciclo de Undo e Redo."""
+    doc = Document("CanvasTest", 800, 600, history=True)
+    assert doc.history is not None
+    initial_region = doc.canvas.region
+    initial_bg = doc.canvas.bg_color
+
+    doc.canvas.bg_color = (255, 0, 0, 255)
+    assert doc.canvas.bg_color == (255, 0, 0, 255)
+    doc.history.undo()
+    assert doc.canvas.bg_color == initial_bg
+    doc.history.redo()
+    assert doc.canvas.bg_color == (255, 0, 0, 255)
+
+    doc.canvas.region = Region.from_size(1920, 1080)
+    assert doc.canvas.region == Region.from_size(1920, 1080)
+    doc.history.undo()
+    assert doc.canvas.region == initial_region
+    doc.history.redo()
+    assert doc.canvas.region == Region.from_size(1920, 1080)
+
+
+def test_proxy_canvas_layout_resize_bounds_undo_redo():
+    """Garante que canvas.layout.resize_bounds e doc.layout.resize_bounds(canvas) suportam Undo e Redo."""
+    doc = Document("CanvasLayoutTest", 1000, 1000, history=True)
+    assert doc.history is not None
+    initial_region = doc.canvas.region
+
+    doc.canvas.layout.resize_bounds(500, 500)
+    assert doc.canvas.region == Region.from_rect(250, 250, 500, 500)
+    doc.history.undo()
+    assert doc.canvas.region == initial_region
+    doc.history.redo()
+    assert doc.canvas.region == Region.from_rect(250, 250, 500, 500)
+
+    doc.layout.resize_bounds(doc.canvas, 800, 800)
+    assert doc.canvas.region == Region.from_rect(100, 100, 800, 800)
+    doc.history.undo()
+    assert doc.canvas.region == Region.from_rect(250, 250, 500, 500)
+
+
+def test_proxy_layer_content_resize_and_crop_undo_redo():
+    """Garante que layer.content.resize e layer.content.crop suportam Undo e Redo atomicamente."""
+    doc = Document("LayerContentTest", 1000, 1000, history=True)
+    assert doc.history is not None
+    layer = doc.add(make_layer(size=(200, 200), name="L1"))
+    doc.history._undo_stack.clear()
+
+    layer.content.resize(100, 150)
+    assert layer.global_region.size == (100.0, 150.0)
+    doc.history.undo()
+    assert layer.global_region.size == (200.0, 200.0)
+    doc.history.redo()
+    assert layer.global_region.size == (100.0, 150.0)
+    doc.history.undo()
+
+    layer.content.crop((10, 10, 50, 50))
+    assert layer.global_region == Region.from_rect(10, 10, 50, 50)
+    doc.history.undo()
+    assert layer.global_region == Region.from_size(200, 200)
+    doc.history.redo()
+    assert layer.global_region == Region.from_rect(10, 10, 50, 50)
+
+
+def test_group_proxy_layout_and_content_undo_redo():
+    """Garante que group.layout.align e group.content.resize suportam Undo e Redo."""
+    doc = Document("GroupOpsTest", 1000, 1000, history=True)
+    assert doc.history is not None
+    g = doc.add_group("G1")
+    l1 = doc.add(make_layer(size=(200, 200), name="l1"))
+    l2 = doc.add(make_layer(size=(300, 300), name="l2"))
+    l2.region = Region.from_rect(100, 100, 300, 300)
+    g.append(l1)
+    g.append(l2)
+    doc.history._undo_stack.clear()
+
+    initial_group_region = g.global_region
+    g.layout.align((0, 0, 1000, 1000), anchor_x=1.0, anchor_y=1.0)
+    assert g.global_region == Region.from_rect(600, 600, 400, 400)
+    doc.history.undo()
+    assert g.global_region == initial_group_region
+    doc.history.redo()
+    assert g.global_region == Region.from_rect(600, 600, 400, 400)
+
+    g.content.resize(600, 600)
+    assert g.global_region == Region.from_rect(500, 500, 600, 600)
+    doc.history.undo()
+    assert g.global_region == Region.from_rect(600, 600, 400, 400)
+    doc.history.redo()
+    assert g.global_region == Region.from_rect(500, 500, 600, 600)
+
+
+def test_document_pure_layout_and_content_instances():
+    """Garante que doc.layout e doc.content sao instancias puras que delegam para proxies alvos."""
+    doc = Document("DocTest", 1000, 1000, history=True)
+    assert doc.history is not None
+    layer = doc.add(make_layer(size=(200, 200), name="L1"))
+    doc.history._undo_stack.clear()
+
+    assert type(doc.layout) is Layout
+    assert type(doc.content) is Content
+    assert not isinstance(doc.layout, BaseHistoryProxy)
+    assert not isinstance(doc.content, BaseHistoryProxy)
+
+    doc.layout.align(layer, doc.canvas.region, anchor_x=1.0, anchor_y=1.0)
+    assert layer.region == Region.from_rect(800, 800, 200, 200)
+    doc.history.undo()
+    assert layer.region == Region.from_rect(0, 0, 200, 200)

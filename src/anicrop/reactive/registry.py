@@ -24,6 +24,12 @@ def is_property_with_setter(cls: type, name: str) -> bool:
     return isinstance(class_attr, property) and class_attr.fset is not None
 
 
+def is_readonly_property(cls: type, name: str) -> bool:
+    """Retorna True se o atributo na classe cls for uma property sem setter (read-only)."""
+    class_attr = getattr(cls, name, None)
+    return isinstance(class_attr, property) and class_attr.fset is None
+
+
 class ProxyRegistry:
     """Identity Map usando WeakValueDictionary para garantir instância única de Proxy por target."""
 
