@@ -72,6 +72,8 @@ Para detalhes de métodos, tipos de retorno e exemplos de uso de cada classe, co
 - [docs/transform.md](file:///home/gui/python/anicrop/docs/transform.md) — Matrizes 3x3, `Composer` mutável e intenções `Transform`.
 - [docs/image.md](file:///home/gui/python/anicrop/docs/image.md) — Manipulação de pixels com `Image`, NumPy, subsistema `anicrop.io` e backend MMap/LOD.
 - [docs/viewport.md](file:///home/gui/python/anicrop/docs/viewport.md) — Projeções de câmera e janela de exibição `Viewport`.
+- **[docs/history.md](file:///home/gui/python/anicrop/docs/history.md)** — Guia do sistema de histórico (`GlobalHistory`, políticas `ActionPolicy` e Undo/Redo atômico).
+- **[docs/proxy.md](file:///home/gui/python/anicrop/docs/proxy.md)** — Guia da infraestrutura reativa (`anicrop.reactive`, `ProxyRegistry` e criação de proxies/comandos customizados).
 - **[docs/benchmark.md](file:///home/gui/python/anicrop/docs/benchmark.md)** — Métricas oficiais de estresse de renderização, I/O e freeze de matrizes.
 
 ---
