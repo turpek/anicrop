@@ -17,6 +17,7 @@ from anicrop.reactive.registry import (
     wrap_domain_result,
 )
 from anicrop.reactive.strategy import StrategyProxy
+from anicrop.transform import Composer
 
 # Registro oficial dos proxies das entidades de domínio anicrop
 ProxyRegistry.register(GroupLayer, GroupProxy)
@@ -25,6 +26,16 @@ ProxyRegistry.register(Layer, ProxyLayer)
 ProxyRegistry.register(BaseLayer, ProxyLayer)
 ProxyRegistry.register(Mask, ProxyMask)
 ProxyRegistry.register(Container, BaseContainerProxy)
+
+# Registro ABC virtual para suporte a isinstance(proxy, DomainType)
+Container.register(BaseContainerProxy)
+LayerStack.register(LayerStackProxy)
+GroupLayer.register(GroupProxy)
+BaseLayer.register(GroupProxy)
+BaseLayer.register(ProxyLayer)
+Layer.register(ProxyLayer)
+Mask.register(ProxyMask)
+Composer.register(ProxyComposer)
 
 __all__ = [
     "BaseContainerProxy",

@@ -303,6 +303,8 @@ class AdaptiveCommand(Command):
             if isinstance(old_val, np.ndarray) and isinstance(new_val, np.ndarray):
                 if not np.array_equal(old_val, new_val):
                     return True
+            elif isinstance(old_val, np.ndarray) or isinstance(new_val, np.ndarray):
+                return True
             elif old_val != new_val:
                 return True
         return False
