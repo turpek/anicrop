@@ -1,8 +1,9 @@
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any
+from typing import Any
 
 from anicrop.command import BaseLayerCommand, Command, LayerImageCommand
+from anicrop.layer import Layer
 from anicrop.reactive.base import BaseHistoryProxy
 from anicrop.reactive.container import BaseContainerProxy
 from anicrop.reactive.fluent import ProxyComposer
@@ -13,11 +14,8 @@ from anicrop.reactive.strategy import (
     LayerLayoutProxy,
 )
 
-if TYPE_CHECKING:
-    pass
 
-
-class ProxyLayer(BaseHistoryProxy["Layer"]):
+class ProxyLayer(BaseHistoryProxy[Layer]):
     """Proxy dedicado à classe Layer (manipula propriedades escalares, transformações e edições)."""
 
     _ACTION_ROUTER: dict[str, type[Command]] = {

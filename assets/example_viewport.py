@@ -18,10 +18,8 @@ viewport = Viewport(size=VIEWPORT_SIZE, canvas=doc.canvas)
 # 4. Aplica o Zoom de 410% (4.1x) diretamente
 viewport.zoom = ZOOM_FACTOR
 
-# 5. Move a Câmera (Pan) centralizando o ponto focal no centro da Viewport usando o Layout
-# O ViewportLayoutStrategy calcula automaticamente a projeção exata considerando a escala e o centro do Canvas:
-focal_box = (FOCAL_POINT[0] - 50, FOCAL_POINT[1] - 50, 100, 100)
-viewport.layout.align(focal_box, anchor_x=0.5, anchor_y=0.5)
+# 5. Move a Câmera (Pan) fixando o ponto focal no centro da Viewport via .layout.pin
+viewport.layout.pin(FOCAL_POINT)
 
 # 6. Renderiza a janela de exibição da Viewport e salva no disco
 preview = doc.preview(viewport)

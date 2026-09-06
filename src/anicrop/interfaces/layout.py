@@ -1,7 +1,10 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from typing import Any
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    from anicrop.spatial import Point
 
 
 class LayoutStrategy(ABC):
@@ -20,6 +23,16 @@ class LayoutStrategy(ABC):
         anchor_y: float = 0.5,
     ) -> bool:
         """Alinha a posição global em relação ao retângulo de referência."""
+        pass
+
+    @abstractmethod
+    def pin(
+        self,
+        point: tuple[float, float] | Point,
+        anchor_x: float = 0.5,
+        anchor_y: float = 0.5,
+    ) -> bool:
+        """Posiciona a moldura de modo que sua âncora coincida com o ponto especificado."""
         pass
 
     @abstractmethod
