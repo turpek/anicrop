@@ -206,3 +206,11 @@ Para detalhes de métodos, tipos de retorno e exemplos de uso de cada classe, co
   - **Tipagem Pura de Domínio:** Referências diretas a `LayerStack`, `BaseLayer`, `Layer`, `GroupLayer` e remoção limpa via protocolo de contêineres e `NullContainer`. Sobrecargas `@overload` em `Document.__getitem__` para inferência precisa.
   - **Qualidade de Código:** 100% de conformidade estrita no `mypy` (0 erros com `--check-untyped-defs`) e suíte completa passando no `pytest`.
 
+- **Arquitetura Multi-Dtype e Profundidade de Cor (`uint8`, `uint16`, `float32`):**
+  - **Configuração Centralizada (`config.dtype`):** O `config.dtype` define o tipo de dado padrão da engine (padrão: `np.uint8`), aceitando `uint8`, `uint16` e `float32` com validação estrita e context manager com restauração garantida (`with config(dtype=np.uint16):`).
+  - **Imunidade a Mudanças Globais no Canvas:** O `Canvas(..., dtype=config.dtype)` e `BaseFrame` congelam o seu `dtype` na instanciação. Documentos e canveses existentes não sofrem efeitos colaterais caso `config.dtype` mude posteriormente em tempo de execução.
+  - **Conversão Não-Destrutiva e Escala Precisa:** `Image.to_dtype(target_dtype)` e `Image.to_uint8()` tratam reescalonamento de valores de forma precisa (`uint8 * 257 -> uint16`, `uint16 >> 8 -> uint8`, float em `[0.0, 1.0]`).
+  - **Harmonização Transparente no Renderizador:** O `blend_rendered_images` e o pipeline de renderização harmonizam camadas de diferentes dtypes para o `surface.dtype` do Canvas via `image.to_dtype(buffer.dtype)`.
+  - **Cython Fused Types (`pixel_t`):** O operador nativo `solid_fill` em `blend.pyx` utiliza tipos fundidos do Cython (`uint8_t`, `uint16_t`, `float`), despachando rotinas C de alto desempenho sem conversões intermediárias de memória.
+
+

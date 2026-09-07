@@ -14,15 +14,16 @@ A classe `Image` garante a integridade dos dados de imagem (validação de forma
 
 ### Principais Métodos e Propriedades de `Image`
 
-#### `open(file_path: str | Path, image_format: ImageFormat | None = None, backend: AbstractImageIO | str | None = None, shrink: int = 1, roi: Region | None = None) -> Image` *(Class Method)*
-- **Descrição**: Abre e decodifica uma imagem a partir do disco utilizando o backend de I/O ativo (padrão `PyvipsBackend` ou `OpenCVBackend`). Suporta auto-detecção de formato de canais, subamostragem direta no decoder (`shrink`) e recorte de ROI sem carregar a imagem inteira. Para imagens gigantes ($\ge 8192 \times 8192\text{px}$), chaveia automaticamente para backend em disco **`MMapBuffer`** (`np.memmap`) ou streaming via `Pyvips`.
+#### `open(file_path: str | Path, image_format: ImageFormat | None = None, backend: AbstractImageIO | str | None = None, shrink: int = 1, roi: Region | None = None, dtype: Any = ...) -> Image` *(Class Method)*
+- **Descrição**: Abre e decodifica uma imagem a partir do disco utilizando o backend de I/O ativo (padrão `PyvipsBackend` ou `OpenCVBackend`). Suporta auto-detecção de formato de canais, subamostragem direta no decoder (`shrink`) e recorte de ROI sem carregar a imagem inteira. Harmoniza automaticamente a profundidade de bits para `dtype` (padrão herdado de `config.dtype`), ou preserva o tipo nativo se `dtype=None`. Para imagens gigantes ($\ge 8192 \times 8192\text{px}$), chaveia automaticamente para backend em disco **`MMapBuffer`** (`np.memmap`) ou streaming via `Pyvips`.
 - **Parâmetros**:
   - `file_path` (`str | Path`): Caminho do arquivo no disco.
   - `image_format` (`ImageFormat | None`): Formato alvo desejado (`RGBA`, `RGB`, `GRAY`, `GRAY_ALPHA`). Se `None`, auto-detecta o formato nativo da imagem no disco.
   - `backend` (`AbstractImageIO | str | None`): Backend específico para esta leitura (`"vips"`, `"opencv"` ou instância). Se `None`, utiliza o backend padrão ativo.
   - `shrink` (`int`): Fator de subamostragem direta no decoder (ex: `shrink=2` reduz a resolução pela metade durante a leitura, economizando CPU e RAM).
   - `roi` (`Region | None`): Recorte espacial opcional para carregar apenas uma região específica do arquivo.
-- **Retorno**: `Image` — Instância contendo os pixels decodificados no formato solicitado.
+  - `dtype` (`Any`): Tipo de dado dos pixels (`np.uint8`, `np.uint16`, `np.float32`). Se omitido (`...`), utiliza `config.dtype`. Se `None`, preserva o tipo original da leitura em disco.
+- **Retorno**: `Image` — Instância contendo os pixels decodificados no formato e dtype solicitados.
 
 #### `save(file_path: str | Path, options: SaveOptions | None = None, backend: AbstractImageIO | str | None = None) -> None`
 - **Descrição**: Codifica e grava a imagem no disco no caminho especificado utilizando o backend de I/O selecionado.
@@ -32,13 +33,14 @@ A classe `Image` garante a integridade dos dados de imagem (validação de forma
   - `backend` (`AbstractImageIO | str | None`): Backend específico para a gravação (`"vips"`, `"opencv"` ou instância).
 - **Retorno**: `None`.
 
-#### `new(size: tuple[int, int], fmt: ImageFormat, color: int | tuple[int, ...] = 0, threshold_pixels: int | None = ...) -> Image` *(Class Method)*
-- **Descrição**: Cria uma nova imagem em memória preenchida com uma cor constante. Se o total de pixels (`width * height`) ultrapassar o limite configurado (padrão de **64 Megapixels** / $8192 \times 8192\text{px}$), aloca automaticamente um buffer mapeado em memória virtual no disco via **`np.memmap`** (`MMapBuffer`); caso contrário, aloca um `numpy.ndarray` em memória RAM de alta velocidade. Passe `threshold_pixels=None` para forçar 100% de alocação em RAM.
+#### `new(size: tuple[int, int], fmt: ImageFormat, color: int | tuple[int, ...] = 0, threshold_pixels: int | None = ..., dtype: Any = ...) -> Image` *(Class Method)*
+- **Descrição**: Cria uma nova imagem em memória preenchida com uma cor constante. Se o total de pixels (`width * height`) ultrapassar o limite configurado (padrão de **64 Megapixels** / $8192 \times 8192\text{px}$), aloca automaticamente um buffer mapeado em memória virtual no disco via **`np.memmap`** (`MMapBuffer`); caso contrário, aloca um `numpy.ndarray` em memória RAM de alta velocidade. O tipo de dado é configurado via `dtype` (padrão herdado de `config.dtype`).
 - **Parâmetros**:
   - `size` (`tuple[int, int]`): Dimensões `(width, height)` da imagem.
   - `fmt` (`ImageFormat`): Formato de cor da imagem (`RGBA`, `RGB`, `GRAY`, etc.).
   - `color` (`int | tuple[int, ...]`): Valor ou tupla de cor para preenchimento inicial (padrão `0` transparente/preto).
   - `threshold_pixels` (`int | None`): Limite de pixels antes de paginar em disco. Se omitido, herda o valor global de `get_memory_threshold()`.
+  - `dtype` (`Any`): Tipo de dado dos pixels (`np.uint8`, `np.uint16`, `np.float32`). Se omitido (`...`), utiliza `config.dtype`.
 - **Retorno**: `Image` — Nova instância alocada.
 
 #### `set_memory_threshold(threshold_pixels: int | None) -> None` / `get_memory_threshold() -> int | None`
@@ -70,6 +72,16 @@ A classe `Image` garante a integridade dos dados de imagem (validação de forma
   - `target_format` (`ImageFormat`): O formato de destino desejado.
 - **Retorno**: `Image` — Nova instância contendo os pixels convertidos.
 
+#### `to_dtype(target_dtype: Any) -> Image`
+- **Descrição**: Converte a imagem para outro tipo de dado (`np.uint8`, `np.uint16`, `np.float32`) de forma segura, não-destrutiva e com escalonamento de bits preciso (ex: uint8 `255` -> uint16 `65535`, uint16 `65535` -> uint8 `255` via bitshift, float32 em `[0.0, 1.0]`). Se a imagem já estiver no `target_dtype`, retorna `self` sem alocações desnecessárias.
+- **Parâmetros**:
+  - `target_dtype` (`Any`): Tipo NumPy desejado (ex: `np.uint8`, `np.uint16`, `np.float32`, ou strings como `"uint8"`).
+- **Retorno**: `Image` — Nova instância contendo os pixels convertidos.
+
+#### `to_uint8() -> Image`
+- **Descrição**: Atalho conveniente e expressivo para `self.to_dtype(np.uint8)`.
+- **Retorno**: `Image` — Instância convertida para uint8.
+
 #### Propriedades de Dimensão e Metadados:
 - `@property size -> tuple[int, int]`: Retorna `(width, height)` da imagem em pixels.
 - `@property width -> int` / `@property height -> int`: Retornam a largura e a altura da imagem.
@@ -77,6 +89,7 @@ A classe `Image` garante a integridade dos dados de imagem (validação de forma
 - `@property channels -> int`: Retorna o número de canais da imagem (ex: `4` para RGBA/PRGBA/RGBX, `3` para RGB, `1` para GRAY).
 - `@property format -> ImageFormat`: Retorna o enum `ImageFormat` associado (`RGBA`, `PRGBA`, `RGBX`, `RGB`, `GRAY`, `GRAY_ALPHA`, `CMYK`, `CMYK_ALPHA`).
 - `@property has_alpha -> bool`: Retorna `True` se o formato da imagem incluir canal de transparência (Alpha ativo em `RGBA`, `PRGBA`, `GRAY_ALPHA`, `CMYK_ALPHA`).
+- `@property dtype -> np.dtype`: Retorna o tipo de dados NumPy subjacente da imagem (`np.uint8`, `np.uint16`, `np.float32`).
 
 ---
 
@@ -109,25 +122,28 @@ img.save("export.jpg", options=options)
 
 ### 2.3. Gerenciamento Global de Configurações (`anicrop.config`)
 
-O `anicrop.config` é o objeto centralizado para gerenciar opções globais do motor (backend de decodificação/gravação e limites de alocação de memória RAM):
+O `anicrop.config` é o objeto centralizado para gerenciar opções globais do motor (backend de decodificação/gravação, limites de alocação de memória RAM e profundidade de bits/dtype padrão):
 
 ```python
 import anicrop
+import numpy as np
 
 # Consulta as configurações atuais:
 print(anicrop.config.backend)  # Padrão: "opencv" (ou "vips")
 print(anicrop.config.memory_threshold)  # Padrão: 67108864 pixels (64 MP)
+print(anicrop.config.dtype)  # Padrão: np.uint8
 
 # 1. Configuração permanente no script:
 anicrop.config.backend = "vips"  # Chaveia para o Pyvips
 anicrop.config.memory_threshold = None  # Desativa paginação em disco (100% RAM pura)
+anicrop.config.dtype = np.uint16  # Opera pipelines com precisão de 16-bit por padrão
 
 # 2. Configuração temporária e segura via Context Manager (com restauração automática ao sair):
-with anicrop.config(backend="vips", memory_threshold=None):
-    img = anicrop.Image.open("foto_pesada.png")
-    # ... processamento de alta performance ...
+with anicrop.config(backend="vips", memory_threshold=None, dtype=np.uint16):
+    img = anicrop.Image.open("frame_16bit.png")
+    # ... processamento de alta precisão ...
 
-# Fora do bloco, o backend e threshold voltam automaticamente aos valores anteriores!
+# Fora do bloco, backend, threshold e dtype voltam automaticamente aos valores anteriores!
 ```
 
 
