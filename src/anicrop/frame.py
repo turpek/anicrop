@@ -27,6 +27,10 @@ class SurfaceProtocol(Protocol):
     bg_color: tuple[int, ...]
 
     @property
+    def dtype(self) -> np.dtype:
+        pass
+
+    @property
     def region(self) -> Region:
         pass
 
@@ -59,6 +63,11 @@ class BaseFrame(ABC):
         self.surface = surface
         self._dst_region = self._render_region(self.bounds, effective_view)
         self._src_region = self._source_region(self.bounds, self.dst_region)
+
+    @property
+    def dtype(self) -> np.dtype:
+        """Tipo de dado (dtype) da superfície associada ao frame."""
+        return self.surface.dtype
 
     def _render_region(
         self,

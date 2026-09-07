@@ -24,6 +24,7 @@ class AbstractScratchBuffer(ABC):
         self,
         size: tuple[float, float],
         fmt: ImageFormat = ...,
+        dtype: Any = ...,
     ) -> AbstractScratchBuffer:
         """Configura a intenção de dimensões e formato para a próxima operação."""
         pass

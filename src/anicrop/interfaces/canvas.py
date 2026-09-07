@@ -3,6 +3,8 @@ from __future__ import annotations
 from abc import ABC, abstractmethod
 from typing import TYPE_CHECKING
 
+import numpy as np
+
 from anicrop.spatial import Point, Region
 
 if TYPE_CHECKING:
@@ -13,6 +15,11 @@ class AbstractCanvas(ABC):
     """Classe base abstrata para superfícies de composição Canvas."""
 
     bg_color: tuple[int, ...]
+
+    @property
+    @abstractmethod
+    def dtype(self) -> np.dtype:
+        pass
 
     @property
     @abstractmethod

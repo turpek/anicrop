@@ -883,15 +883,11 @@ def hard_masking(
 # 3.1 SOLID FILL (Preenchimento de Costuras / Stitching Sem Franjas)
 # =========================================================================
 
-def solid_fill(
+cdef void _solid_fill_u8(
     uint8_t[:, :, :] base,
     uint8_t[:, :, :] overlay,
-    float opacity = 1.0,
-):
-    """Implementação em Cython de solid_fill com OpenMP para fusão de costuras sem franjas."""
-    if opacity <= 0.0:
-        return
-
+    float opacity,
+) noexcept nogil:
     cdef int h = min(base.shape[0], overlay.shape[0])
     cdef int w = min(base.shape[1], overlay.shape[1])
     cdef int b_ch = base.shape[2]
@@ -907,72 +903,247 @@ def solid_fill(
     cdef uint8_t o_alpha, b_alpha
     cdef uint32_t o_pix, b_pix
 
+    # Fast-Path 1: RGBA -> RGBA (Otimizado com Carga/Descarga de Palavra de 32-bit e OpenMP)
+    if b_ch == 4 and o_ch == 4:
+        for y in prange(h, schedule='static'):
+            b_row = &base[y, 0, 0]
+            o_row = &overlay[y, 0, 0]
+            for x in range(w):
+                b_idx = x << 2
+                o_idx = x << 2
+                b_pix = (<const uint32_t*>&b_row[b_idx])[0]
+                o_pix = (<const uint32_t*>&o_row[o_idx])[0]
+                if (b_pix >> 24) < 250 and (o_pix >> 24) >= 200:
+                    (<uint32_t*>&b_row[b_idx])[0] = (o_pix & <uint32_t>0x00FFFFFF) | <uint32_t>0xFF000000
+
+    # Fast-Path 2: RGB -> RGBA (Overlay RGB opaco sobre Base RGBA)
+    elif b_ch == 4 and o_ch == 3:
+        for y in prange(h, schedule='static'):
+            b_row = &base[y, 0, 0]
+            o_row = &overlay[y, 0, 0]
+            for x in range(w):
+                b_idx = x << 2
+                o_idx = x * 3
+                b_pix = (<const uint32_t*>&b_row[b_idx])[0]
+                if (b_pix >> 24) < 250:
+                    b_row[b_idx + 0] = o_row[o_idx + 0]
+                    b_row[b_idx + 1] = o_row[o_idx + 1]
+                    b_row[b_idx + 2] = o_row[o_idx + 2]
+                    b_row[b_idx + 3] = 255
+
+    # Fast-Path 3: RGBA -> RGB (Base RGB opaca, apenas copia onde overlay for sólido)
+    elif b_ch == 3 and o_ch == 4:
+        for y in prange(h, schedule='static'):
+            b_row = &base[y, 0, 0]
+            o_row = &overlay[y, 0, 0]
+            for x in range(w):
+                b_idx = x * 3
+                o_idx = x << 2
+                o_alpha = o_row[o_idx + 3]
+                if o_alpha >= 200:
+                    b_row[b_idx + 0] = o_row[o_idx + 0]
+                    b_row[b_idx + 1] = o_row[o_idx + 1]
+                    b_row[b_idx + 2] = o_row[o_idx + 2]
+
+    # Fast-Path 4: RGB -> RGB
+    elif b_ch == 3 and o_ch == 3:
+        for y in prange(h, schedule='static'):
+            memcpy(&base[y, 0, 0], &overlay[y, 0, 0], w * 3)
+
+    else:
+        # Caminho geral cobrindo Grayscale e Gray-Alpha
+        for y in prange(h, schedule='static'):
+            b_row = &base[y, 0, 0]
+            o_row = &overlay[y, 0, 0]
+            for x in range(w):
+                b_idx = x * b_ch
+                o_idx = x * o_ch
+                b_alpha = b_row[b_idx + b_ch - 1] if b_has_alpha else 255
+                o_alpha = o_row[o_idx + o_ch - 1] if o_has_alpha else 255
+
+                if (not b_has_alpha or b_alpha < 250) and (not o_has_alpha or o_alpha >= 200):
+                    for c in range(color_channels):
+                        b_row[b_idx + c] = o_row[o_idx + c]
+                    if b_has_alpha:
+                        b_row[b_idx + b_ch - 1] = 255
+
+
+cdef void _solid_fill_u16(
+    uint16_t[:, :, :] base,
+    uint16_t[:, :, :] overlay,
+    float opacity,
+) noexcept nogil:
+    cdef int h = min(base.shape[0], overlay.shape[0])
+    cdef int w = min(base.shape[1], overlay.shape[1])
+    cdef int b_ch = base.shape[2]
+    cdef int o_ch = overlay.shape[2]
+
+    cdef bint b_has_alpha = (b_ch == 2 or b_ch == 4)
+    cdef bint o_has_alpha = (o_ch == 2 or o_ch == 4)
+    cdef int color_channels = 1 if (o_ch == 1 or o_ch == 2) else 3
+
+    cdef int y, x, c, b_idx, o_idx
+    cdef uint16_t* b_row
+    cdef const uint16_t* o_row
+    cdef uint16_t o_alpha, b_alpha
+
+    if b_ch == 4 and o_ch == 4:
+        for y in prange(h, schedule='static'):
+            b_row = &base[y, 0, 0]
+            o_row = &overlay[y, 0, 0]
+            for x in range(w):
+                b_idx = x << 2
+                o_idx = x << 2
+                b_alpha = b_row[b_idx + 3]
+                o_alpha = o_row[o_idx + 3]
+                if b_alpha < 64250 and o_alpha >= 51400:
+                    b_row[b_idx + 0] = o_row[o_idx + 0]
+                    b_row[b_idx + 1] = o_row[o_idx + 1]
+                    b_row[b_idx + 2] = o_row[o_idx + 2]
+                    b_row[b_idx + 3] = 65535
+
+    elif b_ch == 4 and o_ch == 3:
+        for y in prange(h, schedule='static'):
+            b_row = &base[y, 0, 0]
+            o_row = &overlay[y, 0, 0]
+            for x in range(w):
+                b_idx = x << 2
+                o_idx = x * 3
+                if b_row[b_idx + 3] < 64250:
+                    b_row[b_idx + 0] = o_row[o_idx + 0]
+                    b_row[b_idx + 1] = o_row[o_idx + 1]
+                    b_row[b_idx + 2] = o_row[o_idx + 2]
+                    b_row[b_idx + 3] = 65535
+
+    elif b_ch == 3 and o_ch == 4:
+        for y in prange(h, schedule='static'):
+            b_row = &base[y, 0, 0]
+            o_row = &overlay[y, 0, 0]
+            for x in range(w):
+                b_idx = x * 3
+                o_idx = x << 2
+                if o_row[o_idx + 3] >= 51400:
+                    b_row[b_idx + 0] = o_row[o_idx + 0]
+                    b_row[b_idx + 1] = o_row[o_idx + 1]
+                    b_row[b_idx + 2] = o_row[o_idx + 2]
+
+    elif b_ch == 3 and o_ch == 3:
+        for y in prange(h, schedule='static'):
+            memcpy(&base[y, 0, 0], &overlay[y, 0, 0], w * 3 * sizeof(uint16_t))
+
+    else:
+        for y in prange(h, schedule='static'):
+            b_row = &base[y, 0, 0]
+            o_row = &overlay[y, 0, 0]
+            for x in range(w):
+                b_idx = x * b_ch
+                o_idx = x * o_ch
+                b_alpha = b_row[b_idx + b_ch - 1] if b_has_alpha else 65535
+                o_alpha = o_row[o_idx + o_ch - 1] if o_has_alpha else 65535
+
+                if (not b_has_alpha or b_alpha < 64250) and (not o_has_alpha or o_alpha >= 51400):
+                    for c in range(color_channels):
+                        b_row[b_idx + c] = o_row[o_idx + c]
+                    if b_has_alpha:
+                        b_row[b_idx + b_ch - 1] = 65535
+
+
+cdef void _solid_fill_f32(
+    float[:, :, :] base,
+    float[:, :, :] overlay,
+    float opacity,
+) noexcept nogil:
+    cdef int h = min(base.shape[0], overlay.shape[0])
+    cdef int w = min(base.shape[1], overlay.shape[1])
+    cdef int b_ch = base.shape[2]
+    cdef int o_ch = overlay.shape[2]
+
+    cdef bint b_has_alpha = (b_ch == 2 or b_ch == 4)
+    cdef bint o_has_alpha = (o_ch == 2 or o_ch == 4)
+    cdef int color_channels = 1 if (o_ch == 1 or o_ch == 2) else 3
+
+    cdef int y, x, c, b_idx, o_idx
+    cdef float* b_row
+    cdef const float* o_row
+    cdef float o_alpha, b_alpha
+
+    if b_ch == 4 and o_ch == 4:
+        for y in prange(h, schedule='static'):
+            b_row = &base[y, 0, 0]
+            o_row = &overlay[y, 0, 0]
+            for x in range(w):
+                b_idx = x << 2
+                o_idx = x << 2
+                b_alpha = b_row[b_idx + 3]
+                o_alpha = o_row[o_idx + 3]
+                if b_alpha < 0.98 and o_alpha >= 0.784:
+                    b_row[b_idx + 0] = o_row[o_idx + 0]
+                    b_row[b_idx + 1] = o_row[o_idx + 1]
+                    b_row[b_idx + 2] = o_row[o_idx + 2]
+                    b_row[b_idx + 3] = 1.0
+
+    elif b_ch == 4 and o_ch == 3:
+        for y in prange(h, schedule='static'):
+            b_row = &base[y, 0, 0]
+            o_row = &overlay[y, 0, 0]
+            for x in range(w):
+                b_idx = x << 2
+                o_idx = x * 3
+                if b_row[b_idx + 3] < 0.98:
+                    b_row[b_idx + 0] = o_row[o_idx + 0]
+                    b_row[b_idx + 1] = o_row[o_idx + 1]
+                    b_row[b_idx + 2] = o_row[o_idx + 2]
+                    b_row[b_idx + 3] = 1.0
+
+    elif b_ch == 3 and o_ch == 4:
+        for y in prange(h, schedule='static'):
+            b_row = &base[y, 0, 0]
+            o_row = &overlay[y, 0, 0]
+            for x in range(w):
+                b_idx = x * 3
+                o_idx = x << 2
+                if o_row[o_idx + 3] >= 0.784:
+                    b_row[b_idx + 0] = o_row[o_idx + 0]
+                    b_row[b_idx + 1] = o_row[o_idx + 1]
+                    b_row[b_idx + 2] = o_row[o_idx + 2]
+
+    elif b_ch == 3 and o_ch == 3:
+        for y in prange(h, schedule='static'):
+            memcpy(&base[y, 0, 0], &overlay[y, 0, 0], w * 3 * sizeof(float))
+
+    else:
+        for y in prange(h, schedule='static'):
+            b_row = &base[y, 0, 0]
+            o_row = &overlay[y, 0, 0]
+            for x in range(w):
+                b_idx = x * b_ch
+                o_idx = x * o_ch
+                b_alpha = b_row[b_idx + b_ch - 1] if b_has_alpha else 1.0
+                o_alpha = o_row[o_idx + o_ch - 1] if o_has_alpha else 1.0
+
+                if (not b_has_alpha or b_alpha < 0.98) and (not o_has_alpha or o_alpha >= 0.784):
+                    for c in range(color_channels):
+                        b_row[b_idx + c] = o_row[o_idx + c]
+                    if b_has_alpha:
+                        b_row[b_idx + b_ch - 1] = 1.0
+
+
+def solid_fill(
+    pixel_t[:, :, :] base,
+    pixel_t[:, :, :] overlay,
+    float opacity = 1.0,
+):
+    """Implementação em Cython de solid_fill com Fused Types (u8, u16, f32) e OpenMP."""
+    if opacity <= 0.0:
+        return
+
     with nogil:
-        # Fast-Path 1: RGBA -> RGBA (Otimizado com Carga/Descarga de Palavra de 32-bit e OpenMP)
-        if b_ch == 4 and o_ch == 4:
-            for y in prange(h, schedule='static'):
-                b_row = &base[y, 0, 0]
-                o_row = &overlay[y, 0, 0]
-                for x in range(w):
-                    b_idx = x << 2
-                    o_idx = x << 2
-                    b_pix = (<const uint32_t*>&b_row[b_idx])[0]
-                    o_pix = (<const uint32_t*>&o_row[o_idx])[0]
-                    if (b_pix >> 24) < 250 and (o_pix >> 24) >= 200:
-                        (<uint32_t*>&b_row[b_idx])[0] = (o_pix & <uint32_t>0x00FFFFFF) | <uint32_t>0xFF000000
-
-
-        # Fast-Path 2: RGB -> RGBA (Overlay RGB opaco sobre Base RGBA)
-        elif b_ch == 4 and o_ch == 3:
-            for y in prange(h, schedule='static'):
-                b_row = &base[y, 0, 0]
-                o_row = &overlay[y, 0, 0]
-                for x in range(w):
-                    b_idx = x << 2
-                    o_idx = x * 3
-                    b_pix = (<const uint32_t*>&b_row[b_idx])[0]
-                    if (b_pix >> 24) < 250:
-                        b_row[b_idx + 0] = o_row[o_idx + 0]
-                        b_row[b_idx + 1] = o_row[o_idx + 1]
-                        b_row[b_idx + 2] = o_row[o_idx + 2]
-                        b_row[b_idx + 3] = 255
-
-
-        # Fast-Path 3: RGBA -> RGB (Base RGB opaca, apenas copia onde overlay for sólido)
-        elif b_ch == 3 and o_ch == 4:
-            for y in prange(h, schedule='static'):
-                b_row = &base[y, 0, 0]
-                o_row = &overlay[y, 0, 0]
-                for x in range(w):
-                    b_idx = x * 3
-                    o_idx = x << 2
-                    o_alpha = o_row[o_idx + 3]
-                    if o_alpha >= 200:
-                        b_row[b_idx + 0] = o_row[o_idx + 0]
-                        b_row[b_idx + 1] = o_row[o_idx + 1]
-                        b_row[b_idx + 2] = o_row[o_idx + 2]
-
-        # Fast-Path 4: RGB -> RGB
-        elif b_ch == 3 and o_ch == 3:
-            for y in prange(h, schedule='static'):
-                memcpy(&base[y, 0, 0], &overlay[y, 0, 0], w * 3)
-
-        else:
-            # Caminho geral cobrindo Grayscale e Gray-Alpha
-            for y in prange(h, schedule='static'):
-                b_row = &base[y, 0, 0]
-                o_row = &overlay[y, 0, 0]
-                for x in range(w):
-                    b_idx = x * b_ch
-                    o_idx = x * o_ch
-                    b_alpha = b_row[b_idx + b_ch - 1] if b_has_alpha else 255
-                    o_alpha = o_row[o_idx + o_ch - 1] if o_has_alpha else 255
-
-                    if (not b_has_alpha or b_alpha < 250) and (not o_has_alpha or o_alpha >= 200):
-                        for c in range(color_channels):
-                            b_row[b_idx + c] = o_row[o_idx + c]
-                        if b_has_alpha:
-                            b_row[b_idx + b_ch - 1] = 255
+        if pixel_t is uint8_t:
+            _solid_fill_u8(base, overlay, opacity)
+        elif pixel_t is uint16_t:
+            _solid_fill_u16(base, overlay, opacity)
+        elif pixel_t is float:
+            _solid_fill_f32(base, overlay, opacity)
 
 
 # =========================================================================

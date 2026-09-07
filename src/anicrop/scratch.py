@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from typing import Any
+
 import numpy as np
 
 from anicrop.enums import ImageFormat
@@ -15,6 +17,7 @@ class ScratchBuffer(AbstractScratchBuffer):
         self._image: Image | None = None
         self._size: tuple[int, int] = (0, 0)
         self._format: ImageFormat = ImageFormat.RGBA
+        self._dtype: np.dtype = np.dtype(np.uint8)
         self._used: bool = False
 
     @property
@@ -26,10 +29,12 @@ class ScratchBuffer(AbstractScratchBuffer):
         self,
         size: tuple[float, float],
         fmt: ImageFormat = ImageFormat.RGBA,
+        dtype: Any = np.uint8,
     ) -> ScratchBuffer:
         """Configura as dimensões mínimas e o formato desejado para o próximo acesso."""
         self._size = (int(round(size[0])), int(round(size[1])))
         self._format = fmt
+        self._dtype = np.dtype(dtype)
         self._used = False
         return self
 
@@ -41,12 +46,13 @@ class ScratchBuffer(AbstractScratchBuffer):
             or self._image.height < h
             or self._image.width < w
             or self._image.format != self._format
+            or self._image.dtype != self._dtype
         ):
             current_h = self._image.height if self._image is not None else 0
             current_w = self._image.width if self._image is not None else 0
             new_h = max(h, int(current_h * 1.5))
             new_w = max(w, int(current_w * 1.5))
-            self._image = Image.new((new_w, new_h), self._format)
+            self._image = Image.new((new_w, new_h), self._format, dtype=self._dtype)
 
         return self._image.view(Region.from_size(w, h))
 
