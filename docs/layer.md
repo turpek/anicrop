@@ -88,7 +88,7 @@ Os pixels originais da imagem nunca são modificados diretamente. Toda alteraç�
 
 ## 3. Máscaras e Sistema de Efeitos (`anicrop.mask`, `anicrop.effect`, `anicrop.filter`)
 
-Tanto `Layer` quanto `GroupLayer` (através de `BaseLayer`) suportam máscara não-destrutiva única e uma fila de efeitos de pós-processamento.
+Tanto `Layer` quanto `GroupLayer` (através de `BaseLayer`) suportam máscara não-destrutiva única e uma fila de efeitos de pós-processamento. *(Para o guia detalhado, consulte [docs/effect.md](file:///home/gui/python/anicrop/docs/effect.md)).*
 
 ### 3.1. Gerenciamento de Máscara Única em `BaseLayer`
 

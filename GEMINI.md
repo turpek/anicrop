@@ -67,6 +67,7 @@ Para detalhes de métodos, tipos de retorno e exemplos de uso de cada classe, co
 - [docs/composition.md](file:///home/gui/python/anicrop/docs/composition.md) — Composição de camadas, agrupamento (`merge`), rasterização (`flatten`) e clonagem profunda (`clone_node`, `LayerComposition`).
 
 - [docs/layer.md](file:///home/gui/python/anicrop/docs/layer.md) — Detalhes de `BaseLayer`, `Layer` e `EditLayer`.
+- **[docs/effect.md](file:///home/gui/python/anicrop/docs/effect.md)** — Sistema de efeitos e filtros (`Effect`, `BoundEffect`, `BlurFilter` e pós-processamento).
 - **[docs/spatial.md](file:///home/gui/python/anicrop/docs/spatial.md)** — Operações de geometria 2D e uso da classe `Region`.
 - **[docs/container.md](file:///home/gui/python/anicrop/docs/container.md)** — Estrutura de `LayerStack`, `GroupLayer` e `NodeContainerProtocol`.
 - [docs/transform.md](file:///home/gui/python/anicrop/docs/transform.md) — Matrizes 3x3, `Composer` mutável e intenções `Transform`.
