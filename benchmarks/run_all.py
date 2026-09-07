@@ -1,5 +1,11 @@
+import sys
 from datetime import datetime
 from pathlib import Path
+
+# Garante a raiz do projeto no sys.path mesmo ao executar diretamente como script
+ROOT_DIR = Path(__file__).resolve().parent.parent
+if str(ROOT_DIR) not in sys.path:
+    sys.path.insert(0, str(ROOT_DIR))
 
 import matplotlib.pyplot as plt
 import numpy as np
