@@ -1,3 +1,4 @@
+import numpy as np
 from numpy import ndarray
 
 from anicrop.canvas import Canvas
@@ -38,6 +39,11 @@ class Viewport:
         if not isinstance(canvas, AbstractCanvas):
             raise TypeError(f"Expected AbstractCanvas, got {type(canvas).__name__}")
         self._canvas = canvas
+
+    @property
+    def dtype(self) -> np.dtype:
+        """Tipo de dado (dtype) do Canvas observado pela Viewport."""
+        return self._canvas.dtype
 
     @property
     def layout(self) -> ViewportLayoutStrategy:

@@ -223,6 +223,44 @@ class Image:
     def has_alpha(self) -> bool:
         return self._format.has_alpha
 
+    @property
+    def dtype(self) -> np.dtype:
+        """The data type (dtype) of the underlying image array."""
+        return self._data.dtype
+
+    def __array__(self, dtype: Any = None) -> np.ndarray:
+        """Protocolo NumPy para conversão direta via np.asarray(image)."""
+        return np.asarray(self._data, dtype=dtype)
+
+    def to_dtype(self, target_dtype: Any) -> Image:
+        """Converte a imagem para outro tipo de dado (dtype) de forma segura e não-destrutiva."""
+        target_dt = np.dtype(target_dtype)
+        if self.dtype == target_dt:
+            return self
+
+        arr = self[...]
+        converted: np.ndarray
+        if self.dtype == np.uint8 and target_dt == np.uint16:
+            converted = arr.astype(np.uint16) * 257
+        elif self.dtype == np.uint8 and np.issubdtype(target_dt, np.floating):
+            converted = arr.astype(target_dt) / 255.0
+        elif self.dtype == np.uint16 and target_dt == np.uint8:
+            converted = (arr >> 8).astype(np.uint8)
+        elif self.dtype == np.uint16 and np.issubdtype(target_dt, np.floating):
+            converted = arr.astype(target_dt) / 65535.0
+        elif np.issubdtype(self.dtype, np.floating) and target_dt == np.uint8:
+            converted = np.clip(np.round(arr * 255.0), 0, 255).astype(np.uint8)
+        elif np.issubdtype(self.dtype, np.floating) and target_dt == np.uint16:
+            converted = np.clip(np.round(arr * 65535.0), 0, 65535).astype(np.uint16)
+        else:
+            converted = arr.astype(target_dt)
+
+        return Image(converted, self.format)
+
+    def to_uint8(self) -> Image:
+        """Retorna uma nova Image convertida para uint8 com escala segura de bits."""
+        return self.to_dtype(np.uint8)
+
     def get_lod(self, level: int) -> Image:
         """Retorna uma nova Image no nível de resolução solicitado (1/2^level)."""
         if level <= 0:
@@ -244,29 +282,38 @@ class Image:
         cls,
         size: tuple[int | float, int | float] | Sequence[int | float],
         fmt: ImageFormat,
-        color: int | tuple[int, ...] = 0,
+        color: int | float | tuple[int | float, ...] = 0,
         threshold_pixels: int | None | EllipsisType = ...,
+        dtype: Any = ...,
     ) -> Image:
-        """Creates a new Image with the specified dimensions and format.
+        """Creates a new Image with the specified dimensions, format and dtype.
 
         Uses MMapBuffer if threshold is configured and width * height > threshold,
-        or NumPy ndarray (RAM) otherwise.
+        or NumPy ndarray (RAM) otherwise. Defaults to config.dtype if not specified.
         """
         threshold = (
             config.memory_threshold if threshold_pixels is ... else threshold_pixels
         )
 
+        resolved_dtype = config.dtype if dtype is ... else np.dtype(dtype)
         width = int(round(size[0]))
         height = int(round(size[1]))
         channels = fmt.channels
         shape = (height, width, channels)
 
+        if np.issubdtype(resolved_dtype, np.floating):
+            alpha_default = 1.0
+        elif resolved_dtype == np.uint16:
+            alpha_default = 65535
+        else:
+            alpha_default = 255
+
         if threshold is not None and width * height > threshold:
-            mmap_buf = MMapBuffer.create_empty(shape, dtype=np.uint8)
+            mmap_buf = MMapBuffer.create_empty(shape, dtype=resolved_dtype)
             if color != 0:
                 if isinstance(color, (tuple, list)) and len(color) != channels:
                     if len(color) < channels:
-                        color = tuple(color) + (255,) * (channels - len(color))
+                        color = tuple(color) + (alpha_default,) * (channels - len(color))
                     else:
                         color = tuple(color[:channels])
                 mmap_buf[...] = color
@@ -274,14 +321,14 @@ class Image:
             return cls(mmap_buf, fmt)
 
         if color == 0 or (isinstance(color, (tuple, list)) and not any(color)):
-            buffer = np.zeros(shape, dtype=np.uint8)
+            buffer = np.zeros(shape, dtype=resolved_dtype)
         else:
             if isinstance(color, (tuple, list)) and len(color) != channels:
                 if len(color) < channels:
-                    color = tuple(color) + (255,) * (channels - len(color))
+                    color = tuple(color) + (alpha_default,) * (channels - len(color))
                 else:
                     color = tuple(color[:channels])
-            buffer = np.full(shape, color, dtype=np.uint8)
+            buffer = np.full(shape, color, dtype=resolved_dtype)
         return cls(buffer, fmt)
 
     def resize(self, target_size: tuple[int | float, int | float]) -> Image:
@@ -294,7 +341,7 @@ class Image:
         if resized_data.ndim == 2:
             resized_data = resized_data[..., np.newaxis]
 
-        new_img = Image.new((new_w, new_h), self._format)
+        new_img = Image.new((new_w, new_h), self._format, dtype=self.dtype)
         new_img[...] = resized_data
         return new_img
 
@@ -347,9 +394,13 @@ class Image:
         backend: AbstractImageIO | str | None = None,
         shrink: int = 1,
         roi: Region | None = None,
+        dtype: Any = ...,
     ) -> Image:
         file_path_str = str(file_path)
         io_backend = get_backend(backend)
+        target_dtype = (
+            config.dtype if dtype is ... else (np.dtype(dtype) if dtype is not None else None)
+        )
 
         width, height = io_backend.get_size(file_path_str)
         target_w = roi.width if roi is not None else width
@@ -363,7 +414,10 @@ class Image:
             data, resolved_fmt = io_backend.read_large(
                 file_path_str, format=resolved_fmt
             )
-            return cls(data, resolved_fmt)
+            img = cls(data, resolved_fmt)
+            if target_dtype is not None and img.dtype != target_dtype:
+                return img.to_dtype(target_dtype)
+            return img
 
         data, resolved_fmt, _ = io_backend.read(
             file_path_str,
@@ -371,7 +425,10 @@ class Image:
             shrink=shrink,
             roi=roi,
         )
-        return cls(data, resolved_fmt)
+        img = cls(data, resolved_fmt)
+        if target_dtype is not None and img.dtype != target_dtype:
+            return img.to_dtype(target_dtype)
+        return img
 
 
 def calculate_content_rect(image: Image) -> Region:

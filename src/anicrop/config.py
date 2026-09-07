@@ -7,10 +7,18 @@ from typing import TYPE_CHECKING, Any
 if TYPE_CHECKING:
     from anicrop.interfaces.io import AbstractImageIO
 
+import numpy as np
+
 from anicrop.io.registry import get_default_backend_name, set_default_backend
 
 DEFAULT_MEMORY_THRESHOLD: int = 8192 * 8192  # 64 MP (8K x 8K)
 DEFAULT_BACKEND: str = "opencv"
+DEFAULT_DTYPE: np.dtype = np.dtype(np.uint8)
+SUPPORTED_DTYPES: tuple[np.dtype, ...] = (
+    np.dtype(np.uint8),
+    np.dtype(np.uint16),
+    np.dtype(np.float32),
+)
 
 
 class Config:
@@ -19,6 +27,7 @@ class Config:
     def __init__(self) -> None:
         self._backend: str = DEFAULT_BACKEND
         self._memory_threshold: int | None = DEFAULT_MEMORY_THRESHOLD
+        self._dtype: np.dtype = DEFAULT_DTYPE
 
     @property
     def backend(self) -> str:
@@ -54,10 +63,28 @@ class Config:
             )
         self._memory_threshold = value
 
+    @property
+    def dtype(self) -> np.dtype:
+        """Tipo de dado padrão (dtype) para criação e decodificação de imagens."""
+        return self._dtype
+
+    @dtype.setter
+    def dtype(self, value: Any) -> None:
+        try:
+            dt = np.dtype(value)
+        except Exception as e:
+            raise ValueError(f"dtype inválido: {value}") from e
+        if dt not in SUPPORTED_DTYPES:
+            raise ValueError(
+                f"dtype não suportado: '{value}'. Valores suportados: {SUPPORTED_DTYPES}"
+            )
+        self._dtype = dt
+
     def reset(self) -> None:
         """Restaura todas as configurações para seus valores padrão de fábrica."""
         self.backend = DEFAULT_BACKEND
         self.memory_threshold = DEFAULT_MEMORY_THRESHOLD
+        self._dtype = DEFAULT_DTYPE
 
     @contextmanager
     def __call__(self, **kwargs: Any) -> Generator[Config, None, None]:

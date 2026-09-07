@@ -126,9 +126,9 @@ def warp_patch(
             sh, sw = src_data.shape[:2]
             out_h = pad_y_start + sh + pad_y_end
             out_w = pad_x_start + sw + pad_x_end
-            buf = _WARP_SRC_SCRATCH.configure((out_w, out_h), src_image.format)[
-                Region.from_size(out_w, out_h)
-            ]
+            buf = _WARP_SRC_SCRATCH.configure(
+                (out_w, out_h), src_image.format, dtype=src_image.dtype
+            )[Region.from_size(out_w, out_h)]
             buf.fill(0)
             buf[pad_y_start:pad_y_start + sh, pad_x_start:pad_x_start + sw] = src_data
             src_data = buf
@@ -172,10 +172,14 @@ def generate_opacity_mask(
 
     if image.has_alpha:
         mini_mask = np.zeros((th_img, tw_img), dtype=np.uint8)
-        if _cy_min_pool_alpha is not None:
+        if _cy_min_pool_alpha is not None and image.dtype == np.uint8:
             _cy_min_pool_alpha(image[...], mini_mask)
         else:
             alpha_origin = image[..., -1]
+            if alpha_origin.dtype == np.uint16:
+                alpha_origin = (alpha_origin >> 8).astype(np.uint8)
+            elif np.issubdtype(alpha_origin.dtype, np.floating):
+                alpha_origin = np.clip(np.round(alpha_origin * 255.0), 0, 255).astype(np.uint8)
             kernel_h = max(1, image.height // th_img)
             kernel_w = max(1, image.width // tw_img)
             kernel = np.ones((kernel_h, kernel_w), dtype=np.uint8)
@@ -361,7 +365,11 @@ class SceneTraverser:
                 children_items = self.traverse(item, frame.dst_region)
 
                 if children_items:
-                    buffer = Image.new(frame.dst_region.size, ImageFormat.RGBA)
+                    buffer = Image.new(
+                        frame.dst_region.size,
+                        ImageFormat.RGBA,
+                        dtype=self.surface.dtype,
+                    )
                     group_image = blend_rendered_images(reversed(children_items), buffer)
                     group_image = apply_post_processing(
                         group_image, item, frame, self.interp
@@ -407,6 +415,7 @@ class BaseRenderer[FrameT: BaseFrame](ABC):
         dst = self._scratch_buffer.configure(
             plan.dst_region.size,  # type: ignore[union-attr]
             edit_layer.image.format,
+            dtype=edit_layer.image.dtype,
         )
         result = render_edit(edit_layer, plan, interp=interp, dst=dst)
         if result is None:
@@ -423,7 +432,11 @@ class BaseRenderer[FrameT: BaseFrame](ABC):
             return edit_image.crop()
 
         # 3. Patch com distorção ou parcial: Mescla o resultado já obtido dentro de layer_image
-        layer_image = Image.new(plan.dst_region.size, layer_format)  # type: ignore[union-attr]
+        layer_image = Image.new(
+            plan.dst_region.size,  # type: ignore[union-attr]
+            layer_format,
+            dtype=edit_layer.image.dtype,
+        )
         edit_layer.blend_into(layer_image, edit_image, dst_region)
         return layer_image
 
@@ -435,10 +448,15 @@ class BaseRenderer[FrameT: BaseFrame](ABC):
         interp: InterpMode,
     ) -> Image:
         """Renderiza múltiplos edits compondo sequencialmente no buffer da camada com scratch buffer."""
-        layer_image = Image.new(plan.dst_region.size, layer_format)  # type: ignore[union-attr]
+        target_dtype = visible_edits[0].image.dtype if visible_edits else np.uint8
+        layer_image = Image.new(
+            plan.dst_region.size,  # type: ignore[union-attr]
+            layer_format,
+            dtype=target_dtype,
+        )
         for edit_layer in visible_edits:
             scratch = self._scratch_buffer.configure(
-                layer_image.size, edit_layer.image.format
+                layer_image.size, edit_layer.image.format, dtype=edit_layer.image.dtype
             )
             result = render_edit(edit_layer, plan, interp=interp, dst=scratch)
             if result is None:
@@ -501,7 +519,12 @@ class BaseRenderer[FrameT: BaseFrame](ABC):
             )
             images = traverser.traverse(container)
 
-            composition = Image.new(surface.size, format, color=surface.bg_color)
+            composition = Image.new(
+                surface.size,
+                format,
+                color=surface.bg_color,
+                dtype=surface.dtype,
+            )
             return blend_rendered_images(reversed(images), composition)
 
     def render_patch(
@@ -527,7 +550,10 @@ class BaseRenderer[FrameT: BaseFrame](ABC):
             images = traverser.traverse(container, effective_region)
 
             composition = Image.new(
-                effective_region.size, format, color=surface.bg_color
+                effective_region.size,
+                format,
+                color=surface.bg_color,
+                dtype=surface.dtype,
             )
             return blend_rendered_images(reversed(images), composition)
 

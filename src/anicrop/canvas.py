@@ -1,7 +1,10 @@
 from __future__ import annotations
 
-from typing import Self
+from typing import Any, Self
 
+import numpy as np
+
+from anicrop.config import config
 from anicrop.interfaces.canvas import AbstractCanvas
 from anicrop.layout import CanvasLayoutStrategy
 from anicrop.spatial import Point, Region
@@ -12,9 +15,11 @@ class Canvas(AbstractCanvas):
         self,
         region: Region,
         bg_color: tuple[int, ...] | None = None,
+        dtype: Any = ...,
     ):
         self._region = region
         self.bg_color = bg_color if bg_color is not None else (0, 0, 0, 0)
+        self._dtype = config.dtype if dtype is ... else np.dtype(dtype)
         self._layout = CanvasLayoutStrategy(self)
 
     @classmethod
@@ -23,8 +28,9 @@ class Canvas(AbstractCanvas):
         width: float,
         height: float,
         bg_color: tuple[int, ...] | None = None,
+        dtype: Any = ...,
     ) -> Self:
-        return cls(Region.from_size(width, height), bg_color=bg_color)
+        return cls(Region.from_size(width, height), bg_color=bg_color, dtype=dtype)
 
     @classmethod
     def from_rect(
@@ -34,8 +40,14 @@ class Canvas(AbstractCanvas):
         width: float,
         height: float,
         bg_color: tuple[int, ...] | None = None,
+        dtype: Any = ...,
     ) -> Self:
-        return cls(Region.from_rect(x, y, width, height), bg_color=bg_color)
+        return cls(Region.from_rect(x, y, width, height), bg_color=bg_color, dtype=dtype)
+
+    @property
+    def dtype(self) -> np.dtype:
+        """Tipo de dado (dtype) da superfície Canvas para composição e renderização."""
+        return self._dtype
 
     @property
     def size(self) -> Point:

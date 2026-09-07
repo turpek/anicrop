@@ -19,6 +19,8 @@ def blend_rendered_images(
     """Realiza a composição das imagens renderizadas em ordem reversa diretamente no buffer de destino."""
     for base_layer, image, region in images:
         blend = BLEND_MODE[base_layer.blend_mode]
+        if image.dtype != buffer.dtype:
+            image = image.to_dtype(buffer.dtype)
         blend(buffer.view(region), image, base_layer.opacity)
     return buffer
 
