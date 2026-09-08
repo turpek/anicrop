@@ -22,6 +22,7 @@ from anicrop.render import (
     warp_affine,
     warp_patch,
 )
+from anicrop.scratch import ScratchBuffer
 from anicrop.spatial import Region
 from anicrop.transform import TransformRel, mat_translation
 from anicrop.viewport import Viewport
@@ -1005,16 +1006,19 @@ def test_transform_image_com_pivo_descentralizado():
     assert (out[..., 1] > 0).any()
 
 
-def test_transform_image_com_dst_prealocado():
-    """Valida se transform_image preenche e retorna diretamente a instancia Image passada em dst."""
+def test_transform_image_com_scratch_buffer():
+    """Valida se transform_image aceita ScratchBuffer em dst e reutiliza memoria sob demanda."""
+    scratch = ScratchBuffer()
     img = make_img(w=50, h=50, color=(255, 0, 0, 255), form=ImageFormat.RGBA)
-    temp = transform_image(img, angle=5.0)
-    dst_img = Image(np.zeros((temp.height, temp.width, 4), dtype=np.uint8), ImageFormat.RGBA)
 
-    result = transform_image(img, angle=5.0, dst=dst_img)
+    out = transform_image(img, angle=5.0, dst=scratch)
 
-    assert result is dst_img
-    assert (dst_img[..., 3] > 0).any()
+    assert scratch.was_used is True
+    assert isinstance(out, Image)
+    assert out.format == ImageFormat.RGBA
+    assert out.width > 50
+    assert out.height > 50
+    assert (out[..., 3] > 0).any()
 
 
 def test_transform_image_exportada_no_top_level_anicrop():

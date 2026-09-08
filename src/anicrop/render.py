@@ -232,7 +232,7 @@ def transform_image(
     pivot_angle: tuple[float, float] | Point = (0.5, 0.5),
     pivot_scale: tuple[float, float] | Point = (0.5, 0.5),
     interp: InterpMode = InterpMode.LINEAR,
-    dst: Image | np.ndarray | None = None,
+    dst: AbstractScratchBuffer | None = None,
     auto_pad: bool = True,
 ) -> Image:
     """Aplica rotacao e escala com pivos independentes, bounding box exata e protecao de borda."""
@@ -250,7 +250,12 @@ def transform_image(
     M_affine[0, 2] -= min_x
     M_affine[1, 2] -= min_y
 
-    dst_data = dst[...] if isinstance(dst, Image) else dst
+    if dst is not None:
+        dst.configure(dsize, image.format, dtype=image.dtype)
+        dst_data = dst[Region.from_size(dsize[0], dsize[1])]
+    else:
+        dst_data = None
+
     res_data = warp_affine(
         image[...],
         M_affine,
@@ -260,7 +265,7 @@ def transform_image(
         format=image.format,
         auto_pad=auto_pad,
     )
-    return dst if isinstance(dst, Image) else Image(res_data, image.format)
+    return Image(res_data, image.format)
 
 
 def generate_opacity_mask(
