@@ -214,4 +214,10 @@ Para detalhes de métodos, tipos de retorno e exemplos de uso de cada classe, co
   - **Harmonização Transparente no Renderizador:** O `blend_rendered_images` e o pipeline de renderização harmonizam camadas de diferentes dtypes para o `surface.dtype` do Canvas via `image.to_dtype(buffer.dtype)`.
   - **Cython Fused Types (`pixel_t`):** O operador nativo `solid_fill` em `blend.pyx` utiliza tipos fundidos do Cython (`uint8_t`, `uint16_t`, `float`), despachando rotinas C de alto desempenho sem conversões intermediárias de memória.
 
+- **Arquitetura de Mesclagem e Limiares para Stitching (`BlendMode.HARD_MASKING` & `BlendMode.SOLID_FILL`):**
+  - **Prioridade e Proteção de Base em `HARD_MASKING`:** O modo opera com prioridade **Top-First com Threshold**. Onde `overlay.alpha >= config.hard_mask_threshold` (padrão: 128), o overlay sobrescreve a base e fixa $\alpha = 255$ (ou modulado pela opacidade da camada). Onde o overlay for transparente ou penumbra de rotação ($\alpha < \text{threshold}$), **não toca na base**, preservando integralmente o conteúdo existente e eliminando buracos no stitching.
+  - **Proteção Consolidada em `SOLID_FILL`:** O modo opera com prioridade **Base-First**. A base sólida ($\alpha \ge 250$) é intocável; o overlay apenas preenche lacunas transparentes onde `overlay.alpha >= config.solid_fill_threshold` (padrão: 200).
+  - **Injeção Transparente via `config`:** A assinatura canônica de blend na engine (`blend(buffer.view(region), image, base_layer.opacity)`) permanece rigorosamente inalterada. Os limiares são obtidos de forma desacoplada via `config.hard_mask_threshold` e `config.solid_fill_threshold`, com suporte a context manager (`with config(hard_mask_threshold=160):`).
+  - **Multi-Dtype e Cython SIMD:** Suporte completo em Cython OpenMP e fallback NumPy com escala analítica para `uint8`, `uint16` e `float32`.
+
 
