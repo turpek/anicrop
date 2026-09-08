@@ -7,6 +7,7 @@ from .enums import BlendMode, ImageFormat
 from .frame import BaseFrame, CanvasFrame, ViewportFrame
 from .image import Image, get_memory_threshold, set_memory_threshold
 from .layer import Layer
+from .render import transform_image
 from .scratch import ScratchBuffer
 from .spatial import Region, Span
 from .viewer import Viewer
@@ -19,6 +20,7 @@ except PackageNotFoundError:
 
 __all__ = [
     "__version__",
+    "transform_image",
     "config",
     "Document",
     "Viewport",

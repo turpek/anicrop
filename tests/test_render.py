@@ -3,6 +3,7 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
+import anicrop
 import anicrop.render
 from anicrop.canvas import Canvas
 from anicrop.container import GroupLayer, LayerStack
@@ -17,6 +18,7 @@ from anicrop.render import (
     generate_opacity_mask,
     render_edit,
     render_image,
+    transform_image,
     warp_affine,
     warp_patch,
 )
@@ -965,3 +967,57 @@ def test_warp_affine_multi_dtype_preserva_cores_na_borda(dtype: type, max_val: f
 
     assert np.isclose(red_values.min(), max_val, atol=atol)
     assert np.isclose(red_values.mean(), max_val, atol=atol)
+
+
+def test_transform_image_com_pivo_padrao_centro():
+    """Valida se transform_image rotaciona Image no centro preservando cores na borda."""
+    img = make_img(w=100, h=100, color=(255, 0, 0, 255), form=ImageFormat.RGBA)
+
+    out = transform_image(img, angle=5.0, scale=1.0, interp=InterpMode.LANCZOS)
+
+    assert isinstance(out, Image)
+    assert out.format == ImageFormat.RGBA
+    assert out.width > 100
+    assert out.height > 100
+
+    edge_mask = (out[..., 3] >= 150) & (out[..., 3] < 255)
+    red_values = out[..., 0][edge_mask]
+    assert red_values.min() == 255
+    assert red_values.mean() == 255.0
+
+
+def test_transform_image_com_pivo_descentralizado():
+    """Valida se transform_image acomoda o bounding box com pivos arbitrarios sem cortes."""
+    img = make_img(w=100, h=100, color=(0, 255, 0, 255), form=ImageFormat.RGBA)
+
+    out = transform_image(
+        img,
+        angle=15.0,
+        scale=(1.1, 1.1),
+        pivot_angle=(0.0, 0.0),
+        pivot_scale=(0.0, 0.0),
+        interp=InterpMode.LANCZOS,
+    )
+
+    assert isinstance(out, Image)
+    assert out.width > 100
+    assert out.height > 100
+    assert (out[..., 1] > 0).any()
+
+
+def test_transform_image_com_dst_prealocado():
+    """Valida se transform_image preenche e retorna diretamente a instancia Image passada em dst."""
+    img = make_img(w=50, h=50, color=(255, 0, 0, 255), form=ImageFormat.RGBA)
+    temp = transform_image(img, angle=5.0)
+    dst_img = Image(np.zeros((temp.height, temp.width, 4), dtype=np.uint8), ImageFormat.RGBA)
+
+    result = transform_image(img, angle=5.0, dst=dst_img)
+
+    assert result is dst_img
+    assert (dst_img[..., 3] > 0).any()
+
+
+def test_transform_image_exportada_no_top_level_anicrop():
+    """Valida se transform_image e exportada e acessivel diretamente via namespace anicrop."""
+    assert hasattr(anicrop, "transform_image")
+    assert callable(anicrop.transform_image)

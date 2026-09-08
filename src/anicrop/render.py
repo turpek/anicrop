@@ -22,12 +22,15 @@ from anicrop.image import Image, ImageFormat
 from anicrop.interfaces.buffer import AbstractScratchBuffer
 from anicrop.layer import EditLayer, Layer
 from anicrop.scratch import ScratchBuffer
-from anicrop.spatial import Region, rect_to_region
+from anicrop.spatial import Point, Region, rect_to_region
 from anicrop.transform import (
     calculate_new_rect,
     calculate_region_rect,
+    create_pivot_transform_rel,
     has_distortion,
     mat_inverse,
+    mat_rotation,
+    mat_scale,
     mat_translation,
 )
 
@@ -220,6 +223,44 @@ def warp_patch(
         return warp(src_data, M_cv2, dest_size, interp, dst=dst, format=src_image.format, auto_pad=False)
 
     return None
+
+
+def transform_image(
+    image: Image,
+    angle: float = 0.0,
+    scale: float | tuple[float, float] = 1.0,
+    pivot_angle: tuple[float, float] | Point = (0.5, 0.5),
+    pivot_scale: tuple[float, float] | Point = (0.5, 0.5),
+    interp: InterpMode = InterpMode.LINEAR,
+    dst: Image | np.ndarray | None = None,
+    auto_pad: bool = True,
+) -> Image:
+    """Aplica rotacao e escala com pivos independentes, bounding box exata e protecao de borda."""
+    width, height = float(image.width), float(image.height)
+    sx, sy = (float(scale), float(scale)) if isinstance(scale, (int, float)) else (float(scale[0]), float(scale[1]))
+
+    M_scale = create_pivot_transform_rel(mat_scale(sx, sy), width, height, *pivot_scale)
+    M_rot = create_pivot_transform_rel(mat_rotation(angle), width, height, *pivot_angle)
+    M_combined = M_rot @ M_scale
+
+    min_x, min_y, bound_w, bound_h = calculate_new_rect(M_combined, (width, height))
+    dsize = (max(1, int(round(bound_w))), max(1, int(round(bound_h))))
+
+    M_affine = M_combined[:2, :].copy()
+    M_affine[0, 2] -= min_x
+    M_affine[1, 2] -= min_y
+
+    dst_data = dst[...] if isinstance(dst, Image) else dst
+    res_data = warp_affine(
+        image[...],
+        M_affine,
+        dsize,
+        interp=interp,
+        dst=dst_data,
+        format=image.format,
+        auto_pad=auto_pad,
+    )
+    return dst if isinstance(dst, Image) else Image(res_data, image.format)
 
 
 def generate_opacity_mask(
