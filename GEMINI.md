@@ -220,4 +220,9 @@ Para detalhes de métodos, tipos de retorno e exemplos de uso de cada classe, co
   - **Injeção Transparente via `config`:** A assinatura canônica de blend na engine (`blend(buffer.view(region), image, base_layer.opacity)`) permanece rigorosamente inalterada. Os limiares são obtidos de forma desacoplada via `config.hard_mask_threshold` e `config.solid_fill_threshold`, com suporte a context manager (`with config(hard_mask_threshold=160):`).
   - **Multi-Dtype e Cython SIMD:** Suporte completo em Cython OpenMP e fallback NumPy com escala analítica para `uint8`, `uint16` e `float32`.
 
+- **Exportação de Metadados e Versão (`anicrop.__version__`):**
+  - **Inspeção Canônica:** `src/anicrop/__init__.py` exporta canonicamente `__version__` resolvido via `importlib.metadata.version("anicrop")` com fallback automático em caso de execução desempacotada (`PackageNotFoundError`).
+  - **Compatibilidade com Pacotes Consumidores:** Ferramentas e pipelines downstream (como `anifuse`) podem validar a versão ativa via `anicrop.__version__` ou `getattr(anicrop, '__version__')`.
+
+
 
