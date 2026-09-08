@@ -876,3 +876,92 @@ def test_render_scene_rotacao_fracionaria_solid_fill_sem_size_mismatch():
     assert rendered is not None
     assert rendered.width > 200
     assert rendered.height > 200
+
+
+@pytest.mark.parametrize(
+    ("fmt", "expected"),
+    [
+        (ImageFormat.GRAY, False),
+        (ImageFormat.GRAY_ALPHA, True),
+        (ImageFormat.RGB, False),
+        (ImageFormat.RGBA, True),
+        (ImageFormat.PRGBA, False),
+        (ImageFormat.RGBX, False),
+        (ImageFormat.CMYK, False),
+        (ImageFormat.CMYK_ALPHA, True),
+    ],
+    ids=[
+        "gray_has_no_alpha",
+        "gray_alpha_is_straight",
+        "rgb_has_no_alpha",
+        "rgba_is_straight",
+        "prgba_is_premultiplied",
+        "rgbx_has_no_alpha",
+        "cmyk_has_no_alpha",
+        "cmyk_alpha_is_straight",
+    ],
+)
+def test_image_format_is_straight_alpha(fmt: ImageFormat, expected: bool):
+    """Valida se a property is_straight_alpha identifica corretamente formatos com alfa desvinculado."""
+    assert fmt.is_straight_alpha == expected
+
+
+def test_warp_affine_straight_alpha_preserva_cores_na_borda():
+    """Valida se warp_affine isolado preserva o canal de cor pleno nas bordas sem franja escura."""
+    src = np.full((100, 100, 4), [255, 0, 0, 255], dtype=np.uint8)
+    rot = np.array([
+        [0.9961947, -0.08715574, 6.548052],
+        [0.08715574, 0.9961947, -2.167522],
+    ], dtype=np.float64)
+
+    out = warp_affine(src, rot, (105, 105), interp=InterpMode.LANCZOS, format=ImageFormat.RGBA)
+    edge_mask = (out[:, :, 3] >= 150) & (out[:, :, 3] < 255)
+    red_values = out[:, :, 0][edge_mask]
+
+    assert red_values.min() == 255
+    assert red_values.mean() == 255.0
+
+
+def test_warp_patch_straight_alpha_preserva_cores_na_borda():
+    """Valida se warp_patch preserva as cores plenas da imagem nas margens de subpixel sob rotacao."""
+    img = make_img(w=100, h=100, color=(255, 0, 0, 255), form=ImageFormat.RGBA)
+    m_global = np.array([
+        [0.9961947, -0.08715574, 6.548052],
+        [0.08715574, 0.9961947, -2.167522],
+        [0.0, 0.0, 1.0],
+    ], dtype=np.float64)
+    dst_region = Region.from_size(105, 105)
+
+    result = warp_patch(img, m_global, dst_region, interp=InterpMode.LANCZOS)
+    assert result is not None
+
+    edge_mask = (result[:, :, 3] >= 150) & (result[:, :, 3] < 255)
+    red_values = result[:, :, 0][edge_mask]
+
+    assert red_values.min() == 255
+    assert red_values.mean() == 255.0
+
+
+@pytest.mark.parametrize(
+    ("dtype", "max_val", "atol"),
+    [
+        (np.uint8, 255, 0),
+        (np.uint16, 65535, 0),
+        (np.float32, 1.0, 1e-4),
+    ],
+    ids=["uint8", "uint16", "float32"],
+)
+def test_warp_affine_multi_dtype_preserva_cores_na_borda(dtype: type, max_val: float, atol: float):
+    """Valida se a preservacao de cor na borda opera com paridade numerica entre dtypes suportados."""
+    src: np.ndarray = np.full((100, 100, 4), max_val, dtype=dtype)
+    rot = np.array([
+        [0.9961947, -0.08715574, 6.548052],
+        [0.08715574, 0.9961947, -2.167522],
+    ], dtype=np.float64)
+
+    out = warp_affine(src, rot, (105, 105), interp=InterpMode.LANCZOS)
+    edge_mask = (out[:, :, 3] >= (0.5 * max_val)) & (out[:, :, 3] < max_val)
+    red_values = out[:, :, 0][edge_mask]
+
+    assert np.isclose(red_values.min(), max_val, atol=atol)
+    assert np.isclose(red_values.mean(), max_val, atol=atol)

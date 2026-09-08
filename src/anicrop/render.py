@@ -32,11 +32,47 @@ from anicrop.transform import (
 )
 
 try:
-    from anicrop.native.blend import (  # type: ignore[import-untyped]
+    from anicrop.native.blend import (  # type: ignore[import-untyped,import-not-found]
         min_pool_alpha as _cy_min_pool_alpha,
     )
 except ImportError:
     _cy_min_pool_alpha = None
+
+
+def pad_straight_alpha_into(
+    buf: np.ndarray,
+    src_data: np.ndarray,
+    pad_y_start: int,
+    pad_y_end: int,
+    pad_x_start: int,
+    pad_x_end: int,
+) -> None:
+    """Preenche as margens de buf replicando cores da borda de src_data com alfa zero."""
+    sh, sw = src_data.shape[:2]
+    buf[pad_y_start:pad_y_start + sh, pad_x_start:pad_x_start + sw] = src_data
+    if pad_y_start > 0:
+        buf[:pad_y_start, pad_x_start:pad_x_start + sw, :-1] = src_data[0:1, :, :-1]
+        buf[:pad_y_start, :, -1] = 0
+    if pad_y_end > 0:
+        buf[pad_y_start + sh:, pad_x_start:pad_x_start + sw, :-1] = src_data[-1:, :, :-1]
+        buf[pad_y_start + sh:, :, -1] = 0
+    if pad_x_start > 0:
+        buf[:, :pad_x_start, :-1] = buf[:, pad_x_start:pad_x_start + 1, :-1]
+        buf[:, :pad_x_start, -1] = 0
+    if pad_x_end > 0:
+        buf[:, pad_x_start + sw:, :-1] = buf[:, pad_x_start + sw - 1:pad_x_start + sw, :-1]
+        buf[:, pad_x_start + sw:, -1] = 0
+
+
+def pad_straight_alpha_symmetric(
+    src_data: np.ndarray,
+    pad: int,
+) -> np.ndarray:
+    """Cria um array com margem simetrica replicando cores e zerando o canal alfa."""
+    sh, sw = src_data.shape[:2]
+    buf = np.empty((sh + 2 * pad, sw + 2 * pad, src_data.shape[2]), dtype=src_data.dtype)
+    pad_straight_alpha_into(buf, src_data, pad, pad, pad, pad)
+    return buf
 
 
 def warp_affine(
@@ -45,12 +81,26 @@ def warp_affine(
     dest_size: tuple[int | float, int | float] | Sequence[int | float],
     interp: InterpMode = InterpMode.LINEAR,
     dst: np.ndarray | None = None,
+    format: ImageFormat | None = None,
+    auto_pad: bool = True,
 ) -> np.ndarray:
     M_affine = m_cv2[:2, :].astype(np.float64)
     dsize = (int(round(dest_size[0])), int(round(dest_size[1])))
 
-    # Usa BORDER_REPLICATE para que o kernel de interpolação (Lanczos/Linear) não amoste
-    # pixels nulos (0,0,0,0) fora do limite do retalho, eliminando a moldura/franja na borda.
+    is_straight = False
+    if format is not None:
+        is_straight = format.is_straight_alpha
+    elif src_data.ndim == 3 and src_data.shape[2] in (2, 4):
+        is_straight = True
+
+    if auto_pad and is_straight and interp.padding > 0:
+        pad = interp.padding
+        src_data = pad_straight_alpha_symmetric(src_data, pad)
+        M_affine = M_affine.copy()
+        M_affine[0, 2] -= (M_affine[0, 0] + M_affine[0, 1]) * pad
+        M_affine[1, 2] -= (M_affine[1, 0] + M_affine[1, 1]) * pad
+
+    border_val = (0,) * src_data.shape[2] if src_data.ndim == 3 else (0,)
     return cv2.warpAffine(
         src_data,
         M_affine,
@@ -58,7 +108,7 @@ def warp_affine(
         dst=dst,
         flags=interp.value,
         borderMode=cv2.BORDER_CONSTANT,
-        borderValue=(0, 0, 0, 0),
+        borderValue=border_val,
     )
 
 
@@ -68,14 +118,33 @@ def warp_perspective(
     dest_size: tuple[int | float, int | float] | Sequence[int | float],
     interp: InterpMode = InterpMode.LINEAR,
     dst: np.ndarray | None = None,
+    format: ImageFormat | None = None,
+    auto_pad: bool = True,
 ) -> np.ndarray:
     dsize = (int(round(dest_size[0])), int(round(dest_size[1])))
+    M_persp = m_cv2.astype(np.float64)
+
+    is_straight = False
+    if format is not None:
+        is_straight = format.is_straight_alpha
+    elif src_data.ndim == 3 and src_data.shape[2] in (2, 4):
+        is_straight = True
+
+    if auto_pad and is_straight and interp.padding > 0:
+        pad = interp.padding
+        src_data = pad_straight_alpha_symmetric(src_data, pad)
+        M_persp = M_persp.copy()
+        M_persp[:, 2] -= (M_persp[:, 0] + M_persp[:, 1]) * pad
+
+    border_val = (0,) * src_data.shape[2] if src_data.ndim == 3 else (0,)
     return cv2.warpPerspective(
         src_data,
-        m_cv2,
+        M_persp,
         dsize,
         dst=dst,
         flags=interp.value,
+        borderMode=cv2.BORDER_CONSTANT,
+        borderValue=border_val,
     )
 
 
@@ -129,8 +198,13 @@ def warp_patch(
             buf = _WARP_SRC_SCRATCH.configure(
                 (out_w, out_h), src_image.format, dtype=src_image.dtype
             )[Region.from_size(out_w, out_h)]
-            buf.fill(0)
-            buf[pad_y_start:pad_y_start + sh, pad_x_start:pad_x_start + sw] = src_data
+            if src_image.format.is_straight_alpha:
+                pad_straight_alpha_into(
+                    buf, src_data, pad_y_start, pad_y_end, pad_x_start, pad_x_end
+                )
+            else:
+                buf.fill(0)
+                buf[pad_y_start:pad_y_start + sh, pad_x_start:pad_x_start + sw] = src_data
             src_data = buf
 
         # 4. A origem da matriz da sub-imagem é sempre o top_left da target_region!
@@ -143,7 +217,7 @@ def warp_patch(
 
         warp = WARP_MODE.get(warp_mode, warp_affine)
         dest_size = (int(round(dest_region.width)), int(round(dest_region.height)))
-        return warp(src_data, M_cv2, dest_size, interp, dst=dst)
+        return warp(src_data, M_cv2, dest_size, interp, dst=dst, format=src_image.format, auto_pad=False)
 
     return None
 
