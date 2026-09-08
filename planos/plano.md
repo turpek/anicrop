@@ -31,6 +31,7 @@ Este documento centraliza todos os objetivos arquiteturais, otimizações e o pr
 - [x] ~~24. Correção do Erro de Dimensão por Arredondamento Subpixel na Discretização de AABB (`warp_patch` vs `Image.__region_to_slice` / `hard_masking`).~~
 - [ ] 25. Modos Avançados de Fusão e Composição para Fotografia e Transições Suaves (Multi-Band Blending e Feather Blending).
 - [x] ~~26. Eliminação de Contaminação de Cor e Franja Escura nas Bordas em `warp_affine` e `warp_patch` (Padding Alpha-Aware e `ImageFormat.is_straight_alpha`).~~
+- [ ] 27. (Resolução Dinâmica de Borda por Formato) Suporte a `border_mode` e `border_value` em `warp_affine`, `warp_perspective` e `warp_patch` (`BORDER_REPLICATE` para opacos vs `BORDER_CONSTANT` para alfa).
 
 ---
 
@@ -538,6 +539,30 @@ O profiling linha por linha do pipeline de renderização por patch (`warp_patch
 * **Valor mínimo de Vermelho na borda:** Subiu de **`155`** para **`255`** exatos.
 * **Valor médio de Vermelho na borda:** Subiu de **`235.69`** para **`255.00`**.
 * **Suíte de Testes:** Validado com 4 novos testes unitários dedicados em `tests/test_render.py` cobrindo `uint8`, `uint16` e `float32`.
+
+---
+
+## 🔲 27. Resolução Dinâmica de Borda por Formato de Imagem (`border_mode` e `border_value`)
+
+### 1. Diagnóstico e Problema Arquitetural
+* **Estado Atual:** Em `warp_affine`, `warp_perspective` e `warp_patch`, o modo de borda está fixado estaticamente em `borderMode=cv2.BORDER_CONSTANT` com `border_val = (0,) * channels`.
+* **Comportamento Incorreto em Formatos Opacos:**
+  * **Formatos com Alfa (`RGBA`, `GRAY_ALPHA`, `CMYK_ALPHA`):** O valor `0` no canal alfa representa **transparência total**, que é o comportamento correto para o "vazio" ao redor de retalhos no Canvas.
+  * **Formatos Opacos sem Alfa (`RGB`, `GRAY`, `RGBX`, `CMYK`):** O valor `0` não é transparente; representa **preto sólido** (`alpha = 255` implícito pelo motor de blend). Ao rotacionar ou deformar imagens opacas, os cantos triangulares do *bounding box* são preenchidos com preto opaco `(0, 0, 0)`, gerando uma moldura preta indesejada que sobrepõe e oculta as camadas que estão embaixo no Canvas.
+
+### 2. Diretrizes Técnicas e Solução Mapeada
+1. **Resolução de Borda por Formato de Imagem:**
+   * **Formatos com Canal Alfa (`format.has_alpha == True`):**
+     * `border_mode = cv2.BORDER_CONSTANT`
+     * `border_value = (0,) * channels` *(garante transparência total no vazio)*
+   * **Formatos Opacos sem Alfa (`format.has_alpha == False`):**
+     * `border_mode = cv2.BORDER_REPLICATE` *(ou configurável)*
+     * `border_value = (0,) * channels` *(evita criação de moldura e cantos pretos sólidos)*
+2. **Encapsulamento e Separação de Responsabilidades:**
+   * Criar a função especialista `get_opencv_border(format: ImageFormat | None, channels: int = 4) -> tuple[int, tuple[float, ...]]` em `render.py` (e/ou properties declarativas no `ImageFormat`).
+   * Permitir que chamadas avulsas em `warp_affine`, `warp_perspective` e `transform_image` recebam `border_mode: int | None = None` e `border_value: tuple[float, ...] | None = None` opcionais para customização pelo usuário (ex: borda branca para exportação fotográfica).
+3. **Validação:**
+   * Adicionar cenários de teste em `tests/test_render.py` verificando a rotação de imagens `RGB` com `BORDER_REPLICATE` e imagens `RGBA` com `BORDER_CONSTANT`.
 
 
 
