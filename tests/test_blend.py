@@ -1,7 +1,14 @@
 import numpy as np
 import pytest
 
-from anicrop.blend import blend_clip, blend_normal, hard_masking, solid_fill
+from anicrop.blend import (
+    _hard_masking_numpy,
+    blend_clip,
+    blend_normal,
+    hard_masking,
+    solid_fill,
+)
+from anicrop.config import config
 from anicrop.image import Image, ImageFormat
 
 
@@ -453,3 +460,86 @@ def test_blend_clip_subpixel_tolerance():
     # Nao deve levantar ValueError por diferenca de 1px
     blend_clip(base, overlay)
     assert np.all(base[:10, :10, -1] == 128)
+
+
+def test_hard_masking_preserves_solid_base_under_transparent_overlay():
+    """Valida se hard_masking preserva a base intacta quando o overlay e transparente ou tem penumbra."""
+    base_data = np.full((10, 10, 4), [0, 255, 0, 255], dtype=np.uint8)
+    base = Image(base_data, ImageFormat.RGBA)
+
+    over_data = np.zeros((10, 10, 4), dtype=np.uint8)
+    over_data[0, 0] = [255, 0, 0, 0]
+    over_data[0, 1] = [255, 0, 0, 50]
+    over_data[0, 2] = [255, 0, 0, 200]
+    overlay = Image(over_data, ImageFormat.RGBA)
+
+    hard_masking(base, overlay)
+
+    np.testing.assert_array_equal(base[0, 0], [0, 255, 0, 255])
+    np.testing.assert_array_equal(base[0, 1], [0, 255, 0, 255])
+    np.testing.assert_array_equal(base[0, 2], [255, 0, 0, 255])
+
+
+def test_hard_masking_custom_threshold_via_config():
+    """Valida se hard_masking obedece ao limiar temporario injetado atraves de config."""
+    base_data = np.full((5, 5, 4), [0, 255, 0, 255], dtype=np.uint8)
+    base = Image(base_data, ImageFormat.RGBA)
+
+    over_data = np.zeros((5, 5, 4), dtype=np.uint8)
+    over_data[0, 0] = [255, 0, 0, 210]
+    over_data[0, 1] = [255, 0, 0, 230]
+    overlay = Image(over_data, ImageFormat.RGBA)
+
+    with config(hard_mask_threshold=220):
+        hard_masking(base, overlay)
+
+    np.testing.assert_array_equal(base[0, 0], [0, 255, 0, 255])
+    np.testing.assert_array_equal(base[0, 1], [255, 0, 0, 255])
+
+
+def test_solid_fill_custom_threshold_via_config():
+    """Valida se solid_fill obedece ao limiar de overlay configurado em config."""
+    base_data = np.zeros((5, 5, 4), dtype=np.uint8)
+    base = Image(base_data, ImageFormat.RGBA)
+
+    over_data = np.zeros((5, 5, 4), dtype=np.uint8)
+    over_data[0, 0] = [255, 0, 0, 80]
+    over_data[0, 1] = [255, 0, 0, 120]
+    overlay = Image(over_data, ImageFormat.RGBA)
+
+    with config(solid_fill_threshold=100):
+        solid_fill(base, overlay)
+
+    np.testing.assert_array_equal(base[0, 0], [0, 0, 0, 0])
+    np.testing.assert_array_equal(base[0, 1], [255, 0, 0, 255])
+
+
+@pytest.mark.parametrize(
+    ("dtype", "base_val", "over_val", "expected_val"),
+    [
+        pytest.param(np.uint8, 255, 255, 255, id="uint8"),
+        pytest.param(np.uint16, 65535, 65535, 65535, id="uint16"),
+        pytest.param(np.float32, 1.0, 1.0, 1.0, id="float32"),
+    ],
+)
+def test_hard_masking_numpy_multi_dtype_parity(dtype, base_val, over_val, expected_val):
+    """Valida se hard_masking_numpy processa uint8, uint16 e float32 mantendo a base sob alpha fraco."""
+    base_arr = np.zeros((4, 4, 4), dtype=dtype)
+    base_arr[..., 1] = base_val
+    base_arr[..., 3] = base_val
+    base = Image(base_arr, ImageFormat.RGBA)
+
+    over_arr = np.zeros((4, 4, 4), dtype=dtype)
+    alpha_fraco = dtype(50 if dtype == np.uint8 else (50 * 257 if dtype == np.uint16 else 50.0 / 255.0))
+    alpha_forte = dtype(200 if dtype == np.uint8 else (200 * 257 if dtype == np.uint16 else 200.0 / 255.0))
+
+    over_arr[:, :2, 0] = over_val
+    over_arr[:, :2, 3] = alpha_fraco
+    over_arr[:, 2:, 0] = over_val
+    over_arr[:, 2:, 3] = alpha_forte
+    overlay = Image(over_arr, ImageFormat.RGBA)
+
+    _hard_masking_numpy(base, overlay)
+
+    np.testing.assert_array_equal(base[0, 0], [0, base_val, 0, base_val])
+    np.testing.assert_array_equal(base[0, 2], [over_val, 0, 0, expected_val])

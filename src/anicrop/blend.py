@@ -4,6 +4,7 @@ from typing import TYPE_CHECKING, Iterable
 
 import numpy as np
 
+from anicrop.config import config
 from anicrop.enums import BlendMode, ImageFormat
 from anicrop.image import Image
 from anicrop.spatial import Region
@@ -26,7 +27,7 @@ def blend_rendered_images(
 
 
 try:
-    from anicrop.native.blend import (  # type: ignore[import-untyped]
+    from anicrop.native.blend import (  # type: ignore[import-not-found,import-untyped]
         blend_normal as _cy_blend_normal,
     )
     from anicrop.native.blend import (
@@ -350,6 +351,7 @@ def hard_masking_overlay_with_alpha(
     overlay: Image,
     color_channels: int,
     opacity: float,
+    threshold: int | float | None = None,
 ) -> None:
     if opacity == 0:
         return
@@ -361,15 +363,39 @@ def hard_masking_overlay_with_alpha(
     b_view = b_arr[:h, :w]
     o_view = o_arr[:h, :w]
 
-    mask = o_view[..., -1:] > 0
-    np.copyto(b_view[..., :color_channels], o_view[..., :color_channels], where=mask)
+    if threshold is None:
+        threshold = config.hard_mask_threshold
+
+    th_val: float
+    max_alpha: float
+    if base.dtype == np.uint8:
+        th_val = float(threshold)
+        max_alpha = 255.0
+    elif base.dtype == np.uint16:
+        th_val = float(threshold * 257)
+        max_alpha = 65535.0
+    else:  # float32
+        th_val = float(threshold / 255.0)
+        max_alpha = 1.0
+
+    mask = o_view[..., -1] >= th_val
+    if not np.any(mask):
+        return
+
+    np.copyto(
+        b_view[..., :color_channels],
+        o_view[..., :color_channels],
+        where=mask[..., np.newaxis],
+    )
 
     if base.has_alpha:
         if opacity < 1.0:
-            alpha_modificado = (o_view[..., -1:] * opacity).astype(np.uint8)
-            np.copyto(b_view[..., -1:], alpha_modificado, where=mask)
+            alpha_modificado = max_alpha * opacity
+            if base.dtype != np.float32:
+                alpha_modificado = int(round(alpha_modificado))
+            b_view[mask, -1] = alpha_modificado
         else:
-            np.copyto(b_view[..., -1:], o_view[..., -1:], where=mask)
+            b_view[mask, -1] = max_alpha
 
 
 def hard_masking_overlay_without_alpha(
@@ -390,16 +416,32 @@ def hard_masking_overlay_without_alpha(
 
     b_view[..., :color_channels] = o_view[..., :color_channels]
     if base.has_alpha:
-        alpha_value = int(255 * opacity) if opacity < 1 else 255
+        max_alpha: float
+        if base.dtype == np.uint8:
+            max_alpha = 255.0
+        elif base.dtype == np.uint16:
+            max_alpha = 65535.0
+        else:
+            max_alpha = 1.0
+        alpha_value = max_alpha * opacity if opacity < 1.0 else max_alpha
+        if base.dtype != np.float32:
+            alpha_value = int(round(alpha_value))
         b_view[..., -1] = alpha_value
 
 
-def _hard_masking_numpy(base: Image, overlay: Image, opacity: float = 1.0) -> Image:
+def _hard_masking_numpy(
+    base: Image,
+    overlay: Image,
+    opacity: float = 1.0,
+    threshold: int | float | None = None,
+) -> Image:
     color_channels = (
         1 if overlay.format in (ImageFormat.GRAY, ImageFormat.GRAY_ALPHA) else 3
     )
     if overlay.has_alpha:
-        hard_masking_overlay_with_alpha(base, overlay, color_channels, opacity)
+        hard_masking_overlay_with_alpha(
+            base, overlay, color_channels, opacity, threshold
+        )
     else:
         hard_masking_overlay_without_alpha(base, overlay, color_channels, opacity)
     return base
@@ -414,18 +456,25 @@ def hard_masking(base: Image, overlay: Image, opacity: float = 1.0) -> Image:
             f"Format mismatch: cannot blend '{overlay.format}' into '{base.format}'."
         )
 
-    if _HAS_CY_BLEND and _cy_hard_masking is not None:
-        _cy_hard_masking(base[...], overlay[...], opacity)
+    th = config.hard_mask_threshold
+
+    if _HAS_CY_BLEND and _cy_hard_masking is not None and base.dtype == np.uint8:
+        _cy_hard_masking(base[...], overlay[...], opacity, th)
         return base
 
-    return _hard_masking_numpy(base, overlay, opacity)
+    return _hard_masking_numpy(base, overlay, opacity, th)
 
 
-def _solid_fill_numpy(base: Image, overlay: Image, opacity: float = 1.0) -> Image:
+def _solid_fill_numpy(
+    base: Image,
+    overlay: Image,
+    opacity: float = 1.0,
+    threshold: int | None = None,
+) -> Image:
     """Preenche áreas transparentes/vazias da base utilizando pixels sólidos do overlay.
 
     1. Preserva 100% dos pixels sólidos já consolidados na base (base.alpha >= 250).
-    2. Apenas aceita pixels substancialmente sólidos do overlay (overlay.alpha >= 200).
+    2. Apenas aceita pixels substancialmente sólidos do overlay (overlay.alpha >= threshold).
     3. Binariza o canal alpha resultante em 255 puro, eliminando franjas de antialiasing.
     """
     if opacity <= 0.0:
@@ -438,17 +487,36 @@ def _solid_fill_numpy(base: Image, overlay: Image, opacity: float = 1.0) -> Imag
     b_view = b_arr[:h, :w]
     o_view = o_arr[:h, :w]
 
+    if threshold is None:
+        threshold = config.solid_fill_threshold
+
+    base_solid_th: float
+    th_val: float
+    max_alpha: float
+    if base.dtype == np.uint8:
+        base_solid_th = 250.0
+        th_val = float(threshold)
+        max_alpha = 255.0
+    elif base.dtype == np.uint16:
+        base_solid_th = 64250.0
+        th_val = float(threshold * 257)
+        max_alpha = 65535.0
+    else:  # float32
+        base_solid_th = 0.98
+        th_val = float(threshold / 255.0)
+        max_alpha = 1.0
+
     color_channels = (
         1 if overlay.format in (ImageFormat.GRAY, ImageFormat.GRAY_ALPHA) else 3
     )
 
     if overlay.has_alpha:
-        solid_overlay = o_view[..., -1] >= 200
+        solid_overlay = o_view[..., -1] >= th_val
     else:
         solid_overlay = np.ones((h, w), dtype=bool)
 
     if base.has_alpha:
-        need_fill = b_view[..., -1] < 250
+        need_fill = b_view[..., -1] < base_solid_th
         mask = need_fill & solid_overlay
         if np.any(mask):
             np.copyto(
@@ -456,7 +524,7 @@ def _solid_fill_numpy(base: Image, overlay: Image, opacity: float = 1.0) -> Imag
                 o_view[..., :color_channels],
                 where=mask[..., np.newaxis],
             )
-            b_view[mask, -1] = 255
+            b_view[mask, -1] = max_alpha
     else:
         if np.any(solid_overlay):
             np.copyto(
@@ -478,11 +546,13 @@ def solid_fill(base: Image, overlay: Image, opacity: float = 1.0) -> Image:
             f"Format mismatch: cannot blend '{overlay.format}' into '{base.format}'."
         )
 
+    th = config.solid_fill_threshold
+
     if _HAS_CY_BLEND and _cy_solid_fill is not None:
-        _cy_solid_fill(base[...], overlay[...], opacity)
+        _cy_solid_fill(base[...], overlay[...], opacity, th)
         return base
 
-    return _solid_fill_numpy(base, overlay, opacity)
+    return _solid_fill_numpy(base, overlay, opacity, th)
 
 
 def _blend_clip_numpy(base: Image, overlay: Image, opacity: float = 1.0) -> Image:

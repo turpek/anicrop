@@ -750,8 +750,9 @@ def hard_masking(
     uint8_t[:, :, :] base,
     uint8_t[:, :, :] overlay,
     float opacity = 1.0,
+    uint8_t threshold = 128,
 ):
-    """Implementação em Cython de hard masking com cópia direta e OpenMP."""
+    """Implementação em Cython de hard masking com corte binário e OpenMP."""
     if opacity <= 0.0:
         return
 
@@ -783,8 +784,8 @@ def hard_masking(
                     for x in range(w):
                         b_idx = x << 2
                         o_idx = x << 2
-                        if o_row[o_idx + 3] > 0:
-                            (<uint32_t*>&b_row[b_idx])[0] = (<const uint32_t*>&o_row[o_idx])[0]
+                        if o_row[o_idx + 3] >= threshold:
+                            (<uint32_t*>&b_row[b_idx])[0] = ((<const uint32_t*>&o_row[o_idx])[0] & <uint32_t>0x00FFFFFF) | <uint32_t>0xFF000000
             else:
                 for y in prange(h, schedule='static'):
                     b_row = &base[y, 0, 0]
@@ -792,12 +793,11 @@ def hard_masking(
                     for x in range(w):
                         b_idx = x << 2
                         o_idx = x << 2
-                        o_alpha = o_row[o_idx + 3]
-                        if o_alpha > 0:
+                        if o_row[o_idx + 3] >= threshold:
                             b_row[b_idx + 0] = o_row[o_idx + 0]
                             b_row[b_idx + 1] = o_row[o_idx + 1]
                             b_row[b_idx + 2] = o_row[o_idx + 2]
-                            b_row[b_idx + 3] = <uint8_t>div255(o_alpha * op_256)
+                            b_row[b_idx + 3] = <uint8_t>div255(255 * op_256)
 
         # Fast-Path 2: RGB -> RGB
         elif b_ch == 3 and o_ch == 3:
@@ -834,20 +834,32 @@ def hard_masking(
                         b_row[b_idx + 0] = o_row[o_idx + 0]
                         b_row[b_idx + 1] = o_row[o_idx + 1]
                         b_row[b_idx + 2] = o_row[o_idx + 2]
-                        b_row[b_idx + 3] = <uint8_t>op_256
+                        b_row[b_idx + 3] = <uint8_t>div255(255 * op_256)
 
         # Fast-Path 4: RGBA -> RGB
         elif b_ch == 3 and o_ch == 4:
-            for y in prange(h, schedule='static'):
-                b_row = &base[y, 0, 0]
-                o_row = &overlay[y, 0, 0]
-                for x in range(w):
-                    b_idx = x * 3
-                    o_idx = x << 2
-                    if o_row[o_idx + 3] > 0:
-                        b_row[b_idx + 0] = o_row[o_idx + 0]
-                        b_row[b_idx + 1] = o_row[o_idx + 1]
-                        b_row[b_idx + 2] = o_row[o_idx + 2]
+            if op_256 >= 256:
+                for y in prange(h, schedule='static'):
+                    b_row = &base[y, 0, 0]
+                    o_row = &overlay[y, 0, 0]
+                    for x in range(w):
+                        b_idx = x * 3
+                        o_idx = x << 2
+                        if o_row[o_idx + 3] >= threshold:
+                            b_row[b_idx + 0] = o_row[o_idx + 0]
+                            b_row[b_idx + 1] = o_row[o_idx + 1]
+                            b_row[b_idx + 2] = o_row[o_idx + 2]
+            else:
+                for y in prange(h, schedule='static'):
+                    b_row = &base[y, 0, 0]
+                    o_row = &overlay[y, 0, 0]
+                    for x in range(w):
+                        b_idx = x * 3
+                        o_idx = x << 2
+                        if o_row[o_idx + 3] >= threshold:
+                            b_row[b_idx + 0] = <uint8_t>div255(o_row[o_idx + 0] * op_256 + b_row[b_idx + 0] * (256 - op_256))
+                            b_row[b_idx + 1] = <uint8_t>div255(o_row[o_idx + 1] * op_256 + b_row[b_idx + 1] * (256 - op_256))
+                            b_row[b_idx + 2] = <uint8_t>div255(o_row[o_idx + 2] * op_256 + b_row[b_idx + 2] * (256 - op_256))
 
         else:
             # Caminho geral cobrindo Grayscale e Gray-Alpha
@@ -856,27 +868,37 @@ def hard_masking(
                 o_row = &overlay[y, 0, 0]
 
                 if not o_has_alpha and not b_has_alpha and b_ch == o_ch:
-                    memcpy(b_row, o_row, w * b_ch)
+                    if op_256 >= 256:
+                        memcpy(b_row, o_row, w * b_ch)
+                    else:
+                        for x in range(w * b_ch):
+                            b_row[x] = <uint8_t>div255(o_row[x] * op_256 + b_row[x] * (256 - op_256))
                 elif o_has_alpha:
                     for x in range(w):
                         b_idx = x * b_ch
                         o_idx = x * o_ch
                         o_alpha = o_row[o_idx + o_ch - 1]
-                        if o_alpha > 0:
+                        if o_alpha >= threshold:
                             for c in range(color_channels):
-                                b_row[b_idx + c] = o_row[o_idx + c]
+                                if op_256 >= 256 or not b_has_alpha:
+                                    b_row[b_idx + c] = o_row[o_idx + c]
+                                else:
+                                    b_row[b_idx + c] = <uint8_t>div255(o_row[o_idx + c] * op_256 + b_row[b_idx + c] * (256 - op_256))
 
                             if b_has_alpha:
-                                b_row[b_idx + b_ch - 1] = <uint8_t>div255(o_alpha * op_256) if op_256 < 256 else o_alpha
+                                b_row[b_idx + b_ch - 1] = 255 if op_256 >= 256 else <uint8_t>div255(255 * op_256)
                 else:
                     for x in range(w):
                         b_idx = x * b_ch
                         o_idx = x * o_ch
                         for c in range(color_channels):
-                            b_row[b_idx + c] = o_row[o_idx + c]
+                            if op_256 >= 256 or not b_has_alpha:
+                                b_row[b_idx + c] = o_row[o_idx + c]
+                            else:
+                                b_row[b_idx + c] = <uint8_t>div255(o_row[o_idx + c] * op_256 + b_row[b_idx + c] * (256 - op_256))
 
                         if b_has_alpha:
-                            b_row[b_idx + b_ch - 1] = 255 if op_256 >= 256 else <uint8_t>op_256
+                            b_row[b_idx + b_ch - 1] = 255 if op_256 >= 256 else <uint8_t>div255(255 * op_256)
 
 
 # =========================================================================
@@ -887,6 +909,7 @@ cdef void _solid_fill_u8(
     uint8_t[:, :, :] base,
     uint8_t[:, :, :] overlay,
     float opacity,
+    uint8_t threshold,
 ) noexcept nogil:
     cdef int h = min(base.shape[0], overlay.shape[0])
     cdef int w = min(base.shape[1], overlay.shape[1])
@@ -913,7 +936,7 @@ cdef void _solid_fill_u8(
                 o_idx = x << 2
                 b_pix = (<const uint32_t*>&b_row[b_idx])[0]
                 o_pix = (<const uint32_t*>&o_row[o_idx])[0]
-                if (b_pix >> 24) < 250 and (o_pix >> 24) >= 200:
+                if (b_pix >> 24) < 250 and (o_pix >> 24) >= threshold:
                     (<uint32_t*>&b_row[b_idx])[0] = (o_pix & <uint32_t>0x00FFFFFF) | <uint32_t>0xFF000000
 
     # Fast-Path 2: RGB -> RGBA (Overlay RGB opaco sobre Base RGBA)
@@ -940,7 +963,7 @@ cdef void _solid_fill_u8(
                 b_idx = x * 3
                 o_idx = x << 2
                 o_alpha = o_row[o_idx + 3]
-                if o_alpha >= 200:
+                if o_alpha >= threshold:
                     b_row[b_idx + 0] = o_row[o_idx + 0]
                     b_row[b_idx + 1] = o_row[o_idx + 1]
                     b_row[b_idx + 2] = o_row[o_idx + 2]
@@ -961,7 +984,7 @@ cdef void _solid_fill_u8(
                 b_alpha = b_row[b_idx + b_ch - 1] if b_has_alpha else 255
                 o_alpha = o_row[o_idx + o_ch - 1] if o_has_alpha else 255
 
-                if (not b_has_alpha or b_alpha < 250) and (not o_has_alpha or o_alpha >= 200):
+                if (not b_has_alpha or b_alpha < 250) and (not o_has_alpha or o_alpha >= threshold):
                     for c in range(color_channels):
                         b_row[b_idx + c] = o_row[o_idx + c]
                     if b_has_alpha:
@@ -972,6 +995,7 @@ cdef void _solid_fill_u16(
     uint16_t[:, :, :] base,
     uint16_t[:, :, :] overlay,
     float opacity,
+    uint16_t threshold,
 ) noexcept nogil:
     cdef int h = min(base.shape[0], overlay.shape[0])
     cdef int w = min(base.shape[1], overlay.shape[1])
@@ -996,7 +1020,7 @@ cdef void _solid_fill_u16(
                 o_idx = x << 2
                 b_alpha = b_row[b_idx + 3]
                 o_alpha = o_row[o_idx + 3]
-                if b_alpha < 64250 and o_alpha >= 51400:
+                if b_alpha < 64250 and o_alpha >= threshold:
                     b_row[b_idx + 0] = o_row[o_idx + 0]
                     b_row[b_idx + 1] = o_row[o_idx + 1]
                     b_row[b_idx + 2] = o_row[o_idx + 2]
@@ -1022,7 +1046,7 @@ cdef void _solid_fill_u16(
             for x in range(w):
                 b_idx = x * 3
                 o_idx = x << 2
-                if o_row[o_idx + 3] >= 51400:
+                if o_row[o_idx + 3] >= threshold:
                     b_row[b_idx + 0] = o_row[o_idx + 0]
                     b_row[b_idx + 1] = o_row[o_idx + 1]
                     b_row[b_idx + 2] = o_row[o_idx + 2]
@@ -1041,7 +1065,7 @@ cdef void _solid_fill_u16(
                 b_alpha = b_row[b_idx + b_ch - 1] if b_has_alpha else 65535
                 o_alpha = o_row[o_idx + o_ch - 1] if o_has_alpha else 65535
 
-                if (not b_has_alpha or b_alpha < 64250) and (not o_has_alpha or o_alpha >= 51400):
+                if (not b_has_alpha or b_alpha < 64250) and (not o_has_alpha or o_alpha >= threshold):
                     for c in range(color_channels):
                         b_row[b_idx + c] = o_row[o_idx + c]
                     if b_has_alpha:
@@ -1052,6 +1076,7 @@ cdef void _solid_fill_f32(
     float[:, :, :] base,
     float[:, :, :] overlay,
     float opacity,
+    float threshold,
 ) noexcept nogil:
     cdef int h = min(base.shape[0], overlay.shape[0])
     cdef int w = min(base.shape[1], overlay.shape[1])
@@ -1076,7 +1101,7 @@ cdef void _solid_fill_f32(
                 o_idx = x << 2
                 b_alpha = b_row[b_idx + 3]
                 o_alpha = o_row[o_idx + 3]
-                if b_alpha < 0.98 and o_alpha >= 0.784:
+                if b_alpha < 0.98 and o_alpha >= threshold:
                     b_row[b_idx + 0] = o_row[o_idx + 0]
                     b_row[b_idx + 1] = o_row[o_idx + 1]
                     b_row[b_idx + 2] = o_row[o_idx + 2]
@@ -1102,7 +1127,7 @@ cdef void _solid_fill_f32(
             for x in range(w):
                 b_idx = x * 3
                 o_idx = x << 2
-                if o_row[o_idx + 3] >= 0.784:
+                if o_row[o_idx + 3] >= threshold:
                     b_row[b_idx + 0] = o_row[o_idx + 0]
                     b_row[b_idx + 1] = o_row[o_idx + 1]
                     b_row[b_idx + 2] = o_row[o_idx + 2]
@@ -1121,7 +1146,7 @@ cdef void _solid_fill_f32(
                 b_alpha = b_row[b_idx + b_ch - 1] if b_has_alpha else 1.0
                 o_alpha = o_row[o_idx + o_ch - 1] if o_has_alpha else 1.0
 
-                if (not b_has_alpha or b_alpha < 0.98) and (not o_has_alpha or o_alpha >= 0.784):
+                if (not b_has_alpha or b_alpha < 0.98) and (not o_has_alpha or o_alpha >= threshold):
                     for c in range(color_channels):
                         b_row[b_idx + c] = o_row[o_idx + c]
                     if b_has_alpha:
@@ -1132,18 +1157,22 @@ def solid_fill(
     pixel_t[:, :, :] base,
     pixel_t[:, :, :] overlay,
     float opacity = 1.0,
+    uint8_t threshold = 200,
 ):
     """Implementação em Cython de solid_fill com Fused Types (u8, u16, f32) e OpenMP."""
     if opacity <= 0.0:
         return
 
+    cdef uint16_t th_u16 = <uint16_t>(<uint32_t>threshold * 257)
+    cdef float th_f32 = <float>threshold / 255.0
+
     with nogil:
         if pixel_t is uint8_t:
-            _solid_fill_u8(base, overlay, opacity)
+            _solid_fill_u8(base, overlay, opacity, threshold)
         elif pixel_t is uint16_t:
-            _solid_fill_u16(base, overlay, opacity)
+            _solid_fill_u16(base, overlay, opacity, th_u16)
         elif pixel_t is float:
-            _solid_fill_f32(base, overlay, opacity)
+            _solid_fill_f32(base, overlay, opacity, th_f32)
 
 
 # =========================================================================
