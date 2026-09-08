@@ -44,26 +44,57 @@ def calculate_new_corners(
     size: tuple[float, float],
     top_left: tuple[float, float] = (0.0, 0.0),
 ) -> tuple[float, float, float, float]:
-    """retorna min_x, min_y, max_x, max_y"""
-    x, y = top_left
-    w, h = size
+    """retorna min_x, min_y, max_x, max_y com calculo escalar rapido."""
+    x, y = float(top_left[0]), float(top_left[1])
+    w, h = float(size[0]), float(size[1])
+    x_w = x + w
+    y_h = y + h
 
-    corners = np.array(
-        [[x, y, 1.0], [x + w, y, 1.0], [x + w, y + h, 1.0], [x, y + h, 1.0]],
-        dtype=np.float32,
-    ).T
+    m00 = float(matrix[0, 0])
+    m01 = float(matrix[0, 1])
+    m02 = float(matrix[0, 2])
+    m10 = float(matrix[1, 0])
+    m11 = float(matrix[1, 1])
+    m12 = float(matrix[1, 2])
+    m20 = float(matrix[2, 0])
+    m21 = float(matrix[2, 1])
+    m22 = float(matrix[2, 2])
 
-    transformed_corners = matrix @ corners
-    transformed_corners[0, :] /= transformed_corners[2, :]
-    transformed_corners[1, :] /= transformed_corners[2, :]
+    if m20 == 0.0 and m21 == 0.0 and m22 == 1.0:
+        x0 = m00 * x + m01 * y + m02
+        y0 = m10 * x + m11 * y + m12
 
-    min_x = float(np.min(transformed_corners[0, :]))
-    min_y = float(np.min(transformed_corners[1, :]))
+        x1 = m00 * x_w + m01 * y + m02
+        y1 = m10 * x_w + m11 * y + m12
 
-    max_x = float(np.max(transformed_corners[0, :]))
-    max_y = float(np.max(transformed_corners[1, :]))
+        x2 = m00 * x_w + m01 * y_h + m02
+        y2 = m10 * x_w + m11 * y_h + m12
 
-    return min_x, min_y, max_x, max_y
+        x3 = m00 * x + m01 * y_h + m02
+        y3 = m10 * x + m11 * y_h + m12
+    else:
+        w0 = m20 * x + m21 * y + m22
+        x0 = (m00 * x + m01 * y + m02) / w0
+        y0 = (m10 * x + m11 * y + m12) / w0
+
+        w1 = m20 * x_w + m21 * y + m22
+        x1 = (m00 * x_w + m01 * y + m02) / w1
+        y1 = (m10 * x_w + m11 * y + m12) / w1
+
+        w2 = m20 * x_w + m21 * y_h + m22
+        x2 = (m00 * x_w + m01 * y_h + m02) / w2
+        y2 = (m10 * x_w + m11 * y_h + m12) / w2
+
+        w3 = m20 * x + m21 * y_h + m22
+        x3 = (m00 * x + m01 * y_h + m02) / w3
+        y3 = (m10 * x + m11 * y_h + m12) / w3
+
+    return (
+        min(x0, x1, x2, x3),
+        min(y0, y1, y2, y3),
+        max(x0, x1, x2, x3),
+        max(y0, y1, y2, y3),
+    )
 
 
 def calculate_new_rect_smart(
@@ -198,6 +229,30 @@ def mat_edit_final(edit_layer: EditLayer, matrix_final: np.ndarray):
 
 
 def mat_inverse(matrix: np.ndarray) -> np.ndarray:
+    """Inverte uma matriz 3x3 com fast-path analítico fechado para matrizes afins."""
+    if matrix[2, 0] == 0.0 and matrix[2, 1] == 0.0 and matrix[2, 2] == 1.0:
+        a = float(matrix[0, 0])
+        b = float(matrix[0, 1])
+        tx = float(matrix[0, 2])
+        c = float(matrix[1, 0])
+        d = float(matrix[1, 1])
+        ty = float(matrix[1, 2])
+
+        det = a * d - b * c
+        if abs(det) > 1e-12:
+            inv_det = 1.0 / det
+            inv = np.empty((3, 3), dtype=matrix.dtype)
+            inv[0, 0] = d * inv_det
+            inv[0, 1] = -b * inv_det
+            inv[0, 2] = (b * ty - d * tx) * inv_det
+            inv[1, 0] = -c * inv_det
+            inv[1, 1] = a * inv_det
+            inv[1, 2] = (c * tx - a * ty) * inv_det
+            inv[2, 0] = 0.0
+            inv[2, 1] = 0.0
+            inv[2, 2] = 1.0
+            return inv
+
     return np.linalg.inv(matrix)
 
 

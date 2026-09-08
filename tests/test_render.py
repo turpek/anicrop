@@ -3,6 +3,7 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
+import anicrop
 import anicrop.render
 from anicrop.canvas import Canvas
 from anicrop.container import GroupLayer, LayerStack
@@ -14,12 +15,15 @@ from anicrop.render import (
     CanvasRender,
     SceneTraverser,
     ViewportRender,
+    calculate_patch_warp_matrix,
     generate_opacity_mask,
     render_edit,
     render_image,
+    transform_image,
     warp_affine,
     warp_patch,
 )
+from anicrop.scratch import ScratchBuffer
 from anicrop.spatial import Region
 from anicrop.transform import TransformRel, mat_translation
 from anicrop.viewport import Viewport
@@ -876,3 +880,184 @@ def test_render_scene_rotacao_fracionaria_solid_fill_sem_size_mismatch():
     assert rendered is not None
     assert rendered.width > 200
     assert rendered.height > 200
+
+
+@pytest.mark.parametrize(
+    ("fmt", "expected"),
+    [
+        (ImageFormat.GRAY, False),
+        (ImageFormat.GRAY_ALPHA, True),
+        (ImageFormat.RGB, False),
+        (ImageFormat.RGBA, True),
+        (ImageFormat.PRGBA, False),
+        (ImageFormat.RGBX, False),
+        (ImageFormat.CMYK, False),
+        (ImageFormat.CMYK_ALPHA, True),
+    ],
+    ids=[
+        "gray_has_no_alpha",
+        "gray_alpha_is_straight",
+        "rgb_has_no_alpha",
+        "rgba_is_straight",
+        "prgba_is_premultiplied",
+        "rgbx_has_no_alpha",
+        "cmyk_has_no_alpha",
+        "cmyk_alpha_is_straight",
+    ],
+)
+def test_image_format_is_straight_alpha(fmt: ImageFormat, expected: bool):
+    """Valida se a property is_straight_alpha identifica corretamente formatos com alfa desvinculado."""
+    assert fmt.is_straight_alpha == expected
+
+
+def test_warp_affine_straight_alpha_preserva_cores_na_borda():
+    """Valida se warp_affine isolado preserva o canal de cor pleno nas bordas sem franja escura."""
+    src = np.full((100, 100, 4), [255, 0, 0, 255], dtype=np.uint8)
+    rot = np.array([
+        [0.9961947, -0.08715574, 6.548052],
+        [0.08715574, 0.9961947, -2.167522],
+    ], dtype=np.float64)
+
+    out = warp_affine(src, rot, (105, 105), interp=InterpMode.LANCZOS, format=ImageFormat.RGBA)
+    edge_mask = (out[:, :, 3] >= 150) & (out[:, :, 3] < 255)
+    red_values = out[:, :, 0][edge_mask]
+
+    assert red_values.min() == 255
+    assert red_values.mean() == 255.0
+
+
+def test_warp_patch_straight_alpha_preserva_cores_na_borda():
+    """Valida se warp_patch preserva as cores plenas da imagem nas margens de subpixel sob rotacao."""
+    img = make_img(w=100, h=100, color=(255, 0, 0, 255), form=ImageFormat.RGBA)
+    m_global = np.array([
+        [0.9961947, -0.08715574, 6.548052],
+        [0.08715574, 0.9961947, -2.167522],
+        [0.0, 0.0, 1.0],
+    ], dtype=np.float64)
+    dst_region = Region.from_size(105, 105)
+
+    result = warp_patch(img, m_global, dst_region, interp=InterpMode.LANCZOS)
+    assert result is not None
+
+    edge_mask = (result[:, :, 3] >= 150) & (result[:, :, 3] < 255)
+    red_values = result[:, :, 0][edge_mask]
+
+    assert red_values.min() == 255
+    assert red_values.mean() == 255.0
+
+
+@pytest.mark.parametrize(
+    ("dtype", "max_val", "atol"),
+    [
+        (np.uint8, 255, 0),
+        (np.uint16, 65535, 0),
+        (np.float32, 1.0, 1e-4),
+    ],
+    ids=["uint8", "uint16", "float32"],
+)
+def test_warp_affine_multi_dtype_preserva_cores_na_borda(dtype: type, max_val: float, atol: float):
+    """Valida se a preservacao de cor na borda opera com paridade numerica entre dtypes suportados."""
+    src: np.ndarray = np.full((100, 100, 4), max_val, dtype=dtype)
+    rot = np.array([
+        [0.9961947, -0.08715574, 6.548052],
+        [0.08715574, 0.9961947, -2.167522],
+    ], dtype=np.float64)
+
+    out = warp_affine(src, rot, (105, 105), interp=InterpMode.LANCZOS)
+    edge_mask = (out[:, :, 3] >= (0.5 * max_val)) & (out[:, :, 3] < max_val)
+    red_values = out[:, :, 0][edge_mask]
+
+    assert np.isclose(red_values.min(), max_val, atol=atol)
+    assert np.isclose(red_values.mean(), max_val, atol=atol)
+
+
+def test_transform_image_com_pivo_padrao_centro():
+    """Valida se transform_image rotaciona Image no centro preservando cores na borda."""
+    img = make_img(w=100, h=100, color=(255, 0, 0, 255), form=ImageFormat.RGBA)
+
+    out = transform_image(img, angle=5.0, scale=1.0, interp=InterpMode.LANCZOS)
+
+    assert isinstance(out, Image)
+    assert out.format == ImageFormat.RGBA
+    assert out.width > 100
+    assert out.height > 100
+
+    edge_mask = (out[..., 3] >= 150) & (out[..., 3] < 255)
+    red_values = out[..., 0][edge_mask]
+    assert red_values.min() == 255
+    assert red_values.mean() == 255.0
+
+
+def test_transform_image_com_pivo_descentralizado():
+    """Valida se transform_image acomoda o bounding box com pivos arbitrarios sem cortes."""
+    img = make_img(w=100, h=100, color=(0, 255, 0, 255), form=ImageFormat.RGBA)
+
+    out = transform_image(
+        img,
+        angle=15.0,
+        scale=(1.1, 1.1),
+        pivot_angle=(0.0, 0.0),
+        pivot_scale=(0.0, 0.0),
+        interp=InterpMode.LANCZOS,
+    )
+
+    assert isinstance(out, Image)
+    assert out.width > 100
+    assert out.height > 100
+    assert (out[..., 1] > 0).any()
+
+
+def test_transform_image_com_scratch_buffer():
+    """Valida se transform_image aceita ScratchBuffer em dst e reutiliza memoria sob demanda."""
+    scratch = ScratchBuffer()
+    img = make_img(w=50, h=50, color=(255, 0, 0, 255), form=ImageFormat.RGBA)
+
+    out = transform_image(img, angle=5.0, dst=scratch)
+
+    assert scratch.was_used is True
+    assert isinstance(out, Image)
+    assert out.format == ImageFormat.RGBA
+    assert out.width > 50
+    assert out.height > 50
+    assert (out[..., 3] > 0).any()
+
+
+def test_transform_image_exportada_no_top_level_anicrop():
+    """Valida se transform_image e exportada e acessivel diretamente via namespace anicrop."""
+    assert hasattr(anicrop, "transform_image")
+    assert callable(anicrop.transform_image)
+
+
+def test_calculate_patch_warp_matrix_afim_equivalencia():
+    """Valida se a composicao afim direta e identica ao produto das matrizes de translacao."""
+    M_global = np.array(
+        [[1.5, -0.4, 120.0], [0.3, 1.2, -80.0], [0.0, 0.0, 1.0]],
+        dtype=np.float32,
+    )
+    src_tl = (45.0, 60.0)
+    dst_tl = (100.0, 150.0)
+
+    fast_m = calculate_patch_warp_matrix(M_global, src_tl, dst_tl, WarpMode.AFFINE)
+
+    M_src = mat_translation(*src_tl)
+    M_dst_inv = mat_translation(-dst_tl[0], -dst_tl[1])
+    expected = (M_dst_inv @ M_global @ M_src)[:2, :].astype(np.float64)
+
+    assert fast_m.shape == (2, 3)
+    assert fast_m.dtype == np.float64
+    np.testing.assert_allclose(fast_m, expected, atol=1e-5)
+
+
+def test_calculate_patch_warp_matrix_perspectiva():
+    """Valida calculo da matriz completa 3x3 quando o modo for perspectiva."""
+    M_global = np.array(
+        [[1.5, -0.4, 120.0], [0.3, 1.2, -80.0], [0.001, -0.002, 1.0]],
+        dtype=np.float32,
+    )
+    src_tl = (10.0, 20.0)
+    dst_tl = (30.0, 40.0)
+
+    persp_m = calculate_patch_warp_matrix(M_global, src_tl, dst_tl, WarpMode.PERSPECTIVE)
+
+    assert persp_m.shape == (3, 3)
+    assert persp_m.dtype == np.float64

@@ -8,7 +8,7 @@ import numpy as np
 from anicrop.enums import ImageFormat
 
 try:
-    from anicrop.native.color import (  # type: ignore[import-untyped]
+    from anicrop.native.color import (  # type: ignore[import-untyped,import-not-found]
         prgba_to_rgb as _cy_prgba_to_rgb,
     )
     from anicrop.native.color import (

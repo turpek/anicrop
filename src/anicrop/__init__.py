@@ -7,6 +7,7 @@ from .enums import BlendMode, ImageFormat
 from .frame import BaseFrame, CanvasFrame, ViewportFrame
 from .image import Image, get_memory_threshold, set_memory_threshold
 from .layer import Layer
+from .render import transform_image
 from .scratch import ScratchBuffer
 from .spatial import Region, Span
 from .viewer import Viewer
@@ -15,10 +16,11 @@ from .viewport import Viewport
 try:
     __version__ = version("anicrop")
 except PackageNotFoundError:
-    __version__ = "0.5.4"
+    __version__ = "0.6.0"
 
 __all__ = [
     "__version__",
+    "transform_image",
     "config",
     "Document",
     "Viewport",

@@ -89,6 +89,11 @@ class ImageFormat(StrEnum):
         return self == ImageFormat.PRGBA
 
     @property
+    def is_straight_alpha(self) -> bool:
+        """Indica se o formato possui canal alfa desacoplado (requer preservacao de cor)."""
+        return self.has_alpha and not self.is_premultiplied
+
+    @property
     def channels(self) -> int:
         return {
             ImageFormat.GRAY: 1,
