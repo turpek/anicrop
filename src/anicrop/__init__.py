@@ -1,3 +1,5 @@
+from importlib.metadata import PackageNotFoundError, version
+
 from .config import config
 from .container import GroupLayer
 from .document import Document
@@ -10,7 +12,13 @@ from .spatial import Region, Span
 from .viewer import Viewer
 from .viewport import Viewport
 
+try:
+    __version__ = version("anicrop")
+except PackageNotFoundError:
+    __version__ = "0.5.4"
+
 __all__ = [
+    "__version__",
     "config",
     "Document",
     "Viewport",
