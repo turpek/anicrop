@@ -15,6 +15,7 @@ from anicrop.render import (
     CanvasRender,
     SceneTraverser,
     ViewportRender,
+    calculate_patch_warp_matrix,
     generate_opacity_mask,
     render_edit,
     render_image,
@@ -1025,3 +1026,38 @@ def test_transform_image_exportada_no_top_level_anicrop():
     """Valida se transform_image e exportada e acessivel diretamente via namespace anicrop."""
     assert hasattr(anicrop, "transform_image")
     assert callable(anicrop.transform_image)
+
+
+def test_calculate_patch_warp_matrix_afim_equivalencia():
+    """Valida se a composicao afim direta e identica ao produto das matrizes de translacao."""
+    M_global = np.array(
+        [[1.5, -0.4, 120.0], [0.3, 1.2, -80.0], [0.0, 0.0, 1.0]],
+        dtype=np.float32,
+    )
+    src_tl = (45.0, 60.0)
+    dst_tl = (100.0, 150.0)
+
+    fast_m = calculate_patch_warp_matrix(M_global, src_tl, dst_tl, WarpMode.AFFINE)
+
+    M_src = mat_translation(*src_tl)
+    M_dst_inv = mat_translation(-dst_tl[0], -dst_tl[1])
+    expected = (M_dst_inv @ M_global @ M_src)[:2, :].astype(np.float64)
+
+    assert fast_m.shape == (2, 3)
+    assert fast_m.dtype == np.float64
+    np.testing.assert_allclose(fast_m, expected, atol=1e-5)
+
+
+def test_calculate_patch_warp_matrix_perspectiva():
+    """Valida calculo da matriz completa 3x3 quando o modo for perspectiva."""
+    M_global = np.array(
+        [[1.5, -0.4, 120.0], [0.3, 1.2, -80.0], [0.001, -0.002, 1.0]],
+        dtype=np.float32,
+    )
+    src_tl = (10.0, 20.0)
+    dst_tl = (30.0, 40.0)
+
+    persp_m = calculate_patch_warp_matrix(M_global, src_tl, dst_tl, WarpMode.PERSPECTIVE)
+
+    assert persp_m.shape == (3, 3)
+    assert persp_m.dtype == np.float64

@@ -160,6 +160,31 @@ WARP_MODE = {
 _WARP_SRC_SCRATCH = ScratchBuffer()
 
 
+def calculate_patch_warp_matrix(
+    matrix_global: np.ndarray,
+    src_top_left: tuple[float, float] | Point,
+    dst_top_left: tuple[float, float] | Point,
+    warp_mode: WarpMode = WarpMode.AFFINE,
+) -> np.ndarray:
+    """Calcula a matriz de warp afim (2x3) ou perspectiva (3x3) mapeando o patch de origem para o destino."""
+    sx, sy = float(src_top_left[0]), float(src_top_left[1])
+    dst_x, dst_y = float(dst_top_left[0]), float(dst_top_left[1])
+
+    if warp_mode == WarpMode.PERSPECTIVE:
+        M_src_offset = mat_translation(sx, sy)
+        M_dst_offset_inv = mat_translation(-dst_x, -dst_y)
+        return (M_dst_offset_inv @ matrix_global @ M_src_offset).astype(np.float64)
+
+    M_cv2 = np.empty((2, 3), dtype=np.float64)
+    M_cv2[0, 0] = matrix_global[0, 0]
+    M_cv2[0, 1] = matrix_global[0, 1]
+    M_cv2[0, 2] = matrix_global[0, 0] * sx + matrix_global[0, 1] * sy + matrix_global[0, 2] - dst_x
+    M_cv2[1, 0] = matrix_global[1, 0]
+    M_cv2[1, 1] = matrix_global[1, 1]
+    M_cv2[1, 2] = matrix_global[1, 0] * sx + matrix_global[1, 1] * sy + matrix_global[1, 2] - dst_y
+    return M_cv2
+
+
 def warp_patch(
     src_image: Image,
     matrix_global: np.ndarray,
@@ -210,13 +235,13 @@ def warp_patch(
                 buf[pad_y_start:pad_y_start + sh, pad_x_start:pad_x_start + sw] = src_data
             src_data = buf
 
-        # 4. A origem da matriz da sub-imagem é sempre o top_left da target_region!
-        M_src_offset = mat_translation(*target_region.top_left)
-
-        dst_x, dst_y = dest_region.top_left
-        M_dst_offset_inv = mat_translation(-dst_x, -dst_y)
-
-        M_cv2 = (M_dst_offset_inv @ matrix_global @ M_src_offset).astype(np.float64)
+        # 4. A origem da matriz da sub-imagem mapeada para a regiao de destino
+        M_cv2 = calculate_patch_warp_matrix(
+            matrix_global,
+            target_region.top_left,
+            dest_region.top_left,
+            warp_mode=warp_mode,
+        )
 
         warp = WARP_MODE.get(warp_mode, warp_affine)
         dest_size = (int(round(dest_region.width)), int(round(dest_region.height)))

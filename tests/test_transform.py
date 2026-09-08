@@ -12,9 +12,13 @@ from anicrop.transform import (
     TransformRel,
     TRotate,
     TTranslate,
+    calculate_new_corners,
     calculate_new_rect,
     has_distortion,
+    mat_inverse,
     mat_position,
+    mat_rotation,
+    mat_scale,
     mat_translation,
 )
 
@@ -302,3 +306,73 @@ def test_composer_sync_region():
 def test_has_distortion_function(matrix, expected_has_distortion):
     """Valida se a função has_distortion identifica qualquer distorção afim (rotação/escala) na matriz."""
     assert has_distortion(matrix) is expected_has_distortion
+
+
+def test_calculate_new_corners_afim_escalar():
+    """Valida a precisao da projecao escalar de vertices afins comparada a multiplicacao matricial."""
+    M = mat_translation(150, -320) @ mat_rotation(37.5) @ mat_scale(1.7, 0.8)
+    size = (1920.0, 1080.0)
+    top_left = (50.0, 100.0)
+
+    corners = calculate_new_corners(M, size, top_left)
+
+    x, y = top_left
+    w, h = size
+    raw_corners = np.array(
+        [[x, y, 1.0], [x + w, y, 1.0], [x + w, y + h, 1.0], [x, y + h, 1.0]],
+        dtype=np.float32,
+    ).T
+    proj = M @ raw_corners
+    expected = (
+        float(np.min(proj[0, :])),
+        float(np.min(proj[1, :])),
+        float(np.max(proj[0, :])),
+        float(np.max(proj[1, :])),
+    )
+
+    np.testing.assert_allclose(corners, expected, atol=1e-4)
+
+
+def test_calculate_new_corners_perspectiva():
+    """Valida projecao de vertices quando a matriz possui componentes de perspectiva."""
+    M = np.array(
+        [[1.2, 0.1, 50.0], [-0.2, 1.1, 30.0], [0.0005, -0.0002, 1.0]],
+        dtype=np.float32,
+    )
+    corners = calculate_new_corners(M, (500.0, 400.0), (10.0, 20.0))
+
+    raw_corners = np.array(
+        [[10.0, 20.0, 1.0], [510.0, 20.0, 1.0], [510.0, 420.0, 1.0], [10.0, 420.0, 1.0]],
+        dtype=np.float32,
+    ).T
+    proj = M @ raw_corners
+    proj[0, :] /= proj[2, :]
+    proj[1, :] /= proj[2, :]
+    expected = (
+        float(np.min(proj[0, :])),
+        float(np.min(proj[1, :])),
+        float(np.max(proj[0, :])),
+        float(np.max(proj[1, :])),
+    )
+
+    np.testing.assert_allclose(corners, expected, atol=1e-4)
+
+
+def test_mat_inverse_afim_analitica():
+    """Valida se a inversao analitica produz identidade exata para matrizes afins."""
+    M = mat_translation(150, -320) @ mat_rotation(37.5) @ mat_scale(1.7, 0.8)
+    inv = mat_inverse(M)
+
+    np.testing.assert_allclose(M @ inv, np.eye(3), atol=1e-5)
+    np.testing.assert_allclose(inv, np.linalg.inv(M), atol=1e-5)
+
+
+def test_mat_inverse_perspectiva_fallback():
+    """Valida se matrizes de perspectiva utilizam o fallback exato do linalg."""
+    M = np.array(
+        [[1.2, 0.1, 50.0], [-0.2, 1.1, 30.0], [0.0005, -0.0002, 1.0]],
+        dtype=np.float32,
+    )
+    inv = mat_inverse(M)
+
+    np.testing.assert_allclose(M @ inv, np.eye(3), atol=1e-4)
