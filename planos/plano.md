@@ -24,7 +24,7 @@ Este documento centraliza todos os objetivos arquiteturais, otimizações e o pr
 - [x] ~~16. Consolidação Unificada de Frames (`BaseFrame`, `CanvasFrame`, `ViewportFrame`) e Separação entre `surface` e `view_region`.~~
 - [x] ~~17. Validação e Correção da Máscara de Oclusão (`_opacity_mask` / Early-Exit) em Relação ao `surface_size`.~~
 - [x] ~~18. Decisão Arquitetural: Natureza e Gerenciamento da Transformação em `BaseLayer` (Sincronização de Região no `Composer` via `sync_region`).~~
-- [ ] 19. (Otimizações Analíticas) Álgebra Afim 2D no Pipeline de Renderização (`warp_patch`, `calculate_new_corners`, `mat_inverse`).
+- [x] ~~19. (Otimizações Analíticas) Álgebra Afim 2D no Pipeline de Renderização (`warp_patch`, `calculate_new_corners`, `mat_inverse`).~~
 - [x] ~~20. Padronizar o comportamento de `Layout.fit_content` quando a camada possui crop (`BlendMode.CLIP`), máscara ativa (`Mask`) ou patches de `EditLayer`.~~
 - [x] ~~22. Implementar `ViewportLayoutStrategy` para gerenciar enquadramento, navegação e foco de câmera (`fit`, `align`, `fit_content`, `resize_bounds`).~~
 - [x] ~~23. Padronizar herança de propriedades e comportamentos na rasterização plana de camadas (`flatten`, `Combine.flatten`, `Combine.bake`).~~
@@ -470,7 +470,7 @@ Para além dos modos binários focados em animação (`HARD_MASKING` e `SOLID_FI
 
 ---
 
-## ⚡ 19. Otimizações Analíticas de Álgebra Afim 2D no Pipeline de Renderização
+## ⚡ 19. Otimizações Analíticas de Álgebra Afim 2D no Pipeline de Renderização (Concluído)
 
 O profiling linha por linha do pipeline de renderização por patch (`warp_patch`) identificou que cerca de **5% a 10% do tempo de frame** em transformações afins é consumido por overhead Python/NumPy antes do despacho para o kernel nativo C++ do OpenCV (`cv2.warpAffine`).
 
