@@ -71,7 +71,7 @@ Para detalhes de métodos, tipos de retorno e exemplos de uso de cada classe, co
 - **[docs/spatial.md](file:///home/gui/python/anicrop/docs/spatial.md)** — Operações de geometria 2D e uso da classe `Region`.
 - **[docs/container.md](file:///home/gui/python/anicrop/docs/container.md)** — Estrutura de `LayerStack`, `GroupLayer` e `NodeContainerProtocol`.
 - [docs/transform.md](file:///home/gui/python/anicrop/docs/transform.md) — Matrizes 3x3, `Composer` mutável e intenções `Transform`.
-- [docs/image.md](file:///home/gui/python/anicrop/docs/image.md) — Manipulação de pixels com `Image`, NumPy, subsistema `anicrop.io` e backend MMap/LOD.
+- [docs/image.md](file:///home/gui/python/anicrop/docs/image.md) — Manipulação de pixels com `Image`, `transform_image`, gerenciamento de buffers temporários `ScratchBuffer`, subsistema `anicrop.io` e backend MMap/LOD.
 - [docs/viewport.md](file:///home/gui/python/anicrop/docs/viewport.md) — Projeções de câmera e janela de exibição `Viewport`.
 - **[docs/history.md](file:///home/gui/python/anicrop/docs/history.md)** — Guia do sistema de histórico (`GlobalHistory`, políticas `ActionPolicy` e Undo/Redo atômico).
 - **[docs/proxy.md](file:///home/gui/python/anicrop/docs/proxy.md)** — Guia da infraestrutura reativa (`anicrop.reactive`, `ProxyRegistry` e criação de proxies/comandos customizados).
@@ -223,6 +223,10 @@ Para detalhes de métodos, tipos de retorno e exemplos de uso de cada classe, co
 - **Exportação de Metadados e Versão (`anicrop.__version__`):**
   - **Inspeção Canônica:** `src/anicrop/__init__.py` exporta canonicamente `__version__` resolvido via `importlib.metadata.version("anicrop")` com fallback automático em caso de execução desempacotada (`PackageNotFoundError`).
   - **Compatibilidade com Pacotes Consumidores:** Ferramentas e pipelines downstream (como `anifuse`) podem validar a versão ativa via `anicrop.__version__` ou `getattr(anicrop, '__version__')`.
+
+- **Transformações Diretas de Imagem e Alocação Preguiçosa (`transform_image` & `ScratchBuffer`):**
+  - **`transform_image`:** Função pura exportada no top-level para rotação e escala diretamente sobre instâncias de `Image`. Suporta pivôs relativos/absolutos, composição analítica de matrizes afins, cálculo automático e exato do *bounding box* resultante e proteção anti-franja escura em formatos com Straight Alpha (`auto_pad=True`).
+  - **Reutilização de Memória Segura (`dst: AbstractScratchBuffer`):** Para eliminar riscos de estouro de shape ou descasamento de dimensões em rotações (onde o *bounding box* varia a cada ângulo), `transform_image` opera `dst` estritamente via `AbstractScratchBuffer` (`ScratchBuffer`), reconfigurando dinamicamente as dimensões mínimas e formato com zero alocações adicionais em loops contínuos.
 
 
 

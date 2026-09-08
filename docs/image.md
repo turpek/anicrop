@@ -157,3 +157,72 @@ with anicrop.config(backend="vips", memory_threshold=None, dtype=np.uint16):
   - `image` (`Image`): A imagem a ser analisada.
 - **Lança**: `ValueError` se a imagem possuir canal alpha mas estiver totalmente transparente.
 - **Retorno**: `Region` — Região delimitadora do conteúdo visível.
+
+#### `transform_image(image: Image, angle: float = 0.0, scale: float | tuple[float, float] = 1.0, pivot_angle: tuple[float, float] | Point = (0.5, 0.5), pivot_scale: tuple[float, float] | Point = (0.5, 0.5), interp: InterpMode = InterpMode.LINEAR, dst: AbstractScratchBuffer | None = None, auto_pad: bool = True) -> Image`
+- **Descrição**: Aplica transformações afins (rotação e escala) diretamente sobre uma instância de `Image` com composição analítica de matrizes, cálculo automático e exato do *bounding box* resultante (sem cortes de cantos) e proteção automática contra contaminação de cor/franja escura (*dark halo*) em formatos com Straight Alpha (`RGBA`, `GRAY_ALPHA`, `CMYK_ALPHA`).
+- **Parâmetros**:
+  - `image` (`Image`): Imagem de entrada a ser transformada.
+  - `angle` (`float`): Ângulo de rotação em graus (sentido horário).
+  - `scale` (`float | tuple[float, float]`): Fator de escala uniforme (`float`) ou anisotrópico `(sx, sy)`.
+  - `pivot_angle` (`tuple[float, float] | Point`): Ponto pivô para rotação (coordenadas normalizadas `0.0` a `1.0`, padrão `(0.5, 0.5)` no centro).
+  - `pivot_scale` (`tuple[float, float] | Point`): Ponto pivô para escala (padrão `(0.5, 0.5)` no centro).
+  - `interp` (`InterpMode`): Algoritmo de interpolação (`LINEAR`, `LANCZOS`, `CUBIC`, `NEAREST`, etc.). Padrão `InterpMode.LINEAR`.
+  - `dst` (`AbstractScratchBuffer | None`): Instância de buffer reutilizável (`ScratchBuffer`). O tamanho e formato de destino são reconfigurados dinamicamente para o novo *bounding box*, garantindo zero alocações contínuas em loops de streaming/processamento em lote. Se `None`, aloca uma nova `Image`.
+  - `auto_pad` (`bool`): Quando `True` (padrão), estende cirurgicamente as cores da borda da imagem para o canal alpha vazio, eliminando o escurecimento periférico causado por interpolação bilinear/lanczos com preto transparente.
+- **Retorno**: `Image` — Nova instância contendo os pixels transformados.
+- **Exemplo de Uso**:
+  ```python
+  import anicrop
+  from anicrop import InterpMode, ScratchBuffer
+
+  img = anicrop.Image.open("asset.png")
+
+  # 1. Transformação direta simples (rotação no centro e escala 1.5x)
+  rotated = anicrop.transform_image(img, angle=45.0, scale=1.5, interp=InterpMode.LANCZOS)
+
+  # 2. Processamento em lote de alto desempenho com reutilização de memória via ScratchBuffer
+  scratch = ScratchBuffer()
+  for frame_angle in range(0, 360, 15):
+      # O ScratchBuffer adapta-se automaticamente ao bounding box variável de cada ângulo
+      transformed_frame = anicrop.transform_image(img, angle=frame_angle, dst=scratch)
+      # Consome o frame transformado sem gerar pressão sobre o Garbage Collector...
+  ```
+
+---
+
+## 4. Gerenciamento de Memória Temporária: `ScratchBuffer` (`anicrop.ScratchBuffer`)
+
+O `ScratchBuffer` (que implementa `AbstractScratchBuffer`) é um buffer volátil de alto desempenho projetado para eliminar alocações repetitivas de arrays NumPy em operações intensivas (como renderização de patches no `CanvasRender`, loops de rotação/transformação ou pipelines de stitching/vídeo).
+
+### 4.1. Princípios de Design
+1. **Alocação Sob Demanda (*Lazy Allocation*):**
+   Configurar o buffer via `configure(size, fmt, dtype)` apenas registra as dimensões pretendidas. O array NumPy só é efetivamente alocado quando o método `__getitem__` for chamado com uma `Region`.
+2. **Reutilização Zero-Copy:**
+   Se uma operação subsequente solicitar dimensões menores ou iguais às já alocadas (e mantiver o mesmo `ImageFormat` e `dtype`), o buffer reaproveita exatamente o mesmo bloco de memória contíguo na RAM, retornando um *slice* sem custo de realocação.
+3. **Crescimento Amortizado ($1.5\times$):**
+   Quando dimensões maiores são necessárias, a capacidade interna é expandida multiplicando a dimensão anterior por um fator de $1.5\times$, minimizando a ocorrência de realocações sucessivas.
+4. **Ciclo de Vida da Flag `was_used`:**
+   A propriedade `buf.was_used` é inicializada como `False`, vira `True` ao acessar fatias de memória e reseta automaticamente a cada nova chamada de `buf.configure()`.
+
+### 4.2. API do `ScratchBuffer`
+- `configure(size: tuple[float, float], fmt: ImageFormat = ImageFormat.RGBA, dtype: Any = np.uint8) -> ScratchBuffer`: Define os requisitos de geometria e formato para o próximo acesso. Retorna o próprio buffer.
+- `__getitem__(region: Region) -> np.ndarray`: Garante a alocação e retorna o slice contíguo como `numpy.ndarray`.
+- `@property was_used -> bool`: Indica se houve acesso à memória desde o último `configure`.
+
+### 4.3. Exemplo de Uso
+```python
+from anicrop import ImageFormat, Region, ScratchBuffer
+import numpy as np
+
+# Cria uma instância compartilhada para o pipeline de processamento
+scratch = ScratchBuffer()
+
+# Configura para o primeiro frame (1920x1080 RGBA uint8)
+scratch.configure(size=(1920, 1080), fmt=ImageFormat.RGBA, dtype=np.uint8)
+array_view = scratch[Region.from_size(1920, 1080)]
+# array_view é um ndarray de shape (1080, 1920, 4) pronto para OpenCV / NumPy
+
+# Próxima iteração com dimensões menores: ZERO realocações de memória!
+scratch.configure(size=(1280, 720), fmt=ImageFormat.RGBA)
+sub_view = scratch[Region.from_size(1280, 720)]
+```

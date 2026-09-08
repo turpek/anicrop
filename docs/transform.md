@@ -118,3 +118,27 @@ A classe abstrata `Transform` (e suas derivadas `TransformRel` e `TransformAbs`)
 - **Descrição**: Constrói o "Sanduíche de Pivô" matricial: transporte do pivô para a origem, aplicação da transformação pura e transporte de volta:
   $$\mathbf{M} = \mathbf{T}_{\text{pos}} \cdot \mathbf{P}_{\text{pos}} \cdot \mathbf{R} \cdot \mathbf{P}_{\text{neg}} \cdot \mathbf{T}_{\text{neg}}$$
 - **Retorno**: `np.ndarray`.
+
+---
+
+## 4. Transformação Direta em Imagens: `transform_image`
+
+Para transformar diretamente uma instância de `Image` (rotação e escala) sem precisar instanciar um `Layer`, utilize a função pública `transform_image`:
+
+```python
+import anicrop
+from anicrop import InterpMode
+
+img = anicrop.Image.open("frame.png")
+
+# Aplica rotação e escala com pivôs relativos, calculando automaticamente o bounding box
+transformed = anicrop.transform_image(
+    img,
+    angle=30.0,
+    scale=1.2,
+    pivot_angle=(0.5, 0.5),  # Pivô no centro
+    interp=InterpMode.LANCZOS,
+)
+```
+
+Consulte o [Guia de Imagem (`docs/image.md`)](image.md#transform_image) para a especificação completa de parâmetros, proteção contra bordas escuras e reaproveitamento de memória com `ScratchBuffer`.
