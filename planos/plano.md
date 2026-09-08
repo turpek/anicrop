@@ -24,12 +24,13 @@ Este documento centraliza todos os objetivos arquiteturais, otimizações e o pr
 - [x] ~~16. Consolidação Unificada de Frames (`BaseFrame`, `CanvasFrame`, `ViewportFrame`) e Separação entre `surface` e `view_region`.~~
 - [x] ~~17. Validação e Correção da Máscara de Oclusão (`_opacity_mask` / Early-Exit) em Relação ao `surface_size`.~~
 - [x] ~~18. Decisão Arquitetural: Natureza e Gerenciamento da Transformação em `BaseLayer` (Sincronização de Região no `Composer` via `sync_region`).~~
-- [ ] 19. (Micro-otimização) Multiplicação Especializada de Matrizes Afins 2D ($2 \times 3$).
+- [ ] 19. (Otimizações Analíticas) Álgebra Afim 2D no Pipeline de Renderização (`warp_patch`, `calculate_new_corners`, `mat_inverse`).
 - [x] ~~20. Padronizar o comportamento de `Layout.fit_content` quando a camada possui crop (`BlendMode.CLIP`), máscara ativa (`Mask`) ou patches de `EditLayer`.~~
 - [x] ~~22. Implementar `ViewportLayoutStrategy` para gerenciar enquadramento, navegação e foco de câmera (`fit`, `align`, `fit_content`, `resize_bounds`).~~
 - [x] ~~23. Padronizar herança de propriedades e comportamentos na rasterização plana de camadas (`flatten`, `Combine.flatten`, `Combine.bake`).~~
 - [x] ~~24. Correção do Erro de Dimensão por Arredondamento Subpixel na Discretização de AABB (`warp_patch` vs `Image.__region_to_slice` / `hard_masking`).~~
 - [ ] 25. Modos Avançados de Fusão e Composição para Fotografia e Transições Suaves (Multi-Band Blending e Feather Blending).
+- [x] ~~26. Eliminação de Contaminação de Cor e Franja Escura nas Bordas em `warp_affine` e `warp_patch` (Padding Alpha-Aware e `ImageFormat.is_straight_alpha`).~~
 
 ---
 
@@ -466,6 +467,78 @@ Para além dos modos binários focados em animação (`HARD_MASKING` e `SOLID_FI
   * Aplica *Distance Transform* euclidiano a partir das bordas do frame para gerar uma máscara de rampa suave de $3$ a $8\text{ pixels}$.
   * Pondera a transição de cores suavemente na zona de sobreposição.
   * Requer alinhamento afim/subpixel de alta precisão para evitar duplicação de traços finos.
+
+---
+
+## ⚡ 19. Otimizações Analíticas de Álgebra Afim 2D no Pipeline de Renderização
+
+O profiling linha por linha do pipeline de renderização por patch (`warp_patch`) identificou que cerca de **5% a 10% do tempo de frame** em transformações afins é consumido por overhead Python/NumPy antes do despacho para o kernel nativo C++ do OpenCV (`cv2.warpAffine`).
+
+### Oportunidades Mapeadas e Validadas
+
+#### 19.1. Composição Direta da Matriz Afim Final ($\mathbf{3.1\times}$ mais rápido)
+* **Estado Atual:**
+  ```python
+  M_src_offset = mat_translation(*target_region.top_left)
+  M_dst_offset_inv = mat_translation(-dst_x, -dst_y)
+  M_cv2 = (M_dst_offset_inv @ matrix_global @ M_src_offset).astype(np.float64)
+  ```
+  Aloca duas matrizes temporárias $3 \times 3$ no NumPy e executa **duas multiplicações matriciais `@` completas**.
+* **Solução Analítica:**
+  Em matrizes afins 2D, translações à esquerda e à direita alteram exclusivamente a coluna de deslocamento ($X, Y$), mantendo o bloco $2 \times 2$ intacto:
+  ```python
+  sx, sy = target_region.top_left
+  dx, dy = dest_region.top_left
+  M_cv2 = np.empty((2, 3), dtype=np.float64)
+  M_cv2[0, 0] = matrix_global[0, 0]
+  M_cv2[0, 1] = matrix_global[0, 1]
+  M_cv2[0, 2] = matrix_global[0, 0] * sx + matrix_global[0, 1] * sy + matrix_global[0, 2] - dx
+  M_cv2[1, 0] = matrix_global[1, 0]
+  M_cv2[1, 1] = matrix_global[1, 1]
+  M_cv2[1, 2] = matrix_global[1, 0] * sx + matrix_global[1, 1] * sy + matrix_global[1, 2] - dy
+  ```
+* **Métrica:** Redução de **`702 ms`** para **`224 ms`** em 100.000 iterações ($\mathbf{3.1\times}$ mais rápido, zero alocações intermediárias).
+
+#### 19.2. Projeção Escalar Pura de Vértices de Bounding Box ($\mathbf{5.8\times}$ mais rápido)
+* **Estado Atual (`calculate_new_corners`):**
+  Aloca um array NumPy com os 4 cantos `np.array([...]).T`, executa multiplicação matricial `@`, normalização projetiva e 4 chamadas a `np.min` / `np.max`.
+* **Solução Escalar:**
+  Transformar diretamente os 4 vértices do retângulo via álgebra escalar direta com os coeficientes $m_{00}, m_{01}, \dots$ e funções nativas `min()` e `max()`.
+* **Métrica:** Redução de **`774 ms`** para **`134 ms`** em 50.000 iterações ($\mathbf{5.8\times}$ mais rápido).
+
+#### 19.3. Inversão Afim 2D Analítica ($\mathbf{1.7\times}$ mais rápido)
+* **Estado Atual (`mat_inverse`):**
+  Chama `np.linalg.inv`, delegando para rotinas genéricas LAPACK com decomposição LU (`dgetrf`/`dgetri`).
+* **Solução Analítica:**
+  Inversão exata $3 \times 3$ fechada via determinante $ad - bc$:
+  $$\text{inv\_det} = \frac{1}{ad - bc}$$
+  $$M^{-1}_{0,2} = (b \cdot t_y - d \cdot t_x) \cdot \text{inv\_det}, \quad M^{-1}_{1,2} = (c \cdot t_x - a \cdot t_y) \cdot \text{inv\_det}$$
+* **Métrica:** Redução de **`198 ms`** para **`119 ms`** em 50.000 iterações ($\mathbf{1.7\times}$ mais rápido, zero alocações LAPACK).
+
+---
+
+## 🛡️ 26. Eliminação de Contaminação de Cor e Franja Escura nas Bordas em `warp_affine` e `warp_patch` (Concluído)
+
+### 1. Diagnóstico da Causa Raiz
+* **O Problema:** Durante a reamostragem com filtros contínuos (Lanczos, Linear, Cubic), pixels subpixel na fronteira de retalhos RGBA amostravam o valor de borda configurado `BORDER_CONSTANT = (0, 0, 0, 0)`.
+* **Consequência no Straight Alpha:** O canal Vermelho de um retalho puro `[255, 0, 0, 255]` sofria interpolação com preto, caindo de **`255`** para até **`155`** (média degradada para **`235.69`**).
+* **Impacto no Stitching (`HARD_MASKING`):** Ao binarizar $\alpha \ge 128$ para $\alpha = 255$, os pixels perimetrais tornavam-se opacos contendo cores escurecidas `[155, 0, 0, 255]`, gerando uma linha escura permanente na emenda da composição.
+
+### 2. Solução Implementada
+1. **Property Semântica em `ImageFormat` (`is_straight_alpha`):**
+   Identifica formatos com alfa desacoplado (`has_alpha and not is_premultiplied`: `RGBA`, `GRAY_ALPHA`, `CMYK_ALPHA`), separando-os de formatos opacos (`RGB`, `GRAY`, `RGBX`) e premultiplicados (`PRGBA`).
+2. **Padding Alpha-Aware de Alta Performance (`pad_straight_alpha_into`):**
+   No `warp_patch`, a margem expandida do kernel (1 a 4 pixels) é preenchida replicando os pixels de cor da borda original e fixando rigorosamente o canal alfa em `0` (transparente).
+3. **Passada Única SIMD no OpenCV:**
+   O `cv2.warpAffine` roda em uma única chamada de 4 canais em velocidade máxima C++, eliminando a franja sem adicionar overhead perceptível ($< 0.15\text{ ms}$).
+4. **Auto-Padding em Chamadas Avulsas:**
+   `warp_affine` e `warp_perspective` receberam os parâmetros `format` e `auto_pad: bool = True`, garantindo preservação de cores mesmo em chamadas diretas com matriz afim ajustada analiticamente ($\Delta T = -pad$).
+
+### 3. Validação
+* **Valor mínimo de Vermelho na borda:** Subiu de **`155`** para **`255`** exatos.
+* **Valor médio de Vermelho na borda:** Subiu de **`235.69`** para **`255.00`**.
+* **Suíte de Testes:** Validado com 4 novos testes unitários dedicados em `tests/test_render.py` cobrindo `uint8`, `uint16` e `float32`.
+
 
 
 
