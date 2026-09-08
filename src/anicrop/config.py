@@ -14,6 +14,8 @@ from anicrop.io.registry import get_default_backend_name, set_default_backend
 DEFAULT_MEMORY_THRESHOLD: int = 8192 * 8192  # 64 MP (8K x 8K)
 DEFAULT_BACKEND: str = "opencv"
 DEFAULT_DTYPE: np.dtype = np.dtype(np.uint8)
+DEFAULT_HARD_MASK_THRESHOLD: int = 128
+DEFAULT_SOLID_FILL_THRESHOLD: int = 200
 SUPPORTED_DTYPES: tuple[np.dtype, ...] = (
     np.dtype(np.uint8),
     np.dtype(np.uint16),
@@ -28,6 +30,8 @@ class Config:
         self._backend: str = DEFAULT_BACKEND
         self._memory_threshold: int | None = DEFAULT_MEMORY_THRESHOLD
         self._dtype: np.dtype = DEFAULT_DTYPE
+        self._hard_mask_threshold: int = DEFAULT_HARD_MASK_THRESHOLD
+        self._solid_fill_threshold: int = DEFAULT_SOLID_FILL_THRESHOLD
 
     @property
     def backend(self) -> str:
@@ -80,11 +84,39 @@ class Config:
             )
         self._dtype = dt
 
+    @property
+    def hard_mask_threshold(self) -> int:
+        """Limiar de opacidade [0, 255] para corte binário em BlendMode.HARD_MASKING."""
+        return self._hard_mask_threshold
+
+    @hard_mask_threshold.setter
+    def hard_mask_threshold(self, value: int) -> None:
+        if not isinstance(value, (int, np.integer)) or not (0 <= int(value) <= 255):
+            raise ValueError(
+                f"hard_mask_threshold deve ser um inteiro entre 0 e 255, recebeu: {value}"
+            )
+        self._hard_mask_threshold = int(value)
+
+    @property
+    def solid_fill_threshold(self) -> int:
+        """Limiar de opacidade [0, 255] mínimo do overlay para BlendMode.SOLID_FILL."""
+        return self._solid_fill_threshold
+
+    @solid_fill_threshold.setter
+    def solid_fill_threshold(self, value: int) -> None:
+        if not isinstance(value, (int, np.integer)) or not (0 <= int(value) <= 255):
+            raise ValueError(
+                f"solid_fill_threshold deve ser um inteiro entre 0 e 255, recebeu: {value}"
+            )
+        self._solid_fill_threshold = int(value)
+
     def reset(self) -> None:
         """Restaura todas as configurações para seus valores padrão de fábrica."""
         self.backend = DEFAULT_BACKEND
         self.memory_threshold = DEFAULT_MEMORY_THRESHOLD
         self._dtype = DEFAULT_DTYPE
+        self._hard_mask_threshold = DEFAULT_HARD_MASK_THRESHOLD
+        self._solid_fill_threshold = DEFAULT_SOLID_FILL_THRESHOLD
 
     @contextmanager
     def __call__(self, **kwargs: Any) -> Generator[Config, None, None]:
