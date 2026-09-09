@@ -82,6 +82,15 @@ A classe `Image` garante a integridade dos dados de imagem (validação de forma
 - **Descrição**: Atalho conveniente e expressivo para `self.to_dtype(np.uint8)`.
 - **Retorno**: `Image` — Instância convertida para uint8.
 
+#### `clear_rect(region: Region, fill_value: int | float | tuple[int, ...] | np.ndarray = 0, invert: bool = False, *, alpha_only: bool = False) -> bool`
+- **Descrição**: Limpa ou preenche uma região retangular da imagem em coordenadas locais.
+- **Parâmetros**:
+  - `region` (`Region`): A região retangular a ser preenchida.
+  - `fill_value` (`int | float | tuple[int, ...] | np.ndarray`): Valor de preenchimento (padrão `0`).
+  - `invert` (`bool`): Se `False` (padrão), preenche a área interna da região. Se `True`, preenche a área externa (inversão da seleção), ideal para limpar bordas ou molduras externas.
+  - `alpha_only` (`bool`): Se `True` e a imagem possui canal alfa (`self.has_alpha is True`), preenche **exclusivamente o canal alfa** (`channel = -1`), preservando 100% das cores originais (RGB) para prevenir o efeito de franja escura (*dark halo*) em transformações afins ou interpolações subsequentes. Se a imagem não possui canal alfa, aplica o fallback natural preenchendo todos os canais com `fill_value`. Se `False` (padrão), preenche todos os canais.
+- **Retorno**: `bool` — `True` se pixels foram alterados, ou `False` se a região não intersecta a imagem.
+
 #### Propriedades de Dimensão e Metadados:
 - `@property size -> tuple[int, int]`: Retorna `(width, height)` da imagem em pixels.
 - `@property width -> int` / `@property height -> int`: Retornam a largura e a altura da imagem.

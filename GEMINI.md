@@ -228,5 +228,9 @@ Para detalhes de métodos, tipos de retorno e exemplos de uso de cada classe, co
   - **`transform_image`:** Função pura exportada no top-level para rotação e escala diretamente sobre instâncias de `Image`. Suporta pivôs relativos/absolutos, composição analítica de matrizes afins, cálculo automático e exato do *bounding box* resultante e proteção anti-franja escura em formatos com Straight Alpha (`auto_pad=True`).
   - **Reutilização de Memória Segura (`dst: AbstractScratchBuffer`):** Para eliminar riscos de estouro de shape ou descasamento de dimensões em rotações (onde o *bounding box* varia a cada ângulo), `transform_image` opera `dst` estritamente via `AbstractScratchBuffer` (`ScratchBuffer`), reconfigurando dinamicamente as dimensões mínimas e formato com zero alocações adicionais em loops contínuos.
 
+- **Limpeza Espacial com Preservação de Cor (`Image.clear_rect` & `alpha_only`):**
+  - **Preservação de Straight Alpha:** O método `Image.clear_rect` aceita o parâmetro `alpha_only: bool = False`. Quando `True` e a imagem possui canal alfa (`self.has_alpha is True`), preenche exclusivamente o canal alfa (`channel = -1`), mantendo as cores RGB intactas e imunes à formação de franjas pretas (*dark halo*) em transformações afins subsequentes. Em imagens sem alfa (`RGB`, `GRAY`), aplica fallback natural preenchendo todos os canais com `fill_value`.
+
+
 
 
