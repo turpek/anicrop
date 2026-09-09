@@ -16,7 +16,7 @@ from .viewport import Viewport
 try:
     __version__ = version("anicrop")
 except PackageNotFoundError:
-    __version__ = "0.6.0"
+    __version__ = "0.6.1"
 
 __all__ = [
     "__version__",

@@ -150,6 +150,8 @@ class Image:
         region: Region,
         fill_value: int | float | tuple[int, ...] | np.ndarray = 0,
         invert: bool = False,
+        *,
+        alpha_only: bool = False,
     ) -> bool:
         """Limpa ou preenche uma região retangular da imagem.
 
@@ -158,6 +160,10 @@ class Image:
             fill_value: O valor de preenchimento (padrão 0).
             invert: Se False (padrão), preenche a área DENTRO da região.
                     Se True, preenche a área FORA da região (inversão da seleção).
+            alpha_only: Se True e a imagem possui canal alfa, preenche apenas
+                        o canal alfa. Se a imagem não possui canal alfa, preenche
+                        todos os canais como fallback. Se False (padrão), preenche
+                        todos os canais.
 
         Returns:
             True se os pixels foram alterados, False se a região não intersecta a imagem.
@@ -167,17 +173,27 @@ class Image:
             return False
 
         clipped = canvas_region & region
+        target_alpha = alpha_only and self.has_alpha
 
         if not invert:
-            self[clipped] = fill_value
+            if target_alpha:
+                self[clipped, -1] = fill_value
+            else:
+                self[clipped] = fill_value
         else:
             x1, y1 = clipped.top_left.to_int()
             x2, y2 = clipped.bottom_right.to_int()
 
-            self[:y1, :] = fill_value
-            self[y2:, :] = fill_value
-            self[y1:y2, :x1] = fill_value
-            self[y1:y2, x2:] = fill_value
+            if target_alpha:
+                self[:y1, :, -1] = fill_value
+                self[y2:, :, -1] = fill_value
+                self[y1:y2, :x1, -1] = fill_value
+                self[y1:y2, x2:, -1] = fill_value
+            else:
+                self[:y1, :] = fill_value
+                self[y2:, :] = fill_value
+                self[y1:y2, :x1] = fill_value
+                self[y1:y2, x2:] = fill_value
 
         return True
 

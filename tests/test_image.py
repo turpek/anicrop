@@ -369,3 +369,51 @@ def test_image_bgr_conversion_and_region():
     bgra_sub = img.bgr(sub_region)
     assert bgra_sub.shape == (4, 4, 4)
     assert np.all(bgra_sub[0, 0] == (0, 0, 255, 255))
+
+
+def test_clear_rect_default_all_channels():
+    """Valida se clear_rect padrão zera todos os canais quando alpha_only é False."""
+    arr = np.full((10, 10, 4), (255, 100, 50, 255), dtype=np.uint8)
+    img = Image(arr, ImageFormat.RGBA)
+
+    img.clear_rect(Region.from_rect(2, 2, 4, 4), fill_value=0, alpha_only=False)
+
+    assert np.all(img[2:6, 2:6] == 0)
+    assert np.all(img[0, 0] == (255, 100, 50, 255))
+
+
+def test_clear_rect_alpha_only_rgba():
+    """Valida se clear_rect com alpha_only zera apenas o canal alfa preservando RGB."""
+    arr = np.full((10, 10, 4), (255, 100, 50, 255), dtype=np.uint8)
+    img = Image(arr, ImageFormat.RGBA)
+
+    img.clear_rect(Region.from_rect(2, 2, 4, 4), fill_value=0, alpha_only=True)
+
+    assert np.all(img[2:6, 2:6, :3] == (255, 100, 50))
+    assert np.all(img[2:6, 2:6, 3] == 0)
+    assert np.all(img[0, 0] == (255, 100, 50, 255))
+
+
+def test_clear_rect_alpha_only_fallback_rgb():
+    """Valida se clear_rect com alpha_only faz fallback para todos os canais em RGB."""
+    arr = np.full((10, 10, 3), (255, 100, 50), dtype=np.uint8)
+    img = Image(arr, ImageFormat.RGB)
+
+    img.clear_rect(Region.from_rect(2, 2, 4, 4), fill_value=0, alpha_only=True)
+
+    assert np.all(img[2:6, 2:6] == 0)
+    assert np.all(img[0, 0] == (255, 100, 50))
+
+
+def test_clear_rect_inverted_alpha_only():
+    """Valida se clear_rect invertido com alpha_only zera o alfa externo mantendo centro."""
+    arr = np.full((10, 10, 4), (200, 150, 100, 255), dtype=np.uint8)
+    img = Image(arr, ImageFormat.RGBA)
+
+    img.clear_rect(Region.from_rect(2, 2, 6, 6), fill_value=0, invert=True, alpha_only=True)
+
+    assert np.all(img[2:8, 2:8] == (200, 150, 100, 255))
+    assert np.all(img[0, 0, :3] == (200, 150, 100))
+    assert img[0, 0, 3] == 0
+    assert np.all(img[9, 9, :3] == (200, 150, 100))
+    assert img[9, 9, 3] == 0
