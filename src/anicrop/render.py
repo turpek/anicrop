@@ -451,6 +451,16 @@ def render_viewport_edit(
     return render_edit(edit_layer, plan, warp_mode=warp_mode, interp=interp, dst=dst)
 
 
+def has_active_post_processing(layer: BaseLayer) -> bool:
+    """Verifica se a camada possui efeitos ou máscaras ativas que exigem isolamento de buffer."""
+    if layer.mask is not None and layer.mask.visible:
+        return True
+    for effect in layer.effects:
+        if effect.visible:
+            return True
+    return False
+
+
 def apply_post_processing(
     target_image: Image,
     base: BaseLayer,
@@ -461,7 +471,8 @@ def apply_post_processing(
     image = target_image
 
     for effect in base.effects:
-        image = effect.apply(image, frame.matrix)
+        if effect.visible:
+            image = effect.apply(image, frame.matrix)
 
     if base.mask is not None and base.mask.visible:
         mask_result = render_edit(base.mask, frame, interp=interp)
@@ -555,6 +566,7 @@ class BaseRenderer[FrameT: BaseFrame](ABC):
         layer_format: ImageFormat,
         plan: BaseFrame,
         interp: InterpMode,
+        isolate: bool = False,
     ) -> Image | None:
         """Renderiza um único edit exatamente 1 vez com reciclagem de buffer e fast-path zero-copy."""
         dst = self._scratch_buffer.configure(
@@ -570,7 +582,7 @@ class BaseRenderer[FrameT: BaseFrame](ABC):
 
         # 1. Fast-Path: Cobre 100% da área da camada sem uso de buffer (Zero-Copy direto de edit.image!)
         if not dst.was_used:
-            return edit_image
+            return edit_image.crop() if isolate else edit_image
 
         # 2. Fast-Path: Se o resultado cobre 100% da área de destino, desvincula do scratch buffer via crop
         if dst_region.size == plan.dst_region.size:  # type: ignore[union-attr]
@@ -627,7 +639,11 @@ class BaseRenderer[FrameT: BaseFrame](ABC):
         # Roteamento limpo: 1 edit vs múltiplos edits
         if len(visible_edits) == 1:
             image = self._render_single_edit(
-                visible_edits[0], layer.format, frame, interp
+                visible_edits[0],
+                layer.format,
+                frame,
+                interp,
+                isolate=has_active_post_processing(layer),
             )
             if image is None:
                 image = Image.new(dst_region.size, layer.format)

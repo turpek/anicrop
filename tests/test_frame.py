@@ -2,6 +2,7 @@ import numpy as np
 import pytest
 
 from anicrop.canvas import Canvas
+from anicrop.effect import Effect
 from anicrop.frame import CanvasFrame, ViewportFrame, calculate_mask_rect
 from anicrop.image import Image, ImageFormat
 from anicrop.layer import Layer
@@ -494,9 +495,9 @@ def test_canvas_frame_view_region_has_priority_over_mask():
 def test_canvas_frame_expand_bounds_with_effects_padding():
     """Valida se CanvasFrame expande os bounds geométricos de acordo com o padding dos efeitos."""
 
-    class DummyPaddingEffect:
+    class DummyPaddingEffect(Effect):
         def __init__(self, visible: bool = True):
-            self.visible = visible
+            super().__init__(visible=visible, name="DummyPaddingEffect")
             self.matrix = np.identity(3, dtype=np.float32)
 
         def prepare(self, frame):

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Protocol, runtime_checkable
+from abc import ABC, abstractmethod
+from typing import TYPE_CHECKING
 
 import numpy as np
 
@@ -9,18 +10,24 @@ if TYPE_CHECKING:
     from anicrop.mask import Mask
 
 
-@runtime_checkable
-class Effect(Protocol):
-    """Protocolo formal para qualquer efeito ou filtro puro de processamento de pixels."""
+class Effect(ABC):
+    """Classe base abstrata para qualquer efeito ou filtro puro de processamento de pixels."""
 
+    def __init__(self, visible: bool = True, name: str = "Effect"):
+        self.visible = visible
+        self.name = name
+
+    @abstractmethod
     def get_padding(self) -> tuple[int, int, int, int]:
         """Retorna a margem extra (top, right, bottom, left) necessária para efeitos de expansão."""
         pass
 
+    @abstractmethod
     def apply(self, image: Image, matrix: np.ndarray) -> Image:
         """Processa e transforma o buffer de imagem recebendo a matriz espacial ativa."""
         pass
 
+    @abstractmethod
     def merge(self, other: Effect, matrix: np.ndarray) -> Effect | None:
         """Tenta combinar este efeito com outro, retornando o efeito unificado ou None."""
         pass
@@ -35,11 +42,12 @@ class BoundEffect(Effect):
         matrix: np.ndarray,
         mask: Mask | None = None,
         visible: bool = True,
+        name: str = "BoundEffect",
     ):
+        super().__init__(visible=visible, name=name)
         self.effect = effect
         self.matrix = matrix
         self.mask = mask
-        self.visible = visible
 
     def get_padding(self) -> tuple[int, int, int, int]:
         """Retorna o padding do efeito interno se visível."""

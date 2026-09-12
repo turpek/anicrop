@@ -1,6 +1,7 @@
 import numpy as np
 import pytest
 
+from anicrop.effect import Effect
 from anicrop.enums import ImageFormat
 from anicrop.image import Image
 from anicrop.layer import EditLayer
@@ -113,13 +114,10 @@ def test_mask_merge_with_another_mask_unifies_regions():
 def test_mask_merge_with_incompatible_effect_returns_none():
     """Valida se merge retorna None quando o efeito fornecido não for uma Mask."""
 
-    class FakeEffect:
+    class FakeEffect(Effect):
         def __init__(self):
-            self.visible = True
+            super().__init__(visible=True, name="FakeEffect")
             self.matrix = np.identity(3, dtype=np.float32)
-
-        def prepare(self, frame):
-            pass
 
         def get_padding(self):
             return (0, 0, 0, 0)
