@@ -392,6 +392,17 @@ class Image:
             return frame[..., 0] if frame.ndim == 3 else frame
         return frame
 
+    def close(self) -> None:
+        """Fecha e libera os recursos do buffer subjacente."""
+        if hasattr(self._data, "close"):
+            self._data.close()
+
+    def __enter__(self) -> Image:
+        return self
+
+    def __exit__(self, exc_type: Any, exc_val: Any, exc_tb: Any) -> None:
+        self.close()
+
     def save(
         self,
         file_path: str | Path,

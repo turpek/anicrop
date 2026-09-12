@@ -52,6 +52,8 @@ class ScratchBuffer(AbstractScratchBuffer):
             current_w = self._image.width if self._image is not None else 0
             new_h = max(h, int(current_h * 1.5))
             new_w = max(w, int(current_w * 1.5))
+            if self._image is not None:
+                self._image.close()
             self._image = Image.new((new_w, new_h), self._format, dtype=self._dtype)
 
         return self._image.view(Region.from_size(w, h))
@@ -61,3 +63,10 @@ class ScratchBuffer(AbstractScratchBuffer):
         self._used = True
         view = self._ensure_allocated()
         return view[region]
+
+    def close(self) -> None:
+        """Fecha e descarta a imagem alocada liberando arquivos de disco ou memória."""
+        if self._image is not None:
+            self._image.close()
+            self._image = None
+        self._used = False

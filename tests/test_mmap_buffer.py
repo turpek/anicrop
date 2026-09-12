@@ -1,3 +1,4 @@
+import gc
 from pathlib import Path
 
 import numpy as np
@@ -71,3 +72,57 @@ def test_mmap_buffer_get_lod(tmp_path: Path, level: int, expected_factor: float)
     expected_h = int(100 * expected_factor)
     assert lod_buf.width == expected_w
     assert lod_buf.height == expected_h
+
+
+def test_mmap_buffer_auto_remove_on_gc():
+    """Valida a remocao automatica do arquivo temporario no disco ao ser coletado pelo Garbage Collector."""
+    buf = MMapBuffer.create_empty((100, 100, 4), dtype=np.uint8)
+    file_path = buf.file_path
+
+    assert file_path is not None
+    assert file_path.exists()
+    del buf
+    gc.collect()
+
+    assert not file_path.exists()
+
+
+def test_mmap_buffer_auto_remove_on_explicit_close():
+    """Valida a remocao imediata do arquivo temporario no disco ao invocar close explicitamente."""
+    buf = MMapBuffer.create_empty((100, 100, 4), dtype=np.uint8)
+    file_path = buf.file_path
+
+    assert file_path is not None
+    assert file_path.exists()
+    buf.close()
+
+    assert not file_path.exists()
+
+
+def test_mmap_buffer_preserve_custom_file_path(tmp_path: Path):
+    """Valida que caminhos de arquivo customizados fornecidos pelo usuario nao sao removidos automaticamente."""
+    target_path = tmp_path / "custom.raw"
+    arr = np.ones((50, 50, 3), dtype=np.uint8)
+    buf = MMapBuffer.from_array(arr, file_path=target_path)
+
+    assert buf.file_path == target_path
+    assert target_path.exists()
+    del buf
+    gc.collect()
+
+    assert target_path.exists()
+
+
+def test_mmap_buffer_open_existing_never_removes(tmp_path: Path):
+    """Valida que arquivos abertos via open_existing sao sempre preservados apos fechamento e GC."""
+    target_path = tmp_path / "existing.raw"
+    arr = np.zeros((40, 40, 4), dtype=np.uint8)
+    initial_buf = MMapBuffer.from_array(arr, file_path=target_path)
+    initial_buf.flush()
+
+    opened_buf = MMapBuffer.open_existing(target_path, (40, 40, 4), dtype=np.uint8)
+    opened_buf.close()
+    del opened_buf
+    gc.collect()
+
+    assert target_path.exists()

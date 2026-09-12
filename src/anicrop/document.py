@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 from pathlib import Path
-from typing import Iterator, TypeVar, overload
+from typing import Any, Iterator, TypeVar, overload
 
 from anicrop.canvas import Canvas
 from anicrop.composition import Combine
@@ -360,3 +360,13 @@ class Document:
         self.render(format=format, interp=interp).save(
             path, options=options, backend=backend
         )
+
+    def close(self) -> None:
+        """Fecha e libera os buffers de imagem de todas as camadas do documento."""
+        self.stack.close()
+
+    def __enter__(self) -> Document:
+        return self
+
+    def __exit__(self, exc_type: Any, exc_val: Any, exc_tb: Any) -> None:
+        self.close()

@@ -1,3 +1,4 @@
+import gc
 from pathlib import Path
 
 import numpy as np
@@ -104,3 +105,38 @@ def test_set_memory_threshold_custom_value():
         assert isinstance(img._data, MMapBuffer)
     finally:
         set_memory_threshold(original)
+
+
+def test_image_mmap_lifecycle_gc():
+    """Valida se a remocao de referencia de uma Image baseada em MMapBuffer apaga o arquivo temporario no GC."""
+    img = Image.new((9000, 9000), ImageFormat.RGBA)
+    file_path = img._data.file_path
+
+    assert file_path is not None
+    assert file_path.exists()
+    del img
+    gc.collect()
+
+    assert not file_path.exists()
+
+
+def test_image_mmap_explicit_close():
+    """Valida se a invocacao de Image.close() remove imediatamente o arquivo temporario subjacente no disco."""
+    img = Image.new((9000, 9000), ImageFormat.RGBA)
+    file_path = img._data.file_path
+
+    assert file_path is not None
+    assert file_path.exists()
+    img.close()
+
+    assert not file_path.exists()
+
+
+def test_image_mmap_context_manager():
+    """Valida se o gerenciador de contexto Image desaloca o arquivo temporario ao sair do bloco."""
+    with Image.new((9000, 9000), ImageFormat.RGBA) as img:
+        file_path = img._data.file_path
+        assert file_path is not None
+        assert file_path.exists()
+
+    assert not file_path.exists()

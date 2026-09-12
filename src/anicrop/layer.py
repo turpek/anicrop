@@ -216,3 +216,10 @@ class Layer(BaseLayer, AbstractLayer):
         edit = edit_cls(image, region, matrix, blend_mode, edit_name, visible)
         self._edits.append(edit)
         return edit
+
+    def close(self) -> None:
+        """Fecha e libera os buffers de imagem de todas as edições e máscara desta camada."""
+        for edit in self._edits:
+            edit.close()
+        if self._mask is not None:
+            self._mask.image.close()

@@ -90,6 +90,13 @@ class EditLayer:
         blend = BLEND_MODE[self.blend_mode]
         blend(layer_image.view(dst_region), edit_image)
 
+    def close(self) -> None:
+        """Fecha e libera os recursos do buffer de imagem associado a este EditLayer."""
+        self._image.close()
+        for lod_img, _ in self._lod_cache.values():
+            lod_img.close()
+        self._lod_cache.clear()
+
 
 class CropEditLayer(EditLayer):
     """Edição de recorte que aplica BlendMode.CLIP e zera toda a área externa da camada."""
