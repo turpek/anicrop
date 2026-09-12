@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import numpy as np
 
+from anicrop.config import config
 from anicrop.enums import ImageFormat
 from anicrop.scratch import ScratchBuffer
 from anicrop.spatial import Region
@@ -84,3 +85,26 @@ def test_scratch_buffer_was_used_flag_lifecycle():
 
     buf.configure((100, 100), ImageFormat.RGBA)
     assert buf.was_used is False
+
+
+def test_scratch_buffer_growth_frees_previous_mmap_buffer():
+    """Valida se a expansao do ScratchBuffer desaloca imediatamente o arquivo temporario anterior no disco."""
+    with config(memory_threshold=1000):
+        buf = ScratchBuffer()
+        buf.configure((40, 40), ImageFormat.RGBA)
+        _ = buf[Region.from_size(40, 40)]
+        path_first = buf._image._data.file_path
+
+        assert path_first is not None
+        assert path_first.exists()
+
+        buf.configure((80, 80), ImageFormat.RGBA)
+        _ = buf[Region.from_size(80, 80)]
+        path_second = buf._image._data.file_path
+
+        assert not path_first.exists()
+        assert path_second is not None
+        assert path_second.exists()
+
+        buf.close()
+        assert not path_second.exists()

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import uuid
+import weakref
 from pathlib import Path
 from typing import Any, Literal
 
@@ -11,6 +12,15 @@ from anicrop.interfaces.buffer import AbstractImageBuffer
 from anicrop.persistence.manager import manager_global
 
 MMapMode = Literal["readonly", "r", "copyonwrite", "c", "readwrite", "r+", "write", "w+"]
+
+
+def _cleanup_mmap_file(file_path: Path | None, auto_remove: bool) -> None:
+    """Função desacoplada de finalização para remoção do arquivo em disco."""
+    if auto_remove and file_path is not None:
+        try:
+            file_path.unlink(missing_ok=True)
+        except Exception:
+            pass
 
 
 class ArrayBuffer(AbstractImageBuffer):
@@ -68,21 +78,37 @@ class MMapBuffer(AbstractImageBuffer):
         self,
         mmap_array: np.memmap,
         file_path: str | Path | None = None,
+        auto_remove: bool = False,
     ) -> None:
         self._mmap = mmap_array
         self._file_path = Path(file_path) if file_path is not None else None
+        self._auto_remove = auto_remove
+        self._finalizer = (
+            weakref.finalize(self, _cleanup_mmap_file, self._file_path, self._auto_remove)
+            if self._file_path is not None and self._auto_remove
+            else None
+        )
+
+    @property
+    def auto_remove(self) -> bool:
+        """Indica se o arquivo temporário será automaticamente removido ao ser desalocado."""
+        return self._auto_remove
 
     @classmethod
     def from_array(
         cls,
         array: np.ndarray,
         file_path: str | Path | None = None,
+        auto_remove: bool | None = None,
     ) -> MMapBuffer:
         """Cria um MMapBuffer a partir de uma matriz NumPy gravando no workspace temporário."""
+        is_temp = file_path is None
         if file_path is None:
             file_path = manager_global.workspace_path / f"mmap_{uuid.uuid4().hex}.raw"
         else:
             file_path = Path(file_path)
+
+        resolved_auto_remove = is_temp if auto_remove is None else auto_remove
 
         mm = np.memmap(
             str(file_path),
@@ -92,7 +118,7 @@ class MMapBuffer(AbstractImageBuffer):
         )
         mm[...] = array
         mm.flush()
-        return cls(mm, file_path=file_path)
+        return cls(mm, file_path=file_path, auto_remove=resolved_auto_remove)
 
     @classmethod
     def create_empty(
@@ -100,12 +126,16 @@ class MMapBuffer(AbstractImageBuffer):
         shape: tuple[int, ...],
         dtype: Any = np.uint8,
         file_path: str | Path | None = None,
+        auto_remove: bool | None = None,
     ) -> MMapBuffer:
         """Aloca um buffer de memória mapeada com formato e dimensões predefinidos."""
+        is_temp = file_path is None
         if file_path is None:
             file_path = manager_global.workspace_path / f"mmap_{uuid.uuid4().hex}.raw"
         else:
             file_path = Path(file_path)
+
+        resolved_auto_remove = is_temp if auto_remove is None else auto_remove
 
         mm = np.memmap(
             str(file_path),
@@ -113,7 +143,7 @@ class MMapBuffer(AbstractImageBuffer):
             mode="w+",
             shape=shape,
         )
-        return cls(mm, file_path=file_path)
+        return cls(mm, file_path=file_path, auto_remove=resolved_auto_remove)
 
     @classmethod
     def open_existing(
@@ -122,11 +152,12 @@ class MMapBuffer(AbstractImageBuffer):
         shape: tuple[int, ...],
         dtype: Any = np.uint8,
         mode: MMapMode = "r+",
+        auto_remove: bool = False,
     ) -> MMapBuffer:
         """Abre um arquivo binário memmap existente no disco."""
         path = Path(file_path)
         mm = np.memmap(str(path), dtype=dtype, mode=mode, shape=shape)
-        return cls(mm, file_path=path)
+        return cls(mm, file_path=path, auto_remove=auto_remove)
 
     @property
     def file_path(self) -> Path | None:
@@ -167,7 +198,15 @@ class MMapBuffer(AbstractImageBuffer):
         self._mmap.flush()
 
     def close(self) -> None:
-        """Fecha o descritor de memória mapeada se aberto."""
+        """Fecha o descritor de memória mapeada se aberto e desaloca arquivo temporário."""
+        if self._finalizer is not None and self._finalizer.alive:
+            self._finalizer()
+        elif self._auto_remove and self._file_path is not None:
+            try:
+                self._file_path.unlink(missing_ok=True)
+            except Exception:
+                pass
+
         if (
             hasattr(self, "_mmap")
             and hasattr(self._mmap, "_mmap")

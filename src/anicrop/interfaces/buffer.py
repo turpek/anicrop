@@ -34,6 +34,10 @@ class AbstractScratchBuffer(ABC):
         """Retorna uma fatia do buffer subjacente, alocando sob demanda se necessário."""
         pass
 
+    def close(self) -> None:
+        """Libera os recursos do buffer temporário alocado, se aplicável."""
+        pass
+
 
 class AbstractImageBuffer(ABC):
     """Contrato abstrato base para backends de armazenamento de dados de imagem."""
@@ -82,4 +86,8 @@ class AbstractImageBuffer(ABC):
         self, level: int, threshold_pixels: int | None = None
     ) -> AbstractImageBuffer:
         """Gera ou extrai o nível de resolução (LOD = 1/2^level)."""
+        pass
+
+    def close(self) -> None:
+        """Fecha ou libera recursos associados ao buffer, se aplicável."""
         pass

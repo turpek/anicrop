@@ -424,3 +424,29 @@ def test_document_render_properties():
 
     assert isinstance(doc.canvas_render, CanvasRender)
     assert isinstance(doc.viewport_render, ViewportRender)
+
+
+def test_document_close_frees_mmap_layers():
+    """Valida se doc.close() fecha e desaloca buffers temporários MMapBuffer das camadas."""
+    doc = Document("TestDoc", 9000, 9000)
+    layer = Layer(Image.new((9000, 9000), ImageFormat.RGBA), name="large_layer")
+    doc.add(layer)
+    file_path = layer.edits[0].image._data.file_path
+
+    assert file_path is not None
+    assert file_path.exists()
+    doc.close()
+
+    assert not file_path.exists()
+
+
+def test_document_context_manager():
+    """Valida se o context manager do Document invoca close e desaloca buffers ao sair do escopo."""
+    with Document("TestDoc", 9000, 9000) as doc:
+        layer = Layer(Image.new((9000, 9000), ImageFormat.RGBA), name="large_layer")
+        doc.add(layer)
+        file_path = layer.edits[0].image._data.file_path
+        assert file_path is not None
+        assert file_path.exists()
+
+    assert not file_path.exists()

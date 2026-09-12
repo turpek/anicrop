@@ -97,6 +97,12 @@ class Container(NullContainer, AbstractContainer):
         self.remove(item)
         return item
 
+    def close(self) -> None:
+        """Fecha e libera os buffers de imagem de todos os elementos filhos."""
+        for item in self._children:
+            if hasattr(item, "close"):
+                item.close()
+
     def _check_and_remove_item(self, item: BaseLayer):
         if isinstance(item, LayerStack):
             raise TypeError(
@@ -418,6 +424,12 @@ class GroupLayer(Container, BaseLayer, AbstractGroupLayer):
     def content(self) -> GroupContentStrategy:
         """Estratégia de manipulação de conteúdo do grupo."""
         return self._content
+
+    def close(self) -> None:
+        """Fecha e libera os buffers de imagem de todos os filhos e máscara do grupo."""
+        super().close()
+        if self._mask is not None:
+            self._mask.image.close()
 
 
 __all__ = [
