@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import uuid
 import weakref
 from pathlib import Path
 from typing import Any, Literal
@@ -102,23 +101,33 @@ class MMapBuffer(AbstractImageBuffer):
         auto_remove: bool | None = None,
     ) -> MMapBuffer:
         """Cria um MMapBuffer a partir de uma matriz NumPy gravando no workspace temporário."""
+        required_bytes = array.nbytes
         is_temp = file_path is None
         if file_path is None:
-            file_path = manager_global.workspace_path / f"mmap_{uuid.uuid4().hex}.raw"
+            file_path = manager_global.get_temp_file_path(required_bytes=required_bytes)
         else:
             file_path = Path(file_path)
+            manager_global.check_disk_space(file_path.parent, required_bytes)
 
         resolved_auto_remove = is_temp if auto_remove is None else auto_remove
 
-        mm = np.memmap(
-            str(file_path),
-            dtype=array.dtype,
-            mode="w+",
-            shape=array.shape,
-        )
-        mm[...] = array
-        mm.flush()
-        return cls(mm, file_path=file_path, auto_remove=resolved_auto_remove)
+        try:
+            mm = np.memmap(
+                str(file_path),
+                dtype=array.dtype,
+                mode="w+",
+                shape=array.shape,
+            )
+            mm[...] = array
+            mm.flush()
+            return cls(mm, file_path=file_path, auto_remove=resolved_auto_remove)
+        except BaseException:
+            if resolved_auto_remove and file_path.exists():
+                try:
+                    file_path.unlink(missing_ok=True)
+                except Exception:
+                    pass
+            raise
 
     @classmethod
     def create_empty(
@@ -129,21 +138,32 @@ class MMapBuffer(AbstractImageBuffer):
         auto_remove: bool | None = None,
     ) -> MMapBuffer:
         """Aloca um buffer de memória mapeada com formato e dimensões predefinidos."""
+        resolved_dtype = np.dtype(dtype)
+        required_bytes = int(np.prod(shape)) * resolved_dtype.itemsize
         is_temp = file_path is None
         if file_path is None:
-            file_path = manager_global.workspace_path / f"mmap_{uuid.uuid4().hex}.raw"
+            file_path = manager_global.get_temp_file_path(required_bytes=required_bytes)
         else:
             file_path = Path(file_path)
+            manager_global.check_disk_space(file_path.parent, required_bytes)
 
         resolved_auto_remove = is_temp if auto_remove is None else auto_remove
 
-        mm = np.memmap(
-            str(file_path),
-            dtype=dtype,
-            mode="w+",
-            shape=shape,
-        )
-        return cls(mm, file_path=file_path, auto_remove=resolved_auto_remove)
+        try:
+            mm = np.memmap(
+                str(file_path),
+                dtype=resolved_dtype,
+                mode="w+",
+                shape=shape,
+            )
+            return cls(mm, file_path=file_path, auto_remove=resolved_auto_remove)
+        except BaseException:
+            if resolved_auto_remove and file_path.exists():
+                try:
+                    file_path.unlink(missing_ok=True)
+                except Exception:
+                    pass
+            raise
 
     @classmethod
     def open_existing(

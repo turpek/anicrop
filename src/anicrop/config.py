@@ -10,6 +10,7 @@ if TYPE_CHECKING:
 import numpy as np
 
 from anicrop.io.registry import get_default_backend_name, set_default_backend
+from anicrop.persistence.manager import DEFAULT_MIN_DISK_HEADROOM, manager_global
 
 DEFAULT_MEMORY_THRESHOLD: int = 8192 * 8192  # 64 MP (8K x 8K)
 DEFAULT_BACKEND: str = "opencv"
@@ -110,6 +111,19 @@ class Config:
             )
         self._solid_fill_threshold = int(value)
 
+    @property
+    def min_disk_headroom(self) -> int:
+        """Margem de segurança mínima em bytes no disco antes de rejeitar novas alocações."""
+        return manager_global.min_disk_headroom
+
+    @min_disk_headroom.setter
+    def min_disk_headroom(self, value: int) -> None:
+        if not isinstance(value, (int, np.integer)) or value < 0:
+            raise ValueError(
+                f"min_disk_headroom deve ser um inteiro não-negativo, recebeu: {value}"
+            )
+        manager_global.min_disk_headroom = int(value)
+
     def reset(self) -> None:
         """Restaura todas as configurações para seus valores padrão de fábrica."""
         self.backend = DEFAULT_BACKEND
@@ -117,6 +131,7 @@ class Config:
         self._dtype = DEFAULT_DTYPE
         self._hard_mask_threshold = DEFAULT_HARD_MASK_THRESHOLD
         self._solid_fill_threshold = DEFAULT_SOLID_FILL_THRESHOLD
+        self.min_disk_headroom = DEFAULT_MIN_DISK_HEADROOM
 
     @contextmanager
     def __call__(self, **kwargs: Any) -> Generator[Config, None, None]:

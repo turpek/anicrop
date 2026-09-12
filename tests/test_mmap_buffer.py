@@ -1,5 +1,6 @@
 import gc
 from pathlib import Path
+from unittest.mock import MagicMock, patch
 
 import numpy as np
 import pytest
@@ -126,3 +127,65 @@ def test_mmap_buffer_open_existing_never_removes(tmp_path: Path):
     gc.collect()
 
     assert target_path.exists()
+
+
+def test_mmap_buffer_create_empty_raises_when_insufficient_space(tmp_path: Path):
+    """Valida que create_empty lanca OSError preventivo e nao cria arquivo quando falta espaco."""
+    target_path = tmp_path / "too_big.raw"
+    mock_usage = MagicMock(free=10 * 1024 * 1024)
+
+    with patch("shutil.disk_usage", return_value=mock_usage):
+        with pytest.raises(OSError, match="Espaço insuficiente em disco"):
+            MMapBuffer.create_empty((10000, 10000, 4), dtype=np.uint8, file_path=target_path)
+
+    assert not target_path.exists()
+
+
+def test_mmap_buffer_from_array_raises_when_insufficient_space(tmp_path: Path):
+    """Valida que from_array lanca OSError preventivo e nao grava quando o espaco e insuficiente."""
+    target_path = tmp_path / "too_big_arr.raw"
+    arr = np.zeros((100, 100, 4), dtype=np.uint8)
+    mock_usage = MagicMock(free=1024)
+
+    with patch("shutil.disk_usage", return_value=mock_usage):
+        with pytest.raises(OSError, match="Espaço insuficiente em disco"):
+            MMapBuffer.from_array(arr, file_path=target_path)
+
+    assert not target_path.exists()
+
+
+def test_mmap_buffer_create_empty_cleans_up_on_np_memmap_failure():
+    """Valida que arquivos residuais sao removidos imediatamente se np.memmap falhar durante criacao."""
+    created_paths = []
+
+    def fail_memmap(*args, **kwargs):
+        path = Path(args[0])
+        created_paths.append(path)
+        path.write_bytes(b"corrupted_partial")
+        raise OSError(122, "Disk quota exceeded")
+
+    with patch("numpy.memmap", side_effect=fail_memmap):
+        with pytest.raises(OSError, match="Disk quota exceeded"):
+            MMapBuffer.create_empty((50, 50, 4), dtype=np.uint8)
+
+    assert len(created_paths) == 1
+    assert not created_paths[0].exists()
+
+
+def test_mmap_buffer_from_array_cleans_up_on_np_memmap_failure():
+    """Valida que arquivos temporarios de from_array sao expurgados se np.memmap falhar."""
+    created_paths = []
+
+    def fail_memmap(*args, **kwargs):
+        path = Path(args[0])
+        created_paths.append(path)
+        path.write_bytes(b"corrupted_partial")
+        raise OSError(122, "Disk quota exceeded")
+
+    arr = np.zeros((20, 20, 4), dtype=np.uint8)
+    with patch("numpy.memmap", side_effect=fail_memmap):
+        with pytest.raises(OSError, match="Disk quota exceeded"):
+            MMapBuffer.from_array(arr)
+
+    assert len(created_paths) == 1
+    assert not created_paths[0].exists()

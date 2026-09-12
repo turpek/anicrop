@@ -108,3 +108,32 @@ def test_config_integration_with_image_new():
     with config(memory_threshold=None):
         img2 = Image.new((2000, 2000), ImageFormat.RGBA)
         assert isinstance(img2._data, ArrayBuffer)
+
+
+def test_config_min_disk_headroom_default():
+    """Valida o valor padrao da margem de seguranca de disco min_disk_headroom."""
+    assert config.min_disk_headroom == 128 * 1024 * 1024
+
+
+def test_config_set_min_disk_headroom():
+    """Valida a alteracao manual da margem de seguranca de disco min_disk_headroom."""
+    config.min_disk_headroom = 256 * 1024 * 1024
+
+    assert config.min_disk_headroom == 256 * 1024 * 1024
+
+
+@pytest.mark.parametrize("invalid_val", [-1, "invalido"], ids=["negative", "type_error"])
+def test_config_set_min_disk_headroom_invalid_raises_error(invalid_val):
+    """Valida que valores negativos ou tipos invalidos lancam ValueError."""
+    with pytest.raises(ValueError, match="min_disk_headroom deve ser um inteiro não-negativo"):
+        config.min_disk_headroom = invalid_val  # type: ignore[assignment]
+
+
+def test_config_context_manager_min_disk_headroom():
+    """Valida a alteracao temporaria de min_disk_headroom dentro do context manager."""
+    initial_headroom = config.min_disk_headroom
+
+    with config(min_disk_headroom=64 * 1024 * 1024):
+        assert config.min_disk_headroom == 64 * 1024 * 1024
+
+    assert config.min_disk_headroom == initial_headroom

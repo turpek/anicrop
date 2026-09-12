@@ -1,4 +1,7 @@
-from unittest.mock import patch
+import os
+import shutil
+from pathlib import Path
+from unittest.mock import MagicMock, patch
 
 import numpy as np
 import pytest
@@ -72,6 +75,80 @@ def test_manager_idempotent_deletion():
         manager.delete_array("id_que_nao_existe.npy")
     finally:
         manager.cleanup_session()
+
+
+def test_manager_stale_cleanup_removes_dead_process_directories(tmp_path: Path):
+    """Valida que diretorios temporarios de processos finalizados sao removidos na inicializacao."""
+    base_dir = tmp_path / "temp_shm"
+    base_dir.mkdir()
+    dead_dir = base_dir / "anicrop_scratch_9999999_dead_uuid"
+    dead_dir.mkdir()
+    (dead_dir / "test.raw").write_bytes(b"dummy")
+
+    manager = ScratchDiskManager(base_dir=base_dir)
+    assert not dead_dir.exists()
+    manager.cleanup_session()
+
+
+def test_manager_stale_cleanup_preserves_alive_process_directories(tmp_path: Path):
+    """Valida que diretorios temporarios de processos ativos sao preservados na inicializacao."""
+    base_dir = tmp_path / "temp_shm"
+    base_dir.mkdir()
+    alive_dir = base_dir / f"anicrop_scratch_{os.getpid()}_alive_uuid"
+    alive_dir.mkdir()
+    (alive_dir / "test.raw").write_bytes(b"active")
+
+    manager = ScratchDiskManager(base_dir=base_dir)
+    assert alive_dir.exists()
+    manager.cleanup_session()
+    shutil.rmtree(alive_dir, ignore_errors=True)
+
+
+def test_manager_check_disk_space_raises_on_insufficient_space(tmp_path: Path):
+    """Valida que check_disk_space lanca OSError quando o espaco livre e insuficiente."""
+    manager = ScratchDiskManager(base_dir=tmp_path)
+    mock_usage = MagicMock(free=100 * 1024 * 1024)
+
+    with patch("shutil.disk_usage", return_value=mock_usage):
+        with pytest.raises(OSError, match="Espaço insuficiente em disco"):
+            manager.check_disk_space(
+                tmp_path,
+                required_bytes=10 * 1024 * 1024,
+                headroom_bytes=128 * 1024 * 1024,
+            )
+    manager.cleanup_session()
+
+
+def test_manager_get_temp_file_path_tiered_fallback(tmp_path: Path):
+    """Valida que get_temp_file_path recorre ao disco secundario quando a memoria compartilhada e pequena."""
+    primary_dir = tmp_path / "primary_shm"
+    primary_dir.mkdir()
+    manager = ScratchDiskManager(base_dir=primary_dir)
+
+    workspace_str = str(manager.workspace_path)
+    lookup = {
+        workspace_str: MagicMock(free=50 * 1024 * 1024),
+    }
+    fallback_usage = MagicMock(free=2 * 1024 * 1024 * 1024)
+
+    with patch("shutil.disk_usage", side_effect=lambda p: lookup.get(str(p), fallback_usage)):
+        temp_file = manager.get_temp_file_path(required_bytes=200 * 1024 * 1024)
+
+    assert "anicrop_scratch_disk_" in str(temp_file.parent)
+    assert manager._disk_fallback_dir is not None
+    manager.cleanup_session()
+    assert manager._disk_fallback_dir is None
+
+
+def test_manager_get_temp_file_path_raises_when_all_targets_exhausted(tmp_path: Path):
+    """Valida que get_temp_file_path lanca OSError preventivo quando nenhum dispositivo tem espaco."""
+    manager = ScratchDiskManager(base_dir=tmp_path)
+    mock_usage = MagicMock(free=10 * 1024 * 1024)
+
+    with patch("shutil.disk_usage", return_value=mock_usage):
+        with pytest.raises(OSError, match="Espaço insuficiente em disco"):
+            manager.get_temp_file_path(required_bytes=500 * 1024 * 1024)
+    manager.cleanup_session()
 
 
 # --- Tests for NdarrayToken ---
