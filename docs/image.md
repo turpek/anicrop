@@ -156,20 +156,30 @@ import numpy as np
 # Consulta as configurações atuais:
 print(anicrop.config.backend)  # Padrão: "opencv" (ou "vips")
 print(anicrop.config.memory_threshold)  # Padrão: 67108864 pixels (64 MP)
+print(anicrop.config.min_disk_headroom)  # Padrão: 134217728 bytes (128 MB)
 print(anicrop.config.dtype)  # Padrão: np.uint8
 
 # 1. Configuração permanente no script:
 anicrop.config.backend = "vips"  # Chaveia para o Pyvips
 anicrop.config.memory_threshold = None  # Desativa paginação em disco (100% RAM pura)
+anicrop.config.min_disk_headroom = 256 * 1024 * 1024  # Margem mínima de segurança de 256 MB no disco
 anicrop.config.dtype = np.uint16  # Opera pipelines com precisão de 16-bit por padrão
 
 # 2. Configuração temporária e segura via Context Manager (com restauração automática ao sair):
-with anicrop.config(backend="vips", memory_threshold=None, dtype=np.uint16):
+with anicrop.config(backend="vips", memory_threshold=None, min_disk_headroom=64 * 1024 * 1024, dtype=np.uint16):
     img = anicrop.Image.open("frame_16bit.png")
     # ... processamento de alta precisão ...
 
-# Fora do bloco, backend, threshold e dtype voltam automaticamente aos valores anteriores!
+# Fora do bloco, backend, threshold, headroom e dtype voltam automaticamente aos valores anteriores!
 ```
+
+### 2.4. Alocação Tiered e Checagem Preventiva de Disco
+Ao criar instâncias de `MMapBuffer` (quando uma imagem excede `config.memory_threshold`), o motor realiza:
+- **Checagem Preventiva de Espaço**: Valida previamente se o diretório de destino possui espaço livre suficiente para conter o buffer acrescido da margem de segurança configurada (`config.min_disk_headroom`, padrão 128 MB). Caso não haja espaço, levanta um `OSError` explicativo antes de tentar qualquer alocação.
+- **Armazenamento Escalonado (*Tiered Fallback*)**: Se a memória compartilhada de alta performance (`/dev/shm`) estiver sem espaço suficiente, o motor transita automaticamente para o diretório de arquivos temporários do disco (`tempfile.gettempdir()`).
+- **Autolimpeza de Diretórios Órfãos**: Na inicialização de uma nova sessão de scratch, diretórios temporários residuais deixados por processos anteriores que foram abortados ou terminados abruptamente (`SIGKILL` / OOM Killer) são detectados e limpos automaticamente.
+- **Rollback Imediato em Caso de Falha**: Se `np.memmap` falhar por qualquer motivo (como `Disk quota exceeded`), o arquivo temporário parcial é imediatamente excluído do disco.
+
 
 
 ---

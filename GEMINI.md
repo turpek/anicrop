@@ -237,6 +237,13 @@ Para detalhes de métodos, tipos de retorno e exemplos de uso de cada classe, co
   - **Desalocação Imediata em `ScratchBuffer`:** Ao expandir dimensões ou alternar formato/dtype em `ScratchBuffer._ensure_allocated`, a instância anterior de `self._image` é explicitamente fechada via `close()`, liberando o arquivo em disco imediatamente sem aguardar a passagem do coletor de lixo.
   - **Método `close()` e Gerenciadores de Contexto:** Classes de topo e contêineres (`Image`, `Document`, `Layer`, `GroupLayer`, `EditLayer`, `ScratchBuffer`) expõem o método determinístico `close()` e suporte a context manager (`with Document(...) as doc:`, `with Image(...) as img:`).
 
+- **Checagem Preventiva de Disco e Armazenamento Escalonado (Tiered Storage & Fallback):**
+  - **Checagem Preventiva de Espaço (`check_disk_space`):** Antes de alocar qualquer buffer mapeado em disco (`MMapBuffer.from_array`, `MMapBuffer.create_empty`), o motor calcula os bytes necessários mais a margem de segurança configurável (`config.min_disk_headroom`, padrão 128 MB) e valida via `shutil.disk_usage`. Se o espaço for insuficiente, levanta preventivamente um `OSError` claro e detalhado antes que o sistema operacional encerre o processo ou ocorra saturação de disco.
+  - **Fallback Escalonado (`/dev/shm` -> disco `/tmp`):** Em `manager_global.get_temp_file_path`, se a memória compartilhada de alta performance (`/dev/shm`) não puder acomodar o tamanho requisitado, o motor transita automaticamente para o armazenamento temporário do sistema de arquivos (`tempfile.gettempdir()`), retornando ao caller um caminho válido sem falhas desnecessárias se o disco possuir espaço livre.
+  - **Autolimpeza de Workspaces Órfãos (`_cleanup_stale_workspaces`):** Na inicialização do `ScratchDiskManager`, o diretório base é varrido procurando por pastas temporárias `anicrop_scratch_<pid>_*`. Para cada pasta de um PID inativo (processos finalizados ou mortos via `SIGKILL` / OOM Killer), a árvore é expurgada automaticamente sem deixar arquivos residuais no sistema operacional.
+  - **Rollback Imediato em Exceção:** Caso `np.memmap` falhe durante a inicialização (ex: cota excedida), blocos `try ... except BaseException` em `from_array` e `create_empty` removem imediatamente o arquivo parcial criado antes de repassar a exceção.
+
+
 
 
 
