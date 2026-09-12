@@ -159,8 +159,9 @@ Para detalhes de métodos, tipos de retorno e exemplos de uso de cada classe, co
   - **Indexação Direta e Micro-Snapshots:** `Mask` suporta mutação atômica via slices e `Region` (`mask[key] = data`), roteadas através do `ProxyMask` para `MaskCommand` com `MaskImageSnapshot` e `MaskStateSnapshot` gerenciando Undo/Redo com pegada mínima de memória.
 
 - **Arquitetura de Efeitos e Filtros (`Effect`, `BoundEffect`, `BlurFilter`):**
-  - **Protocolo `Effect` Puro (3 métodos):** `get_padding()`, `apply(image, matrix)` e `merge(other, matrix)`. Sem `prepare` e sem estado espacial interno (`self.matrix`).
-  - **Envelope `BoundEffect`:** Ancla o efeito puro à matriz inversa da camada (`matrix`), calcula a matriz delta combinada no render ($\Delta M = M_{\text{render}} \cdot M_{\text{base\_inv}}$), modula por máscara opcional (`mask`) e controla visibilidade (`visible`).
+  - **Classe Abstrata Base `Effect(ABC)`:** Interface formal com `@abstractmethod` (`get_padding`, `apply`, `merge`) e atributos concretos `visible: bool = True` e `name: str = "Effect"`.
+  - **Isolamento de Buffer no Render (`has_active_post_processing`):** A função `has_active_post_processing(layer: BaseLayer) -> bool` avalia se há efeitos visíveis ou máscara visível ativa. No renderizador (`_render_single_edit`), o Fast-Path 1 isola o buffer com `edit_image.crop()` quando ativo, prevenindo que mutações in-place em efeitos ou pós-processamento corrompam permanentemente a imagem original em memória.
+  - **Envelope `BoundEffect`:** Ancla o efeito puro à matriz inversa da camada (`matrix`), calcula a matriz delta combinada no render ($\Delta M = M_{\text{render}} \cdot M_{\text{base\_inv}}$), modula por máscara opcional (`mask`) e herda visibilidade (`visible`).
   - **`BlurFilter` Anisotrópico:** Implementa desfoque Gaussiano/Box com fusão matemática exata de tensores de covariância 2D ($\Sigma_{\text{total}} = \Sigma_1 + \Sigma_2$).
   - **API em `BaseLayer`:** `add_effect` (livre), `bind_effect` (ancorado com matriz inversa), `remove_effect` e `@property effects -> tuple[Effect, ...]`.
 

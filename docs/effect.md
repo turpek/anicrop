@@ -34,31 +34,36 @@ No `anicrop`, o pós-processamento gráfico é dividido em três pilares:
                   └──────────────────────────────────────────────┘
 ```
 
-1. **Protocolo Puro (`Effect`)**: Classes sem acoplamento à camada, responsáveis estritamente pelo algoritmo de processamento de pixels.
+1. **Classe Abstrata Base (`Effect`)**: Classes herdando de `Effect(ABC)`, com controle de visibilidade (`visible`), nome (`name`) e métodos abstratos para processamento de pixels.
 2. **Envelope Geométrico (`BoundEffect`)**: Ancara um `Effect` à matriz espacial da camada e gerencia visibilidade e modulação por máscara.
 3. **Gerenciamento na Camada (`BaseLayer`)**: Fila sequencial de efeitos (`layer.effects`), acessível tanto em camadas folha (`Layer`) quanto em grupos aninhados (`GroupLayer`).
 
 ---
 
-## 2. O Protocolo `Effect` (`anicrop.effect.Effect`)
+## 2. A Classe Base Abstrata `Effect` (`anicrop.effect.Effect`)
 
-Qualquer classe que implemente a interface `Effect` pode ser adicionada diretamente a uma camada. O protocolo é checável em tempo de execução via `@runtime_checkable`:
+Qualquer efeito no `anicrop` herda da classe abstrata `Effect`, fornecendo controle padronizado de visibilidade (`visible`), nome identificador (`name`) e contratos para cálculo de padding, aplicação e fusão analítica:
 
 ```python
-from typing import Protocol, runtime_checkable
+from abc import ABC, abstractmethod
 import numpy as np
 from anicrop.image import Image
 
-@runtime_checkable
-class Effect(Protocol):
+class Effect(ABC):
+    def __init__(self, visible: bool = True, name: str = "Effect"):
+        self.visible = visible
+        self.name = name
+
+    @abstractmethod
     def get_padding(self) -> tuple[int, int, int, int]:
         """Retorna a margem extra (top, right, bottom, left) em pixels.
         
         Necessária para efeitos que expandem além da borda original da camada
         (como sombras projetadas, brilho externo ou desfoque gaussiano).
         """
-        ...
+        pass
 
+    @abstractmethod
     def apply(self, image: Image, matrix: np.ndarray) -> Image:
         """Processa e transforma o buffer de imagem recebendo a matriz afim ativa.
         
@@ -67,14 +72,15 @@ class Effect(Protocol):
             matrix: Matriz afim 3x3 no espaço de renderização para adaptar
                     direção, rotação ou escala do efeito.
         """
-        ...
+        pass
 
+    @abstractmethod
     def merge(self, other: Effect, matrix: np.ndarray) -> Effect | None:
         """Tenta combinar analiticamente este efeito com outro para otimização.
         
         Retorna uma nova instância combinada ou None caso não seja possível fundir.
         """
-        ...
+        pass
 ```
 
 ---
@@ -158,7 +164,7 @@ layer.clear_effects()
 
 ## 6. Criação de Efeitos Customizados
 
-Criar novos efeitos para o `anicrop` é direto e exige apenas satisfazer o protocolo `Effect`:
+Criar novos efeitos para o `anicrop` é direto: basta herdar da classe `Effect`, chamar `super().__init__(visible=visible, name=name)` e implementar os métodos obrigatórios:
 
 ### Exemplo: Filtro de Ajuste de Brilho e Contraste
 
@@ -168,10 +174,17 @@ import numpy as np
 from anicrop.effect import Effect
 from anicrop.image import Image
 
-class BrightnessContrastEffect:
+class BrightnessContrastEffect(Effect):
     """Ajusta o brilho e contraste da camada de forma não-destrutiva."""
 
-    def __init__(self, brightness: float = 0.0, contrast: float = 1.0):
+    def __init__(
+        self,
+        brightness: float = 0.0,
+        contrast: float = 1.0,
+        visible: bool = True,
+        name: str = "BrightnessContrast",
+    ):
+        super().__init__(visible=visible, name=name)
         self.brightness = brightness  # Deslocamento [-255, 255]
         self.contrast = contrast      # Multiplicador [0.0, ...]
 
@@ -194,7 +207,9 @@ class BrightnessContrastEffect:
             # Combinação matemática simples de dois ajustes lineares
             new_contrast = self.contrast * other.contrast
             new_brightness = self.brightness * other.contrast + other.brightness
-            return BrightnessContrastEffect(new_brightness, new_contrast)
+            return BrightnessContrastEffect(
+                new_brightness, new_contrast, visible=self.visible, name=self.name
+            )
         return None
 
 # Uso na camada:
@@ -204,12 +219,16 @@ layer.add_effect(effect)
 
 ---
 
-## 7. Pipeline de Execução durante a Renderização
+## 7. Pipeline de Execução e Isolamento de Buffer durante a Renderização
 
 Durante o `CanvasRender` ou `ViewportRender`:
 
-1. O renderizador rasteriza o conteúdo básico da camada (`render_edit` ou achatamento de patches).
-2. Se houver efeitos ou máscara associados, aciona `render_post_processing`:
-   - Itera por cada `effect` em `layer.effects` chamando `effect.apply(image, frame.matrix)`.
-   - Se houver `layer.mask`, rasteriza e modula o canal de opacidade da camada com `base.mask.apply_modulation`.
-3. O resultado pós-processado é então mesclado no buffer de destino com a opacidade e modo de mesclagem (`blend_mode`) da camada.
+1. **Detecção de Pós-Processamento Ativo (`has_active_post_processing`):**
+   - O renderizador avalia se a camada possui ao menos um `effect` com `visible is True` ou uma `mask` com `visible is True`.
+2. **Isolamento de Buffer Não-Destrutivo:**
+   - No Fast-Path 1 de renderização (quando uma camada não possui distorção de escala/rotação e cobre 100% do frame), se houver pós-processamento ativo, o renderizador desvincula os dados físicos chamando `edit_image.crop()`.
+   - Isso garante imunidade absoluta: mesmo se um efeito customizado ou filtro alterar canais in-place (como `image[..., -1] = 0`), a imagem original persistida no `EditLayer` permanece 100% intacta para renderizações subsequentes.
+3. **Pós-Processamento (`apply_post_processing`):**
+   - Itera pelos efeitos ativos (`effect.visible is True`) chamando `effect.apply(image, frame.matrix)`.
+   - Se houver máscara ativa (`base.mask.visible is True`), rasteriza e modula o canal de opacidade da camada com `base.mask.apply_modulation`.
+4. O resultado pós-processado é então mesclado no buffer de destino com a opacidade e modo de mesclagem (`blend_mode`) da camada.
