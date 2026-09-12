@@ -231,6 +231,12 @@ Para detalhes de métodos, tipos de retorno e exemplos de uso de cada classe, co
 - **Limpeza Espacial com Preservação de Cor (`Image.clear_rect` & `alpha_only`):**
   - **Preservação de Straight Alpha:** O método `Image.clear_rect` aceita o parâmetro `alpha_only: bool = False`. Quando `True` e a imagem possui canal alfa (`self.has_alpha is True`), preenche exclusivamente o canal alfa (`channel = -1`), mantendo as cores RGB intactas e imunes à formação de franjas pretas (*dark halo*) em transformações afins subsequentes. Em imagens sem alfa (`RGB`, `GRAY`), aplica fallback natural preenchendo todos os canais com `fill_value`.
 
+- **Ciclo de Vida e Desalocação Automática de Disco (`MMapBuffer`, `ScratchBuffer`, `Image` e `Document`):**
+  - **Finalização Automática via `weakref.finalize`:** `MMapBuffer` registra um finalizador desacoplado que executa `file_path.unlink(missing_ok=True)` no exato instante em que o objeto é coletado pelo Garbage Collector do Python, eliminando vazamentos de arquivos temporários (`mmap_<uuid>.raw`) em `/dev/shm` ou tmpfs durante execuções de longa duração.
+  - **Proteção de Arquivos de Usuários (`auto_remove`):** A flag `auto_remove` é ativada (`True`) exclusivamente para arquivos temporários gerenciados pelo `anicrop` (`manager_global.workspace_path`). Arquivos abertos via `MMapBuffer.open_existing` ou com caminhos explícitos de persistência fornecidos pelo usuário mantêm `auto_remove=False`, impedindo deleções indesejadas de arquivos externos.
+  - **Desalocação Imediata em `ScratchBuffer`:** Ao expandir dimensões ou alternar formato/dtype em `ScratchBuffer._ensure_allocated`, a instância anterior de `self._image` é explicitamente fechada via `close()`, liberando o arquivo em disco imediatamente sem aguardar a passagem do coletor de lixo.
+  - **Método `close()` e Gerenciadores de Contexto:** Classes de topo e contêineres (`Image`, `Document`, `Layer`, `GroupLayer`, `EditLayer`, `ScratchBuffer`) expõem o método determinístico `close()` e suporte a context manager (`with Document(...) as doc:`, `with Image(...) as img:`).
+
 
 
 

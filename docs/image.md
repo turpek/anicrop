@@ -66,6 +66,22 @@ A classe `Image` garante a integridade dos dados de imagem (validação de forma
 - **Retorno**: `np.ndarray` — Matriz NumPy pronta para o OpenCV.
 
 
+#### `close() -> None`
+- **Descrição**: Fecha e libera os descritores e arquivos de disco associados ao buffer subjacente (`MMapBuffer`). Permite liberação determinística de recursos do sistema operacional sem depender exclusivamente do Garbage Collector do Python. Suporta o protocolo de gerenciador de contexto `with Image(...) as img:`.
+- **Exemplo de Uso**:
+  ```python
+  # Uso explícito:
+  img = Image.new((9000, 9000), ImageFormat.RGBA)
+  # ... uso dos pixels ...
+  img.close()  # Remove imediatamente o arquivo temporário .raw de /dev/shm
+
+  # Uso idiomático via context manager:
+  with Image.new((9000, 9000), ImageFormat.RGBA) as img:
+      # arquivo .raw existe em disco durante o bloco
+      pass
+  # arquivo .raw é desalocado e removido automaticamente ao sair do bloco
+  ```
+
 #### `to_format(target_format: ImageFormat) -> Image`
 - **Descrição**: Converte a imagem para o formato de canais e espaço de cores especificado (`RGBA`, `PRGBA`, `RGBX`, `RGB`, `GRAY`, `GRAY_ALPHA`) utilizando a tabela de despacho de estratégias de conversão do módulo `anicrop.color`.
 - **Parâmetros**:
@@ -208,14 +224,15 @@ O `ScratchBuffer` (que implementa `AbstractScratchBuffer`) é um buffer volátil
    Configurar o buffer via `configure(size, fmt, dtype)` apenas registra as dimensões pretendidas. O array NumPy só é efetivamente alocado quando o método `__getitem__` for chamado com uma `Region`.
 2. **Reutilização Zero-Copy:**
    Se uma operação subsequente solicitar dimensões menores ou iguais às já alocadas (e mantiver o mesmo `ImageFormat` e `dtype`), o buffer reaproveita exatamente o mesmo bloco de memória contíguo na RAM, retornando um *slice* sem custo de realocação.
-3. **Crescimento Amortizado ($1.5\times$):**
-   Quando dimensões maiores são necessárias, a capacidade interna é expandida multiplicando a dimensão anterior por um fator de $1.5\times$, minimizando a ocorrência de realocações sucessivas.
+3. **Crescimento Amortizado ($1.5\times$) e Limpeza de Buffers Antigos:**
+   Quando dimensões maiores ou formatos diferentes são necessários, a capacidade interna é expandida multiplicando a dimensão anterior por um fator de $1.5\times$. Se o buffer anterior utilizava memória mapeada em disco (`MMapBuffer`), o buffer anterior é explicitamente fechado (`close()`) antes da nova alocação, garantindo a eliminação imediata de arquivos temporários órfãos em `/dev/shm`.
 4. **Ciclo de Vida da Flag `was_used`:**
    A propriedade `buf.was_used` é inicializada como `False`, vira `True` ao acessar fatias de memória e reseta automaticamente a cada nova chamada de `buf.configure()`.
 
 ### 4.2. API do `ScratchBuffer`
 - `configure(size: tuple[float, float], fmt: ImageFormat = ImageFormat.RGBA, dtype: Any = np.uint8) -> ScratchBuffer`: Define os requisitos de geometria e formato para o próximo acesso. Retorna o próprio buffer.
 - `__getitem__(region: Region) -> np.ndarray`: Garante a alocação e retorna o slice contíguo como `numpy.ndarray`.
+- `close() -> None`: Fecha e descarta a imagem alocada liberando imediatamente os arquivos de disco ou memória associados.
 - `@property was_used -> bool`: Indica se houve acesso à memória desde o último `configure`.
 
 ### 4.3. Exemplo de Uso
