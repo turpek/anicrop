@@ -1,16 +1,18 @@
 import numpy as np
 
+from anicrop.canvas import Canvas
 from anicrop.effect import BoundEffect, Effect
 from anicrop.enums import ImageFormat
 from anicrop.image import Image
 from anicrop.layer import Layer
 from anicrop.mask import Mask
+from anicrop.render import CanvasRender, has_active_post_processing
 from anicrop.spatial import Region
 from anicrop.transform import mat_global
 
 
-class DummyEffect:
-    """Implementação mock de efeito para teste de conformidade de protocolo."""
+class DummyEffect(Effect):
+    """Implementação mock de efeito para teste de conformidade de ABC."""
 
     def get_padding(self) -> tuple[int, int, int, int]:
         return (5, 5, 5, 5)
@@ -22,14 +24,16 @@ class DummyEffect:
         return None
 
 
-def test_effect_protocol_runtime_checkable():
-    """Valida se classes compatíveis atendem ao protocolo Effect em tempo de execução."""
+def test_effect_abc_instance():
+    """Valida se classes concretas herdando de Effect são instâncias válidas de Effect."""
     dummy = DummyEffect()
     assert isinstance(dummy, Effect)
+    assert dummy.visible is True
+    assert dummy.name == "Effect"
 
 
 def test_mask_satisfies_effect_protocol():
-    """Valida se a classe Mask atende formalmente ao protocolo Effect."""
+    """Valida se a classe Mask atende formalmente à classe abstrata Effect."""
     mask_img = Image(np.zeros((10, 10, 1), dtype=np.uint8), ImageFormat.GRAY)
     mask = Mask(mask_img, Region.from_size(10, 10), np.identity(3, dtype=np.float32))
     assert isinstance(mask, Effect)
@@ -97,3 +101,59 @@ def test_base_layer_add_and_remove_effect():
 
     layer.clear_effects()
     assert len(layer.effects) == 0
+
+
+def test_has_active_post_processing_detection():
+    """Valida o cálculo de has_active_post_processing considerando visibilidade de efeitos."""
+    layer = Layer(Image(np.zeros((20, 20, 4), dtype=np.uint8), ImageFormat.RGBA))
+    assert has_active_post_processing(layer) is False
+
+    effect_hidden = DummyEffect(visible=False)
+    layer.add_effect(effect_hidden)
+    assert has_active_post_processing(layer) is False
+
+    layer.clear_effects()
+    effect_visible = DummyEffect(visible=True)
+    layer.add_effect(effect_visible)
+    assert has_active_post_processing(layer) is True
+
+
+def test_has_active_post_processing_mask_visibility():
+    """Valida que máscara só ativa has_active_post_processing se visible for True."""
+    layer = Layer(Image(np.zeros((20, 20, 4), dtype=np.uint8), ImageFormat.RGBA))
+    mask_img = Image(np.zeros((20, 20, 1), dtype=np.uint8), ImageFormat.GRAY)
+    mask = layer.set_mask(mask_img, Region.from_size(20, 20), visible=False)
+    assert has_active_post_processing(layer) is False
+
+    mask.visible = True
+    assert has_active_post_processing(layer) is True
+
+
+def test_render_layer_isolates_buffer_against_in_place_effect_mutation():
+    """Valida que efeitos com mutação in-place não corrompem a imagem original do EditLayer."""
+    class MutatingCutEffect(Effect):
+        def get_padding(self) -> tuple[int, int, int, int]:
+            return (0, 0, 0, 0)
+
+        def apply(self, image: Image, matrix: np.ndarray) -> Image:
+            image[0:10, 0:10, -1] = 0
+            return image
+
+        def merge(self, other: Effect, matrix: np.ndarray) -> Effect | None:
+            return None
+
+    arr = np.full((30, 30, 4), 255, dtype=np.uint8)
+    img = Image(arr, ImageFormat.RGBA)
+    layer = Layer(img)
+    layer.add_effect(MutatingCutEffect())
+
+    canvas = Canvas.from_size(30, 30)
+    renderer = CanvasRender()
+
+    out1 = renderer.render_scene([layer], canvas)
+    assert np.all(out1[0:10, 0:10, 3] == 0)
+    assert np.all(img[0:10, 0:10, 3] == 255)
+
+    out2 = renderer.render_scene([layer], canvas)
+    assert np.all(out2[0:10, 0:10, 3] == 0)
+    assert np.all(img[0:10, 0:10, 3] == 255)

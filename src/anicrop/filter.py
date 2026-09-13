@@ -20,8 +20,10 @@ class BlurFilter(Effect):
         mode: BlurMode = BlurMode.GAUSSIAN,
         affect_alpha: bool = True,
         strength: float = 1.0,
+        visible: bool = True,
         name: str = "BlurFilter",
     ):
+        super().__init__(visible=visible, name=name)
         if isinstance(radius, (tuple, list)):
             self.radius_x = float(radius[0])
             self.radius_y = float(radius[1])
@@ -33,7 +35,6 @@ class BlurFilter(Effect):
         self.mode = mode
         self.affect_alpha = affect_alpha
         self.strength = float(np.clip(strength, 0.0, 1.0))
-        self.name = name
 
     def get_padding(self) -> tuple[int, int, int, int]:
         """Calcula a margem de expansão (top, right, bottom, left) necessária para o desfoque."""

@@ -25,9 +25,10 @@ class Mask(EditLayer, Effect):
         visible: bool = True,
         name: str = "Mask",
     ):
-        super().__init__(image, region, matrix, BlendMode.NORMAL, name)
+        super().__init__(
+            image, region, matrix, BlendMode.NORMAL, name, visible=visible
+        )
         self.invert = invert
-        self.visible = visible
 
     def __getitem__(self, item: Any) -> np.ndarray:
         """Acesso direto à fatia do buffer de imagem da máscara."""
