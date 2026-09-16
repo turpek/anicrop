@@ -417,3 +417,115 @@ def test_clear_rect_inverted_alpha_only():
     assert img[0, 0, 3] == 0
     assert np.all(img[9, 9, :3] == (200, 150, 100))
     assert img[9, 9, 3] == 0
+
+
+@pytest.mark.parametrize(
+    "shape,expected_format",
+    [
+        ((12, 16), ImageFormat.GRAY),
+        ((12, 16, 1), ImageFormat.GRAY),
+        ((12, 16, 2), ImageFormat.GRAY_ALPHA),
+        ((12, 16, 3), ImageFormat.RGB),
+        ((12, 16, 4), ImageFormat.RGBA),
+    ],
+    ids=["2d_gray", "3d_gray", "gray_alpha", "bgr_3ch", "bgra_4ch"],
+)
+def test_from_bgr_auto_detect_format(shape, expected_format):
+    """Valida auto-detecção de formato ao criar Image a partir de arrays OpenCV."""
+    arr = np.zeros(shape, dtype=np.uint8)
+    img = Image.from_bgr(arr)
+
+    assert img.format == expected_format
+    assert img.size == (16, 12)
+
+
+def test_from_bgr_converts_bgr_channels_to_rgb():
+    """Valida se canais BGR são invertidos corretamente para RGB."""
+    bgr = np.zeros((4, 4, 3), dtype=np.uint8)
+    bgr[:, :] = (10, 50, 200)  # B=10, G=50, R=200
+    img = Image.from_bgr(bgr)
+
+    assert img.format == ImageFormat.RGB
+    assert np.all(img[0, 0] == (200, 50, 10))
+
+
+def test_from_bgr_converts_bgra_channels_to_rgba():
+    """Valida se canais BGRA são convertidos corretamente para RGBA com preservação de alfa."""
+    bgra = np.zeros((4, 4, 4), dtype=np.uint8)
+    bgra[:, :] = (15, 60, 220, 180)  # B=15, G=60, R=220, A=180
+    img = Image.from_bgr(bgra)
+
+    assert img.format == ImageFormat.RGBA
+    assert np.all(img[0, 0] == (220, 60, 15, 180))
+
+
+@pytest.mark.parametrize(
+    "src_shape,target_format,expected_channels",
+    [
+        ((8, 8, 3), ImageFormat.RGBA, 4),
+        ((8, 8, 3), ImageFormat.GRAY, 1),
+        ((8, 8, 4), ImageFormat.RGB, 3),
+        ((8, 8, 4), ImageFormat.GRAY, 1),
+        ((8, 8), ImageFormat.RGB, 3),
+        ((8, 8), ImageFormat.RGBA, 4),
+    ],
+    ids=[
+        "bgr_to_rgba",
+        "bgr_to_gray",
+        "bgra_to_rgb",
+        "bgra_to_gray",
+        "gray_to_rgb",
+        "gray_to_rgba",
+    ],
+)
+def test_from_bgr_explicit_target_format(src_shape, target_format, expected_channels):
+    """Valida conversão explícita para target_format a partir de entradas OpenCV."""
+    arr = np.full(src_shape, 100, dtype=np.uint8)
+    img = Image.from_bgr(arr, target_format=target_format)
+
+    assert img.format == target_format
+    assert img.channels == expected_channels
+
+
+@pytest.mark.parametrize(
+    "dtype,expected_alpha",
+    [
+        (np.uint8, 255),
+        (np.uint16, 65535),
+        (np.float32, 1.0),
+    ],
+    ids=["uint8", "uint16", "float32"],
+)
+def test_from_bgr_preserves_dtype_and_scales_alpha(dtype, expected_alpha):
+    """Valida preservação de dtype e escala correta de alfa para uint8, uint16 e float32."""
+    bgr = np.zeros((4, 4, 3), dtype=dtype)
+    img = Image.from_bgr(bgr, target_format=ImageFormat.RGBA)
+
+    assert img.dtype == dtype
+    assert img[0, 0, 3] == expected_alpha
+
+
+def test_from_bgr_roundtrip_with_bgr_method():
+    """Valida se Image.from_bgr e img.bgr realizam ciclo completo sem perda de dados."""
+    original_bgr = np.array([[[12, 34, 56], [78, 90, 123]]], dtype=np.uint8)
+    img = Image.from_bgr(original_bgr)
+    result_bgr = img.bgr()
+
+    np.testing.assert_array_equal(result_bgr, original_bgr)
+
+
+def test_from_bgr_rejects_non_ndarray():
+    """Valida que entradas que não são ndarray disparam TypeError."""
+    with pytest.raises(TypeError, match="image must be an ndarray"):
+        Image.from_bgr([[1, 2], [3, 4]])  # type: ignore[arg-type]
+
+
+@pytest.mark.parametrize(
+    "shape",
+    [(0, 0), (0, 10, 3), (10, 0, 3)],
+    ids=["0x0", "0x10x3", "10x0x3"],
+)
+def test_from_bgr_rejects_zero_dimension(shape):
+    """Valida que matrizes com dimensão zero disparam ValueError."""
+    with pytest.raises(ValueError, match="image dimensions must be greater than zero"):
+        Image.from_bgr(np.zeros(shape, dtype=np.uint8))
