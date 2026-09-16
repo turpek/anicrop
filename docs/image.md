@@ -65,6 +65,33 @@ A classe `Image` garante a integridade dos dados de imagem (validação de forma
   - `region` (`Ellipsis | Region`): A sub-região espacial a ser extraída (padrão `...` para a imagem inteira).
 - **Retorno**: `np.ndarray` — Matriz NumPy pronta para o OpenCV.
 
+#### `from_bgr(data: np.ndarray, target_format: ImageFormat | None = None, threshold_pixels: int | None = ...) -> Image` *(Class Method)*
+- **Descrição**: Construtor de fábrica para injetar diretamente frames do OpenCV (`numpy.ndarray` em BGR, BGRA ou escala de cinza de 1 ou 2 canais) no motor `anicrop`. Realiza a conversão de canais em tempo $O(1)$ para a ordem canônica (`RGB` / `RGBA` / `GRAY`), com suporte a auto-detecção ou conversão explícita para `target_format`. Compatível com múltiplos dtypes (`uint8`, `uint16`, `float32`) e chaveamento transparente para `MMapBuffer` em disco quando o tamanho exceder `threshold_pixels`.
+- **Parâmetros**:
+  - `data` (`np.ndarray`): Matriz NumPy 2D ou 3D no padrão OpenCV (ex: retorno de `cv2.VideoCapture.read()`, `cv2.imread()`).
+  - `target_format` (`ImageFormat | None`): Formato de destino desejado. Se `None`, auto-detecta:
+    - 1 canal (`(H, W)` ou `(H, W, 1)`) $\rightarrow$ `ImageFormat.GRAY`
+    - 2 canais (`(H, W, 2)`) $\rightarrow$ `ImageFormat.GRAY_ALPHA`
+    - 3 canais (`(H, W, 3)` BGR) $\rightarrow$ `ImageFormat.RGB`
+    - 4 canais (`(H, W, 4)` BGRA) $\rightarrow$ `ImageFormat.RGBA`
+  - `threshold_pixels` (`int | None`): Limite de pixels antes de paginar em disco (`MMapBuffer`). Se omitido, herda `config.memory_threshold`.
+- **Retorno**: `Image` — Nova instância pronta para composição, transformações e renderização no `anicrop`.
+- **Exemplo de Uso**:
+  ```python
+  import cv2
+  from anicrop import Image
+  from anicrop.enums import ImageFormat
+
+  ret, frame = cap.read()
+  if ret:
+      # 1. Auto-detecção (BGR -> RGB):
+      img = Image.from_bgr(frame)
+
+      # 2. Conversão explícita para RGBA (com canal alfa preenchido):
+      img_rgba = Image.from_bgr(frame, target_format=ImageFormat.RGBA)
+  ```
+
+
 
 #### `close() -> None`
 - **Descrição**: Fecha e libera os descritores e arquivos de disco associados ao buffer subjacente (`MMapBuffer`). Permite liberação determinística de recursos do sistema operacional sem depender exclusivamente do Garbage Collector do Python. Suporta o protocolo de gerenciador de contexto `with Image(...) as img:`.

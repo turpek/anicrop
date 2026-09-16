@@ -244,6 +244,12 @@ Para detalhes de métodos, tipos de retorno e exemplos de uso de cada classe, co
   - **Autolimpeza de Workspaces Órfãos (`_cleanup_stale_workspaces`):** Na inicialização do `ScratchDiskManager`, o diretório base é varrido procurando por pastas temporárias `anicrop_scratch_<pid>_*`. Para cada pasta de um PID inativo (processos finalizados ou mortos via `SIGKILL` / OOM Killer), a árvore é expurgada automaticamente sem deixar arquivos residuais no sistema operacional.
   - **Rollback Imediato em Exceção:** Caso `np.memmap` falhe durante a inicialização (ex: cota excedida), blocos `try ... except BaseException` em `from_array` e `create_empty` removem imediatamente o arquivo parcial criado antes de repassar a exceção.
 
+- **Injeção Direta de Frames OpenCV (`Image.from_bgr`):**
+  - **Método de Fábrica `@classmethod Image.from_bgr`:** Permite instanciar objetos `Image` diretamente a partir de matrizes NumPy obtidas de pipelines e streams do OpenCV (`cv2.VideoCapture`, `cv2.imread`).
+  - **Auto-Detecção e Mapeamento de Canais:** Detecta automaticamente matrizes 2D/1 canal (`GRAY`), 2 canais (`GRAY_ALPHA`), 3 canais BGR (`RGB`) e 4 canais BGRA (`RGBA`), ou converte diretamente para o formato especificado via `target_format`.
+  - **Suporte Multi-Dtype e Simetria com `.bgr()`:** Compatível com `uint8`, `uint16` e `float32` (escalonando o canal alfa para 255, 65535 ou 1.0) e complementa perfeitamente o método existente `img.bgr()`, formando um ciclo de conversão bidirecional sem perdas.
+
+
 
 
 
