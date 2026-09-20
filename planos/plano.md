@@ -564,6 +564,19 @@ O profiling linha por linha do pipeline de renderização por patch (`warp_patch
 3. **Validação:**
    * Adicionar cenários de teste em `tests/test_render.py` verificando a rotação de imagens `RGB` com `BORDER_REPLICATE` e imagens `RGBA` com `BORDER_CONSTANT`.
 
+---
+
+## ⚡ 28. Sistema de Cache de Camadas com Decorators e Renderização Incremental (`LayerCache`)
+
+* **Plano Detalhado:** Consulte a especificação técnica completa, diagramas e fases de implementação em [planos/sistema_cache_decorators.md](file:///home/gui/python/anicrop/planos/sistema_cache_decorators.md).
+* **Resumo:**
+  1. Criação do método `Layer.background(size, format, dtype)` para municiar o buffer inicial da camada no renderizador (`layer_image`).
+  2. Gerenciador `LayerCache` com context manager cirúrgico `with cache(container):` envolvendo o `traverse` em `render_scene`.
+  3. Decorator `CachedLayerDecorator` que intercepta `background`, `edits` e `effects` apenas dentro do context manager, preservando o contrato original do `Layer` fora do escopo.
+  4. Efeito `CacheEffect` para entrega acelerada da imagem pós-processada na fila `base.effects`.
+  5. Suporte à injeção externa de imagens pré-assadas (`cache.set_baked(layer, image)`), eliminando *workarounds* de matriz inversa no `anifuse`.
+
+
 
 
 
