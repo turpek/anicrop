@@ -1,8 +1,10 @@
 from importlib.metadata import PackageNotFoundError, version
 
+from .cache import LayerCache
 from .config import config
 from .container import GroupLayer
 from .document import Document
+from .effect import DynamicEffect, Effect
 from .enums import BlendMode, ImageFormat
 from .frame import BaseFrame, CanvasFrame, ViewportFrame
 from .image import Image, get_memory_threshold, set_memory_threshold
@@ -16,7 +18,7 @@ from .viewport import Viewport
 try:
     __version__ = version("anicrop")
 except PackageNotFoundError:
-    __version__ = "0.6.4"
+    __version__ = "0.7.0"
 
 __all__ = [
     "__version__",
@@ -29,6 +31,9 @@ __all__ = [
     "Region",
     "Span",
     "Layer",
+    "LayerCache",
+    "Effect",
+    "DynamicEffect",
     "GroupLayer",
     "ScratchBuffer",
     "Image",

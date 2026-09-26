@@ -666,7 +666,7 @@ def test_render_single_edit_full_frame_returns_direct_image():
     frame = CanvasFrame(layer, Canvas.from_size(100, 80))
 
     result = renderer._render_single_edit(
-        layer.edits[0], layer.format, frame, InterpMode.LANCZOS
+        layer.edits[0], layer, frame, InterpMode.LANCZOS
     )
 
     assert result is not None
@@ -688,7 +688,7 @@ def test_render_single_edit_partial_patch_blends_into_layer_image():
     frame = CanvasFrame(layer, Canvas.from_size(100, 100))
 
     result = renderer._render_single_edit(
-        patch_edit, layer.format, frame, InterpMode.LANCZOS
+        patch_edit, layer, frame, InterpMode.LANCZOS
     )
 
     assert result is not None
@@ -728,7 +728,7 @@ def test_render_single_edit_preserves_image_format(fmt, color):
     frame = CanvasFrame(layer, Canvas.from_size(60, 40))
 
     result = renderer._render_single_edit(
-        layer.edits[0], layer.format, frame, InterpMode.LANCZOS
+        layer.edits[0], layer, frame, InterpMode.LANCZOS
     )
 
     assert result is not None
@@ -1118,3 +1118,48 @@ def test_render_scene_harmonizes_rgb_layer_on_bgra_canvas():
     assert result.format == ImageFormat.BGRA
     # Vermelho RGB (255, 0, 0) harmonizado para BGRA deve ter B=0, G=0, R=255, A=255
     np.testing.assert_array_equal(result[5, 5], [0, 0, 255, 255])
+
+
+def test_render_scene_invoca_escopo_do_cache(mocker):
+    """Valida se render_scene invoca o context manager do cache passado no parametro cache."""
+    stack = LayerStack()
+    stack.append(make_layer(w=40, h=40))
+    canvas = Canvas.from_size(50, 50)
+    renderer = CanvasRender()
+
+    mock_cache = mocker.MagicMock()
+    _ = renderer.render_scene(stack, canvas, cache=mock_cache)
+
+    mock_cache.assert_called_once_with(stack)
+    mock_cache.return_value.__enter__.assert_called_once()
+    mock_cache.return_value.__exit__.assert_called_once()
+
+
+def test_render_patch_invoca_escopo_do_cache(mocker):
+    """Valida se render_patch invoca o context manager do cache passado no parametro cache."""
+    stack = LayerStack()
+    stack.append(make_layer(w=40, h=40))
+    canvas = Canvas.from_size(50, 50)
+    renderer = CanvasRender()
+
+    mock_cache = mocker.MagicMock()
+    _ = renderer.render_patch(
+        stack, canvas, Region.from_size(30, 30), cache=mock_cache
+    )
+
+    mock_cache.assert_called_once_with(stack, Region.from_size(30, 30))
+    mock_cache.return_value.__enter__.assert_called_once()
+    mock_cache.return_value.__exit__.assert_called_once()
+
+
+def test_render_container_repassa_parametro_cache(mocker):
+    """Valida se CanvasRender.render_container repassa o parametro cache para render_scene."""
+    layer = make_layer(w=40, h=40)
+    renderer = CanvasRender()
+
+    mock_cache = mocker.MagicMock()
+    _ = renderer.render_container([layer], cache=mock_cache)
+
+    mock_cache.assert_called_once()
+    mock_cache.return_value.__enter__.assert_called_once()
+    mock_cache.return_value.__exit__.assert_called_once()

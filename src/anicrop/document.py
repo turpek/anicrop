@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 from pathlib import Path
-from typing import Any, Iterator, TypeVar, overload
+from typing import TYPE_CHECKING, Any, Iterator, TypeVar, overload
 
 from anicrop.canvas import Canvas
 from anicrop.composition import Combine
@@ -21,6 +21,9 @@ from anicrop.proxy import (
 )
 from anicrop.render import CanvasRender, ViewportRender
 from anicrop.viewport import Viewport
+
+if TYPE_CHECKING:
+    from anicrop.interfaces.cache import AbstractLayerCache
 
 LayerT = TypeVar("LayerT", bound=BaseLayer)
 
@@ -324,12 +327,13 @@ class Document:
         self,
         format: ImageFormat = ImageFormat.RGBA,
         interp: InterpMode = InterpMode.LANCZOS,
+        cache: AbstractLayerCache | None = None,
     ) -> Image:
         """
         Renderiza a composição final no formato especificado e retorna o objeto Image.
         """
         return self._canvas_render.render_scene(
-            self.stack, self.canvas, format=format, interp=interp
+            self.stack, self.canvas, format=format, interp=interp, cache=cache
         )
 
     def preview(
@@ -337,13 +341,14 @@ class Document:
         viewport: Viewport,
         format: ImageFormat = ImageFormat.RGBA,
         interp: InterpMode = InterpMode.LANCZOS,
+        cache: AbstractLayerCache | None = None,
     ) -> Image:
         """
         Gera o Preview para renderizar na interface de usuário via Viewport e retorna um objeto Image.
         """
         viewport.set_canvas(self.canvas)
         return self._viewport_render.render_scene(
-            self.stack, viewport, format=format, interp=interp
+            self.stack, viewport, format=format, interp=interp, cache=cache
         )
 
     def export(

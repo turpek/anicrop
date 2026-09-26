@@ -17,7 +17,7 @@ from anicrop.geometry import LayerGeometry
 from anicrop.image import Image
 from anicrop.interfaces.layer import AbstractLayer
 from anicrop.layout import LayerLayoutStrategy
-from anicrop.spatial import Region, Span
+from anicrop.spatial import Point, Region, Span
 from anicrop.transform import (
     mat_global,
     mat_inverse,
@@ -223,3 +223,12 @@ class Layer(BaseLayer, AbstractLayer):
             edit.close()
         if self._mask is not None:
             self._mask.image.close()
+
+    def background(
+        self,
+        size: tuple[int, int] | tuple[float, float] | Point,
+        format: ImageFormat,
+        dtype: Any = np.uint8,
+    ) -> Image:
+        """Retorna o buffer base para a composição dos edits da camada."""
+        return Image.new(size, format, dtype=dtype)

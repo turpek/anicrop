@@ -1,9 +1,13 @@
 from __future__ import annotations
 
 from abc import ABC
+from contextlib import nullcontext
 from functools import reduce
 from operator import or_
-from typing import Callable, Sequence
+from typing import TYPE_CHECKING, Callable, Sequence
+
+if TYPE_CHECKING:
+    from anicrop.interfaces.cache import AbstractLayerCache
 
 import cv2
 import numpy as np
@@ -564,10 +568,9 @@ class BaseRenderer[FrameT: BaseFrame](ABC):
     def _render_single_edit(
         self,
         edit_layer: EditLayer,
-        layer_format: ImageFormat,
+        layer: Layer,
         plan: BaseFrame,
         interp: InterpMode,
-        isolate: bool = False,
     ) -> Image | None:
         """Renderiza um único edit exatamente 1 vez com reciclagem de buffer e fast-path zero-copy."""
         dst = self._scratch_buffer.configure(
@@ -583,16 +586,16 @@ class BaseRenderer[FrameT: BaseFrame](ABC):
 
         # 1. Fast-Path: Cobre 100% da área da camada sem uso de buffer (Zero-Copy direto de edit.image!)
         if not dst.was_used:
-            return edit_image.crop() if isolate else edit_image
+            return edit_image.crop() if has_active_post_processing(layer) else edit_image
 
         # 2. Fast-Path: Se o resultado cobre 100% da área de destino, desvincula do scratch buffer via crop
         if dst_region.size == plan.dst_region.size:  # type: ignore[union-attr]
             return edit_image.crop()
 
         # 3. Patch com distorção ou parcial: Mescla o resultado já obtido dentro de layer_image
-        layer_image = Image.new(
+        layer_image = layer.background(
             plan.dst_region.size,  # type: ignore[union-attr]
-            layer_format,
+            layer.format,
             dtype=edit_layer.image.dtype,
         )
         edit_layer.blend_into(layer_image, edit_image, dst_region)
@@ -601,15 +604,15 @@ class BaseRenderer[FrameT: BaseFrame](ABC):
     def _flatten_edits(
         self,
         visible_edits: list[EditLayer],
-        layer_format: ImageFormat,
+        layer: Layer,
         plan: BaseFrame,
         interp: InterpMode,
     ) -> Image:
         """Renderiza múltiplos edits compondo sequencialmente no buffer da camada com scratch buffer."""
         target_dtype = visible_edits[0].image.dtype if visible_edits else np.uint8
-        layer_image = Image.new(
+        layer_image = layer.background(
             plan.dst_region.size,  # type: ignore[union-attr]
-            layer_format,
+            layer.format,
             dtype=target_dtype,
         )
         for edit_layer in visible_edits:
@@ -641,15 +644,14 @@ class BaseRenderer[FrameT: BaseFrame](ABC):
         if len(visible_edits) == 1:
             image = self._render_single_edit(
                 visible_edits[0],
-                layer.format,
+                layer,
                 frame,
                 interp,
-                isolate=has_active_post_processing(layer),
             )
             if image is None:
                 image = Image.new(dst_region.size, layer.format)
         else:
-            image = self._flatten_edits(visible_edits, layer.format, frame, interp)
+            image = self._flatten_edits(visible_edits, layer, frame, interp)
 
         image = apply_post_processing(image, layer, frame, interp)
 
@@ -670,24 +672,26 @@ class BaseRenderer[FrameT: BaseFrame](ABC):
         surface: SurfaceProtocol,
         format: ImageFormat = ImageFormat.RGBA,
         interp: InterpMode = InterpMode.LANCZOS,
+        cache: AbstractLayerCache | None = None,
     ) -> Image:
         with freeze_geometry(container):
-            traverser = SceneTraverser(
-                self,
-                surface,
-                self.frame_cls,
-                interp=interp,
-                target_size=self._target_size,
-            )
-            images = traverser.traverse(container)
+            with (cache(container) if cache is not None else nullcontext()):
+                traverser = SceneTraverser(
+                    self,
+                    surface,
+                    self.frame_cls,
+                    interp=interp,
+                    target_size=self._target_size,
+                )
+                images = traverser.traverse(container)
 
-            composition = Image.new(
-                surface.size,
-                format,
-                color=surface.bg_color,
-                dtype=surface.dtype,
-            )
-            return blend_rendered_images(reversed(images), composition)
+                composition = Image.new(
+                    surface.size,
+                    format,
+                    color=surface.bg_color,
+                    dtype=surface.dtype,
+                )
+                return blend_rendered_images(reversed(images), composition)
 
     def render_patch(
         self,
@@ -696,28 +700,30 @@ class BaseRenderer[FrameT: BaseFrame](ABC):
         view_region: Region,
         format: ImageFormat = ImageFormat.RGBA,
         interp: InterpMode = InterpMode.LANCZOS,
+        cache: AbstractLayerCache | None = None,
     ) -> Image | None:
         if not surface.region.overlaps(view_region):
             return None
 
         effective_region = surface.region & view_region
         with freeze_geometry(container):
-            traverser = SceneTraverser(
-                self,
-                surface,
-                self.frame_cls,
-                interp=interp,
-                target_size=self._target_size,
-            )
-            images = traverser.traverse(container, effective_region)
+            with (cache(container, effective_region) if cache is not None else nullcontext()):
+                traverser = SceneTraverser(
+                    self,
+                    surface,
+                    self.frame_cls,
+                    interp=interp,
+                    target_size=self._target_size,
+                )
+                images = traverser.traverse(container, effective_region)
 
-            composition = Image.new(
-                effective_region.size,
-                format,
-                color=surface.bg_color,
-                dtype=surface.dtype,
-            )
-            return blend_rendered_images(reversed(images), composition)
+                composition = Image.new(
+                    effective_region.size,
+                    format,
+                    color=surface.bg_color,
+                    dtype=surface.dtype,
+                )
+                return blend_rendered_images(reversed(images), composition)
 
 
 class CanvasRender(BaseRenderer[CanvasFrame]):
@@ -739,6 +745,7 @@ class CanvasRender(BaseRenderer[CanvasFrame]):
         format: ImageFormat = ImageFormat.RGBA,
         interp: InterpMode = InterpMode.LANCZOS,
         bg_color: tuple[int, ...] | None = None,
+        cache: AbstractLayerCache | None = None,
     ) -> Image | None:
         """Renderiza um contêiner ou sequência de nós (camadas ou grupos) instanciando automaticamente um Canvas
         ajustado à união das regiões globais (global_region) de todos os nós renderizáveis.
@@ -749,7 +756,9 @@ class CanvasRender(BaseRenderer[CanvasFrame]):
 
         roi = reduce(or_, regions)
         canvas = Canvas(roi, bg_color=bg_color)
-        return self.render_scene(container, canvas, format=format, interp=interp)
+        return self.render_scene(
+            container, canvas, format=format, interp=interp, cache=cache
+        )
 
 
 class ViewportRender(BaseRenderer[ViewportFrame]):
