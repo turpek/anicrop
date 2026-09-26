@@ -32,6 +32,8 @@ Este documento centraliza todos os objetivos arquiteturais, otimizações e o pr
 - [ ] 25. Modos Avançados de Fusão e Composição para Fotografia e Transições Suaves (Multi-Band Blending e Feather Blending).
 - [x] ~~26. Eliminação de Contaminação de Cor e Franja Escura nas Bordas em `warp_affine` e `warp_patch` (Padding Alpha-Aware e `ImageFormat.is_straight_alpha`).~~
 - [ ] 27. (Resolução Dinâmica de Borda por Formato) Suporte a `border_mode` e `border_value` em `warp_affine`, `warp_perspective` e `warp_patch` (`BORDER_REPLICATE` para opacos vs `BORDER_CONSTANT` para alfa).
+- [ ] 28. Sistema de Cache de Camadas com Decorators e Renderização Incremental (`LayerCache`).
+- [ ] 29. Suporte Nativo a Formatos BGR e BGRA para Pipelines de Vídeo e Visão Computacional (Zero-Copy com OpenCV / Aniseek).
 
 ---
 
@@ -575,6 +577,110 @@ O profiling linha por linha do pipeline de renderização por patch (`warp_patch
   3. Decorator `CachedLayerDecorator` que intercepta `background`, `edits` e `effects` apenas dentro do context manager, preservando o contrato original do `Layer` fora do escopo.
   4. Efeito `CacheEffect` para entrega acelerada da imagem pós-processada na fila `base.effects`.
   5. Suporte à injeção externa de imagens pré-assadas (`cache.set_baked(layer, image)`), eliminando *workarounds* de matriz inversa no `anifuse`.
+
+---
+
+## 🎥 29. Suporte Nativo a Formatos BGR e BGRA para Pipelines de Vídeo e Visão Computacional (Zero-Copy com OpenCV / Aniseek)
+
+### 1. Diagnóstico e Motivação
+Em pipelines de alta taxa de quadros e costura contínua de vídeo (como no fluxo `aniseek` $\rightarrow$ `anifuse` $\rightarrow$ `anicrop`):
+* O leitor de vídeo (`aniseek` / OpenCV `cv2.VideoCapture`) entrega frames decodificados nativamente em arrays NumPy no formato `BGR` (3 canais) ou `BGRA` (4 canais).
+* **O Gargalo Atual:** A ausência de `ImageFormat.BGR` e `ImageFormat.BGRA` no `anicrop` força uma conversão manual de canais (`cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)` ou `COLOR_BGR2RGBA`) a cada frame lido.
+* **Custo em Vídeos Longos:** Para uma sequência de 500 a 1000 frames em 1080p, são alocados e reescritos mais de **$4\text{ GB}$ a $16\text{ GB}$ de dados na memória**, gastando tempo de CPU e saturando o barramento de memória (RAM $\leftrightarrow$ Cache L3) apenas para inverter dois canais ($0 \leftrightarrow 2$).
+* E se a saída final for visualizada com `cv2.imshow` ou gravada com `cv2.VideoWriter`, o resultado precisa ser convertido de volta para BGR.
+
+### 2. Fundamentação Teórica e Simetria de Blending
+A viabilidade de suportar BGR/BGRA nativamente decorre de três pilares da arquitetura do `anicrop`:
+1. **Mesclagem Canal a Canal (`blend.pyx`):**
+   * As fórmulas de mesclagem (`blend_normal`, `hard_masking`, `solid_fill`) são puramente lineares e operam de forma isolada em cada canal de cor ($0, 1, 2$), utilizando o índice $3$ exclusivamente como canal Alfa.
+   * Como tanto em `RGBA` quanto em `BGRA` o canal Alfa reside **rigorosamente no índice 3**, a composição de uma camada `BGRA` sobre um Canvas `BGRA` é analiticamente **idêntica** à de `RGBA` sobre `RGBA`. Os mesmos kernels compilados em Cython/OpenMP funcionam sem necessidade de duplicação de código.
+2. **Transformações e Warping Agnósticos (`render.py`):**
+   * O OpenCV `cv2.warpAffine` e o fast-path `without_distortion` operam sobre blocos contíguos de memória independentemente de a ordem de bytes ser BGR ou RGB.
+3. **Economia Exponencial de Conversões:**
+   * **Fluxo sem suporte (Atual):** $N$ conversões de alta resolução na entrada ($N$ frames $\times$ BGR $\rightarrow$ RGB).
+   * **Fluxo com suporte nativo (Proposto):** $0$ conversões durante todo o loop de costura. Se o usuário exportar via `PyvipsBackend` para PNG/WebP, ocorre **uma única conversão final** no panorama consolidado.
+
+### 3. Diretrizes Técnicas de Implementação
+
+#### 3.1. Contrato de Enum (`ImageFormat` em `anicrop.enums`)
+* Adicionar novos membros:
+  ```python
+  class ImageFormat(StrEnum):
+      ...
+      BGR = "bgr"
+      BGRA = "bgra"
+  ```
+* Atualizar properties:
+  * `has_alpha`: inclui `ImageFormat.BGRA`.
+  * `is_straight_alpha`: inclui `ImageFormat.BGRA`.
+  * `channels`: `BGR: 3`, `BGRA: 4`.
+  * `same_spaces`: define compatibilidade entre espaços de cores (ex: `bgr` e `bgra` pertencem ao espaço `"bgr"`).
+
+#### 3.2. Mapeamento de Conversões de Cor (`anicrop.color`)
+* Estender `FORMAT_CONVERTERS` para cobrir todos os pares necessários:
+  * `BGR <-> RGB`: `cv2.cvtColor(data, cv2.COLOR_BGR2RGB)` / `COLOR_RGB2BGR`.
+  * `BGRA <-> RGBA`: `cv2.cvtColor(data, cv2.COLOR_BGRA2RGBA)` / `COLOR_RGBA2BGRA`.
+  * `BGR <-> BGRA`: `cv2.cvtColor(data, cv2.COLOR_BGR2BGRA)` / `COLOR_BGRA2BGR`.
+  * `BGR <-> GRAY`: `cv2.cvtColor(data, cv2.COLOR_BGR2GRAY)` / `COLOR_GRAY2BGR`.
+  * `BGRA <-> GRAY`: `cv2.cvtColor(data, cv2.COLOR_BGRA2GRAY)` / `COLOR_GRAY2BGRA`.
+  * Conversões cruzadas (ex: `BGR -> RGBA`, `BGRA -> RGB`, etc.).
+
+#### 3.3. Injeção e Extração Zero-Copy em `Image` (`anicrop.image`)
+* **Construtor `Image(data, ImageFormat.BGR)` / `Image(data, ImageFormat.BGRA)`:**
+  * Aceita e encapsula a matriz NumPy do OpenCV sem nenhuma cópia intermediária.
+* **Fábrica `Image.from_bgr(data, target_format=None)`:**
+  * Quando `target_format is None`, auto-detecta e retorna `Image(data, ImageFormat.BGR)` ou `Image(data, ImageFormat.BGRA)` **diretamente com zero-copy** (sem chamar `cv2.cvtColor`).
+  * Quando `target_format` for fornecido explicitamente, converte conforme solicitado.
+* **Extração `img.bgr(region)`:**
+  * Se `self.format in (ImageFormat.BGR, ImageFormat.BGRA)`, retorna o slice fatiado diretamente (`return frame`), com **custo zero de cópia**.
+
+#### 3.4. Harmonização Automática no Renderizador (`anicrop.render`)
+* Em `blend_rendered_images`:
+  * Adicionar checagem de compatibilidade de espaço de cores:
+    ```python
+    if not image.format.same_spaces(buffer.format):
+        image = image.to_format(buffer.format)
+    ```
+  * Se o Canvas for `BGRA` e as camadas forem `BGRA` (cenário padrão do Anifuse), a condição não dispara e o blend ocorre em velocidade máxima nativa sem conversões.
+  * Se houver mistura heterogênea (ex: camada `RGB` sobre Canvas `BGRA`), a camada discrepante é harmonizada antes do blend.
+* Em `SceneTraverser` e `render_scene`:
+  * Garantir que `format=ImageFormat.BGRA` seja plenamente aceito e propagado pelo Canvas e buffers de grupo.
+
+#### 3.5. Subsistema de I/O (`anicrop.io`)
+* **`OpenCVBackend`:**
+  * Na gravação (`write`), se a imagem for `BGR` ou `BGRA`, grava diretamente com `cv2.imwrite` sem conversão.
+* **`PyvipsBackend`:**
+  * Na gravação (`write`), se a imagem for `BGR` ou `BGRA`, converte internamente para `RGB` ou `RGBA` antes de entregar para o pipeline da `libvips`.
+
+### 4. Roadmap de Execução da Tarefa
+
+```
+[FASE 1: Contrato do Enum ImageFormat]
+└── Adicionar BGR e BGRA em ImageFormat com properties channels, has_alpha, is_straight_alpha e same_spaces.
+
+[FASE 2: Tabela de Conversão em color.py]
+└── Mapear todos os pares bidirecionais envolvendo BGR e BGRA com cv2.cvtColor.
+
+[FASE 3: Otimização Zero-Copy em Image]
+└── Image.from_bgr retorna BGR/BGRA nativo zero-copy quando target_format=None.
+└── img.bgr() retorna slice direto sem cópia para BGR e BGRA.
+
+[FASE 4: Harmonização no Renderizador e Blending]
+└── Suporte a Canvas e camadas BGRA no render_scene e blend_rendered_images.
+└── Harmonização automática no blend se format.same_spaces for diferente.
+
+[FASE 5: Compatibilidade com Backends de I/O]
+└── OpenCVBackend: gravação direta zero-copy de BGR/BGRA.
+└── PyvipsBackend: conversão final segura BGR/BGRA -> RGB/RGBA na gravação.
+
+[FASE 6: Suíte de Testes (TDD)]
+└── Testes de contrato de ImageFormat (channels, has_alpha).
+└── Testes de conversão de cores em test_color_formats.py.
+└── Testes de zero-copy em test_image.py.
+└── Testes de renderização, blending e culling com Canvas BGRA em test_render.py.
+└── Testes de exportação com OpenCVBackend e PyvipsBackend.
+```
+
 
 
 
