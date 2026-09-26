@@ -17,6 +17,7 @@ Projetado com rigor matemático e precisão geométrica, o motor utiliza uma ár
 - ⚡ **I/O Modular de Alta Performance:** Decodificação e subamostragem direta (*shrink-on-load*) nativa em C/SIMD via `PyvipsBackend` (até **58× mais rápido**) com fallback transparente para `OpenCVBackend`.
 - 💾 **Backend Híbrido & LOD:** Chaveamento transparente de buffers para memória virtual em disco (`np.memmap` / `MMapBuffer`) em imagens gigantes ($\ge 8192\text{px}$) com pirâmide de nível de detalhe (*Level of Detail*).
 - 🎭 **Máscaras e Filtros Anisotrópicos:** Efeitos ancorados à matriz da camada (`BoundEffect`), filtros Gaussianos com fusão de tensores de covariância 2D (`BlurFilter`) e máscaras atômicas.
+- ⚡ **Cache Incremental & DynamicEffect:** Aceleração de renderização contínua de até **10.5×** (94 a 133 FPS) via `LayerCache`. Reutilização afim de buffers pré-assados (`baked_warp`) em translações puras, particionamento de efeitos estáticos vs dinâmicos (`DynamicEffect`) e ativação contextual segura por `effective_region` em patches.
 - 🔄 **Organização Fluida da Pilha:** Métodos declarativos no contêiner (`move_relative`, `move_to_front`, `move_to_back`, `swap`, `reverse`).
 - 👁️ **Pipeline de Renderização & Visualizador:** `CanvasRender` para exportações em alta resolução, `ViewportRender` para previews interativos e visualizador OpenCV `Viewer`.
 
@@ -136,6 +137,13 @@ Orquestra a fusão, agrupamento e rasterização na árvore de camadas:
 - `doc.stack.move_to_front(camada)` / `doc.stack.move_to_back(camada)`: Envia diretamente para o topo ou base da pilha.
 - `doc.stack.swap(camada_a, camada_b)`: Troca a posição de duas camadas na hierarquia.
 - `doc.stack.reverse(recursive=True)`: Inverte a ordem das camadas com suporte opcional a recursão profunda em subgrupos.
+
+### Aceleração e Cache de Camadas (`LayerCache`)
+Otimiza renderizações sequenciais contínuas (ex: animações, streaming ou nós reativos do Anifuse):
+- **Registro Não-Invasivo:** `cache = LayerCache(); cache.register(layer)` conecta a camada ao sistema reativo de deltas.
+- **Invalidação $2\times2$ Inteligente:** Modificações de rotação, escala e cisalhamento na submatriz linear afim (`matrix[:2, :2]`) invalidam o warp; translações puras (`matrix[:2, 2]`) preservam o `baked_warp` intacto e reutilizam o buffer diretamente ($O(1)$).
+- **Particionamento de Efeitos Dinâmicos (`DynamicEffect`):** Filtros estáticos são pré-assados em `baked_effects`; efeitos derivados de `DynamicEffect` continuam sendo computados a cada frame sobre o buffer em cache.
+- **Isolamento em `render_patch`:** Camadas cujo enquadramento é parcialmente cortado pela `effective_region` têm a ativação de cache ignorada e renderizam sob demanda, impedindo contaminação ou descarte do cache global.
 
 ---
 
