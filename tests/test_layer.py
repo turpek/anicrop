@@ -503,3 +503,14 @@ def test_layer_init_invalid_target_raises_error():
     """Valida que passar um target invalido para Layer dispara erro de resolucao do ovld."""
     with pytest.raises(Exception):
         Layer(123)  # type: ignore[call-overload]
+
+
+def test_layer_background_returns_empty_image():
+    """Valida que layer.background retorna um buffer Image.new com tamanho, formato e dtype solicitados."""
+    layer = Layer((100, 100))
+    bg = layer.background((64, 48), ImageFormat.RGBA, dtype=np.uint8)
+
+    assert bg.size == (64, 48)
+    assert bg.format == ImageFormat.RGBA
+    assert bg.dtype == np.uint8
+    assert np.all(bg[:] == 0)

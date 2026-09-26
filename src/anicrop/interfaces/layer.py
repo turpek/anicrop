@@ -142,3 +142,13 @@ class AbstractLayer(AbstractBaseLayer):
     def add_edit(self, *args: Any, **kwargs: Any) -> Any:
         """Adiciona um patch/edição à camada."""
         pass
+
+    @abstractmethod
+    def background(
+        self,
+        size: tuple[int, int],
+        format: Any,
+        dtype: Any = np.uint8,
+    ) -> Any:
+        """Retorna o buffer base para a composição dos edits da camada."""
+        pass
