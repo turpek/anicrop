@@ -232,5 +232,3 @@ class Layer(BaseLayer, AbstractLayer):
     ) -> Image:
         """Retorna o buffer base para a composição dos edits da camada."""
         return Image.new(size, format, dtype=dtype)
-
-

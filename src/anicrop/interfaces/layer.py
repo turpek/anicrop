@@ -152,4 +152,3 @@ class AbstractLayer(AbstractBaseLayer):
     ) -> Any:
         """Retorna o buffer base para a composição dos edits da camada."""
         pass
-

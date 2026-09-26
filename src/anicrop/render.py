@@ -1,9 +1,13 @@
 from __future__ import annotations
 
 from abc import ABC
+from contextlib import nullcontext
 from functools import reduce
 from operator import or_
-from typing import Callable, Sequence
+from typing import TYPE_CHECKING, Callable, Sequence
+
+if TYPE_CHECKING:
+    from anicrop.interfaces.cache import AbstractLayerCache
 
 import cv2
 import numpy as np
@@ -668,24 +672,26 @@ class BaseRenderer[FrameT: BaseFrame](ABC):
         surface: SurfaceProtocol,
         format: ImageFormat = ImageFormat.RGBA,
         interp: InterpMode = InterpMode.LANCZOS,
+        cache: AbstractLayerCache | None = None,
     ) -> Image:
         with freeze_geometry(container):
-            traverser = SceneTraverser(
-                self,
-                surface,
-                self.frame_cls,
-                interp=interp,
-                target_size=self._target_size,
-            )
-            images = traverser.traverse(container)
+            with (cache(container) if cache is not None else nullcontext()):
+                traverser = SceneTraverser(
+                    self,
+                    surface,
+                    self.frame_cls,
+                    interp=interp,
+                    target_size=self._target_size,
+                )
+                images = traverser.traverse(container)
 
-            composition = Image.new(
-                surface.size,
-                format,
-                color=surface.bg_color,
-                dtype=surface.dtype,
-            )
-            return blend_rendered_images(reversed(images), composition)
+                composition = Image.new(
+                    surface.size,
+                    format,
+                    color=surface.bg_color,
+                    dtype=surface.dtype,
+                )
+                return blend_rendered_images(reversed(images), composition)
 
     def render_patch(
         self,
@@ -694,28 +700,30 @@ class BaseRenderer[FrameT: BaseFrame](ABC):
         view_region: Region,
         format: ImageFormat = ImageFormat.RGBA,
         interp: InterpMode = InterpMode.LANCZOS,
+        cache: AbstractLayerCache | None = None,
     ) -> Image | None:
         if not surface.region.overlaps(view_region):
             return None
 
         effective_region = surface.region & view_region
         with freeze_geometry(container):
-            traverser = SceneTraverser(
-                self,
-                surface,
-                self.frame_cls,
-                interp=interp,
-                target_size=self._target_size,
-            )
-            images = traverser.traverse(container, effective_region)
+            with (cache(container) if cache is not None else nullcontext()):
+                traverser = SceneTraverser(
+                    self,
+                    surface,
+                    self.frame_cls,
+                    interp=interp,
+                    target_size=self._target_size,
+                )
+                images = traverser.traverse(container, effective_region)
 
-            composition = Image.new(
-                effective_region.size,
-                format,
-                color=surface.bg_color,
-                dtype=surface.dtype,
-            )
-            return blend_rendered_images(reversed(images), composition)
+                composition = Image.new(
+                    effective_region.size,
+                    format,
+                    color=surface.bg_color,
+                    dtype=surface.dtype,
+                )
+                return blend_rendered_images(reversed(images), composition)
 
 
 class CanvasRender(BaseRenderer[CanvasFrame]):
@@ -737,6 +745,7 @@ class CanvasRender(BaseRenderer[CanvasFrame]):
         format: ImageFormat = ImageFormat.RGBA,
         interp: InterpMode = InterpMode.LANCZOS,
         bg_color: tuple[int, ...] | None = None,
+        cache: AbstractLayerCache | None = None,
     ) -> Image | None:
         """Renderiza um contêiner ou sequência de nós (camadas ou grupos) instanciando automaticamente um Canvas
         ajustado à união das regiões globais (global_region) de todos os nós renderizáveis.
@@ -747,7 +756,9 @@ class CanvasRender(BaseRenderer[CanvasFrame]):
 
         roi = reduce(or_, regions)
         canvas = Canvas(roi, bg_color=bg_color)
-        return self.render_scene(container, canvas, format=format, interp=interp)
+        return self.render_scene(
+            container, canvas, format=format, interp=interp, cache=cache
+        )
 
 
 class ViewportRender(BaseRenderer[ViewportFrame]):
