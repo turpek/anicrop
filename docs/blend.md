@@ -77,6 +77,12 @@ flowchart TD
 1. **Zero GIL Overhead (`nogil`):** Toda a mesclagem é executada em código de máquina C nativo compilado com `-O3 -march=native -ffast-math`.
 2. **Paralelismo Multi-Core (`OpenMP prange`):** O processamento de linhas da imagem é distribuído entre todos os núcleos da CPU.
 3. **Carga e Descarga Vetorial de 32-bit:** Em modos de substituição como `SOLID_FILL` e `HARD_MASKING`, as operações em buffers RGBA lêem e gravam palavras de 32 bits (`uint32_t`) em uma única instrução Assembly (`MOV`), habilitando auto-vetorização AVX2/SSE4 pelo compilador.
+4. **Invariância Matemática BGR/BGRA:** Em `RGBA` e `BGRA`, o canal alfa reside identicamente no índice 3 (`channel = 3`). Como as operações de cor são simétricas por canal, a mesclagem `BGRA-over-BGRA` executa o mesmo kernel ultra-otimizado com **zero conversões intermediárias**.
+
+### 3.4. Harmonização Automática de Espaço de Cor (`harmonize_rendered_image`)
+A função [`harmonize_rendered_image`](file:///home/gui/python/anicrop/src/anicrop/blend.py) avalia se a camada ou grupo possui o mesmo espaço de cores do buffer de destino via `image.format.same_spaces(target.format)`:
+- **Mesmo espaço (ex: BGR sobre BGRA, ou RGBA sobre RGBA):** Nenhuma conversão é realizada. O blend opera em velocidade nativa direta.
+- **Espaços divergentes (ex: camada RGB sobre Canvas BGRA):** A imagem da camada é harmonizada automaticamente para o formato do buffer antes da mistura, prevenindo distorções cromáticas.
 
 ---
 

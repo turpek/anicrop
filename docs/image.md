@@ -134,14 +134,28 @@ A classe `Image` garante a integridade dos dados de imagem (validação de forma
   - `alpha_only` (`bool`): Se `True` e a imagem possui canal alfa (`self.has_alpha is True`), preenche **exclusivamente o canal alfa** (`channel = -1`), preservando 100% das cores originais (RGB) para prevenir o efeito de franja escura (*dark halo*) em transformações afins ou interpolações subsequentes. Se a imagem não possui canal alfa, aplica o fallback natural preenchendo todos os canais com `fill_value`. Se `False` (padrão), preenche todos os canais.
 - **Retorno**: `bool` — `True` se pixels foram alterados, ou `False` se a região não intersecta a imagem.
 
+#### Métodos de Interoperabilidade com OpenCV (Zero-Copy):
+- `from_bgr(data: np.ndarray, target_format: ImageFormat | None = None, threshold_pixels: int | None = ...) -> Image` *(Class Method)*:
+  - Cria uma `Image` a partir de uma matriz no padrão OpenCV.
+  - Quando `target_format is None`, auto-detecta: 3 canais geram `ImageFormat.BGR` e 4 canais geram `ImageFormat.BGRA` **100% Zero-Copy** (sem chamadas intermediárias a `cv2.cvtColor`).
+  - Se `target_format` for fornecido explicitamente (ex: `ImageFormat.RGB`), realiza a conversão solicitada.
+- `bgr(region: Region | EllipsisType = ...) -> np.ndarray`:
+  - Extrai a matriz NumPy da região convertida para o layout BGR/BGRA esperado pelo OpenCV.
+  - Para imagens nos formatos `ImageFormat.BGR` e `ImageFormat.BGRA`, retorna a view do slice diretamente **sem cópia de memória** (`np.shares_memory is True`).
+
 #### Propriedades de Dimensão e Metadados:
 - `@property size -> tuple[int, int]`: Retorna `(width, height)` da imagem em pixels.
 - `@property width -> int` / `@property height -> int`: Retornam a largura e a altura da imagem.
 - `@property shape -> tuple[int, ...]`: Retorna a tupla de dimensões da matriz interna `(height, width, channels)`.
-- `@property channels -> int`: Retorna o número de canais da imagem (ex: `4` para RGBA/PRGBA/RGBX, `3` para RGB, `1` para GRAY).
-- `@property format -> ImageFormat`: Retorna o enum `ImageFormat` associado (`RGBA`, `PRGBA`, `RGBX`, `RGB`, `GRAY`, `GRAY_ALPHA`, `CMYK`, `CMYK_ALPHA`).
-- `@property has_alpha -> bool`: Retorna `True` se o formato da imagem incluir canal de transparência (Alpha ativo em `RGBA`, `PRGBA`, `GRAY_ALPHA`, `CMYK_ALPHA`).
+- `@property channels -> int`: Retorna o número de canais da imagem (ex: `4` para RGBA/BGRA/PRGBA/RGBX, `3` para RGB/BGR, `1` para GRAY).
+- `@property format -> ImageFormat`: Retorna o enum `ImageFormat` associado (`RGBA`, `BGRA`, `BGR`, `PRGBA`, `RGBX`, `RGB`, `GRAY`, `GRAY_ALPHA`, `CMYK`, `CMYK_ALPHA`).
+- `@property has_alpha -> bool`: Retorna `True` se o formato da imagem incluir canal de transparência (Alpha ativo em `RGBA`, `BGRA`, `PRGBA`, `GRAY_ALPHA`, `CMYK_ALPHA`).
 - `@property dtype -> np.dtype`: Retorna o tipo de dados NumPy subjacente da imagem (`np.uint8`, `np.uint16`, `np.float32`).
+
+#### Propriedades de Formato (`ImageFormat`):
+- `@property with_alpha -> ImageFormat`: Retorna a variante do mesmo espaço de cor com canal alfa (ex: `BGR -> BGRA`, `RGB -> RGBA`, `GRAY -> GRAY_ALPHA`).
+- `@property without_alpha -> ImageFormat`: Retorna a variante sem canal alfa (ex: `BGRA -> BGR`, `RGBA -> RGB`, `GRAY_ALPHA -> GRAY`).
+- `same_spaces(other: ImageFormat) -> bool`: Avalia se dois formatos pertencem à mesma família de espaço de cores (ex: `BGR.same_spaces(BGRA) is True`, mas `BGR.same_spaces(RGB) is False`).
 
 ---
 

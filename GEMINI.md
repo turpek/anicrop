@@ -244,10 +244,13 @@ Para detalhes de métodos, tipos de retorno e exemplos de uso de cada classe, co
   - **Autolimpeza de Workspaces Órfãos (`_cleanup_stale_workspaces`):** Na inicialização do `ScratchDiskManager`, o diretório base é varrido procurando por pastas temporárias `anicrop_scratch_<pid>_*`. Para cada pasta de um PID inativo (processos finalizados ou mortos via `SIGKILL` / OOM Killer), a árvore é expurgada automaticamente sem deixar arquivos residuais no sistema operacional.
   - **Rollback Imediato em Exceção:** Caso `np.memmap` falhe durante a inicialização (ex: cota excedida), blocos `try ... except BaseException` em `from_array` e `create_empty` removem imediatamente o arquivo parcial criado antes de repassar a exceção.
 
-- **Injeção Direta de Frames OpenCV (`Image.from_bgr`):**
-  - **Método de Fábrica `@classmethod Image.from_bgr`:** Permite instanciar objetos `Image` diretamente a partir de matrizes NumPy obtidas de pipelines e streams do OpenCV (`cv2.VideoCapture`, `cv2.imread`).
-  - **Auto-Detecção e Mapeamento de Canais:** Detecta automaticamente matrizes 2D/1 canal (`GRAY`), 2 canais (`GRAY_ALPHA`), 3 canais BGR (`RGB`) e 4 canais BGRA (`RGBA`), ou converte diretamente para o formato especificado via `target_format`.
-  - **Suporte Multi-Dtype e Simetria com `.bgr()`:** Compatível com `uint8`, `uint16` e `float32` (escalonando o canal alfa para 255, 65535 ou 1.0) e complementa perfeitamente o método existente `img.bgr()`, formando um ciclo de conversão bidirecional sem perdas.
+- **Suporte Nativo a BGR e BGRA e Pipeline Zero-Copy com OpenCV / Aniseek:**
+  - **Formatos Nativos de Primeira Classe (`ImageFormat.BGR` e `ImageFormat.BGRA`):** Integrados ao enum com properties `channels`, `has_alpha`, `is_straight_alpha`, `with_alpha`, `without_alpha` e `same_spaces`.
+  - **Fábrica `Image.from_bgr` Zero-Copy:** Quando `target_format=None`, auto-detecta matrizes de 3 canais diretamente como `ImageFormat.BGR` e de 4 canais como `ImageFormat.BGRA` sem nenhuma chamada intermediária a `cv2.cvtColor`, compartilhando memória de forma direta (`np.shares_memory is True`).
+  - **Extração `img.bgr()` Zero-Copy:** Retorna diretamente o slice de memória fatiado sem conversão nem cópia para formatos `BGR` e `BGRA`.
+  - **Invariância Matemática de Blending em Cython:** Como o canal alfa reside no índice 3 (`channel = 3`) tanto em `RGBA` quanto em `BGRA`, o blend normal e substituições (`solid_fill`, `hard_masking`) operam de forma idêntica em buffers BGRA sem necessidade de compilar novos kernels C.
+  - **Harmonização Transparente (`harmonize_rendered_image`):** No `blend_rendered_images`, camadas com espaços de cores distintos do destino são harmonizadas antes da fusão. No `GroupLayer`, o buffer intermediário herda dinamicamente a variante com alfa do topo da lista do blend (`fmt.with_alpha`), prevenindo contaminações cromáticas e mantendo o pipeline BGRA 100% nativo.
+  - **Backends de I/O Adaptados:** `OpenCVBackend.write` grava buffers BGR e BGRA diretamente sem conversão; `PyvipsBackend.write` converte para RGB/RGBA apenas no instante final da exportação para o pipeline C da `libvips`.
 
 
 
