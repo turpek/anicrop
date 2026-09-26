@@ -1163,3 +1163,16 @@ def test_render_container_repassa_parametro_cache(mocker):
     mock_cache.assert_called_once()
     mock_cache.return_value.__enter__.assert_called_once()
     mock_cache.return_value.__exit__.assert_called_once()
+
+
+def test_render_layer_repassa_parametro_cache(mocker):
+    """Valida se CanvasRender.render_layer ativa o escopo de cache ao renderizar a camada."""
+    layer = make_layer(w=40, h=40)
+    renderer = CanvasRender()
+
+    mock_cache = mocker.MagicMock()
+    _ = renderer.render_layer(layer, cache=mock_cache)
+
+    mock_cache.assert_called_once_with([layer])
+    mock_cache.return_value.__enter__.assert_called_once()
+    mock_cache.return_value.__exit__.assert_called_once()

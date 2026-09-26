@@ -525,3 +525,78 @@ def test_doc_combine_bake_inherits_group_blend_opacity_and_visibility():
     assert baked.blend_mode == BlendMode.MULTIPLY
     assert baked.opacity == 0.75
     assert baked.visible is True
+
+
+def test_flatten_repassa_cache_para_render_container(mocker):
+    """Valida se flatten repassa o parametro cache para CanvasRender.render_container."""
+    layer = make_layer((255, 0, 0, 255), (30, 30))
+    mock_render_container = mocker.patch.object(
+        CanvasRender, "render_container", return_value=Image.new((30, 30), ImageFormat.RGBA)
+    )
+    mock_cache = mocker.MagicMock()
+
+    _ = flatten([layer], name="Flat", cache=mock_cache)
+
+    mock_render_container.assert_called_once()
+    assert mock_render_container.call_args.kwargs["cache"] is mock_cache
+
+
+def test_layer_composition_flatten_repassa_cache(mocker):
+    """Valida se LayerComposition.flatten repassa o parametro cache para flatten."""
+    layer = make_layer((255, 0, 0, 255), (30, 30))
+    mock_render_container = mocker.patch.object(
+        CanvasRender, "render_container", return_value=Image.new((30, 30), ImageFormat.RGBA)
+    )
+    mock_cache = mocker.MagicMock()
+
+    _ = LayerComposition.flatten([layer], name="Flat", cache=mock_cache)
+
+    mock_render_container.assert_called_once()
+    assert mock_render_container.call_args.kwargs["cache"] is mock_cache
+
+
+def test_doc_combine_flatten_repassa_cache(mocker):
+    """Valida se Combine.flatten repassa o parametro cache para flatten."""
+    doc = Document("TestDoc", 100, 100, history=False)
+    doc.add(make_layer((255, 0, 0, 255), (30, 30), name="L0"))
+    doc.add(make_layer((0, 255, 0, 255), (30, 30), name="L1"))
+    mock_render_container = mocker.patch.object(
+        CanvasRender, "render_container", return_value=Image.new((30, 30), ImageFormat.RGBA)
+    )
+    mock_cache = mocker.MagicMock()
+
+    _ = doc.combine.flatten("L1", name="FlatResult", count=1, cache=mock_cache)
+
+    mock_render_container.assert_called_once()
+    assert mock_render_container.call_args.kwargs["cache"] is mock_cache
+
+
+def test_doc_combine_bake_repassa_cache(mocker):
+    """Valida se Combine.bake repassa o parametro cache para flatten."""
+    doc = Document("TestDoc", 100, 100, history=False)
+    group = doc.add_group(name="Group")
+    group.append(make_layer((255, 0, 0, 255), (30, 30), name="L0"))
+    mock_render_container = mocker.patch.object(
+        CanvasRender, "render_container", return_value=Image.new((30, 30), ImageFormat.RGBA)
+    )
+    mock_cache = mocker.MagicMock()
+
+    _ = doc.combine.bake("Group", cache=mock_cache)
+
+    mock_render_container.assert_called_once()
+    assert mock_render_container.call_args.kwargs["cache"] is mock_cache
+
+
+def test_doc_combine_bake_stack_repassa_cache(mocker):
+    """Valida se Combine.bake_stack repassa o parametro cache para flatten."""
+    doc = Document("TestDoc", 100, 100, history=False)
+    doc.add(make_layer((255, 0, 0, 255), (30, 30), name="L0"))
+    mock_render_container = mocker.patch.object(
+        CanvasRender, "render_container", return_value=Image.new((30, 30), ImageFormat.RGBA)
+    )
+    mock_cache = mocker.MagicMock()
+
+    _ = doc.combine.bake_stack(name="BakedStack", cache=mock_cache)
+
+    mock_render_container.assert_called_once()
+    assert mock_render_container.call_args.kwargs["cache"] is mock_cache

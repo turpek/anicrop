@@ -397,6 +397,22 @@ def test_document_export_with_interp_mode(tmp_path):
     assert out_file.exists()
 
 
+def test_document_export_repassa_parametro_cache(mocker, tmp_path):
+    """Valida se doc.export repassa o parametro cache para doc.render."""
+    doc = Document("Doc", 50, 50)
+    doc.add(Layer(make_solid((0, 0, 255, 255), 50, 50), name="L1"))
+    mock_render = mocker.patch.object(
+        doc, "render", return_value=Image.new((50, 50), ImageFormat.RGBA)
+    )
+    mock_cache = mocker.MagicMock()
+
+    out_file = tmp_path / "exported.png"
+    doc.export(out_file, cache=mock_cache)
+
+    mock_render.assert_called_once()
+    assert mock_render.call_args.kwargs["cache"] is mock_cache
+
+
 @pytest.mark.parametrize(
     "fmt, num_channels",
     [
