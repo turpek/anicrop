@@ -137,7 +137,29 @@ assert not cache.is_dirty(layer)
 
 ---
 
-## 7. Exemplo Completo de Uso
+## 7. Pontos de Integração Normalizados
+
+O parâmetro `cache: AbstractLayerCache | None = None` é aceito de maneira uniforme em todos os pontos de renderização e composição do motor:
+
+- **Renderizadores (`BaseRenderer`, `CanvasRender`, `ViewportRender`):**
+  - `render_scene(container, surface, ..., cache=cache)`
+  - `render_patch(container, surface, view_region, ..., cache=cache)`
+  - `render_container(container, ..., cache=cache)`
+  - `render_layer(layer, ..., cache=cache)`
+- **Fachada `Document`:**
+  - `doc.render(..., cache=cache)`
+  - `doc.preview(viewport, ..., cache=cache)`
+  - `doc.export(path, ..., cache=cache)`
+- **Composição (`anicrop.composition`):**
+  - `flatten(layers, ..., cache=cache)`
+  - `LayerComposition.flatten(layers, ..., cache=cache)`
+  - `doc.combine.flatten(target, name, ..., cache=cache)`
+  - `doc.combine.bake(group, ..., cache=cache)`
+  - `doc.combine.bake_stack(..., cache=cache)`
+
+---
+
+## 8. Exemplo Completo de Uso
 
 ```python
 from anicrop import Canvas, CanvasRender, Image, Layer

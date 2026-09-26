@@ -64,7 +64,7 @@ group = merge([layer1, layer2, sub_group], name="ComposicaoPersonagem")
 
 ---
 
-#### `flatten(layers: Sequence[BaseLayer] | Container, name: str = "Layer", format: ImageFormat | None = None, interp: InterpMode = InterpMode.LANCZOS, bg_color: tuple[int, ...] | None = None) -> Layer`
+#### `flatten(layers: Sequence[BaseLayer] | Container, name: str = "Layer", format: ImageFormat | None = None, interp: InterpMode = InterpMode.LANCZOS, bg_color: tuple[int, ...] | None = None, cache: AbstractLayerCache | None = None) -> Layer`
 - **Descrição**: Rasteriza o conjunto ou contêiner de camadas calculando automaticamente a região global delimitadora (*ROI*) e gera um `Layer` plano.
 - **Herança de Propriedades**:
   - `format`: Se `None` (padrão), infere automaticamente o formato da camada superior (`layers[-1].format`).
@@ -77,6 +77,7 @@ group = merge([layer1, layer2, sub_group], name="ComposicaoPersonagem")
   - `format` (`ImageFormat | None`, opcional): Formato de cores de saída (padrão: infere do topo).
   - `interp` (`InterpMode`, opcional): Modo de interpolação na renderização (padrão: `InterpMode.LANCZOS`).
   - `bg_color` (`tuple[int, ...] | None`, opcional): Cor de fundo opcional para preenchimento.
+  - `cache` (`AbstractLayerCache | None`, opcional): Instância de cache de camadas para aceleração de renderização afim.
 - **Retorno**: `Layer` — Uma única camada folha contendo a imagem rasterizada.
 
 ```python
@@ -104,8 +105,8 @@ cloned = LayerComposition.clone(node)
 # Agrupamento
 group = LayerComposition.merge([layer1, layer2], name="NovoGrupo")
 
-# Rasterização
-flat = LayerComposition.flatten([layer1, layer2], name="LayerPlano")
+# Rasterização (aceita cache opcional)
+flat = LayerComposition.flatten([layer1, layer2], name="LayerPlano", cache=cache)
 ```
 
 ---
@@ -130,7 +131,7 @@ grupo = doc.combine.merge("detalhe", name="GrupoDetalhe", count=1)
 
 ---
 
-### `doc.combine.flatten(target: BaseLayer | str, name: str, count: int = 1, format: ImageFormat | None = None, interp: InterpMode = InterpMode.LANCZOS, bg_color: tuple[int, ...] | None = None, remove_source: bool = True) -> Layer`
+### `doc.combine.flatten(target: BaseLayer | str, name: str, count: int = 1, format: ImageFormat | None = None, interp: InterpMode = InterpMode.LANCZOS, bg_color: tuple[int, ...] | None = None, remove_source: bool = True, cache: AbstractLayerCache | None = None) -> Layer`
 - **Descrição**: Rasteriza a camada `target` com até `count` camadas visíveis abaixo dela em uma única camada `Layer` plana. A camada resultante herda o `blend_mode` da camada base inferior (`sequence[0]`) e o `ImageFormat` e visibilidade da camada `target`.
 - **Parâmetros**:
   - `target` (`BaseLayer | str`): Camada de topo.
@@ -140,6 +141,7 @@ grupo = doc.combine.merge("detalhe", name="GrupoDetalhe", count=1)
   - `interp` (`InterpMode`): Modo de interpolação na renderização.
   - `bg_color` (`tuple[int, ...] | None`): Cor de fundo opcional.
   - `remove_source` (`bool`): Se `True` (padrão), substitui as camadas na pilha.
+  - `cache` (`AbstractLayerCache | None`, opcional): Instância de cache de camadas para aceleração.
 - **Retorno**: `Layer` — A camada plana resultante.
 
 ```python
@@ -149,7 +151,7 @@ flat = doc.combine.flatten("efeitos", name="EfeitosAssados", count=2)
 
 ---
 
-### `doc.combine.bake(target: GroupLayer | str, name: str | None = None, format: ImageFormat | None = None, interp: InterpMode = InterpMode.LANCZOS, bg_color: tuple[int, ...] | None = None) -> Layer`
+### `doc.combine.bake(target: GroupLayer | str, name: str | None = None, format: ImageFormat | None = None, interp: InterpMode = InterpMode.LANCZOS, bg_color: tuple[int, ...] | None = None, cache: AbstractLayerCache | None = None) -> Layer`
 - **Descrição**: Assa os filhos internos de um `GroupLayer` em uma única camada `Layer` plana, substituindo o grupo original em seu container pai.
 - **Parâmetros**:
   - `target` (`GroupLayer | str`): Grupo alvo a ser assado (instância ou nome).
@@ -157,6 +159,7 @@ flat = doc.combine.flatten("efeitos", name="EfeitosAssados", count=2)
   - `format` (`ImageFormat | None`): Formato de cor (se omitido, herda `target.format`).
   - `interp` (`InterpMode`): Modo de interpolação na renderização.
   - `bg_color` (`tuple[int, ...] | None`): Cor de fundo opcional.
+  - `cache` (`AbstractLayerCache | None`, opcional): Instância de cache de camadas para aceleração.
 - **Retorno**: `Layer` — A camada plana resultante inserida na mesma posição do grupo.
 
 ```python
@@ -166,13 +169,14 @@ camada_assada = doc.combine.bake("Personagem")
 
 ---
 
-### `doc.combine.bake_stack(name: str = "Layer", format: ImageFormat = ImageFormat.RGBA, interp: InterpMode = InterpMode.LANCZOS, bg_color: tuple[int, ...] | None = None) -> Layer`
+### `doc.combine.bake_stack(name: str = "Layer", format: ImageFormat = ImageFormat.RGBA, interp: InterpMode = InterpMode.LANCZOS, bg_color: tuple[int, ...] | None = None, cache: AbstractLayerCache | None = None) -> Layer`
 - **Descrição**: Método especialista para assar toda a pilha (`doc.stack`) do documento em uma única camada `Layer` plana, limpando as camadas anteriores e inserindo o resultado.
 - **Parâmetros**:
   - `name` (`str`): Nome da camada resultante (padrão: `"Layer"`).
   - `format` (`ImageFormat`): Formato de cor (padrão: `ImageFormat.RGBA`).
   - `interp` (`InterpMode`): Modo de interpolação na renderização.
   - `bg_color` (`tuple[int, ...] | None`): Cor de fundo opcional.
+  - `cache` (`AbstractLayerCache | None`, opcional): Instância de cache de camadas para aceleração.
 - **Retorno**: `Layer` — A camada plana resultante que passa a ser o único nó na pilha do documento.
 
 ```python
