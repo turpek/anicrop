@@ -105,7 +105,12 @@ def test_layer_cache_register_and_unregister():
     cache.register(layer)
     assert layer.add_edit != orig_add_edit
     assert layer.add_effect != orig_add_effect
-    assert layer.background != orig_bg
+    assert layer.background == orig_bg
+
+    with cache([layer]):
+        assert layer.background != orig_bg
+
+    assert layer.background == orig_bg
 
     cache.unregister(layer)
     assert layer.add_edit == orig_add_edit
@@ -395,3 +400,46 @@ def test_layer_cache_invalidates_baked_warp_when_base_edit_visibility_changes():
     layer.edits[0].visible = False
     renderer.render_scene([layer], canvas, cache=cache)
     assert status.baked_warp is not orig_warp
+
+
+def test_layer_cache_activates_layer_fully_inside_effective_region():
+    """Valida se camada completamente contida na effective_region tem seu contexto ativado no cache."""
+    layer = Layer(make_img(40, 40))
+    cache = LayerCache()
+    cache.register(layer)
+
+    effective_region = Region.from_rect(0, 0, 100, 100)
+    with cache([layer], effective_region=effective_region) as scope:
+        assert layer in scope._active_layers
+
+
+def test_layer_cache_skips_layer_when_effective_region_alters_size():
+    """Valida se camada parcialmente cortada pela effective_region tem a ativacao de cache ignorada."""
+    layer = Layer(make_img(40, 40))
+    cache = LayerCache()
+    cache.register(layer)
+
+    effective_region = Region.from_rect(0, 0, 20, 20)
+    with cache([layer], effective_region=effective_region) as scope:
+        assert layer not in scope._active_layers
+
+
+def test_layer_cache_render_patch_preserves_full_baked_warp():
+    """Valida se render_patch parcial nao sobrescreve nem corrompe baked_warp gerado em render de cena inteira."""
+    layer = Layer(make_img(100, 100))
+    cache = LayerCache()
+    cache.register(layer)
+    renderer = CanvasRender()
+    canvas = Canvas(layer.global_region)
+
+    renderer.render_scene([layer], canvas, cache=cache)
+    status = cache.get_state(layer)
+    assert status is not None
+    assert status.baked_warp is not None
+    original_warp = status.baked_warp
+
+    patch_region = Region.from_rect(0, 0, 30, 30)
+    patch_result = renderer.render_patch([layer], canvas, patch_region, cache=cache)
+    assert patch_result is not None
+    assert patch_result.size == (30, 30)
+    assert status.baked_warp is original_warp

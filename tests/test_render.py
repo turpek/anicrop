@@ -1147,7 +1147,7 @@ def test_render_patch_invoca_escopo_do_cache(mocker):
         stack, canvas, Region.from_size(30, 30), cache=mock_cache
     )
 
-    mock_cache.assert_called_once_with(stack)
+    mock_cache.assert_called_once_with(stack, Region.from_size(30, 30))
     mock_cache.return_value.__enter__.assert_called_once()
     mock_cache.return_value.__exit__.assert_called_once()
 

@@ -14,6 +14,7 @@ if TYPE_CHECKING:
     from anicrop.edit_layer import EditLayer
     from anicrop.enums import ImageFormat
     from anicrop.image import Image
+    from anicrop.spatial import Region
 
 
 def _unwrap_effect(effect: Effect) -> Effect:
@@ -202,15 +203,25 @@ class LayerCacheScope:
         self,
         cache: LayerCache,
         container: Sequence[BaseLayer] | Container,
+        effective_region: Region | None = None,
     ) -> None:
         self._cache = cache
         self._container = container
+        self._effective_region = effective_region
         self._active_layers: list[Layer] = []
 
     def __enter__(self) -> LayerCacheScope:
         layers = _collect_layers(self._container)
         for layer in layers:
             if layer in self._cache._states:
+                if self._effective_region is not None:
+                    if not self._effective_region.overlaps(layer.global_region):
+                        continue
+                    if (
+                        layer.global_region & self._effective_region
+                    ).size != layer.global_region.size:
+                        continue
+
                 status = self._cache._states[layer]
                 self._activate_layer(layer, status)
                 self._active_layers.append(layer)
@@ -218,6 +229,8 @@ class LayerCacheScope:
 
     def _activate_layer(self, layer: Layer, status: LayerFrameState) -> None:
         status.background_calls = 0
+        status.orig_background = layer.background
+        layer.background = wrap_background(status, layer.background)  # type: ignore[method-assign]
 
         # 1. Distorção da matriz (rotação e escala 2x2): se mudou, o warp é inválido
         matrix_changed = (
@@ -338,6 +351,9 @@ class LayerCacheScope:
         if status.saved_effects is not None:
             layer._effects = status.saved_effects
             status.saved_effects = None
+        if status.orig_background is not None:
+            layer.background = status.orig_background  # type: ignore[method-assign]
+            status.orig_background = None
 
         status.matrix = layer.matrix.copy()
         status.edits.clear()
@@ -369,7 +385,6 @@ class LayerCache(AbstractLayerCache):
         layer.add_edit = wrap_add_edit(status, layer.add_edit)  # type: ignore[method-assign]
         layer.add_effect = wrap_add_effect(status, layer.add_effect)  # type: ignore[method-assign]
         layer.bind_effect = wrap_bind_effect(status, layer.bind_effect)  # type: ignore[method-assign]
-        layer.background = wrap_background(status, layer.background)  # type: ignore[method-assign]
         self._states[layer] = status
 
     def unregister(self, item: Layer | Container) -> None:
@@ -431,7 +446,9 @@ class LayerCache(AbstractLayerCache):
         return self._states.get(layer)
 
     def __call__(
-        self, container: Sequence[BaseLayer] | Container
+        self,
+        container: Sequence[BaseLayer] | Container,
+        effective_region: Region | None = None,
     ) -> LayerCacheScope:
         """Cria um escopo de contexto para ativação de cache durante a renderização."""
-        return LayerCacheScope(self, container)
+        return LayerCacheScope(self, container, effective_region=effective_region)
