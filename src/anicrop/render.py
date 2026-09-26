@@ -707,7 +707,7 @@ class BaseRenderer[FrameT: BaseFrame](ABC):
 
         effective_region = surface.region & view_region
         with freeze_geometry(container):
-            with (cache(container) if cache is not None else nullcontext()):
+            with (cache(container, effective_region) if cache is not None else nullcontext()):
                 traverser = SceneTraverser(
                     self,
                     surface,

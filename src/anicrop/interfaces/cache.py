@@ -7,6 +7,7 @@ from typing import TYPE_CHECKING, Any, Sequence
 if TYPE_CHECKING:
     from anicrop.container import BaseLayer, Container
     from anicrop.layer import Layer
+    from anicrop.spatial import Region
 
 
 class AbstractLayerCache(ABC):
@@ -14,7 +15,9 @@ class AbstractLayerCache(ABC):
 
     @abstractmethod
     def __call__(
-        self, container: Sequence[BaseLayer] | Container
+        self,
+        container: Sequence[BaseLayer] | Container,
+        effective_region: Region | None = None,
     ) -> AbstractContextManager[Any]:
         """Cria um escopo de contexto para ativação de cache durante a renderização."""
         pass
