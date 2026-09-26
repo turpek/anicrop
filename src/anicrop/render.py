@@ -521,9 +521,10 @@ class SceneTraverser:
                 children_items = self.traverse(item, frame.dst_region)
 
                 if children_items:
+                    group_format = children_items[0][1].format.with_alpha
                     buffer = Image.new(
                         frame.dst_region.size,
-                        ImageFormat.RGBA,
+                        group_format,
                         dtype=self.surface.dtype,
                     )
                     group_image = blend_rendered_images(reversed(children_items), buffer)

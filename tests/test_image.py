@@ -25,6 +25,8 @@ def make_region(w=3, h=3):
         (ImageFormat.GRAY_ALPHA, True, 2),
         (ImageFormat.RGB, False, 3),
         (ImageFormat.RGBA, True, 4),
+        (ImageFormat.BGR, False, 3),
+        (ImageFormat.BGRA, True, 4),
         (ImageFormat.CMYK, False, 4),
         (ImageFormat.CMYK_ALPHA, True, 5),
     ],
@@ -56,6 +58,8 @@ def test_Image_rejeita_se_nao_for_2D_ou_3D(shape):
         ((1, 1, 2), ImageFormat.GRAY_ALPHA),  # grayscale com canal alpha
         ((10, 20, 3), ImageFormat.RGB),  # RGB
         ((10, 20, 4), ImageFormat.RGBA),  # RGBA
+        ((10, 20, 3), ImageFormat.BGR),  # BGR
+        ((10, 20, 4), ImageFormat.BGRA),  # BGRA
     ],
     ids=[
         "gray-1x1",
@@ -65,6 +69,8 @@ def test_Image_rejeita_se_nao_for_2D_ou_3D(shape):
         "gray-1x1x2",
         "rgb",
         "rgba",
+        "bgr",
+        "bgra",
     ],
 )
 def test_Image_aceita_formatos_validos(shape, img_format):
@@ -425,8 +431,8 @@ def test_clear_rect_inverted_alpha_only():
         ((12, 16), ImageFormat.GRAY),
         ((12, 16, 1), ImageFormat.GRAY),
         ((12, 16, 2), ImageFormat.GRAY_ALPHA),
-        ((12, 16, 3), ImageFormat.RGB),
-        ((12, 16, 4), ImageFormat.RGBA),
+        ((12, 16, 3), ImageFormat.BGR),
+        ((12, 16, 4), ImageFormat.BGRA),
     ],
     ids=["2d_gray", "3d_gray", "gray_alpha", "bgr_3ch", "bgra_4ch"],
 )
@@ -440,23 +446,47 @@ def test_from_bgr_auto_detect_format(shape, expected_format):
 
 
 def test_from_bgr_converts_bgr_channels_to_rgb():
-    """Valida se canais BGR são invertidos corretamente para RGB."""
+    """Valida se canais BGR são convertidos para RGB quando solicitado."""
     bgr = np.zeros((4, 4, 3), dtype=np.uint8)
     bgr[:, :] = (10, 50, 200)  # B=10, G=50, R=200
-    img = Image.from_bgr(bgr)
+    img = Image.from_bgr(bgr, target_format=ImageFormat.RGB)
 
     assert img.format == ImageFormat.RGB
     assert np.all(img[0, 0] == (200, 50, 10))
 
 
 def test_from_bgr_converts_bgra_channels_to_rgba():
-    """Valida se canais BGRA são convertidos corretamente para RGBA com preservação de alfa."""
+    """Valida se canais BGRA são convertidos para RGBA com preservação de alfa quando solicitado."""
     bgra = np.zeros((4, 4, 4), dtype=np.uint8)
     bgra[:, :] = (15, 60, 220, 180)  # B=15, G=60, R=220, A=180
-    img = Image.from_bgr(bgra)
+    img = Image.from_bgr(bgra, target_format=ImageFormat.RGBA)
 
     assert img.format == ImageFormat.RGBA
     assert np.all(img[0, 0] == (220, 60, 15, 180))
+
+
+def test_from_bgr_zero_copy():
+    """Valida que Image.from_bgr não realiza cópia de memória para BGR e BGRA."""
+    bgr = np.zeros((4, 4, 3), dtype=np.uint8)
+    img_bgr = Image.from_bgr(bgr)
+    assert img_bgr.format == ImageFormat.BGR
+    assert np.shares_memory(img_bgr._data, bgr)
+
+    bgra = np.zeros((4, 4, 4), dtype=np.uint8)
+    img_bgra = Image.from_bgr(bgra)
+    assert img_bgra.format == ImageFormat.BGRA
+    assert np.shares_memory(img_bgra._data, bgra)
+
+
+def test_bgr_method_zero_copy():
+    """Valida que img.bgr() para imagens BGR e BGRA retorna a view sem cópia."""
+    bgr = np.zeros((4, 4, 3), dtype=np.uint8)
+    img = Image(bgr, ImageFormat.BGR)
+    assert np.shares_memory(img.bgr(), bgr)
+
+    bgra = np.zeros((4, 4, 4), dtype=np.uint8)
+    img_bgra = Image(bgra, ImageFormat.BGRA)
+    assert np.shares_memory(img_bgra.bgr(), bgra)
 
 
 @pytest.mark.parametrize(
@@ -464,18 +494,30 @@ def test_from_bgr_converts_bgra_channels_to_rgba():
     [
         ((8, 8, 3), ImageFormat.RGBA, 4),
         ((8, 8, 3), ImageFormat.GRAY, 1),
+        ((8, 8, 3), ImageFormat.BGR, 3),
+        ((8, 8, 3), ImageFormat.BGRA, 4),
         ((8, 8, 4), ImageFormat.RGB, 3),
         ((8, 8, 4), ImageFormat.GRAY, 1),
+        ((8, 8, 4), ImageFormat.BGR, 3),
+        ((8, 8, 4), ImageFormat.BGRA, 4),
         ((8, 8), ImageFormat.RGB, 3),
         ((8, 8), ImageFormat.RGBA, 4),
+        ((8, 8), ImageFormat.BGR, 3),
+        ((8, 8), ImageFormat.BGRA, 4),
     ],
     ids=[
         "bgr_to_rgba",
         "bgr_to_gray",
+        "bgr_to_bgr",
+        "bgr_to_bgra",
         "bgra_to_rgb",
         "bgra_to_gray",
+        "bgra_to_bgr",
+        "bgra_to_bgra",
         "gray_to_rgb",
         "gray_to_rgba",
+        "gray_to_bgr",
+        "gray_to_bgra",
     ],
 )
 def test_from_bgr_explicit_target_format(src_shape, target_format, expected_channels):

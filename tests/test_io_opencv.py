@@ -130,3 +130,33 @@ def test_opencv_read_non_existent_file_raises_error(temp_dir: Path):
     backend = OpenCVBackend()
     with pytest.raises(FileNotFoundError):
         backend.read(temp_dir / "nao_existe.png")
+
+
+def test_opencv_write_and_read_bgr(temp_dir: Path):
+    """Valida gravação e leitura de imagens no formato BGR com OpenCV."""
+    img_path = temp_dir / "test_bgr.png"
+    data = np.zeros((30, 40, 3), dtype=np.uint8)
+    data[:, :] = (200, 100, 50)
+
+    backend = OpenCVBackend()
+    backend.write(img_path, data, format=ImageFormat.BGR)
+
+    loaded, fmt, _ = backend.read(img_path, format=ImageFormat.BGR)
+    assert fmt == ImageFormat.BGR
+    assert loaded.shape == (30, 40, 3)
+    assert np.all(loaded[0, 0] == (200, 100, 50))
+
+
+def test_opencv_write_and_read_bgra(temp_dir: Path):
+    """Valida gravação e leitura de imagens no formato BGRA com OpenCV."""
+    img_path = temp_dir / "test_bgra.png"
+    data = np.zeros((30, 40, 4), dtype=np.uint8)
+    data[:, :] = (200, 100, 50, 180)
+
+    backend = OpenCVBackend()
+    backend.write(img_path, data, format=ImageFormat.BGRA)
+
+    loaded, fmt, _ = backend.read(img_path, format=ImageFormat.BGRA)
+    assert fmt == ImageFormat.BGRA
+    assert loaded.shape == (30, 40, 4)
+    assert np.all(loaded[0, 0] == (200, 100, 50, 180))

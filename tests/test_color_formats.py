@@ -68,6 +68,36 @@ def test_rgb_to_rgbx_and_back() -> None:
     np.testing.assert_array_equal(rgb, raw)
 
 
+def test_bgr_to_rgb_and_back() -> None:
+    """Valida o roundtrip entre BGR e RGB com troca de canais correta."""
+    raw = np.array([[[10, 20, 30]]], dtype=np.uint8)
+    rgb = convert_image_format(raw, ImageFormat.BGR, ImageFormat.RGB)
+    bgr = convert_image_format(rgb, ImageFormat.RGB, ImageFormat.BGR)
+
+    np.testing.assert_array_equal(rgb, np.array([[[30, 20, 10]]], dtype=np.uint8))
+    np.testing.assert_array_equal(bgr, raw)
+
+
+def test_bgra_to_rgba_and_back() -> None:
+    """Valida o roundtrip entre BGRA e RGBA preservando o canal alfa."""
+    raw = np.array([[[10, 20, 30, 200]]], dtype=np.uint8)
+    rgba = convert_image_format(raw, ImageFormat.BGRA, ImageFormat.RGBA)
+    bgra = convert_image_format(rgba, ImageFormat.RGBA, ImageFormat.BGRA)
+
+    np.testing.assert_array_equal(rgba, np.array([[[30, 20, 10, 200]]], dtype=np.uint8))
+    np.testing.assert_array_equal(bgra, raw)
+
+
+def test_bgr_to_bgra_and_back() -> None:
+    """Valida a adicao e descarte de canal alfa em BGR <-> BGRA."""
+    raw = np.array([[[10, 20, 30]]], dtype=np.uint8)
+    bgra = convert_image_format(raw, ImageFormat.BGR, ImageFormat.BGRA)
+    bgr = convert_image_format(bgra, ImageFormat.BGRA, ImageFormat.BGR)
+
+    np.testing.assert_array_equal(bgra, np.array([[[10, 20, 30, 255]]], dtype=np.uint8))
+    np.testing.assert_array_equal(bgr, raw)
+
+
 @pytest.mark.parametrize(
     "src_fmt,dst_fmt,in_shape,out_shape",
     [
@@ -81,6 +111,32 @@ def test_rgb_to_rgbx_and_back() -> None:
         (ImageFormat.RGBX, ImageFormat.GRAY, (10, 10, 4), (10, 10, 1)),
         (ImageFormat.GRAY_ALPHA, ImageFormat.PRGBA, (10, 10, 2), (10, 10, 4)),
         (ImageFormat.PRGBA, ImageFormat.GRAY_ALPHA, (10, 10, 4), (10, 10, 2)),
+        (ImageFormat.BGR, ImageFormat.RGB, (10, 10, 3), (10, 10, 3)),
+        (ImageFormat.RGB, ImageFormat.BGR, (10, 10, 3), (10, 10, 3)),
+        (ImageFormat.BGRA, ImageFormat.RGBA, (10, 10, 4), (10, 10, 4)),
+        (ImageFormat.RGBA, ImageFormat.BGRA, (10, 10, 4), (10, 10, 4)),
+        (ImageFormat.BGR, ImageFormat.BGRA, (10, 10, 3), (10, 10, 4)),
+        (ImageFormat.BGRA, ImageFormat.BGR, (10, 10, 4), (10, 10, 3)),
+        (ImageFormat.BGR, ImageFormat.RGBA, (10, 10, 3), (10, 10, 4)),
+        (ImageFormat.RGBA, ImageFormat.BGR, (10, 10, 4), (10, 10, 3)),
+        (ImageFormat.BGR, ImageFormat.PRGBA, (10, 10, 3), (10, 10, 4)),
+        (ImageFormat.PRGBA, ImageFormat.BGR, (10, 10, 4), (10, 10, 3)),
+        (ImageFormat.BGR, ImageFormat.RGBX, (10, 10, 3), (10, 10, 4)),
+        (ImageFormat.RGBX, ImageFormat.BGR, (10, 10, 4), (10, 10, 3)),
+        (ImageFormat.BGR, ImageFormat.GRAY, (10, 10, 3), (10, 10, 1)),
+        (ImageFormat.GRAY, ImageFormat.BGR, (10, 10, 1), (10, 10, 3)),
+        (ImageFormat.BGR, ImageFormat.GRAY_ALPHA, (10, 10, 3), (10, 10, 2)),
+        (ImageFormat.GRAY_ALPHA, ImageFormat.BGR, (10, 10, 2), (10, 10, 3)),
+        (ImageFormat.BGRA, ImageFormat.RGB, (10, 10, 4), (10, 10, 3)),
+        (ImageFormat.RGB, ImageFormat.BGRA, (10, 10, 3), (10, 10, 4)),
+        (ImageFormat.BGRA, ImageFormat.PRGBA, (10, 10, 4), (10, 10, 4)),
+        (ImageFormat.PRGBA, ImageFormat.BGRA, (10, 10, 4), (10, 10, 4)),
+        (ImageFormat.BGRA, ImageFormat.RGBX, (10, 10, 4), (10, 10, 4)),
+        (ImageFormat.RGBX, ImageFormat.BGRA, (10, 10, 4), (10, 10, 4)),
+        (ImageFormat.BGRA, ImageFormat.GRAY, (10, 10, 4), (10, 10, 1)),
+        (ImageFormat.GRAY, ImageFormat.BGRA, (10, 10, 1), (10, 10, 4)),
+        (ImageFormat.BGRA, ImageFormat.GRAY_ALPHA, (10, 10, 4), (10, 10, 2)),
+        (ImageFormat.GRAY_ALPHA, ImageFormat.BGRA, (10, 10, 2), (10, 10, 4)),
     ],
     ids=[
         "rgb_to_prgba",
@@ -93,6 +149,32 @@ def test_rgb_to_rgbx_and_back() -> None:
         "rgbx_to_gray",
         "gray_alpha_to_prgba",
         "prgba_to_gray_alpha",
+        "bgr_to_rgb",
+        "rgb_to_bgr",
+        "bgra_to_rgba",
+        "rgba_to_bgra",
+        "bgr_to_bgra",
+        "bgra_to_bgr",
+        "bgr_to_rgba",
+        "rgba_to_bgr",
+        "bgr_to_prgba",
+        "prgba_to_bgr",
+        "bgr_to_rgbx",
+        "rgbx_to_bgr",
+        "bgr_to_gray",
+        "gray_to_bgr",
+        "bgr_to_gray_alpha",
+        "gray_alpha_to_bgr",
+        "bgra_to_rgb",
+        "rgb_to_bgra",
+        "bgra_to_prgba",
+        "prgba_to_bgra",
+        "bgra_to_rgbx",
+        "rgbx_to_bgra",
+        "bgra_to_gray",
+        "gray_to_bgra",
+        "bgra_to_gray_alpha",
+        "gray_alpha_to_bgra",
     ],
 )
 def test_all_format_conversion_shapes(
@@ -108,7 +190,7 @@ def test_all_format_conversion_shapes(
 
 
 def test_image_to_format_method() -> None:
-    """Valida o método público Image.to_format convertendo uma instância para PRGBA e RGBX."""
+    """Valida o método público Image.to_format convertendo uma instância para PRGBA, RGBX, BGR e BGRA."""
     raw = np.full((20, 20, 4), 200, dtype=np.uint8)
     img_rgba = Image(raw, ImageFormat.RGBA)
 
@@ -119,3 +201,11 @@ def test_image_to_format_method() -> None:
     img_rgbx = img_prgba.to_format(ImageFormat.RGBX)
     assert img_rgbx.format == ImageFormat.RGBX
     assert img_rgbx.shape == (20, 20, 4)
+
+    img_bgr = img_rgba.to_format(ImageFormat.BGR)
+    assert img_bgr.format == ImageFormat.BGR
+    assert img_bgr.shape == (20, 20, 3)
+
+    img_bgra = img_bgr.to_format(ImageFormat.BGRA)
+    assert img_bgra.format == ImageFormat.BGRA
+    assert img_bgra.shape == (20, 20, 4)

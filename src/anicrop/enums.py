@@ -72,6 +72,8 @@ class ImageFormat(StrEnum):
     RGBA = "rgba"
     PRGBA = "prgba"
     RGBX = "rgbx"
+    BGR = "bgr"
+    BGRA = "bgra"
     CMYK = "cmyk"
     CMYK_ALPHA = "cmyk_alpha"
 
@@ -81,6 +83,7 @@ class ImageFormat(StrEnum):
             ImageFormat.GRAY_ALPHA,
             ImageFormat.RGBA,
             ImageFormat.PRGBA,
+            ImageFormat.BGRA,
             ImageFormat.CMYK_ALPHA,
         }
 
@@ -102,8 +105,42 @@ class ImageFormat(StrEnum):
             ImageFormat.RGBA: 4,
             ImageFormat.PRGBA: 4,
             ImageFormat.RGBX: 4,
+            ImageFormat.BGR: 3,
+            ImageFormat.BGRA: 4,
             ImageFormat.CMYK: 4,
             ImageFormat.CMYK_ALPHA: 5,
+        }[self]
+
+    @property
+    def with_alpha(self) -> ImageFormat:
+        """Retorna o formato correspondente com canal alfa."""
+        return {
+            ImageFormat.GRAY: ImageFormat.GRAY_ALPHA,
+            ImageFormat.GRAY_ALPHA: ImageFormat.GRAY_ALPHA,
+            ImageFormat.RGB: ImageFormat.RGBA,
+            ImageFormat.RGBA: ImageFormat.RGBA,
+            ImageFormat.PRGBA: ImageFormat.PRGBA,
+            ImageFormat.RGBX: ImageFormat.RGBA,
+            ImageFormat.BGR: ImageFormat.BGRA,
+            ImageFormat.BGRA: ImageFormat.BGRA,
+            ImageFormat.CMYK: ImageFormat.CMYK_ALPHA,
+            ImageFormat.CMYK_ALPHA: ImageFormat.CMYK_ALPHA,
+        }[self]
+
+    @property
+    def without_alpha(self) -> ImageFormat:
+        """Retorna o formato correspondente sem canal alfa."""
+        return {
+            ImageFormat.GRAY: ImageFormat.GRAY,
+            ImageFormat.GRAY_ALPHA: ImageFormat.GRAY,
+            ImageFormat.RGB: ImageFormat.RGB,
+            ImageFormat.RGBA: ImageFormat.RGB,
+            ImageFormat.PRGBA: ImageFormat.RGB,
+            ImageFormat.RGBX: ImageFormat.RGB,
+            ImageFormat.BGR: ImageFormat.BGR,
+            ImageFormat.BGRA: ImageFormat.BGR,
+            ImageFormat.CMYK: ImageFormat.CMYK,
+            ImageFormat.CMYK_ALPHA: ImageFormat.CMYK,
         }[self]
 
     def same_spaces(self, other: ImageFormat) -> bool:
@@ -114,6 +151,8 @@ class ImageFormat(StrEnum):
             "rgba": "rgb",
             "prgba": "rgb",
             "rgbx": "rgb",
+            "bgr": "bgr",
+            "bgra": "bgr",
             "cmyk": "cmyk",
             "cmyk_alpha": "cmyk",
         }

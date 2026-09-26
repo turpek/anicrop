@@ -1061,3 +1061,60 @@ def test_calculate_patch_warp_matrix_perspectiva():
 
     assert persp_m.shape == (3, 3)
     assert persp_m.dtype == np.float64
+
+
+def test_render_scene_bgra_canvas_and_layers():
+    """Valida renderização completa de cena em BGRA com camadas e grupos."""
+    stack = LayerStack()
+    # BGR cor: B=200, G=100, R=50, A=255
+    bgra_img = make_img(w=50, h=50, color=(200, 100, 50, 255), form=ImageFormat.BGRA)
+    layer = Layer(bgra_img)
+
+    group = GroupLayer()
+    group_child = Layer(make_img(w=30, h=30, color=(10, 20, 30, 255), form=ImageFormat.BGRA))
+    group.append(group_child)
+
+    stack.append(layer)
+    stack.append(group)
+
+    canvas = Canvas.from_size(100, 100)
+    renderer = CanvasRender()
+    result = renderer.render_scene(stack, canvas, format=ImageFormat.BGRA)
+
+    assert result.format == ImageFormat.BGRA
+    assert result.shape == (100, 100, 4)
+    # Na área do filho do grupo (top-left 30x30): cor do filho (10, 20, 30, 255)
+    np.testing.assert_array_equal(result[0, 0], [10, 20, 30, 255])
+    # Na área da camada base (40, 40): cor da camada (200, 100, 50, 255)
+    np.testing.assert_array_equal(result[40, 40], [200, 100, 50, 255])
+
+
+def test_render_scene_bgr_canvas_output():
+    """Valida que renderizar com format=BGR entrega uma imagem de 3 canais sem alfa."""
+    stack = LayerStack()
+    bgra_img = make_img(w=50, h=50, color=(200, 100, 50, 255), form=ImageFormat.BGRA)
+    stack.append(Layer(bgra_img))
+
+    canvas = Canvas.from_size(60, 60)
+    renderer = CanvasRender()
+    result = renderer.render_scene(stack, canvas, format=ImageFormat.BGR)
+
+    assert result.format == ImageFormat.BGR
+    assert result.shape == (60, 60, 3)
+    np.testing.assert_array_equal(result[10, 10], [200, 100, 50])
+
+
+def test_render_scene_harmonizes_rgb_layer_on_bgra_canvas():
+    """Valida que camadas em RGB/RGBA são harmonizadas automaticamente sobre Canvas BGRA."""
+    stack = LayerStack()
+    # Camada em RGB (R=255, G=0, B=0, A=255) -> em BGR é (0, 0, 255, 255)
+    rgb_img = make_img(w=40, h=40, color=(255, 0, 0, 255), form=ImageFormat.RGBA)
+    stack.append(Layer(rgb_img))
+
+    canvas = Canvas.from_size(50, 50)
+    renderer = CanvasRender()
+    result = renderer.render_scene(stack, canvas, format=ImageFormat.BGRA)
+
+    assert result.format == ImageFormat.BGRA
+    # Vermelho RGB (255, 0, 0) harmonizado para BGRA deve ter B=0, G=0, R=255, A=255
+    np.testing.assert_array_equal(result[5, 5], [0, 0, 255, 255])

@@ -292,6 +292,157 @@ def _rgbx_to_gray_alpha(data: np.ndarray) -> np.ndarray:
     return _rgb_to_gray_alpha(data[..., :3])
 
 
+def _bgr_to_rgb(data: np.ndarray) -> np.ndarray:
+    """Converte BGR para RGB invertendo a ordem dos canais (BGR -> RGB)."""
+    return cv2.cvtColor(data, cv2.COLOR_BGR2RGB)
+
+
+def _rgb_to_bgr(data: np.ndarray) -> np.ndarray:
+    """Converte RGB para BGR invertendo a ordem dos canais (RGB -> BGR)."""
+    return cv2.cvtColor(data, cv2.COLOR_RGB2BGR)
+
+
+def _bgra_to_rgba(data: np.ndarray) -> np.ndarray:
+    """Converte BGRA para RGBA invertendo os canais de cor e mantendo o alfa (BGRA -> RGBA)."""
+    return cv2.cvtColor(data, cv2.COLOR_BGRA2RGBA)
+
+
+def _rgba_to_bgra(data: np.ndarray) -> np.ndarray:
+    """Converte RGBA para BGRA invertendo os canais de cor e mantendo o alfa (RGBA -> BGRA)."""
+    return cv2.cvtColor(data, cv2.COLOR_RGBA2BGRA)
+
+
+def _bgr_to_bgra(data: np.ndarray) -> np.ndarray:
+    """Adiciona um canal alfa totalmente opaco (BGR -> BGRA)."""
+    return cv2.cvtColor(data, cv2.COLOR_BGR2BGRA)
+
+
+def _bgra_to_bgr(data: np.ndarray) -> np.ndarray:
+    """Descarta o canal alfa (BGRA -> BGR)."""
+    return cv2.cvtColor(data, cv2.COLOR_BGRA2BGR)
+
+
+def _bgr_to_rgba(data: np.ndarray) -> np.ndarray:
+    """Converte BGR para RGBA com canal alfa opaco (BGR -> RGBA)."""
+    return cv2.cvtColor(data, cv2.COLOR_BGR2RGBA)
+
+
+def _rgba_to_bgr(data: np.ndarray) -> np.ndarray:
+    """Descarta o canal alfa e converte RGBA para BGR (RGBA -> BGR)."""
+    return cv2.cvtColor(data, cv2.COLOR_RGBA2BGR)
+
+
+def _bgr_to_rgbx(data: np.ndarray) -> np.ndarray:
+    """Converte BGR para RGBX com padding de 32 bits (BGR -> RGBX)."""
+    return cv2.cvtColor(data, cv2.COLOR_BGR2RGBA)
+
+
+def _rgbx_to_bgr(data: np.ndarray) -> np.ndarray:
+    """Descarta o canal de padding e converte RGBX para BGR (RGBX -> BGR)."""
+    return cv2.cvtColor(data, cv2.COLOR_RGBA2BGR)
+
+
+def _bgr_to_prgba(data: np.ndarray) -> np.ndarray:
+    """Converte BGR opaco para PRGBA com alfa opaco (BGR -> PRGBA)."""
+    return cv2.cvtColor(data, cv2.COLOR_BGR2RGBA)
+
+
+def _prgba_to_bgr(data: np.ndarray) -> np.ndarray:
+    """Desmultiplica PRGBA e converte para BGR (PRGBA -> BGR)."""
+    rgb = _prgba_to_rgb(data)
+    return cv2.cvtColor(rgb, cv2.COLOR_RGB2BGR)
+
+
+def _bgra_to_rgb(data: np.ndarray) -> np.ndarray:
+    """Descarta o canal alfa e converte BGRA para RGB (BGRA -> RGB)."""
+    return cv2.cvtColor(data, cv2.COLOR_BGRA2RGB)
+
+
+def _rgb_to_bgra(data: np.ndarray) -> np.ndarray:
+    """Converte RGB para BGRA com canal alfa opaco (RGB -> BGRA)."""
+    return cv2.cvtColor(data, cv2.COLOR_RGB2BGRA)
+
+
+def _bgra_to_rgbx(data: np.ndarray) -> np.ndarray:
+    """Converte BGRA para RGBX descartando a opacidade (BGRA -> RGBX)."""
+    out = cv2.cvtColor(data, cv2.COLOR_BGRA2RGBA)
+    out[..., 3] = 255
+    return out
+
+
+def _rgbx_to_bgra(data: np.ndarray) -> np.ndarray:
+    """Converte RGBX para BGRA com alfa opaco (RGBX -> BGRA)."""
+    return cv2.cvtColor(data, cv2.COLOR_RGBA2BGRA)
+
+
+def _bgra_to_prgba(data: np.ndarray) -> np.ndarray:
+    """Converte BGRA para PRGBA pre-multiplicando os canais de cor (BGRA -> PRGBA)."""
+    rgba = cv2.cvtColor(data, cv2.COLOR_BGRA2RGBA)
+    return _rgba_to_prgba(rgba)
+
+
+def _prgba_to_bgra(data: np.ndarray) -> np.ndarray:
+    """Desmultiplica PRGBA e converte para BGRA (PRGBA -> BGRA)."""
+    rgba = _prgba_to_rgba(data)
+    return cv2.cvtColor(rgba, cv2.COLOR_RGBA2BGRA)
+
+
+def _gray_to_bgr(data: np.ndarray) -> np.ndarray:
+    """Expande escala de cinza para 3 canais BGR (GRAY -> BGR)."""
+    src = data if data.ndim == 2 else data[..., 0]
+    return cv2.cvtColor(src, cv2.COLOR_GRAY2BGR)
+
+
+def _bgr_to_gray(data: np.ndarray) -> np.ndarray:
+    """Converte BGR para escala de cinza com peso perceptivo (BGR -> GRAY)."""
+    gray = cv2.cvtColor(data[..., :3], cv2.COLOR_BGR2GRAY)
+    return gray[..., np.newaxis]
+
+
+def _gray_to_bgra(data: np.ndarray) -> np.ndarray:
+    """Converte escala de cinza para BGRA com alfa opaco (GRAY -> BGRA)."""
+    src = data if data.ndim == 2 else data[..., 0]
+    return cv2.cvtColor(src, cv2.COLOR_GRAY2BGRA)
+
+
+def _bgra_to_gray(data: np.ndarray) -> np.ndarray:
+    """Converte BGRA para escala de cinza descartando o alfa (BGRA -> GRAY)."""
+    gray = cv2.cvtColor(data, cv2.COLOR_BGRA2GRAY)
+    return gray[..., np.newaxis]
+
+
+def _gray_alpha_to_bgr(data: np.ndarray) -> np.ndarray:
+    """Descarta o alfa e expande para BGR (GRAY_ALPHA -> BGR)."""
+    return cv2.cvtColor(data[..., 0], cv2.COLOR_GRAY2BGR)
+
+
+def _bgr_to_gray_alpha(data: np.ndarray) -> np.ndarray:
+    """Converte BGR para GRAY_ALPHA com alfa opaco (BGR -> GRAY_ALPHA)."""
+    h, w = data.shape[:2]
+    out = np.empty((h, w, 2), dtype=data.dtype)
+    out[..., 0] = cv2.cvtColor(data[..., :3], cv2.COLOR_BGR2GRAY)
+    out[..., 1] = 255
+    return out
+
+
+def _gray_alpha_to_bgra(data: np.ndarray) -> np.ndarray:
+    """Converte GRAY_ALPHA para BGRA preservando o alfa (GRAY_ALPHA -> BGRA)."""
+    h, w = data.shape[:2]
+    out = np.empty((h, w, 4), dtype=data.dtype)
+    out[..., :3] = cv2.cvtColor(data[..., 0], cv2.COLOR_GRAY2BGR)
+    out[..., 3] = data[..., 1]
+    return out
+
+
+def _bgra_to_gray_alpha(data: np.ndarray) -> np.ndarray:
+    """Converte BGRA para GRAY_ALPHA preservando o alfa (BGRA -> GRAY_ALPHA)."""
+    h, w = data.shape[:2]
+    out = np.empty((h, w, 2), dtype=data.dtype)
+    out[..., 0] = cv2.cvtColor(data[..., :3], cv2.COLOR_BGR2GRAY)
+    out[..., 1] = data[..., 3]
+    return out
+
+
 # =========================================================================
 # Tabela de Despacho de Conversão de Formatos (Strategy Dispatch Table)
 # =========================================================================
@@ -344,6 +495,45 @@ FORMAT_CONVERTERS: dict[tuple[ImageFormat, ImageFormat], FormatConverter] = {
     # GRAY_ALPHA <-> RGBX
     (ImageFormat.GRAY_ALPHA, ImageFormat.RGBX): _gray_alpha_to_rgbx,
     (ImageFormat.RGBX, ImageFormat.GRAY_ALPHA): _rgbx_to_gray_alpha,
+    # BGR <-> BGRA
+    (ImageFormat.BGR, ImageFormat.BGRA): _bgr_to_bgra,
+    (ImageFormat.BGRA, ImageFormat.BGR): _bgra_to_bgr,
+    # BGR <-> RGB
+    (ImageFormat.BGR, ImageFormat.RGB): _bgr_to_rgb,
+    (ImageFormat.RGB, ImageFormat.BGR): _rgb_to_bgr,
+    # BGR <-> RGBA
+    (ImageFormat.BGR, ImageFormat.RGBA): _bgr_to_rgba,
+    (ImageFormat.RGBA, ImageFormat.BGR): _rgba_to_bgr,
+    # BGR <-> PRGBA
+    (ImageFormat.BGR, ImageFormat.PRGBA): _bgr_to_prgba,
+    (ImageFormat.PRGBA, ImageFormat.BGR): _prgba_to_bgr,
+    # BGR <-> RGBX
+    (ImageFormat.BGR, ImageFormat.RGBX): _bgr_to_rgbx,
+    (ImageFormat.RGBX, ImageFormat.BGR): _rgbx_to_bgr,
+    # BGR <-> GRAY
+    (ImageFormat.BGR, ImageFormat.GRAY): _bgr_to_gray,
+    (ImageFormat.GRAY, ImageFormat.BGR): _gray_to_bgr,
+    # BGR <-> GRAY_ALPHA
+    (ImageFormat.BGR, ImageFormat.GRAY_ALPHA): _bgr_to_gray_alpha,
+    (ImageFormat.GRAY_ALPHA, ImageFormat.BGR): _gray_alpha_to_bgr,
+    # BGRA <-> RGB
+    (ImageFormat.BGRA, ImageFormat.RGB): _bgra_to_rgb,
+    (ImageFormat.RGB, ImageFormat.BGRA): _rgb_to_bgra,
+    # BGRA <-> RGBA
+    (ImageFormat.BGRA, ImageFormat.RGBA): _bgra_to_rgba,
+    (ImageFormat.RGBA, ImageFormat.BGRA): _rgba_to_bgra,
+    # BGRA <-> PRGBA
+    (ImageFormat.BGRA, ImageFormat.PRGBA): _bgra_to_prgba,
+    (ImageFormat.PRGBA, ImageFormat.BGRA): _prgba_to_bgra,
+    # BGRA <-> RGBX
+    (ImageFormat.BGRA, ImageFormat.RGBX): _bgra_to_rgbx,
+    (ImageFormat.RGBX, ImageFormat.BGRA): _rgbx_to_bgra,
+    # BGRA <-> GRAY
+    (ImageFormat.BGRA, ImageFormat.GRAY): _bgra_to_gray,
+    (ImageFormat.GRAY, ImageFormat.BGRA): _gray_to_bgra,
+    # BGRA <-> GRAY_ALPHA
+    (ImageFormat.BGRA, ImageFormat.GRAY_ALPHA): _bgra_to_gray_alpha,
+    (ImageFormat.GRAY_ALPHA, ImageFormat.BGRA): _gray_alpha_to_bgra,
 }
 
 

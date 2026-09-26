@@ -13,6 +13,15 @@ if TYPE_CHECKING:
     from anicrop.container import BaseLayer
 
 
+def harmonize_rendered_image(image: Image, target: Image) -> Image:
+    """Harmoniza o espaco de cores e o dtype da imagem renderizada com o buffer de destino."""
+    if not image.format.same_spaces(target.format):
+        image = image.to_format(target.format)
+    if image.dtype != target.dtype:
+        image = image.to_dtype(target.dtype)
+    return image
+
+
 def blend_rendered_images(
     images: Iterable[tuple[BaseLayer, Image, Region]],
     buffer: Image,
@@ -20,8 +29,7 @@ def blend_rendered_images(
     """Realiza a composição das imagens renderizadas em ordem reversa diretamente no buffer de destino."""
     for base_layer, image, region in images:
         blend = BLEND_MODE[base_layer.blend_mode]
-        if image.dtype != buffer.dtype:
-            image = image.to_dtype(buffer.dtype)
+        image = harmonize_rendered_image(image, buffer)
         blend(buffer.view(region), image, base_layer.opacity)
     return buffer
 
