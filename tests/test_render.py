@@ -666,7 +666,7 @@ def test_render_single_edit_full_frame_returns_direct_image():
     frame = CanvasFrame(layer, Canvas.from_size(100, 80))
 
     result = renderer._render_single_edit(
-        layer.edits[0], layer.format, frame, InterpMode.LANCZOS
+        layer.edits[0], layer, frame, InterpMode.LANCZOS
     )
 
     assert result is not None
@@ -688,7 +688,7 @@ def test_render_single_edit_partial_patch_blends_into_layer_image():
     frame = CanvasFrame(layer, Canvas.from_size(100, 100))
 
     result = renderer._render_single_edit(
-        patch_edit, layer.format, frame, InterpMode.LANCZOS
+        patch_edit, layer, frame, InterpMode.LANCZOS
     )
 
     assert result is not None
@@ -728,7 +728,7 @@ def test_render_single_edit_preserves_image_format(fmt, color):
     frame = CanvasFrame(layer, Canvas.from_size(60, 40))
 
     result = renderer._render_single_edit(
-        layer.edits[0], layer.format, frame, InterpMode.LANCZOS
+        layer.edits[0], layer, frame, InterpMode.LANCZOS
     )
 
     assert result is not None
