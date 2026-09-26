@@ -13,6 +13,7 @@ from anicrop.cache import (
 )
 from anicrop.canvas import Canvas
 from anicrop.container import GroupLayer
+from anicrop.effect import DynamicEffect, Effect
 from anicrop.enums import ImageFormat
 from anicrop.filter import BlurFilter
 from anicrop.image import Image
@@ -160,6 +161,7 @@ def test_layer_cache_set_baked_injection():
     assert status is not None
     assert status.baked_warp is baked
     assert status.baked_effects is None
+    assert status.matrix is not None
     assert np.allclose(status.matrix, layer.matrix)
 
 
@@ -247,3 +249,146 @@ def test_layer_cache_with_effects_and_mask_preserves_baked_warp():
     assert status.baked_effects is not None
     assert np.all(status.baked_warp[..., 3] == 255)
     assert np.all(status.baked_effects[..., 3] == 255)
+
+
+class CountingDynamicEffect(DynamicEffect):
+    def __init__(self) -> None:
+        super().__init__(name="CountingDynamicEffect")
+        self.apply_count = 0
+
+    def get_padding(self) -> tuple[int, int, int, int]:
+        return (0, 0, 0, 0)
+
+    def apply(self, image: Image, matrix: np.ndarray) -> Image:
+        self.apply_count += 1
+        return image
+
+
+class CountingStaticEffect(Effect):
+    def __init__(self) -> None:
+        super().__init__(name="CountingStaticEffect")
+        self.apply_count = 0
+
+    def get_padding(self) -> tuple[int, int, int, int]:
+        return (0, 0, 0, 0)
+
+    def merge(self, other: Effect, matrix: np.ndarray) -> Effect | None:
+        return None
+
+    def apply(self, image: Image, matrix: np.ndarray) -> Image:
+        self.apply_count += 1
+        return image
+
+
+def test_layer_cache_runs_dynamic_effect_every_frame():
+    """Valida se DynamicEffect eh reexecutado a cada frame enquanto baked_warp permanece em cache."""
+    layer = Layer(make_img(40, 40))
+    dyn_effect = CountingDynamicEffect()
+    layer.add_effect(dyn_effect)
+
+    cache = LayerCache()
+    cache.register(layer)
+
+    renderer = CanvasRender()
+    canvas = Canvas(layer.global_region)
+
+    renderer.render_scene([layer], canvas, cache=cache)
+    assert dyn_effect.apply_count == 1
+    status = cache.get_state(layer)
+    assert status is not None
+    assert status.baked_warp is not None
+    assert status.baked_effects is None
+
+    renderer.render_scene([layer], canvas, cache=cache)
+    assert dyn_effect.apply_count == 2
+    assert status.baked_warp is not None
+    assert status.baked_effects is None
+
+
+def test_layer_cache_bakes_static_effects_and_executes_dynamic_effects_incrementally():
+    """Valida se efeitos estaticos sao assados e apenas os dinamicos rodam nos frames subsequentes."""
+    layer = Layer(make_img(40, 40))
+    static_effect = CountingStaticEffect()
+    dyn_effect = CountingDynamicEffect()
+    layer.add_effect(static_effect)
+    layer.add_effect(dyn_effect)
+
+    cache = LayerCache()
+    cache.register(layer)
+
+    renderer = CanvasRender()
+    canvas = Canvas(layer.global_region)
+
+    renderer.render_scene([layer], canvas, cache=cache)
+    assert static_effect.apply_count == 1
+    assert dyn_effect.apply_count == 1
+    status = cache.get_state(layer)
+    assert status is not None
+    assert status.baked_effects is not None
+
+    renderer.render_scene([layer], canvas, cache=cache)
+    assert static_effect.apply_count == 1
+    assert dyn_effect.apply_count == 2
+
+
+def test_layer_cache_recognizes_bound_dynamic_effect():
+    """Valida se DynamicEffect envelopado por BoundEffect eh reconhecido como dinamico."""
+    layer = Layer(make_img(40, 40))
+    dyn_effect = CountingDynamicEffect()
+    layer.bind_effect(dyn_effect)
+
+    cache = LayerCache()
+    cache.register(layer)
+
+    renderer = CanvasRender()
+    canvas = Canvas(layer.global_region)
+
+    renderer.render_scene([layer], canvas, cache=cache)
+    assert dyn_effect.apply_count == 1
+
+    renderer.render_scene([layer], canvas, cache=cache)
+    assert dyn_effect.apply_count == 2
+
+
+def test_layer_cache_invalidates_baked_effects_when_static_effect_visibility_changes():
+    """Valida se alteracao na visibilidade de um efeito estatico invalida o baked_effects."""
+    layer = Layer(make_img(40, 40))
+    static_effect = CountingStaticEffect()
+    layer.add_effect(static_effect)
+
+    cache = LayerCache()
+    cache.register(layer)
+
+    renderer = CanvasRender()
+    canvas = Canvas(layer.global_region)
+
+    renderer.render_scene([layer], canvas, cache=cache)
+    assert static_effect.apply_count == 1
+    status = cache.get_state(layer)
+    assert status is not None
+    assert status.baked_effects is not None
+
+    static_effect.visible = False
+    renderer.render_scene([layer], canvas, cache=cache)
+    assert static_effect.apply_count == 1
+    assert status.baked_effects is None
+
+
+def test_layer_cache_invalidates_baked_warp_when_base_edit_visibility_changes():
+    """Valida se alteracao na visibilidade de um edit base invalida o baked_warp."""
+    layer = Layer(make_img(40, 40))
+    cache = LayerCache()
+    cache.register(layer)
+
+    renderer = CanvasRender()
+    canvas = Canvas(layer.global_region)
+
+    renderer.render_scene([layer], canvas, cache=cache)
+    status = cache.get_state(layer)
+    assert status is not None
+    assert status.baked_warp is not None
+
+    orig_warp = status.baked_warp
+    layer.edits[0].visible = False
+    renderer.render_scene([layer], canvas, cache=cache)
+    assert status.baked_warp is not orig_warp

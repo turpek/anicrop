@@ -33,6 +33,17 @@ class Effect(ABC):
         pass
 
 
+class DynamicEffect(Effect):
+    """Classe base abstrata para efeitos dinâmicos/relacionais cujo resultado não deve ser cacheado."""
+
+    def __init__(self, visible: bool = True, name: str = "DynamicEffect"):
+        super().__init__(visible=visible, name=name)
+
+    def merge(self, other: Effect, matrix: np.ndarray) -> Effect | None:
+        """Efeitos dinâmicos por padrão não são combinados estaticamente."""
+        return None
+
+
 class BoundEffect(Effect):
     """Envelope explícito que ancora um Effect à geometria da camada e opcionalmente modula por máscara."""
 

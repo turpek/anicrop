@@ -6,7 +6,7 @@ from typing import TYPE_CHECKING, Any, Callable, Sequence
 import numpy as np
 
 from anicrop.container import BaseLayer, Container, GroupLayer
-from anicrop.effect import Effect
+from anicrop.effect import BoundEffect, DynamicEffect, Effect
 from anicrop.interfaces.cache import AbstractLayerCache
 from anicrop.layer import Layer
 
@@ -14,6 +14,16 @@ if TYPE_CHECKING:
     from anicrop.edit_layer import EditLayer
     from anicrop.enums import ImageFormat
     from anicrop.image import Image
+
+
+def _unwrap_effect(effect: Effect) -> Effect:
+    """Desembrulha o efeito se ele estiver encapsulado por um BoundEffect."""
+    return effect.effect if isinstance(effect, BoundEffect) else effect
+
+
+def _is_dynamic_effect(effect: Effect) -> bool:
+    """Verifica se o efeito é uma instância de DynamicEffect."""
+    return isinstance(_unwrap_effect(effect), DynamicEffect)
 
 
 class LayerFrameState:
@@ -27,8 +37,14 @@ class LayerFrameState:
         self.baked_effects: Image | None = None
         self.background_calls: int = 0
 
+        self.baked_edits_count: int = 0
+        self.edits_visibility: tuple[bool, ...] = ()
+        self.baked_effects_count: int = 0
+        self.effects_visibility: tuple[bool, ...] = ()
+
         self.orig_add_edit: Any = None
         self.orig_add_effect: Any = None
+        self.orig_bind_effect: Any = None
         self.orig_background: Any = None
 
         self.saved_edits: deque[EditLayer] | None = None
@@ -63,6 +79,20 @@ def wrap_add_effect(
     return wrapper
 
 
+def wrap_bind_effect(
+    status: LayerFrameState, original_func: Callable[..., Any]
+) -> Callable[..., Any]:
+    """Empacota bind_effect para registrar novos efeitos na lista de deltas do cache."""
+    status.orig_bind_effect = original_func
+
+    def wrapper(*args: Any, **kwargs: Any) -> Any:
+        bound = original_func(*args, **kwargs)
+        status.effects.append(bound)
+        return bound
+
+    return wrapper
+
+
 def wrap_background(
     status: LayerFrameState, original_func: Callable[..., Any]
 ) -> Callable[..., Any]:
@@ -81,10 +111,16 @@ def wrap_background(
 class CacheEffect(Effect):
     """Efeito guardião de cache posicionado no início da cadeia de efeitos."""
 
-    def __init__(self, status: LayerFrameState, layer: Layer) -> None:
+    def __init__(
+        self,
+        status: LayerFrameState,
+        layer: Layer,
+        has_dynamic_following: bool = False,
+    ) -> None:
         super().__init__(visible=True, name="CacheEffect")
         self.status = status
         self.layer = layer
+        self.has_dynamic_following = has_dynamic_following
 
     def get_padding(self) -> tuple[int, int, int, int]:
         return (0, 0, 0, 0)
@@ -104,13 +140,11 @@ class CacheEffect(Effect):
         if self.status.baked_effects is not None:
             return (
                 self.status.baked_effects.crop()
-                if has_mask
+                if (has_mask or self.has_dynamic_following)
                 else self.status.baked_effects
             )
 
         # 3. Se não temos o bake dos efeitos:
-        # Se outros efeitos de usuário vão rodar a seguir, ou se há máscara ativa,
-        # isola com crop para que o status.baked_warp nunca seja mutado in-place:
         has_user_effects = bool(
             self.status.saved_effects and any(e.visible for e in self.status.saved_effects)
         )
@@ -121,12 +155,18 @@ class CacheEffect(Effect):
 
 
 class CaptureBakedEffectsEffect(Effect):
-    """Efeito de captura que armazena a imagem resultante após a execução dos efeitos de usuário."""
+    """Efeito de captura que armazena a imagem resultante após a execução dos efeitos de usuário estáticos."""
 
-    def __init__(self, status: LayerFrameState, layer: Layer) -> None:
+    def __init__(
+        self,
+        status: LayerFrameState,
+        layer: Layer,
+        has_dynamic_following: bool = False,
+    ) -> None:
         super().__init__(visible=True, name="CaptureBakedEffectsEffect")
         self.status = status
         self.layer = layer
+        self.has_dynamic_following = has_dynamic_following
 
     def get_padding(self) -> tuple[int, int, int, int]:
         return (0, 0, 0, 0)
@@ -137,7 +177,11 @@ class CaptureBakedEffectsEffect(Effect):
     def apply(self, image: Image, matrix: np.ndarray) -> Image:
         has_mask = self.layer.mask is not None and self.layer.mask.visible
         self.status.baked_effects = image
-        return image.crop() if has_mask else image
+        return (
+            image.crop()
+            if (has_mask or self.has_dynamic_following)
+            else image
+        )
 
 
 def _collect_layers(container: Sequence[BaseLayer] | Container) -> list[Layer]:
@@ -174,37 +218,102 @@ class LayerCacheScope:
 
     def _activate_layer(self, layer: Layer, status: LayerFrameState) -> None:
         status.background_calls = 0
+
         # 1. Verificar matriz
         matrix_changed = (
             status.matrix is None
             or not np.allclose(layer.matrix, status.matrix, atol=1e-5)
         )
 
-        # 2. Limpar os bakes se necessário
-        if matrix_changed:
+        # 2. Verificar visibilidade dos edits que compõem o baked_warp
+        edits_vis_changed = False
+        if status.baked_warp is not None:
+            if len(layer.edits) < status.baked_edits_count:
+                edits_vis_changed = True
+            else:
+                current_base_vis = tuple(
+                    layer.edits[i].visible for i in range(status.baked_edits_count)
+                )
+                if current_base_vis != status.edits_visibility:
+                    edits_vis_changed = True
+
+        # 3. Verificar visibilidade dos efeitos estáticos que compõem o baked_effects
+        effects_vis_changed = False
+        if status.baked_effects is not None:
+            if len(layer.effects) < status.baked_effects_count:
+                effects_vis_changed = True
+            else:
+                current_static_vis = tuple(
+                    layer.effects[i].visible for i in range(status.baked_effects_count)
+                )
+                if current_static_vis != status.effects_visibility:
+                    effects_vis_changed = True
+
+        # 4. Invalidação de bakes
+        if matrix_changed or edits_vis_changed:
             status.baked_warp = None
             status.baked_effects = None
-        elif status.edits or status.effects:
+            status.baked_edits_count = 0
+            status.edits_visibility = ()
+            status.baked_effects_count = 0
+            status.effects_visibility = ()
+        elif effects_vis_changed or status.edits or status.effects:
             status.baked_effects = None
+            status.baked_effects_count = 0
+            status.effects_visibility = ()
 
-        # 3. Preparar os edits
+        # 5. Preparar os edits
         status.saved_edits = layer._edits
         if status.baked_warp is None:
             layer._edits = deque(layer._edits)
+            status.baked_edits_count = len(layer.edits)
+            status.edits_visibility = tuple(e.visible for e in layer.edits)
         else:
             layer._edits = deque(status.edits)
 
-        # 4. Preparar os efeitos (CacheEffect sempre roda primeiro)
+        # 6. Preparar os efeitos (particionando entre estáticos e dinâmicos)
         status.saved_effects = layer._effects
-        if status.baked_effects is not None:
-            layer._effects = [CacheEffect(status, layer)]
+        visible_user_effects = [e for e in status.saved_effects if e.visible]
+
+        first_dynamic_idx = -1
+        for i, eff in enumerate(visible_user_effects):
+            if _is_dynamic_effect(eff):
+                first_dynamic_idx = i
+                break
+
+        if first_dynamic_idx == -1:
+            static_effects = visible_user_effects
+            dynamic_effects: list[Effect] = []
+        elif first_dynamic_idx == 0:
+            static_effects = []
+            dynamic_effects = visible_user_effects
         else:
-            visible_user_effects = [e for e in status.saved_effects if e.visible]
-            if visible_user_effects:
+            static_effects = visible_user_effects[:first_dynamic_idx]
+            dynamic_effects = visible_user_effects[first_dynamic_idx:]
+
+        has_dynamic = bool(dynamic_effects)
+
+        if status.baked_effects is not None:
+            layer._effects = [
+                CacheEffect(status, layer, has_dynamic_following=has_dynamic),
+                *dynamic_effects,
+            ]
+        else:
+            if static_effects:
+                status.baked_effects_count = len(static_effects)
+                status.effects_visibility = tuple(e.visible for e in static_effects)
                 layer._effects = [
-                    CacheEffect(status, layer),
-                    *status.saved_effects,
-                    CaptureBakedEffectsEffect(status, layer),
+                    CacheEffect(status, layer, has_dynamic_following=True),
+                    *static_effects,
+                    CaptureBakedEffectsEffect(
+                        status, layer, has_dynamic_following=has_dynamic
+                    ),
+                    *dynamic_effects,
+                ]
+            elif dynamic_effects:
+                layer._effects = [
+                    CacheEffect(status, layer, has_dynamic_following=True),
+                    *dynamic_effects,
                 ]
             else:
                 layer._effects = [CacheEffect(status, layer)]
@@ -257,6 +366,7 @@ class LayerCache(AbstractLayerCache):
         status = LayerFrameState()
         layer.add_edit = wrap_add_edit(status, layer.add_edit)  # type: ignore[method-assign]
         layer.add_effect = wrap_add_effect(status, layer.add_effect)  # type: ignore[method-assign]
+        layer.bind_effect = wrap_bind_effect(status, layer.bind_effect)  # type: ignore[method-assign]
         layer.background = wrap_background(status, layer.background)  # type: ignore[method-assign]
         self._states[layer] = status
 
@@ -278,6 +388,8 @@ class LayerCache(AbstractLayerCache):
                 layer.add_edit = status.orig_add_edit  # type: ignore[method-assign]
             if status.orig_add_effect is not None:
                 layer.add_effect = status.orig_add_effect  # type: ignore[method-assign]
+            if status.orig_bind_effect is not None:
+                layer.bind_effect = status.orig_bind_effect  # type: ignore[method-assign]
             if status.orig_background is not None:
                 layer.background = status.orig_background  # type: ignore[method-assign]
 
@@ -305,6 +417,10 @@ class LayerCache(AbstractLayerCache):
         status.matrix = layer.matrix.copy() if matrix is None else matrix.copy()
         status.edits.clear()
         status.effects.clear()
+        status.baked_edits_count = len(layer.edits)
+        status.edits_visibility = tuple(e.visible for e in layer.edits)
+        status.baked_effects_count = 0
+        status.effects_visibility = ()
 
     def get_state(self, layer: Layer) -> LayerFrameState | None:
         """Retorna o estado de cache da camada, se registrada."""
