@@ -95,6 +95,25 @@ def _convert_to_requested_format(
         gray = cv2.cvtColor(data[:, :, :3], cv2.COLOR_BGR2GRAY)
         return np.dstack([gray, data[:, :, 3]])
 
+    elif target_format == ImageFormat.BGR:
+        if channels == 1:
+            return cv2.cvtColor(data, cv2.COLOR_GRAY2BGR)
+        elif channels == 2:
+            return cv2.cvtColor(data[:, :, 0], cv2.COLOR_GRAY2BGR)
+        elif channels == 3:
+            return data
+        return cv2.cvtColor(data, cv2.COLOR_BGRA2BGR)
+
+    elif target_format == ImageFormat.BGRA:
+        if channels == 1:
+            return cv2.cvtColor(data, cv2.COLOR_GRAY2BGRA)
+        elif channels == 2:
+            bgr = cv2.cvtColor(data[:, :, 0], cv2.COLOR_GRAY2BGR)
+            return np.dstack([bgr, data[:, :, 1]])
+        elif channels == 3:
+            return cv2.cvtColor(data, cv2.COLOR_BGR2BGRA)
+        return data
+
     elif target_format == ImageFormat.PRGBA:
         rgba = _convert_to_requested_format(data, channels, ImageFormat.RGBA)
         return convert_image_format(rgba, ImageFormat.RGBA, ImageFormat.PRGBA)
@@ -143,6 +162,13 @@ def _flatten_alpha_to_background(
         flattened = (rgb * alpha + bg * (1.0 - alpha)).clip(0, 255).astype(np.uint8)
         return cv2.cvtColor(flattened, cv2.COLOR_RGB2BGR)
 
+    elif format == ImageFormat.BGRA:
+        alpha = img_arr[..., 3:4].astype(np.float32) / 255.0
+        bg = np.array(bg_color[:3][::-1], dtype=np.float32)
+        bgr = img_arr[..., :3].astype(np.float32)
+        flattened = (bgr * alpha + bg * (1.0 - alpha)).clip(0, 255).astype(np.uint8)
+        return flattened
+
     elif format == ImageFormat.GRAY_ALPHA:
         alpha = img_arr[..., 1:2].astype(np.float32) / 255.0
         bg_gray = float(bg_color[0])
@@ -171,8 +197,11 @@ def _prepare_bgr_for_export(
     if format == ImageFormat.RGBX:
         return cv2.cvtColor(data[..., :3], cv2.COLOR_RGB2BGR)
 
-    if is_jpeg and format in (ImageFormat.RGBA, ImageFormat.GRAY_ALPHA):
+    if is_jpeg and format in (ImageFormat.RGBA, ImageFormat.GRAY_ALPHA, ImageFormat.BGRA):
         return _flatten_alpha_to_background(data, format, options.bg_color)
+
+    if format in (ImageFormat.BGR, ImageFormat.BGRA):
+        return data
 
     if format == ImageFormat.RGBA:
         return cv2.cvtColor(data, cv2.COLOR_RGBA2BGRA)

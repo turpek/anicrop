@@ -158,3 +158,33 @@ def test_vips_streaming_buffer_out_of_bounds_returns_empty(temp_dir: Path):
     empty_slice = stream[100:200, 100:200]
 
     assert empty_slice.shape == (0, 0, 4)
+
+
+def test_vips_write_and_read_bgr(temp_dir: Path):
+    """Valida gravação e leitura de imagens no formato BGR com PyvipsBackend."""
+    img_path = temp_dir / "test_vips_bgr.png"
+    data = np.zeros((30, 40, 3), dtype=np.uint8)
+    data[:, :] = (200, 100, 50)
+
+    backend = PyvipsBackend()
+    backend.write(img_path, data, format=ImageFormat.BGR)
+
+    loaded, fmt, _ = backend.read(img_path, format=ImageFormat.BGR)
+    assert fmt == ImageFormat.BGR
+    assert loaded.shape == (30, 40, 3)
+    assert np.all(loaded[0, 0] == (200, 100, 50))
+
+
+def test_vips_write_and_read_bgra(temp_dir: Path):
+    """Valida gravação e leitura de imagens no formato BGRA com PyvipsBackend."""
+    img_path = temp_dir / "test_vips_bgra.png"
+    data = np.zeros((30, 40, 4), dtype=np.uint8)
+    data[:, :] = (200, 100, 50, 180)
+
+    backend = PyvipsBackend()
+    backend.write(img_path, data, format=ImageFormat.BGRA)
+
+    loaded, fmt, _ = backend.read(img_path, format=ImageFormat.BGRA)
+    assert fmt == ImageFormat.BGRA
+    assert loaded.shape == (30, 40, 4)
+    assert np.all(loaded[0, 0] == (200, 100, 50, 180))

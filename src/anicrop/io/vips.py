@@ -205,6 +205,12 @@ class PyvipsBackend(AbstractImageIO):
             )
             vips_img = _vips_convert_to_requested_format(vips_img, base_req)
             resolved_format = base_req
+        elif format in (ImageFormat.BGR, ImageFormat.BGRA):
+            base_req = (
+                ImageFormat.RGBA if format == ImageFormat.BGRA else ImageFormat.RGB
+            )
+            vips_img = _vips_convert_to_requested_format(vips_img, base_req)
+            resolved_format = base_req
         else:
             vips_img = _vips_convert_to_requested_format(vips_img, format)
             resolved_format = format
@@ -220,6 +226,12 @@ class PyvipsBackend(AbstractImageIO):
         elif format == ImageFormat.RGBX:
             data = convert_image_format(data, ImageFormat.RGB, ImageFormat.RGBX)
             resolved_format = ImageFormat.RGBX
+        elif format == ImageFormat.BGR:
+            data = convert_image_format(data, ImageFormat.RGB, ImageFormat.BGR)
+            resolved_format = ImageFormat.BGR
+        elif format == ImageFormat.BGRA:
+            data = convert_image_format(data, ImageFormat.RGBA, ImageFormat.BGRA)
+            resolved_format = ImageFormat.BGRA
 
         return data, resolved_format, orig_size
 
@@ -242,6 +254,12 @@ class PyvipsBackend(AbstractImageIO):
         elif format == ImageFormat.RGBX:
             img_arr = img_arr[..., :3]
             format = ImageFormat.RGB
+        elif format == ImageFormat.BGR:
+            img_arr = convert_image_format(img_arr, ImageFormat.BGR, ImageFormat.RGB)
+            format = ImageFormat.RGB
+        elif format == ImageFormat.BGRA:
+            img_arr = convert_image_format(img_arr, ImageFormat.BGRA, ImageFormat.RGBA)
+            format = ImageFormat.RGBA
 
         vips_img = _numpy_to_vips(img_arr, format)
         _vips_save_file(vips_img, path, format, options)
