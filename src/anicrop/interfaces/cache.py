@@ -25,11 +25,11 @@ class AbstractLayerCache(ABC):
         pass
 
     @abstractmethod
-    def register(self, layer: Layer) -> None:
-        """Registra a camada para gerenciamento de cache."""
+    def register(self, item: Layer | Container) -> None:
+        """Registra a camada ou contêiner (recursivo) para gerenciamento de cache."""
         pass
 
     @abstractmethod
-    def unregister(self, layer: Layer) -> None:
-        """Remove a camada do gerenciamento de cache e restaura seu estado original."""
+    def unregister(self, item: Layer | Container) -> None:
+        """Remove a camada ou contêiner do gerenciamento de cache e restaura seu estado original."""
         pass
