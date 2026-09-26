@@ -564,10 +564,9 @@ class BaseRenderer[FrameT: BaseFrame](ABC):
     def _render_single_edit(
         self,
         edit_layer: EditLayer,
-        layer_format: ImageFormat,
+        layer: Layer,
         plan: BaseFrame,
         interp: InterpMode,
-        isolate: bool = False,
     ) -> Image | None:
         """Renderiza um único edit exatamente 1 vez com reciclagem de buffer e fast-path zero-copy."""
         dst = self._scratch_buffer.configure(
@@ -583,7 +582,7 @@ class BaseRenderer[FrameT: BaseFrame](ABC):
 
         # 1. Fast-Path: Cobre 100% da área da camada sem uso de buffer (Zero-Copy direto de edit.image!)
         if not dst.was_used:
-            return edit_image.crop() if isolate else edit_image
+            return edit_image.crop() if has_active_post_processing(layer) else edit_image
 
         # 2. Fast-Path: Se o resultado cobre 100% da área de destino, desvincula do scratch buffer via crop
         if dst_region.size == plan.dst_region.size:  # type: ignore[union-attr]
@@ -592,7 +591,7 @@ class BaseRenderer[FrameT: BaseFrame](ABC):
         # 3. Patch com distorção ou parcial: Mescla o resultado já obtido dentro de layer_image
         layer_image = Image.new(
             plan.dst_region.size,  # type: ignore[union-attr]
-            layer_format,
+            layer.format,
             dtype=edit_layer.image.dtype,
         )
         edit_layer.blend_into(layer_image, edit_image, dst_region)
@@ -601,15 +600,15 @@ class BaseRenderer[FrameT: BaseFrame](ABC):
     def _flatten_edits(
         self,
         visible_edits: list[EditLayer],
-        layer_format: ImageFormat,
+        layer: Layer,
         plan: BaseFrame,
         interp: InterpMode,
     ) -> Image:
         """Renderiza múltiplos edits compondo sequencialmente no buffer da camada com scratch buffer."""
         target_dtype = visible_edits[0].image.dtype if visible_edits else np.uint8
-        layer_image = Image.new(
+        layer_image = layer.background(
             plan.dst_region.size,  # type: ignore[union-attr]
-            layer_format,
+            layer.format,
             dtype=target_dtype,
         )
         for edit_layer in visible_edits:
@@ -641,15 +640,14 @@ class BaseRenderer[FrameT: BaseFrame](ABC):
         if len(visible_edits) == 1:
             image = self._render_single_edit(
                 visible_edits[0],
-                layer.format,
+                layer,
                 frame,
                 interp,
-                isolate=has_active_post_processing(layer),
             )
             if image is None:
                 image = Image.new(dst_region.size, layer.format)
         else:
-            image = self._flatten_edits(visible_edits, layer.format, frame, interp)
+            image = self._flatten_edits(visible_edits, layer, frame, interp)
 
         image = apply_post_processing(image, layer, frame, interp)
 
