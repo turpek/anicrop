@@ -66,3 +66,23 @@ Para a execução do **Passo Único**, duas estratégias de gerenciamento de LOD
 
 * **`LODManager` / `EditLayer`:** Fornece a imagem na resolução adequada para a escala solicitada.
 * **`ViewportRender` / `LayerRender`:** Avalia o tamanho da camada no LOD retornado. Se couber no limiar, executa o `Direct Pass`. Caso contrário, ativa a iteração de `TileGrid`.
+
+---
+
+## 4. Diferenciação: Tiling de Cena vs. Miniview de Ocupação de Camada
+
+Para evitar sobreposição conceitual entre o particionamento do renderizador e o cache de camadas:
+
+| Característica | Sistema de Tiling (Ladrilhos) | Sistema de Miniview de Ocupação |
+| :--- | :--- | :--- |
+| **Nível de Atuação** | **Cena / Renderizador (`TileGrid`)** | **Camada / Cache (`LayerFrameState`)** |
+| **Granularidade** | Grade rígida e regular (ex: $512 \times 512$ px) | Contínua / Normalizada (ex: miniatura $32 \times 32$ ou bitmask) |
+| **Objetivo Principal** | Limitar consumo de RAM em imagens gigapixel (Zoom In) | Permitir cache incremental por demanda (*lazy/sparse cache*) |
+| **Origem do Recorte** | Células fixas determinadas pela câmera da Viewport | Recortes arbitrários solicitados por `render_patch` ou ferramentas |
+| **Comportamento** | Renderiza e descarta/recicla fatias retangulares | Pinta fatias progressivamente em um buffer unificado da camada |
+
+### Integração dos Dois Conceitos:
+* O **Tiling** responde à pergunta: *"Quais pedaços da tela a Viewport precisa desenhar agora?"*
+* A **Miniview de Ocupação** responde à pergunta: *"Desses pedaços que a Viewport pediu, quais partes da camada já estão assadas no buffer de cache?"*
+* Quando combinados, uma requisição de tile que cruza a camada pode consultar a miniview da camada: se o tile já estiver marcado como assado, o renderizador faz um fatiamento direto em $O(1)$ sem reprocessar edits, filtros ou matrizes afins.
+
