@@ -593,7 +593,7 @@ class BaseRenderer[FrameT: BaseFrame](ABC):
             return edit_image.crop()
 
         # 3. Patch com distorção ou parcial: Mescla o resultado já obtido dentro de layer_image
-        layer_image = Image.new(
+        layer_image = layer.background(
             plan.dst_region.size,  # type: ignore[union-attr]
             layer.format,
             dtype=edit_layer.image.dtype,

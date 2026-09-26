@@ -1,5 +1,6 @@
 from importlib.metadata import PackageNotFoundError, version
 
+from .cache import LayerCache
 from .config import config
 from .container import GroupLayer
 from .document import Document
@@ -29,6 +30,7 @@ __all__ = [
     "Region",
     "Span",
     "Layer",
+    "LayerCache",
     "GroupLayer",
     "ScratchBuffer",
     "Image",
