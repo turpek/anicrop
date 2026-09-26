@@ -146,6 +146,9 @@ def test_layer_cache_is_dirty_states():
     assert cache.is_dirty(layer) is False
 
     layer.transform.translate(10, 5)
+    assert cache.is_dirty(layer) is False
+
+    layer.transform.rotate(15)
     assert cache.is_dirty(layer) is True
 
 

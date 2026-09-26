@@ -219,10 +219,12 @@ class LayerCacheScope:
     def _activate_layer(self, layer: Layer, status: LayerFrameState) -> None:
         status.background_calls = 0
 
-        # 1. Verificar matriz
+        # 1. Distorção da matriz (rotação e escala 2x2): se mudou, o warp é inválido
         matrix_changed = (
             status.matrix is None
-            or not np.allclose(layer.matrix, status.matrix, atol=1e-5)
+            or not np.allclose(
+                layer.matrix[:2, :2], status.matrix[:2, :2], atol=1e-5
+            )
         )
 
         # 2. Verificar visibilidade dos edits que compõem o baked_warp
@@ -400,7 +402,9 @@ class LayerCache(AbstractLayerCache):
         status = self._states[layer]
         if status.baked_warp is None or status.matrix is None:
             return True
-        return not np.allclose(layer.matrix, status.matrix, atol=1e-5)
+        return not np.allclose(
+            layer.matrix[:2, :2], status.matrix[:2, :2], atol=1e-5
+        )
 
     def set_baked(
         self,
