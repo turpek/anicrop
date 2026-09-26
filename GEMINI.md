@@ -73,6 +73,7 @@ Para detalhes de métodos, tipos de retorno e exemplos de uso de cada classe, co
 - [docs/transform.md](file:///home/gui/python/anicrop/docs/transform.md) — Matrizes 3x3, `Composer` mutável e intenções `Transform`.
 - [docs/image.md](file:///home/gui/python/anicrop/docs/image.md) — Manipulação de pixels com `Image`, `transform_image`, gerenciamento de buffers temporários `ScratchBuffer`, subsistema `anicrop.io` e backend MMap/LOD.
 - [docs/viewport.md](file:///home/gui/python/anicrop/docs/viewport.md) — Projeções de câmera e janela de exibição `Viewport`.
+- **[docs/cache.md](file:///home/gui/python/anicrop/docs/cache.md)** — Guia do sistema de cache incremental de camadas (`LayerCache`, `DynamicEffect`, invalidação afim 2x2 e isolamento em patches).
 - **[docs/history.md](file:///home/gui/python/anicrop/docs/history.md)** — Guia do sistema de histórico (`GlobalHistory`, políticas `ActionPolicy` e Undo/Redo atômico).
 - **[docs/proxy.md](file:///home/gui/python/anicrop/docs/proxy.md)** — Guia da infraestrutura reativa (`anicrop.reactive`, `ProxyRegistry` e criação de proxies/comandos customizados).
 - **[docs/benchmark.md](file:///home/gui/python/anicrop/docs/benchmark.md)** — Métricas oficiais de estresse de renderização, I/O e freeze de matrizes.
@@ -251,6 +252,15 @@ Para detalhes de métodos, tipos de retorno e exemplos de uso de cada classe, co
   - **Invariância Matemática de Blending em Cython:** Como o canal alfa reside no índice 3 (`channel = 3`) tanto em `RGBA` quanto em `BGRA`, o blend normal e substituições (`solid_fill`, `hard_masking`) operam de forma idêntica em buffers BGRA sem necessidade de compilar novos kernels C.
   - **Harmonização Transparente (`harmonize_rendered_image`):** No `blend_rendered_images`, camadas com espaços de cores distintos do destino são harmonizadas antes da fusão. No `GroupLayer`, o buffer intermediário herda dinamicamente a variante com alfa do topo da lista do blend (`fmt.with_alpha`), prevenindo contaminações cromáticas e mantendo o pipeline BGRA 100% nativo.
   - **Backends de I/O Adaptados:** `OpenCVBackend.write` grava buffers BGR e BGRA diretamente sem conversão; `PyvipsBackend.write` converte para RGB/RGBA apenas no instante final da exportação para o pipeline C da `libvips`.
+
+- **Arquitetura de Cache Incremental de Camadas (`LayerCache` & `DynamicEffect`):**
+  - **Aceleração Sequencial Extrema:** Atinge de **$9.6\times$ a $10.5\times$ de speedup** em animações e loops de re-renderização (elevando o throughput de ~12 FPS para 94 a 133 FPS no benchmark oficial).
+  - **Invalidação Inteligente na Submatriz $2 \times 2$ Afim:** A invalidação de `status.baked_warp` avalia estritamente a submatriz linear `[:2, :2]` da matriz afim (`layer.matrix[:2, :2]`). Translações puras (`[:2, 2]`) preservam o warp inalterado e reaproveitam o buffer pré-assado diretamente em $O(1)$ sem re-executar interpolação OpenCV. Rotações e escalas afins acionam novo resampling.
+  - **Particionamento de `DynamicEffect`:** Efeitos estáticos (ex: `BlurFilter`) são pré-assados uma única vez em `status.baked_effects`. Efeitos derivados da classe abstrata `DynamicEffect` continuam executando dinamicamente sobre a cópia do buffer a cada frame.
+  - **Invalidação Reativa por Visibilidade:** Alterações em `.visible` de edits invalidam `baked_warp` e `baked_effects`; alterações em `.visible` de efeitos estáticos invalidam cirurgicamente apenas `baked_effects`.
+  - **Isolamento Contextual em Patches (`render_patch` & `effective_region`):** Ao renderizar com `view_region`, `effective_region` é injetada no escopo. Camadas cuja interseção com `effective_region` altera o tamanho da camada (`layer.global_region`) não têm seu contexto de cache ativado e renderizam sob demanda, impedindo que recortes parciais contaminem ou invalidem o cache global.
+  - **Ciclo de Vida do Background:** O empacotamento de `layer.background` ocorre dinamicamente dentro de `_activate_layer` e é restaurado em `_deactivate_layer`, eliminando flags de estado e mantendo a camada com métodos nativos fora do renderizador.
+
 
 
 
