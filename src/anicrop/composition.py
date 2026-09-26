@@ -19,6 +19,7 @@ from anicrop.render import CanvasRender
 
 if TYPE_CHECKING:
     from anicrop.document import Document
+    from anicrop.interfaces.cache import AbstractLayerCache
 
 
 def clone_layer(layer: Layer) -> Layer:
@@ -166,6 +167,7 @@ def flatten(
     format: ImageFormat | None = None,
     interp: InterpMode = InterpMode.LANCZOS,
     bg_color: tuple[int, ...] | None = None,
+    cache: AbstractLayerCache | None = None,
 ) -> Layer:
     """Faithfully renders the layer composition and returns a single rasterized flat Layer."""
     if not layers:
@@ -183,6 +185,7 @@ def flatten(
         format=resolved_format,
         interp=interp,
         bg_color=bg_color,
+        cache=cache,
     )
     if rendered_image is None:
         raise ValueError("Failed to render layers for flatten.")
@@ -218,9 +221,15 @@ class LayerComposition:
         format: ImageFormat | None = None,
         interp: InterpMode = InterpMode.LANCZOS,
         bg_color: tuple[int, ...] | None = None,
+        cache: AbstractLayerCache | None = None,
     ) -> Layer:
         return flatten(
-            layers, name=name, format=format, interp=interp, bg_color=bg_color
+            layers,
+            name=name,
+            format=format,
+            interp=interp,
+            bg_color=bg_color,
+            cache=cache,
         )
 
     @staticmethod
@@ -320,6 +329,7 @@ class Combine:
         interp: InterpMode = InterpMode.LANCZOS,
         bg_color: tuple[int, ...] | None = None,
         remove_source: bool = True,
+        cache: AbstractLayerCache | None = None,
     ) -> Layer:
         """Flattens the target layer with up to 'count' visible layers below it into a single rasterized Layer."""
         parent, sequence, lowest_index = self._resolve_target_and_sequence(target, count)
@@ -333,6 +343,7 @@ class Combine:
             format=resolved_format,
             interp=interp,
             bg_color=bg_color,
+            cache=cache,
         )
         flat_layer.blend_mode = sequence[0].blend_mode
         flat_layer.visible = sequence[-1].visible
@@ -351,6 +362,7 @@ class Combine:
         format: ImageFormat | None = None,
         interp: InterpMode = InterpMode.LANCZOS,
         bg_color: tuple[int, ...] | None = None,
+        cache: AbstractLayerCache | None = None,
     ) -> Layer:
         """Bakes a GroupLayer and replaces it with a flat Layer in its parent container."""
         group = self._doc[target] if isinstance(target, str) else target
@@ -374,6 +386,7 @@ class Combine:
             format=resolved_format,
             interp=interp,
             bg_color=bg_color,
+            cache=cache,
         )
         flat_layer.blend_mode = group.blend_mode
         flat_layer.opacity = group.opacity
@@ -391,6 +404,7 @@ class Combine:
         format: ImageFormat | None = None,
         interp: InterpMode = InterpMode.LANCZOS,
         bg_color: tuple[int, ...] | None = None,
+        cache: AbstractLayerCache | None = None,
     ) -> Layer:
         """Bakes the entire document's LayerStack into a single flat Layer."""
         self._validate_name(name, list(self._doc.stack))
@@ -411,6 +425,7 @@ class Combine:
             format=resolved_format,
             interp=interp,
             bg_color=bg_color,
+            cache=cache,
         )
         flat_layer.blend_mode = BlendMode.NORMAL
         flat_layer.opacity = 1.0

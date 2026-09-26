@@ -358,11 +358,12 @@ class Document:
         interp: InterpMode = InterpMode.LANCZOS,
         options: SaveOptions | None = None,
         backend: AbstractImageIO | str | None = None,
+        cache: AbstractLayerCache | None = None,
     ) -> None:
         """
         Renderiza a composição final no formato especificado e salva no disco.
         """
-        self.render(format=format, interp=interp).save(
+        self.render(format=format, interp=interp, cache=cache).save(
             path, options=options, backend=backend
         )
 

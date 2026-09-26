@@ -735,9 +735,12 @@ class CanvasRender(BaseRenderer[CanvasFrame]):
         layer: Layer,
         interp: InterpMode = InterpMode.LANCZOS,
         local: bool = False,
+        cache: AbstractLayerCache | None = None,
     ) -> Image | None:
-        frame = CanvasFrame(layer, Canvas(layer.global_region), local=local)
-        return self.render_area(layer, frame, interp=interp)
+        with freeze_geometry([layer]):
+            with (cache([layer]) if cache is not None else nullcontext()):
+                frame = CanvasFrame(layer, Canvas(layer.global_region), local=local)
+                return self.render_area(layer, frame, interp=interp)
 
     def render_container(
         self,
