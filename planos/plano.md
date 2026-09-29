@@ -32,8 +32,9 @@ Este documento centraliza todos os objetivos arquiteturais, otimizações e o pr
 - [ ] 25. Modos Avançados de Fusão e Composição para Fotografia e Transições Suaves (Multi-Band Blending e Feather Blending).
 - [x] ~~26. Eliminação de Contaminação de Cor e Franja Escura nas Bordas em `warp_affine` e `warp_patch` (Padding Alpha-Aware e `ImageFormat.is_straight_alpha`).~~
 - [ ] 27. (Resolução Dinâmica de Borda por Formato) Suporte a `border_mode` e `border_value` em `warp_affine`, `warp_perspective` e `warp_patch` (`BORDER_REPLICATE` para opacos vs `BORDER_CONSTANT` para alfa).
-- [ ] 28. Sistema de Cache de Camadas com Decorators e Renderização Incremental (`LayerCache`).
+- [x] ~~28. Sistema de Cache de Camadas com Decorators e Renderização Incremental (`LayerCache`).~~
 - [x] ~~29. Suporte Nativo a Formatos BGR e BGRA para Pipelines de Vídeo e Visão Computacional (Zero-Copy com OpenCV / Aniseek).~~
+- [ ] 30. Consolidação e Integração Abrangente do Sistema de Histórico (Undo/Redo para Combine, Contêineres, Remoções Aninhadas e Filhos).
 
 ---
 
@@ -679,6 +680,77 @@ A viabilidade de suportar BGR/BGRA nativamente decorre de três pilares da arqui
 └── Testes de zero-copy em test_image.py.
 └── Testes de renderização, blending e culling com Canvas BGRA em test_render.py.
 └── Testes de exportação com OpenCVBackend e PyvipsBackend.
+```
+
+---
+
+## ⏳ 30. Consolidação e Integração Abrangente do Sistema de Histórico (Undo/Redo para Combine, Contêineres, Remoções Aninhadas e Filhos)
+
+### 1. Diagnóstico e Lacunas Identificadas no Histórico
+
+Embora o motor `anicrop.history` disponha de arquitetura avançada de políticas (`NormalPolicy`, `AtomicPolicy`, `MergeContinuousPolicy`), comandos com snapshots cirúrgicos e proxies para `Layer`, `GroupLayer`, `Canvas` e `Mask`, persistem lacunas estruturais que impedem a cobertura de Undo/Redo em operações de composição e contêineres:
+
+1. **Serviço de Composição e Fusão (`doc.combine` / `Combine`):**
+   * **Situação:** Métodos como `merge`, `flatten`, `bake` e `bake_stack` modificam os contêineres pai (`parent.remove()`, `parent.insert()`, `doc.stack.clear()`, `doc.stack.append()`) acessando diretamente as instâncias de domínio.
+   * **Problema:** Nenhuma ação é registrada no `GlobalHistory`. Como alertado no docstring de `Document.__init__`, chamadas a `doc.combine` criam ou removem camadas fora da pilha de histórico, quebrando a linha do tempo de Undo.
+2. **Remoção de Camadas Aninhadas em Grupos via `doc.remove()`:**
+   * **Situação:** `doc.remove(layer_or_name)` localiza camadas em qualquer profundidade da árvore. Se a camada estiver na raiz da pilha (`layer in self.stack`), invoca `self.stack.remove(layer)` (roteado via `LayerStackProxy` para `ReparentCommand`).
+   * **Problema:** Se a camada estiver dentro de um `GroupLayer`, o método invoca `layer.parent.remove(layer)`. Como `layer.parent` no objeto de domínio aponta para a instância pura de `GroupLayer` (e não para `GroupProxy`), o método de domínio é invocado diretamente sem registro de histórico.
+3. **Métodos Omissos no `BaseContainerProxy._ACTION_ROUTER`:**
+   * **Situação:** `BaseContainerProxy._ACTION_ROUTER` mapeia apenas `append`, `insert`, `remove`, `move` e `pop`.
+   * **Problema:** Faltam no roteador mutadores essenciais de `Container`:
+     * `move_relative(item, steps)`
+     * `move_to_front(item)`
+     * `move_to_back(item)`
+     * `clear()`
+     * `extend(items)`
+     * `__delitem__(index)`
+     * `__setitem__(index, item)`
+4. **Método Fluente `copy_from` em `ProxyComposer`:**
+   * `ProxyComposer._MUTATING_METHODS` contém apenas `{"rotate", "scale", "translate", "add_transform"}`.
+   * `copy_from(other)` muta o `Composer` in-place, mas é ignorado pelo histórico.
+5. **Mutações Diretas em Filhos sem Proxy (`Effect` e `EditLayer`):**
+   * Mutações em instâncias filhas pós-adição (ex: `layer.effects[0].visible = False` ou `layer.edits[0].visible = False`) não são interceptadas porque `Effect` e `EditLayer` não possuem proxies registrados no `ProxyRegistry`.
+
+### 2. Diretrizes Técnicas e Soluções Arquiteturais
+
+1. **Proxy do Serviço `Combine` (`ProxyCombine` ou Interceptação no `Document`):**
+   * Implementar `ProxyCombine` sob `anicrop.reactive` envolvendo `doc.combine`.
+   * Cada operação (`merge`, `flatten`, `bake`, `bake_stack`) deve executar sob `with history.atomic(name):`, de modo que os comandos de remoção dos nós antigos e inserção do novo nó consolidado sejam absorvidos em exatamente **1 único MacroCommand**, permitindo Undo e Redo de 1 único passo.
+2. **Roteamento de Remoção Hierárquica no `Document.remove`:**
+   * Em `doc.remove()`, se `layer.parent` não for `NullContainer`, obter o proxy correspondente via `registry.get_or_create(layer.parent)` antes de chamar `.remove(layer)`, garantindo que a remoção seja gravada pelo `ReparentCommand` do container pai.
+3. **Completude de Mutadores em `BaseContainerProxy`:**
+   * Adicionar `move_relative`, `move_to_front`, `move_to_back`, `clear`, `extend`, `__delitem__` e `__setitem__` no `_ACTION_ROUTER` com suporte a `ReparentCommand` e `_extract_command_value`.
+4. **Atualização de `ProxyComposer`:**
+   * Incluir `"copy_from"` no `_MUTATING_METHODS` de `ProxyComposer`.
+5. **Proxies para Entidades Filhas (`ProxyEffect` e `ProxyEditLayer`):**
+   * Criar proxies dedicados que encaminham alterações de propriedades (`visible`, `opacity`, `blend_mode`) para o `ProxyLayer` proprietário ou registram comandos próprios de micro-snapshot.
+
+### 3. Roadmap de Execução da Tarefa
+
+```
+[FASE 1: Mapeamento Completo de Container e Composer]
+├── Adicionar move_relative, move_to_front, move_to_back, clear, extend, __delitem__, __setitem__ em BaseContainerProxy._ACTION_ROUTER.
+├── Atualizar _extract_command_value e ReparentCommand para suportar mutações em lote e por índice.
+└── Adicionar copy_from em ProxyComposer._MUTATING_METHODS.
+
+[FASE 2: Correção de Remoção Aninhada em Document.remove]
+└── Em Document.remove, assegurar que layer.parent seja resolvido como proxy via registry antes de invocar remove().
+
+[FASE 3: Reatividade do Serviço Combine]
+├── Implementar ProxyCombine envolvendo Combine sob with history.atomic(action_name).
+├── Garantir que merge, flatten, bake e bake_stack restaurem nós removidos e retirem nó consolidado em exatamente 1 Undo.
+└── Atualizar docstring de Document.__init__ removendo o aviso de limitação em Combine.
+
+[FASE 4: Proxies de Efeitos e Edições Locais (Opcional/Refinamento)]
+├── Registrar ProxyEffect e ProxyEditLayer no ProxyRegistry.
+└── Capturar alterações em .visible e parâmetros escalares.
+
+[FASE 5: Suíte de Testes de Integração e Regressão (TDD)]
+├── Testes de Undo/Redo para doc.combine.merge, flatten, bake e bake_stack.
+├── Testes de Undo/Redo para doc.remove em camadas aninhadas dentro de grupos.
+├── Testes de Undo/Redo para métodos avançados de container (clear, move_to_front, etc.).
+└── Validação completa da suíte pytest e tipagem estrita no mypy.
 ```
 
 
