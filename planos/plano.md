@@ -35,6 +35,10 @@ Este documento centraliza todos os objetivos arquiteturais, otimizações e o pr
 - [x] ~~28. Sistema de Cache de Camadas com Decorators e Renderização Incremental (`LayerCache`).~~
 - [x] ~~29. Suporte Nativo a Formatos BGR e BGRA para Pipelines de Vídeo e Visão Computacional (Zero-Copy com OpenCV / Aniseek).~~
 - [ ] 30. Consolidação e Integração Abrangente do Sistema de Histórico (Undo/Redo para Combine, Contêineres, Remoções Aninhadas e Filhos).
+- [ ] 31. Modificar a Referência das Camadas no Cache para Referência Fraca (`weakref` em `LayerCache._states`).
+- [ ] 32. Sistema de Invalidação mais Robusto para Efeitos Usando Cópia Fraca (Detecção Genérica de Mutações via Snapshot de Estado).
+- [ ] 33. Sistema de Invalidação mais Robusto para Edits Usando Somente `visible` e `blend_mode` (`EditStatus`).
+- [ ] 34. Remoção do Método Obsoleto `offset` do `EditLayer`.
 
 ---
 
@@ -752,6 +756,80 @@ Embora o motor `anicrop.history` disponha de arquitetura avançada de políticas
 ├── Testes de Undo/Redo para métodos avançados de container (clear, move_to_front, etc.).
 └── Validação completa da suíte pytest e tipagem estrita no mypy.
 ```
+
+---
+
+## ⏳ 31. Modificar a Referência das Camadas no Cache para Referência Fraca (`weakref` em `LayerCache._states`)
+
+### 1. Diagnóstico e Motivação
+Atualmente, a classe `LayerCache` mantém o dicionário `self._states: dict[Layer, LayerFrameState] = {}`. Como as chaves são referências fortes (*strong references*) para as instâncias de `Layer`:
+* Se uma camada for removida da cena (`doc.remove`, `container.remove`, `Combine.flatten`, `Combine.bake`), ela continuará retida em memória enquanto o `LayerCache` existir.
+* Pior ainda: o `LayerFrameState` retido segura instâncias pesadas de imagem em `status.baked_warp` e `status.baked_effects`, gerando vazamento crônico de memória RAM e de buffers mapeados em disco (`MMapBuffer`).
+
+### 2. Diretrizes Técnicas e Solução Arquitetural
+1. **Adoção de `weakref.WeakKeyDictionary`:**
+   * Substituir o dicionário padrão `dict[Layer, LayerFrameState]` por `weakref.WeakKeyDictionary[Layer, LayerFrameState]`.
+   * Quando uma camada for descartada pelo Garbage Collector (ou removida de todos os contêineres e variáveis do usuário), sua entrada no `_states` e seus buffers pré-assados (`baked_warp`, `baked_effects`) serão expurgados automaticamente sem necessidade de `cache.unregister` manual.
+2. **Métodos de Consulta e Limpeza Segura:**
+   * Ajustar `register`, `unregister`, `get_state` e `is_dirty` para operar sobre `WeakKeyDictionary`.
+   * Assegurar que camadas mantidas em coleções temporárias de renderização não tenham seu ciclo de vida prolongado indevidamente pelo cache.
+
+---
+
+## ⏳ 32. Sistema de Invalidação mais Robusto para Efeitos Usando Cópia Fraca (Detecção Genérica de Mutações via Snapshot de Estado)
+
+### 1. Diagnóstico e Motivação
+O sistema atual de invalidação de efeitos em `LayerCache` apresenta duas limitações graves:
+1. **Invalidação Ingênua por Contagem e Booleano:** Apenas checa se `len(layer.effects) < baked_effects_count` ou se a tupla de visibilidade booleana mudou. Se um efeito for substituído por outro diferente, ou se o usuário alterar os parâmetros de um filtro (ex: `blur.radius_x = 10.0`), o cache não detecta e continua servindo o `baked_effects` desatualizado.
+2. **Mutações Diretas na Referência Original:** Mesmo com proxies, se o usuário mantiver uma referência da variável original (`blur = BlurFilter(5.0); layer.add_effect(blur); blur.radius_x = 10.0`), a mutação ocorre diretamente no objeto sem passar por nenhum proxy.
+
+### 2. Diretrizes Técnicas e Solução Arquitetural
+1. **Snapshot de Estado Fraco (`snapshot_effect`):**
+   * Ao assar os efeitos estáticos em `baked_effects`, capturar uma cópia rasa do dicionário de atributos de cada efeito: `eff.__dict__.copy()`.
+   * Para `BoundEffect`, copiar recursivamente o estado do seu efeito interno (`eff.effect`) e os atributos específicos (`matrix`, `mask`).
+   * Para valores do tipo `np.ndarray` (como a matriz afim), tratar a comparação de igualdade usando `np.array_equal` (prevenindo o erro de ambiguidade de boolean array do NumPy).
+2. **Validação Cirúrgica a Cada Frame (`effect_state_matches`):**
+   * Em `_activate_layer`, comparar a lista de efeitos estáticos atuais com os snapshots salvos.
+   * Se qualquer atributo (em qualquer filtro de qualquer classe concreta) divergir do snapshot, ou se a identidade dos efeitos mudar, `status.baked_effects` é automaticamente invalidado.
+   * A checagem é 100% genérica, suporta qualquer tipo de filtro atual ou futuro, e não depende de monkey-patching em `add_effect` ou `bind_effect`.
+
+---
+
+## ⏳ 33. Sistema de Invalidação mais Robusto para Edits Usando Somente `visible` e `blend_mode` (`EditStatus`)
+
+### 1. Diagnóstico e Motivação
+Na arquitetura do `anicrop`, um `EditLayer` é um registro imutável do corte/patch: sua imagem (`image`), região (`region`) e matriz espacial (`matrix`) são fixados na criação. Os **únicos** atributos mutáveis de um `EditLayer` são:
+1. `visible: bool`
+2. `blend_mode: BlendMode`
+
+Atualmente, o `LayerCache` tenta monitorar edits acumulando instâncias em uma lista paralela `status.edits` via monkey-patching em `layer.add_edit`. Isso falha gravemente quando:
+* O histórico executa `undo()` ou `redo()`: a lista `layer._edits` é restaurada via snapshot, sem chamar `add_edit`. No `redo()`, `status.edits` fica vazio e os edits refeitos desaparecem do render!
+* Edits são desativados via `edit.visible = False` ou têm seu modo de mesclagem alterado.
+
+### 2. Diretrizes Técnicas e Solução Arquitetural
+1. **Classe Leve `EditStatus`:**
+   * Criar `EditStatus` rastreando estritamente: a referência da instância do edit (`edit`), `visible: bool` e `blend_mode: BlendMode`.
+   * Método `is_dirty(current: EditLayer) -> bool`: verifica se `current is not self.edit`, se `visible` mudou ou se `blend_mode` mudou.
+2. **Eliminação do Acumulador Paralelo de Deltas:**
+   * Remover `wrap_add_edit` e a lista `status.edits`.
+   * Quando `baked_warp` for válido, os edits pendentes a renderizar sobre ele são simplesmente os excedentes na lista atual da camada: `layer.edits[len(status.baked_edits):]`.
+   * Se `len(layer.edits) < len(status.baked_edits)` (houve `undo`) ou se qualquer edit assado for dirty, invalida o `baked_warp` e re-assa do zero.
+
+---
+
+## ⏳ 34. Remoção do Método Obsoleto `offset` do `EditLayer`
+
+### 1. Diagnóstico e Motivação
+A classe `EditLayer` possui o método `offset(offset_x: int, offset_y: int) -> None` que muta `self._region += (offset_x, offset_y)`.
+* **Código Morto:** O método não é invocado em nenhum lugar do repositório (`anicrop`, testes ou benchmarks).
+* **Violação de Imutabilidade Espacial:** A região de um `EditLayer` representa a moldura geométrica fixa onde o patch foi aplicado em coordenadas locais da camada. Mutações arbitrárias de offset violam a imutabilidade do patch e criam brechas para dessincronismo no cache de LOD (`_lod_cache`).
+
+### 2. Diretrizes Técnicas e Solução Arquitetural
+1. **Remoção do Método:**
+   * Excluir a definição de `def offset(...)` em `src/anicrop/edit_layer.py`.
+2. **Validação de Regressão:**
+   * Executar a suíte de testes (`pytest`) para garantir que nenhum teste legado dependia desse método obsoleto.
+
 
 
 
