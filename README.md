@@ -1,6 +1,6 @@
 # anicrop
 
-**anicrop** é um motor gráfico (*engine/core*) em Python para manipulação, composição e edição não-destrutiva de imagens 2D de alta performance.
+**anicrop** é um motor gráfico (*engine/core*) em Python para manipulação, composição e edição não-destrutiva de imagens 2D.
 
 Projetado com rigor matemático e precisão geométrica, o motor utiliza uma árvore de camadas baseada no padrão *Composite*, transformações afins 3x3 sem acúmulo de erro (*Size Drift*), sistema modular de I/O acelerado por SIMD via `libvips`, backend híbrido de memória (NumPy / `np.memmap` para imagens gigantes) e pipeline de renderização flexível.
 
@@ -14,10 +14,10 @@ Projetado com rigor matemático e precisão geométrica, o motor utiliza uma ár
   - **`doc.layout`**: Enquadramento e alinhamento espacial puro (`fit`, `align`, `resize_bounds`, `fit_content`).
   - **`doc.content`**: Manipulação e corte não-destrutivo de pixels (`crop` via `BlendMode.CLIP`, `resize`, `fit`, `flip_x`, `flip_y`).
   - **`doc.combine`**: Orquestrador de composição e fusão na árvore de camadas (`merge`, `flatten`, `bake`, `bake_stack`).
-- ⚡ **I/O Modular de Alta Performance:** Decodificação e subamostragem direta (*shrink-on-load*) nativa em C/SIMD via `PyvipsBackend` (até **58× mais rápido**) com fallback transparente para `OpenCVBackend`.
-- 💾 **Backend Híbrido & LOD:** Chaveamento transparente de buffers para memória virtual em disco (`np.memmap` / `MMapBuffer`) em imagens gigantes ($\ge 8192\text{px}$) com pirâmide de nível de detalhe (*Level of Detail*).
+- ⚡ **I/O Modular:** Decodificação e subamostragem direta (*shrink-on-load*) nativa em C/SIMD via `PyvipsBackend` com fallback transparente para `OpenCVBackend`.
+- 💾 **Backend Híbrido & LOD:** Chaveamento transparente de buffers para memória virtual em disco (`np.memmap` / `MMapBuffer`) em imagens de altíssima resolução com pirâmide de nível de detalhe (*Level of Detail*).
 - 🎭 **Máscaras e Filtros Anisotrópicos:** Efeitos ancorados à matriz da camada (`BoundEffect`), filtros Gaussianos com fusão de tensores de covariância 2D (`BlurFilter`) e máscaras atômicas.
-- ⚡ **Cache Incremental & DynamicEffect:** Aceleração de renderização contínua de até **10.5×** (94 a 133 FPS) via `LayerCache`. Reutilização afim de buffers pré-assados (`baked_warp`) em translações puras, particionamento de efeitos estáticos vs dinâmicos (`DynamicEffect`) e ativação contextual segura por `effective_region` em patches.
+- ⚡ **Cache Incremental & DynamicEffect:** Otimização para renderização contínua e interativa via `LayerCache`. Reutilização afim de buffers pré-assados (`baked_warp`) em translações puras, particionamento de efeitos estáticos vs dinâmicos (`DynamicEffect`) e ativação contextual segura por `effective_region` em patches.
 - 🔄 **Organização Fluida da Pilha:** Métodos declarativos no contêiner (`move_relative`, `move_to_front`, `move_to_back`, `swap`, `reverse`).
 - 👁️ **Pipeline de Renderização & Visualizador:** `CanvasRender` para exportações em alta resolução, `ViewportRender` para previews interativos e visualizador OpenCV `Viewer`.
 
@@ -41,7 +41,7 @@ sudo pacman -S libvips        # Arch
 ```
 
 ### 2. Instalação do Pacote e Extensões Nativas (Cython / OpenMP)
-O projeto inclui extensões em Cython (`anicrop.native.blend`) para mesclagem de canais em alta performance. Instale o ambiente utilizando [`uv`](https://github.com/astral-sh/uv):
+O projeto inclui extensões em Cython (`anicrop.native.blend`) para mesclagem de canais compilada nativamente. Instale o ambiente utilizando [`uv`](https://github.com/astral-sh/uv):
 
 ```bash
 # Sincroniza o ambiente virtual
