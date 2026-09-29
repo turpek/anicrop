@@ -8,7 +8,7 @@
 
 - **Descrição curta:** Biblioteca/engine em Python para composição não-destrutiva de imagens 2D baseada em camadas (`Layer`, `GroupLayer`), suporte a transformações espaciais (matrizes homogêneas 3x3), mesclagem (*blend modes*), backend híbrido de memória (NumPy / `np.memmap` para imagens gigantes) e renderização por patch.
 - **Motivação:** Fornecer um *backend* de edição gráfica robusto, matematicamente preciso e de alta performance que possa alimentar scripts de automação complexos ou servir de motor gráfico para interfaces de usuário (GUIs).
-- **Status Atual:** Desenvolvimento ativo. Estrutura de transformações, contêineres compostos, proxies reativos para histórico (Undo/Redo), suporte a MMap/LOD em `EditLayer` e renderização via `CanvasRender` e `ViewportRender` estabelecidas. A abordagem atual do módulo `Layout` será reformulada.
+- **Status Atual:** Desenvolvimento ativo (v0.7.0). Estrutura de transformações afins homogêneas, contêineres compostos (`LayerStack`, `GroupLayer`), motor espacial `Layout` baseado em `GeometryStrategy`, manipulação de pixels com `Content`, orquestrador de composição `Combine`, proxies reativos para histórico (Undo/Redo), sistema de aceleração por cache incremental (`LayerCache`), backend híbrido de memória (`MMapBuffer`/LOD) e renderização por patch via `CanvasRender` e `ViewportRender` estabelecidos.
 
 ---
 
@@ -26,14 +26,23 @@
 - **Gerenciamento Hierárquico de Camadas:** Árvore espacial utilizando o padrão *Composite* (`LayerStack`, `GroupLayer`, `Layer`, `EditLayer`).
 - **Navegação e Matrizes Relativas:** Protocolo de nós (`NodeContainerProtocol`) permitindo recomposição de coordenadas pai-filho (`parent`, `_parent_inverse`).
 - **Transformações Espaciais de Alta Precisão:** Matrizes 3x3 homogêneas para Rotação, Escala, Translação e "Sanduíches de Pivô" sem acúmulo de erro de arredondamento (*Size Drift*).
+- **Motores Especializados no Documento:**
+  - **`Layout`**: Enquadramento e alinhamento puramente espacial via `GeometryStrategy` (`fit`, `align`, `resize_bounds`, `pin`, `fit_content`), imune ao Efeito Pêndulo e operando em Espaço Global.
+  - **`Content`**: Manipulação não-destrutiva de pixels, corte afim (`crop` via máscara `EditLayer` com `BlendMode.CLIP`), resize e transformações de conteúdo.
+  - **`Combine`**: Orquestração de composição, agrupamento (`merge`), rasterização plana (`flatten`) e cozimento (`bake`, `bake_stack`).
 - **Edição Não-Destrutiva e Patches:** Fila de edições locais (`EditLayer`) preservando os pixels originais da imagem.
+- **Filtros e Efeitos Anisotrópicos:** Envelope `BoundEffect` ancorado à matriz inversa da camada, filtros Gaussianos com fusão de tensores de covariância 2D (`BlurFilter`) e máscaras atômicas.
+- **Cache Incremental & DynamicEffect (`LayerCache`):** Reutilização afim de buffers pré-assados (`baked_warp`) em translações puras ($O(1)$), particionamento de efeitos estáticos vs dinâmicos (`DynamicEffect`) e isolamento contextual seguro por `effective_region` em patches.
 - **Backend Híbrido de Imagem & LOD:** Chaveamento transparente de dados de imagem (`Image`) entre `numpy.ndarray` (memória) e `MMapBuffer` (`np.memmap` no disco) para imagens gigantes ($\ge 8192\text{px}$), com pirâmide de nível de detalhe (*Level of Detail* - LOD) em `EditLayer`.
+- **I/O Modular de Alta Performance (`anicrop.io`):** Decodificação C/SIMD com subamostragem direta (*shrink-on-load*) via `PyvipsBackend` e fallback modular via `OpenCVBackend`.
 - **Fachada & Histórico Reativo:** Classe Facade `Document` oferecendo políticas reativas com histórico (`GlobalHistory` via `ProxyLayer` e `GroupProxy`) ou modo direto de alta performance (`DirectDocumentPolicy`).
 - **Motor de Renderização:** Renderização por patch (`ViewportRender` para previews interativos e `CanvasRender` para exportações finais em alta resolução) e visualizador OpenCV (`Viewer`).
 
 ### Escopo Futuro (Roadmap):
-- **Filtros e Ajustes de Cor:** Suporte planejado para aplicação de filtros e camadas de ajuste de cor sobre o pipeline de composição.
-- **`Layout.fit_content` com Crop / Máscaras / Edits:** Ajustar e padronizar o comportamento de `Layout.fit_content` quando a camada alvo possuir recortes (`Content.crop` via `BlendMode.CLIP`), patches de `EditLayer` ou `Mask` ativa, garantindo que o cálculo de *bounding box* considere os limites efetivos de transparência/visibilidade resultantes.
+- **Consolidação Abrangente de Histórico (Tarefa 30):** Suporte nativo a Undo/Redo atômico para operações do motor `Combine` (`merge`, `flatten`, `bake`), operações em contêineres filhos (`GroupLayer.remove`, `insert`, `clear`), deleções de nós complexos com preservação do grafo de referências e proxies aninhados.
+- **Tiled Warping & Renderização por Mosaico (Tarefas 4, 6, 10):** Renderização de transformações afins fragmentadas em tiles/blocos para telas ou exportações ultra-gigantes com pegada de memória fixa e estrita.
+- **Multi-Band Blending (Tarefa 25):** Fusão piramidal multi-frequência (Laplacian/Gaussian pyramid) para stitching contínuo sem costuras perceptíveis de transição ou iluminação.
+- **Borda Dinâmica e Contornos em Camadas (Tarefa 27):** Geração algorítmica de bordas internas/externas com chanfro, raio e antialiasing em tempo de renderização.
 
 ### O que o projeto NÃO faz:
 - Não provê Interface Gráfica (GUI) nativa ou Linha de Comando (CLI).
@@ -141,7 +150,7 @@ Para detalhes de métodos, tipos de retorno e exemplos de uso de cada classe, co
   - Enviar alterações de dev: `make push-dev` (ou `git push origin dev`).
   - Puxar no outro computador: `make pull-dev` (ou `git pull origin dev`).
 - **Branch `main` (Produção e Distribuição Limpa):** Mantém estritamente os arquivos essenciais de código, testes, `README.md`, assets e build, sem poluição de rascunhos ou instruções de contexto.
-  - Sincronizar código limpo para a main: `make sync-main` (puxa da dev estritamente os arquivos de produção e commita na main).
+  - Sincronizar código limpo para a main: `make sync-main` (identifica commits de produção desde o último ponto de sincronização e aplica individualmente via `cherry-pick`, preservando mensagens e metadados semânticos).
   - Publicar a main no GitHub: `make push-main`.
 
 ---
@@ -260,6 +269,14 @@ Para detalhes de métodos, tipos de retorno e exemplos de uso de cada classe, co
   - **Invalidação Reativa por Visibilidade:** Alterações em `.visible` de edits invalidam `baked_warp` e `baked_effects`; alterações em `.visible` de efeitos estáticos invalidam cirurgicamente apenas `baked_effects`.
   - **Isolamento Contextual em Patches (`render_patch` & `effective_region`):** Ao renderizar com `view_region`, `effective_region` é injetada no escopo. Camadas cuja interseção com `effective_region` altera o tamanho da camada (`layer.global_region`) não têm seu contexto de cache ativado e renderizam sob demanda, impedindo que recortes parciais contaminem ou invalidem o cache global.
   - **Ciclo de Vida do Background:** O empacotamento de `layer.background` ocorre dinamicamente dentro de `_activate_layer` e é restaurado em `_deactivate_layer`, eliminando flags de estado e mantendo a camada com métodos nativos fora do renderizador.
+
+- **Normalização do Parâmetro `cache: AbstractLayerCache | None = None` em Render e Combine:**
+  - **Padronização da API de Renderização:** Métodos de renderização e composição (`render_layer`, `export`, `flatten`, `bake`, `bake_stack`) aceitam explicitamente o parâmetro opcional `cache: AbstractLayerCache | None = None`.
+  - **Reaproveitamento de Warp em Fusões:** Permite que operações de renderização pontual ou fusão de camadas utilizem uma instância de cache já aquecida para reutilizar `baked_warp` e evitar recalcular transformações afins idênticas durante composições descendentes.
+
+- **Diagnóstico e Arquitetura de Histórico Completo (Tarefa 30):**
+  - **Mapeamento de Lacunas:** Identificação das operações não interceptadas pelo histórico no motor `Combine` (`merge`, `flatten`, `bake`, `bake_stack`), mutações diretas em `GroupLayer` (`remove`, `insert`, `clear`, deleções aninhadas) e perda de proxies de filhos ao restaurar grupos.
+  - **Decisões Estruturais:** Introdução de `ProxyCombine` acoplado a `MacroCommand` atômico, comandos dedicados para `GroupProxy` (`GroupInsertCommand`, `GroupRemoveCommand`, `GroupClearCommand`), e ciclo de vida preservado para proxies reativos através do `ProxyRegistry`.
 
 
 
