@@ -813,8 +813,9 @@ Atualmente, o `LayerCache` tenta monitorar edits acumulando instâncias em uma l
    * Método `is_dirty(current: EditLayer) -> bool`: verifica se `current is not self.edit`, se `visible` mudou ou se `blend_mode` mudou.
 2. **Eliminação do Acumulador Paralelo de Deltas:**
    * Remover `wrap_add_edit` e a lista `status.edits`.
-   * Quando `baked_warp` for válido, os edits pendentes a renderizar sobre ele são simplesmente os excedentes na lista atual da camada: `layer.edits[len(status.baked_edits):]`.
-   * Se `len(layer.edits) < len(status.baked_edits)` (houve `undo`) ou se qualquer edit assado for dirty, invalida o `baked_warp` e re-assa do zero.
+   * Quando `baked_warp` for válido, os edits pendentes a renderizar sobre ele são os excedentes da coleção atual (`layer._edits[len(status.baked_edits):]`). Como o renderizador lê `layer.edits`, o cache expõe temporariamente apenas esse trecho dentro do escopo (`with cache(...)`) e restaura a coleção original no `__exit__`; o renderizador não muda.
+   * Validação do prefixo por iteração (`zip(baked_edits, layer._edits)`), sem indexar em loop.
+   * Se `len(layer._edits) < len(status.baked_edits)` (houve `undo`) ou se qualquer edit assado for dirty, invalida o `baked_warp` e re-assa do zero.
 
 ---
 
@@ -850,9 +851,12 @@ A validação de integridade do cache a cada frame é executada em loops interat
    * Declarar `__slots__ = ("edit", "visible", "blend_mode")` em `EditStatus`, eliminando `__dict__` e reduzindo o consumo de memória para ~56 bytes.
    * No método `is_dirty(current)`: aplicar curto-circuito na identidade do objeto (`if current is not self.edit: return True`), que é uma única comparação de ponteiro em C executada em ~**3 ns**. Em seguida, comparar os dois primitivos boolean/enum.
    * **Speedup comprovado:** Redução de ~200 ns para **~45 ns** por edit ($4.4\times$ mais rápido).
-3. **Acesso Direto às Coleções Internas no Escopo do Cache:**
-   * Dentro de `_activate_layer` no `LayerCacheScope`, acessar diretamente os contêineres privados `layer._edits` (`deque`) e `layer._effects` (`list`), em vez de chamar as properties públicas `layer.edits` e `layer.effects` que criam novas tuplas a cada acesso.
+3. **`ListView[T]` Genérica Somente Leitura e Acesso Direto às Coleções:**
+   * Criar `ListView[T](Sequence[T])` genérica (sem acoplamento a `EditLayer`), com `__slots__ = ("_data",)`, apenas `__len__`, `__iter__`, `__getitem__` (`int` e `slice`), `__contains__` e `__repr__`. Sem métodos mutantes (não herda de `list`, então `append`, `pop`, `clear`, etc. simplesmente não existem). Slice devolve `ListView` (snapshot raso).
+   * `Layer._edits` passa de `deque` para `list` pura (migrar `layer.py`, `command.py` e `cache.py`). `Layer.edits` devolve `ListView(self._edits)` (visão viva, ~30 ns, sem cópia de dados). `Layer.effects` pode continuar devolvendo a lista normalmente.
+   * Dentro de `_activate_layer`, o cache lê `layer._edits` e `layer._effects` diretamente.
    * **Resultado:** **Zero alocações de tuplas no heap** durante toda a validação de integridade por frame.
+   * **Adiado (fora do escopo desta tarefa):** `Layer.__getitem__` aceitando **apenas `int`**, com retorno fechado em `EditLayer` (sem slice, sem acesso por nome, para evitar resultados surpreendentes: nomes de edit não são únicos). Não definir `__len__` no `Layer` (evita camada vazia ser falsy).
 4. **Extração de Assinatura de Efeitos por Tupla Nativa de Primitivos:**
    * A assinatura do efeito gera uma tupla compacta de valores primitivos (`id(eff)`, `eff.visible`, `eff.matrix.tobytes()`, parâmetros float/int).
    * A comparação `tupla == tupla` em CPython é executada sequencialmente em código C nativo sem sobrecarga de reflexão.
