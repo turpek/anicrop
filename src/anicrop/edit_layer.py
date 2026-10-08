@@ -58,9 +58,6 @@ class EditLayer:
     def local_matrix(self) -> np.ndarray:
         return self.matrix @ mat_position(self.region)
 
-    def offset(self, offset_x: int, offset_y: int) -> None:
-        self._region += (offset_x, offset_y)
-
     def clear_lod_cache(self) -> None:
         """Limpa o cache de LOD de imagens grandes."""
         self._lod_cache.clear()
