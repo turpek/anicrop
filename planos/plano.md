@@ -36,9 +36,9 @@ Este documento centraliza todos os objetivos arquiteturais, otimizações e o pr
 - [x] ~~29. Suporte Nativo a Formatos BGR e BGRA para Pipelines de Vídeo e Visão Computacional (Zero-Copy com OpenCV / Aniseek).~~
 - [ ] 30. Consolidação e Integração Abrangente do Sistema de Histórico (Undo/Redo para Combine, Contêineres, Remoções Aninhadas e Filhos).
 - [ ] 31. Modificar a Referência das Camadas no Cache para Referência Fraca (`weakref` em `LayerCache._states`).
-- [ ] 32. Sistema de Invalidação mais Robusto para Efeitos Usando Cópia Fraca (Detecção Genérica de Mutações via Snapshot de Estado).
+- [ ] 32. Sistema de Invalidação mais Robusto para Efeitos via Inspeção de Bytecode de `apply` (`dis` no escopo exclusivo de `apply`).
 - [ ] 33. Sistema de Invalidação mais Robusto para Edits Usando Somente `visible` e `blend_mode` (`EditStatus`).
-- [ ] 34. Remoção do Método Obsoleto `offset` do `EditLayer`.
+- [x] ~~34. Remoção do Método Obsoleto `offset` do `EditLayer`.~~
 - [ ] 35. Otimizações de Baixa Latência e Zero-Alloc na Invalidação do `LayerCache` (Comparação de Matriz por Bytes, Fast-Path com `__slots__` e Leitura Direta de Coleções).
 
 ---
@@ -777,7 +777,7 @@ Atualmente, a classe `LayerCache` mantém o dicionário `self._states: dict[Laye
 
 ---
 
-## ⏳ 32. Sistema de Invalidação mais Robusto para Efeitos Usando Cópia Fraca (Detecção Genérica de Mutações via Snapshot de Estado)
+## ⏳ 32. Sistema de Invalidação mais Robusto para Efeitos via Inspeção de Bytecode de `apply` (`dis` no escopo exclusivo de `apply`)
 
 ### 1. Diagnóstico e Motivação
 O sistema atual de invalidação de efeitos em `LayerCache` apresenta duas limitações graves:
@@ -785,14 +785,19 @@ O sistema atual de invalidação de efeitos em `LayerCache` apresenta duas limit
 2. **Mutações Diretas na Referência Original:** Mesmo com proxies, se o usuário mantiver uma referência da variável original (`blur = BlurFilter(5.0); layer.add_effect(blur); blur.radius_x = 10.0`), a mutação ocorre diretamente no objeto sem passar por nenhum proxy.
 
 ### 2. Diretrizes Técnicas e Solução Arquitetural
-1. **Snapshot de Estado Fraco (`snapshot_effect`):**
-   * Ao assar os efeitos estáticos em `baked_effects`, capturar uma cópia rasa do dicionário de atributos de cada efeito: `eff.__dict__.copy()`.
-   * Para `BoundEffect`, copiar recursivamente o estado do seu efeito interno (`eff.effect`) e os atributos específicos (`matrix`, `mask`).
-   * Para valores do tipo `np.ndarray` (como a matriz afim), tratar a comparação de igualdade usando `np.array_equal` (prevenindo o erro de ambiguidade de boolean array do NumPy).
-2. **Validação Cirúrgica a Cada Frame (`effect_state_matches`):**
-   * Em `_activate_layer`, comparar a lista de efeitos estáticos atuais com os snapshots salvos.
-   * Se qualquer atributo (em qualquer filtro de qualquer classe concreta) divergir do snapshot, ou se a identidade dos efeitos mudar, `status.baked_effects` é automaticamente invalidado.
-   * A checagem é 100% genérica, suporta qualquer tipo de filtro atual ou futuro, e não depende de monkey-patching em `add_effect` ou `bind_effect`.
+1. **Inspeção de Bytecode Focada Estritamente no Método `cls.apply`:**
+   * Utilizar `dis.get_instructions(cls.apply)` para inspecionar os acessos a atributos da instância (`LOAD_FAST 'self'` seguido de `LOAD_ATTR <nome>`).
+   * **Escopo estrito:** Inspecionar **exclusivamente o método `apply`** (sem recursão em métodos auxiliares).
+   * **Filtros e Preservação:**
+     - Ignora dunders (`__...__`).
+     - Ignora métodos/callables definidos na classe (`callable(getattr(cls, name, None))`).
+     - **Preserva atributos privados com `_`** (ex: `_radius`), assegurando que se o usuário alterar um atributo através de um método/setter e `apply` consumir `self._radius`, a mutação seja capturada.
+     - Inclui `"visible"` como atributo monitorado.
+2. **Compilação e Cache por Tipo (`WeakKeyDictionary`):**
+   * Compilar a lista de nomes de atributos monitorados uma única vez por tipo de efeito em `WeakKeyDictionary[type, tuple[str, ...]]`.
+3. **Snapshot de Estado e Validação a Cada Frame:**
+   * No cache, extrair os valores dos atributos monitorados de cada efeito ativo.
+   * Comparar o snapshot atual com o snapshot salvo. Qualquer divergência invalida `status.baked_effects`.
 
 ---
 
@@ -819,18 +824,16 @@ Atualmente, o `LayerCache` tenta monitorar edits acumulando instâncias em uma l
 
 ---
 
-## ⏳ 34. Remoção do Método Obsoleto `offset` do `EditLayer`
+## ✅ 34. Remoção do Método Obsoleto `offset` do `EditLayer` (Concluído)
 
 ### 1. Diagnóstico e Motivação
-A classe `EditLayer` possui o método `offset(offset_x: int, offset_y: int) -> None` que muta `self._region += (offset_x, offset_y)`.
-* **Código Morto:** O método não é invocado em nenhum lugar do repositório (`anicrop`, testes ou benchmarks).
-* **Violação de Imutabilidade Espacial:** A região de um `EditLayer` representa a moldura geométrica fixa onde o patch foi aplicado em coordenadas locais da camada. Mutações arbitrárias de offset violam a imutabilidade do patch e criam brechas para dessincronismo no cache de LOD (`_lod_cache`).
+A classe `EditLayer` possuía o método `offset(offset_x: int, offset_y: int) -> None` que mutava `self._region += (offset_x, offset_y)`.
+* **Código Morto:** O método não era invocado em nenhum lugar do repositório (`anicrop`, testes ou benchmarks).
+* **Violação de Imutabilidade Espacial:** A região de um `EditLayer` representa a moldura geométrica fixa onde o patch foi aplicado em coordenadas locais da camada. Mutações arbitrárias de offset violavam a imutabilidade do patch e criavam brechas para dessincronismo no cache de LOD (`_lod_cache`).
 
-### 2. Diretrizes Técnicas e Solução Arquitetural
-1. **Remoção do Método:**
-   * Excluir a definição de `def offset(...)` em `src/anicrop/edit_layer.py`.
-2. **Validação de Regressão:**
-   * Executar a suíte de testes (`pytest`) para garantir que nenhum teste legado dependia desse método obsoleto.
+### 2. Conclusão e Resolução
+* Método removido com sucesso de `src/anicrop/edit_layer.py` no commit `91ba2b2`.
+* Suíte completa com 1.294 testes aprovada sem regressões.
 
 ---
 
