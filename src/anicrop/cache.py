@@ -106,11 +106,6 @@ class LayerFrameState:
         self.effects_visibility: tuple[bool, ...] = ()
         self.baked_effects_snapshot: tuple[tuple[Any, ...], ...] = ()
 
-        self.orig_add_edit: Any = None
-        self.orig_add_effect: Any = None
-        self.orig_bind_effect: Any = None
-        self.orig_background: Any = None
-
         self.saved_edits: deque[EditLayer] | None = None
         self.saved_effects: list[Effect] | None = None
 
@@ -119,8 +114,6 @@ def wrap_add_edit(
     status: LayerFrameState, original_func: Callable[..., Any]
 ) -> Callable[..., Any]:
     """Empacota add_edit para registrar novos edits na lista de deltas do cache."""
-    status.orig_add_edit = original_func
-
     def wrapper(*args: Any, **kwargs: Any) -> Any:
         edit = original_func(*args, **kwargs)
         status.edits.append(edit)
@@ -133,8 +126,6 @@ def wrap_add_effect(
     status: LayerFrameState, original_func: Callable[..., Any]
 ) -> Callable[..., Any]:
     """Empacota add_effect para registrar novos efeitos na lista de deltas do cache."""
-    status.orig_add_effect = original_func
-
     def wrapper(*args: Any, **kwargs: Any) -> Any:
         effect = original_func(*args, **kwargs)
         status.effects.append(effect)
@@ -147,8 +138,6 @@ def wrap_bind_effect(
     status: LayerFrameState, original_func: Callable[..., Any]
 ) -> Callable[..., Any]:
     """Empacota bind_effect para registrar novos efeitos na lista de deltas do cache."""
-    status.orig_bind_effect = original_func
-
     def wrapper(*args: Any, **kwargs: Any) -> Any:
         bound = original_func(*args, **kwargs)
         status.effects.append(bound)
@@ -161,8 +150,6 @@ def wrap_background(
     status: LayerFrameState, original_func: Callable[..., Any]
 ) -> Callable[..., Any]:
     """Empacota background para retornar o buffer pré-assado quando disponível."""
-    status.orig_background = original_func
-
     def wrapper(size: Any, format: ImageFormat, dtype: Any = np.uint8) -> Image:
         if status.baked_warp is None:
             status.baked_warp = original_func(size, format, dtype=dtype)
@@ -297,7 +284,6 @@ class LayerCacheScope:
 
     def _activate_layer(self, layer: Layer, status: LayerFrameState) -> None:
         status.background_calls = 0
-        status.orig_background = layer.background
         layer.background = wrap_background(status, layer.background)  # type: ignore[method-assign]
 
         # 1. Distorção da matriz (rotação e escala 2x2): se mudou, o warp é inválido
@@ -419,9 +405,7 @@ class LayerCacheScope:
         if status.saved_effects is not None:
             layer._effects = status.saved_effects
             status.saved_effects = None
-        if status.orig_background is not None:
-            layer.background = status.orig_background  # type: ignore[method-assign]
-            status.orig_background = None
+        layer.__dict__.pop("background", None)
 
         status.matrix = layer.matrix.copy()
         status.edits.clear()
@@ -432,7 +416,7 @@ class LayerCache(AbstractLayerCache):
     """Gerenciador central de cache incremental e decorators para renderização."""
 
     def __init__(self) -> None:
-        self._states: dict[Layer, LayerFrameState] = {}
+        self._states: WeakKeyDictionary[Layer, LayerFrameState] = WeakKeyDictionary()
 
     def register(self, item: Layer | Container) -> None:
         """Registra a camada ou contêiner (recursivo) para gerenciamento de cache."""
@@ -467,16 +451,11 @@ class LayerCache(AbstractLayerCache):
             return
 
         layer = item
-        status = self._states.pop(layer, None)
-        if status is not None:
-            if status.orig_add_edit is not None:
-                layer.add_edit = status.orig_add_edit  # type: ignore[method-assign]
-            if status.orig_add_effect is not None:
-                layer.add_effect = status.orig_add_effect  # type: ignore[method-assign]
-            if status.orig_bind_effect is not None:
-                layer.bind_effect = status.orig_bind_effect  # type: ignore[method-assign]
-            if status.orig_background is not None:
-                layer.background = status.orig_background  # type: ignore[method-assign]
+        self._states.pop(layer, None)
+        layer.__dict__.pop("add_edit", None)
+        layer.__dict__.pop("add_effect", None)
+        layer.__dict__.pop("bind_effect", None)
+        layer.__dict__.pop("background", None)
 
     def is_dirty(self, layer: Layer) -> bool:
         """Verifica se a camada precisa ser renderizada do zero."""

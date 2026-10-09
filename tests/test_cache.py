@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import gc
 from unittest.mock import MagicMock
 
 import numpy as np
@@ -45,7 +46,6 @@ def test_wrap_add_edit_registra_edit_no_status():
     result = wrapped("arg1", key="val")
 
     assert result is mock_edit
-    assert status.orig_add_edit is mock_orig
     mock_orig.assert_called_once_with("arg1", key="val")
     assert status.edits == [mock_edit]
 
@@ -60,7 +60,6 @@ def test_wrap_add_effect_registra_efeito_no_status():
     result = wrapped(mock_effect)
 
     assert result is mock_effect
-    assert status.orig_add_effect is mock_orig
     mock_orig.assert_called_once_with(mock_effect)
     assert status.effects == [mock_effect]
 
@@ -76,7 +75,6 @@ def test_wrap_background_retorna_baked_warp_e_incrementa_contador():
     result = wrapped((20, 20), ImageFormat.RGBA)
 
     assert result is baked
-    assert status.orig_background is mock_orig
     assert status.background_calls == 1
     mock_orig.assert_not_called()
 
@@ -586,3 +584,22 @@ def test_layer_cache_preserves_baked_effects_when_no_parameters_mutated():
 
     renderer.render_scene([layer], canvas, cache=cache)
     assert status.baked_effects is first_baked
+
+
+def test_layer_cache_clears_discarded_layers_via_weakref():
+    """Valida se camadas descartadas sao expurgadas automaticamente do cache sem unregister manual."""
+    layer = Layer(make_img(30, 30))
+    cache = LayerCache()
+    cache.register(layer)
+
+    renderer = CanvasRender()
+    canvas = Canvas(layer.global_region)
+    renderer.render_scene([layer], canvas, cache=cache)
+
+    assert cache.get_state(layer) is not None
+    assert len(cache._states) == 1
+
+    del layer
+    gc.collect()
+
+    assert len(cache._states) == 0
