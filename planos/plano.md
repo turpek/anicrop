@@ -35,11 +35,11 @@ Este documento centraliza todos os objetivos arquiteturais, otimizações e o pr
 - [x] ~~28. Sistema de Cache de Camadas com Decorators e Renderização Incremental (`LayerCache`).~~
 - [x] ~~29. Suporte Nativo a Formatos BGR e BGRA para Pipelines de Vídeo e Visão Computacional (Zero-Copy com OpenCV / Aniseek).~~
 - [ ] 30. Consolidação e Integração Abrangente do Sistema de Histórico (Undo/Redo para Combine, Contêineres, Remoções Aninhadas e Filhos).
-- [ ] 31. Modificar a Referência das Camadas no Cache para Referência Fraca (`weakref` em `LayerCache._states`).
+- [x] ~~31. Modificar a Referência das Camadas no Cache para Referência Fraca (`weakref` em `LayerCache._states`).~~
 - [x] ~~32. Sistema de Invalidação mais Robusto para Efeitos via Inspeção de Bytecode de `apply` (`dis` no escopo exclusivo de `apply`).~~
-- [ ] 33. Sistema de Invalidação mais Robusto para Edits Usando Somente `visible` e `blend_mode` (`EditStatus`).
+- [x] ~~33. Sistema de Invalidação mais Robusto para Edits Usando Somente `visible` e `blend_mode` (`snapshot_edit`).~~
 - [x] ~~34. Remoção do Método Obsoleto `offset` do `EditLayer`.~~
-- [ ] 35. Otimizações de Baixa Latência e Zero-Alloc na Invalidação do `LayerCache` (Comparação de Matriz por Bytes, Fast-Path com `__slots__` e Leitura Direta de Coleções).
+- [x] ~~35. Otimizações de Baixa Latência e Zero-Alloc na Invalidação do `LayerCache` (Comparação de Matriz por Bytes e `ListView`).~~
 
 ---
 
