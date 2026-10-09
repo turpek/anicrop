@@ -56,6 +56,16 @@ def get_tracked_attrs(cls: type) -> tuple[str, ...]:
 
 def snapshot_effect(effect: Effect) -> tuple[Any, ...]:
     """Gera uma tupla imutavel com id e valores atuais dos atributos monitorados do efeito."""
+    if isinstance(effect, BoundEffect):
+        mask_val = (id(effect.mask), effect.mask.visible) if effect.mask is not None else None
+        return (
+            id(effect),
+            effect.visible,
+            effect.matrix.tobytes(),
+            mask_val,
+            snapshot_effect(effect.effect),
+        )
+
     attrs = get_tracked_attrs(type(effect))
     values: list[Any] = [id(effect)]
 
@@ -63,14 +73,6 @@ def snapshot_effect(effect: Effect) -> tuple[Any, ...]:
         val = getattr(effect, name, None)
         if isinstance(val, np.ndarray):
             values.append(val.tobytes())
-        elif isinstance(val, Effect):
-            values.append(snapshot_effect(val))
-        elif hasattr(val, "size") and hasattr(val, "format"):
-            values.append(id(val))
-        elif isinstance(val, (list, set)):
-            values.append(tuple(val))
-        elif isinstance(val, dict):
-            values.append(tuple(sorted(val.items())))
         else:
             values.append(val)
 
