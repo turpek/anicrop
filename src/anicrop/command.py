@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import copy
 from abc import ABC, abstractmethod
-from collections import deque
 from typing import Any, Iterable
 
 import numpy as np
@@ -358,7 +357,7 @@ class LayerImageSnapshot(StateSnapshot):
         self._item = item
 
     def restore(self) -> None:
-        self._item._edits = deque(self._edits)
+        self._item._edits = list(self._edits)
         self._item._opacity_mask = (
             np.copy(self._opacity_mask) if self._opacity_mask is not None else None
         )
