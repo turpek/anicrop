@@ -36,7 +36,7 @@ Este documento centraliza todos os objetivos arquiteturais, otimizações e o pr
 - [x] ~~29. Suporte Nativo a Formatos BGR e BGRA para Pipelines de Vídeo e Visão Computacional (Zero-Copy com OpenCV / Aniseek).~~
 - [ ] 30. Consolidação e Integração Abrangente do Sistema de Histórico (Undo/Redo para Combine, Contêineres, Remoções Aninhadas e Filhos).
 - [ ] 31. Modificar a Referência das Camadas no Cache para Referência Fraca (`weakref` em `LayerCache._states`).
-- [ ] 32. Sistema de Invalidação mais Robusto para Efeitos via Inspeção de Bytecode de `apply` (`dis` no escopo exclusivo de `apply`).
+- [x] ~~32. Sistema de Invalidação mais Robusto para Efeitos via Inspeção de Bytecode de `apply` (`dis` no escopo exclusivo de `apply`).~~
 - [ ] 33. Sistema de Invalidação mais Robusto para Edits Usando Somente `visible` e `blend_mode` (`EditStatus`).
 - [x] ~~34. Remoção do Método Obsoleto `offset` do `EditLayer`.~~
 - [ ] 35. Otimizações de Baixa Latência e Zero-Alloc na Invalidação do `LayerCache` (Comparação de Matriz por Bytes, Fast-Path com `__slots__` e Leitura Direta de Coleções).
@@ -777,27 +777,31 @@ Atualmente, a classe `LayerCache` mantém o dicionário `self._states: dict[Laye
 
 ---
 
-## ⏳ 32. Sistema de Invalidação mais Robusto para Efeitos via Inspeção de Bytecode de `apply` (`dis` no escopo exclusivo de `apply`)
+## ✅ 32. Sistema de Invalidação mais Robusto para Efeitos via Inspeção de Bytecode de `apply` (Concluído)
 
 ### 1. Diagnóstico e Motivação
-O sistema atual de invalidação de efeitos em `LayerCache` apresenta duas limitações graves:
-1. **Invalidação Ingênua por Contagem e Booleano:** Apenas checa se `len(layer.effects) < baked_effects_count` ou se a tupla de visibilidade booleana mudou. Se um efeito for substituído por outro diferente, ou se o usuário alterar os parâmetros de um filtro (ex: `blur.radius_x = 10.0`), o cache não detecta e continua servindo o `baked_effects` desatualizado.
-2. **Mutações Diretas na Referência Original:** Mesmo com proxies, se o usuário mantiver uma referência da variável original (`blur = BlurFilter(5.0); layer.add_effect(blur); blur.radius_x = 10.0`), a mutação ocorre diretamente no objeto sem passar por nenhum proxy.
+O sistema atual de invalidação de efeitos em `LayerCache` apresentava duas limitações graves:
+1. **Invalidação Ingênua por Contagem e Booleano:** Apenas checava se `len(layer.effects) < baked_effects_count` ou se a tupla de visibilidade booleana mudou. Se um efeito fosse substituído por outro diferente, ou se o usuário alterasse os parâmetros de um filtro (ex: `blur.radius_x = 10.0`), o cache não detectava e continuava servindo o `baked_effects` desatualizado.
+2. **Mutações Diretas na Referência Original:** Mesmo com proxies, se o usuário mantivesse uma referência da variável original (`blur = BlurFilter(5.0); layer.add_effect(blur); blur.radius_x = 10.0`), a mutação ocorria diretamente no objeto sem passar por nenhum proxy.
 
 ### 2. Diretrizes Técnicas e Solução Arquitetural
 1. **Inspeção de Bytecode Focada Estritamente no Método `cls.apply`:**
    * Utilizar `dis.get_instructions(cls.apply)` para inspecionar os acessos a atributos da instância (`LOAD_FAST 'self'` seguido de `LOAD_ATTR <nome>`).
-   * **Escopo estrito:** Inspecionar **exclusivamente o método `apply`** (sem recursão em métodos auxiliares).
+   * **Escopo estrito:** Inspeciona **exclusivamente o método `apply`** (sem recursão em métodos auxiliares).
    * **Filtros e Preservação:**
      - Ignora dunders (`__...__`).
      - Ignora métodos/callables definidos na classe (`callable(getattr(cls, name, None))`).
      - **Preserva atributos privados com `_`** (ex: `_radius`), assegurando que se o usuário alterar um atributo através de um método/setter e `apply` consumir `self._radius`, a mutação seja capturada.
      - Inclui `"visible"` como atributo monitorado.
 2. **Compilação e Cache por Tipo (`WeakKeyDictionary`):**
-   * Compilar a lista de nomes de atributos monitorados uma única vez por tipo de efeito em `WeakKeyDictionary[type, tuple[str, ...]]`.
+   * Compila a lista de nomes de atributos monitorados uma única vez por tipo de efeito em `WeakKeyDictionary[type, tuple[str, ...]]`.
 3. **Snapshot de Estado e Validação a Cada Frame:**
-   * No cache, extrair os valores dos atributos monitorados de cada efeito ativo.
-   * Comparar o snapshot atual com o snapshot salvo. Qualquer divergência invalida `status.baked_effects`.
+   * No cache, extrai os valores dos atributos monitorados de cada efeito ativo (`snapshot_effect`). Converte `ndarray` para `.tobytes()` e executa recursão para `BoundEffect`.
+   * Compara o snapshot atual com o snapshot salvo. Qualquer divergência invalida `status.baked_effects`.
+
+### 3. Conclusão e Resolução
+* Implementado com sucesso em `src/anicrop/cache.py` no commit `ac35cb9`.
+* Suíte completa com 1.302 testes aprovada sem regressões.
 
 ---
 
