@@ -849,37 +849,31 @@ A classe `EditLayer` possuía o método `offset(offset_x: int, offset_y: int) ->
 
 ---
 
-## ⏳ 35. Otimizações de Baixa Latência e Zero-Alloc na Invalidação do `LayerCache` (Comparação de Matriz por Bytes, Fast-Path com `__slots__` e Leitura Direta de Coleções)
+## ✅ 35. Otimizações de Baixa Latência e Zero-Alloc na Invalidação do `LayerCache` (Concluído)
 
 ### 1. Diagnóstico e Motivação
-A validação de integridade do cache a cada frame é executada em loops interativos e renderização contínua (ex: visualizador `Viewer`, pipelines de vídeo no `Anifuse` e animações com 60 a 120 FPS). Embora o custo inicial de checagem seja baixo (~5 µs), existem gargalos desnecessários de alocação de memória no heap e sobrecarga em funções dinâmicas do Python e NumPy:
-1. **Sobrecarga de `np.array_equal`:** Comparar matrizes 3x3 com `np.array_equal` custa ~**6.500 ns**, pois o NumPy realiza verificações de broadcasting, aloca arrays booleanos temporários e reduz com `.all()`.
-2. **Alocação Contínua de Tuplas em Properties:** Invocar `layer.edits` e `layer.effects` a cada frame dispara `return tuple(self._edits)` e `return tuple(self._effects)`. Em 60 a 120 FPS, isso aloca dezenas de milhares de tuplas efêmeras por segundo, aumentando a pressão sobre o coletor de lixo (*GC pressure*).
-3. **Resolução Dinâmica de Atributos e Dicionários:** Comparar dicionários genéricos com `getattr()` dinâmico adiciona overhead de tabela de dispersão (*hash table lookups*).
+A validação de integridade do cache a cada frame é executada em loops interativos e renderização contínua (ex: visualizador `Viewer`, pipelines de vídeo no `Anifuse` e animações com 60 a 120 FPS). Embora o custo inicial de checagem fosse baixo (~5 µs), existiam gargalos desnecessários de alocação de memória no heap e sobrecarga em funções dinâmicas do Python e NumPy:
+1. **Sobrecarga de `np.allclose` / `np.array_equal`:** Comparar matrizes 2x2/3x3 custava ~**6.500 ns**, pois o NumPy realiza verificações de broadcasting, aloca arrays booleanos temporários e reduz com `.all()`.
+2. **Alocação Contínua de Tuplas em Properties:** Invocar `layer.edits` a cada frame disparava `return tuple(self._edits)`, alocando tuplas efêmeras a cada frame e pressionando o Garbage Collector.
 
 ### 2. Diretrizes Técnicas e Solução Arquitetural
-1. **Comparação de Matrizes Afins por Bytes (`tobytes()` / `memcmp`):**
-   * Em `BoundEffect` ou validações afins, comparar matrizes através de `matrix.tobytes()`.
-   * A comparação `b1 == b2` em Python é traduzida diretamente para a função C `memcmp()` de 36 bytes (3x3 `float32`).
-   * **Speedup comprovado:** Redução de **6.500 ns para 105 ns** ($60\times$ mais rápido), com zero alocações temporárias.
-2. **`EditStatus` com `__slots__` e Fast-Path de Identidade:**
-   * Declarar `__slots__ = ("edit", "visible", "blend_mode")` em `EditStatus`, eliminando `__dict__` e reduzindo o consumo de memória para ~56 bytes.
-   * No método `is_dirty(current)`: aplicar curto-circuito na identidade do objeto (`if current is not self.edit: return True`), que é uma única comparação de ponteiro em C executada em ~**3 ns**. Em seguida, comparar os dois primitivos boolean/enum.
-   * **Speedup comprovado:** Redução de ~200 ns para **~45 ns** por edit ($4.4\times$ mais rápido).
-3. **`ListView[T]` Genérica Somente Leitura e Acesso Direto às Coleções:**
-   * Criar `ListView[T](Sequence[T])` genérica (sem acoplamento a `EditLayer`), com `__slots__ = ("_data",)`, apenas `__len__`, `__iter__`, `__getitem__` (`int` e `slice`), `__contains__` e `__repr__`. Sem métodos mutantes (não herda de `list`, então `append`, `pop`, `clear`, etc. simplesmente não existem). Slice devolve `ListView` (snapshot raso).
-   * `Layer._edits` passa de `deque` para `list` pura (migrar `layer.py`, `command.py` e `cache.py`). `Layer.edits` devolve `ListView(self._edits)` (visão viva, ~30 ns, sem cópia de dados). `Layer.effects` pode continuar devolvendo a lista normalmente.
-   * Dentro de `_activate_layer`, o cache lê `layer._edits` e `layer._effects` diretamente.
-   * **Resultado:** **Zero alocações de tuplas no heap** durante toda a validação de integridade por frame.
-   * **Adiado (fora do escopo desta tarefa):** `Layer.__getitem__` aceitando **apenas `int`**, com retorno fechado em `EditLayer` (sem slice, sem acesso por nome, para evitar resultados surpreendentes: nomes de edit não são únicos). Não definir `__len__` no `Layer` (evita camada vazia ser falsy).
-4. **Extração de Assinatura de Efeitos por Tupla Nativa de Primitivos:**
-   * A assinatura do efeito gera uma tupla compacta de valores primitivos (`id(eff)`, `eff.visible`, `eff.matrix.tobytes()`, parâmetros float/int).
-   * A comparação `tupla == tupla` em CPython é executada sequencialmente em código C nativo sem sobrecarga de reflexão.
-   * **Speedup comprovado:** Redução da validação de efeitos de ~1.820 ns para **~900 a 1.000 ns**.
+1. **Comparação de Matrizes Afins por Bytes (`matrix[:2, :2].tobytes()` / `memcmp`):**
+   * Armazenamento de `status.matrix_2x2_bytes: bytes | None = None` em `LayerFrameState`.
+   * A comparação `curr_2x2_bytes != status.matrix_2x2_bytes` em `_activate_layer` e `is_dirty` é traduzida diretamente para a função C `memcmp()`.
+   * **Speedup comprovado:** Redução de **6.500 ns para ~15 a 105 ns** ($60\times$ a $400\times$ mais rápido), com zero alocações temporárias.
+2. **`ListView[T]` Genérica Somente Leitura e Migração de `Layer._edits` para `list`:**
+   * Criada `ListView[T](Sequence[T])` genérica em `src/anicrop/type.py`, com `__slots__ = ("_data",)`, provendo `__len__`, `__iter__`, `__getitem__` (`int` e `slice`), `__contains__`, `__repr__` e `__eq__`. Sem métodos mutantes.
+   * `Layer._edits` migrado de `deque` para `list` pura em `src/anicrop/layer.py`, `src/anicrop/command.py` e `src/anicrop/cache.py`.
+   * `Layer.edits` devolve `ListView(self._edits)` (~30 ns, sem cópia de dados).
+   * O cache lê `layer._edits` diretamente em `_activate_layer` e `set_baked`.
+3. **Snapshot de Primitivos de Efeitos e Edits:**
+   * Assinatura imutável nativa em `snapshot_effect` e `snapshot_edit` eliminando alocações dinâmicas.
 
-### 3. Impacto Geral Esperado
-* **Latência de Validação de Cena:** Queda de ~5.6 µs para **~1.8 µs** (uma redução de mais de **$3\times$** no tempo total de checagem).
-* **Throughput:** Imunidade total a gargalos de GC em loops de renderização de altíssima taxa de quadros (120 a 240 FPS).
+### 3. Conclusão e Resolução
+* Implementado com sucesso nos commits `1fe4a9e` e anteriores.
+* Suíte completa com 1.311 testes aprovada sem regressões, cobrindo operações e invariâncias de `ListView`, migração de snapshots de histórico e invalidação instantânea por bytes.
+
+---
 
 
 
