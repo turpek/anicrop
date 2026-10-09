@@ -809,26 +809,30 @@ O sistema atual de invalidação de efeitos em `LayerCache` apresentava duas lim
 
 ---
 
-## ⏳ 33. Sistema de Invalidação mais Robusto para Edits Usando Somente `visible` e `blend_mode` (`EditStatus`)
+## ✅ 33. Sistema de Invalidação mais Robusto para Edits Usando Somente `visible` e `blend_mode` (Concluído)
 
 ### 1. Diagnóstico e Motivação
 Na arquitetura do `anicrop`, um `EditLayer` é um registro imutável do corte/patch: sua imagem (`image`), região (`region`) e matriz espacial (`matrix`) são fixados na criação. Os **únicos** atributos mutáveis de um `EditLayer` são:
 1. `visible: bool`
 2. `blend_mode: BlendMode`
 
-Atualmente, o `LayerCache` tenta monitorar edits acumulando instâncias em uma lista paralela `status.edits` via monkey-patching em `layer.add_edit`. Isso falha gravemente quando:
-* O histórico executa `undo()` ou `redo()`: a lista `layer._edits` é restaurada via snapshot, sem chamar `add_edit`. No `redo()`, `status.edits` fica vazio e os edits refeitos desaparecem do render!
-* Edits são desativados via `edit.visible = False` ou têm seu modo de mesclagem alterado.
+Anteriormente, o `LayerCache` tentava monitorar edits acumulando instâncias em uma lista paralela `status.edits` via monkey-patching em `layer.add_edit`. Isso falhava gravemente quando:
+* O histórico executava `undo()` ou `redo()`: a lista `layer._edits` era restaurada via snapshot, sem chamar `add_edit`.
+* Edits permaneciam vivos em múltiplos frames ou eram desativados via `edit.visible = False` ou tinham seu modo de mesclagem alterado.
 
 ### 2. Diretrizes Técnicas e Solução Arquitetural
-1. **Classe Leve `EditStatus`:**
-   * Criar `EditStatus` rastreando estritamente: a referência da instância do edit (`edit`), `visible: bool` e `blend_mode: BlendMode`.
-   * Método `is_dirty(current: EditLayer) -> bool`: verifica se `current is not self.edit`, se `visible` mudou ou se `blend_mode` mudou.
+1. **Snapshot Leve por Tupla de Primitivos (`snapshot_edit`):**
+   * Em vez de instanciar classes que retenham referências fortes a instâncias de `EditLayer` (e suas respectivas `Image`s pesadas), a função `snapshot_edit(edit)` extrai a tupla de primitivos `(id(edit), edit.visible, edit.blend_mode)`.
+   * **Zero retenção de memória:** O cache armazena apenas inteiros e booleanos em `status.baked_edits_snapshot`. Se um edit for descartado, a memória é liberada imediatamente pelo GC.
 2. **Eliminação do Acumulador Paralelo de Deltas:**
-   * Remover `wrap_add_edit` e a lista `status.edits`.
-   * Quando `baked_warp` for válido, os edits pendentes a renderizar sobre ele são os excedentes da coleção atual (`layer._edits[len(status.baked_edits):]`). Como o renderizador lê `layer.edits`, o cache expõe temporariamente apenas esse trecho dentro do escopo (`with cache(...)`) e restaura a coleção original no `__exit__`; o renderizador não muda.
-   * Validação do prefixo por iteração (`zip(baked_edits, layer._edits)`), sem indexar em loop.
-   * Se `len(layer._edits) < len(status.baked_edits)` (houve `undo`) ou se qualquer edit assado for dirty, invalida o `baked_warp` e re-assa do zero.
+   * Removidos `wrap_add_edit` e a lista `status.edits`.
+   * Quando `baked_warp` é válido, os edits pendentes a renderizar sobre ele são os excedentes da coleção atual (`layer._edits[len(status.baked_edits_snapshot):]`). O cache expõe temporariamente apenas esse trecho dentro do escopo (`with cache(...)`) e restaura a coleção original no `__exit__`.
+   * Validação do prefixo por iteração (`zip(status.baked_edits_snapshot, layer._edits)`), sem indexar em loop.
+   * Se `len(layer._edits) < len(status.baked_edits_snapshot)` (houve `undo`) ou se qualquer edit assado divergir em identidade, visibilidade ou blend mode, invalida o `baked_warp` e re-assa do zero.
+
+### 3. Conclusão e Resolução
+* Implementado com sucesso em `src/anicrop/cache.py` no commit `67ee62b`.
+* Suíte completa com 1.307 testes aprovada sem regressões, com validações cobrindo múltiplos frames, alternância de `blend_mode`, redução de contagem de edits e substituição de instâncias.
 
 ---
 
