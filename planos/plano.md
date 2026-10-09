@@ -691,6 +691,25 @@ A viabilidade de suportar BGR/BGRA nativamente decorre de três pilares da arqui
 
 ## ⏳ 30. Consolidação e Integração Abrangente do Sistema de Histórico (Undo/Redo para Combine, Contêineres, Remoções Aninhadas e Filhos)
 
+### 📋 Sub-Tarefas de Execução
+
+- [ ] **30.1. Mutadores de Contêiner e Métodos Fluentes em `BaseContainerProxy` e `ProxyComposer`**
+  - Mapear mutadores omissos no `_ACTION_ROUTER` de `BaseContainerProxy`: `move_relative`, `move_to_front`, `move_to_back`, `swap`, `clear`, `extend`, `__delitem__`.
+  - Integrar mutações em lote (`clear`, `extend`) com blocos atômicos (`history.atomic`) para granularidade cirúrgica de Undo/Redo.
+  - Incluir método mutante in-place `"copy_from"` em `ProxyComposer._MUTATING_METHODS`.
+- [ ] **30.2. Roteamento de Proxy na Remoção de Camadas Aninhadas em `Document.remove`**
+  - Interceptar remoção de camadas filhas de `GroupLayer`: quando `doc.history_enabled=True`, resolver `layer.parent` como `GroupProxy` via `self._policy.process_layer` antes de invocar `.remove(layer)`.
+  - Garantir que `ReparentCommand` seja registrado na árvore aninhada, assegurando restauração correta no Undo.
+- [ ] **30.3. Reatividade e Transações Atômicas no Serviço `Combine`**
+  - Integrar `Combine` (`merge`, `flatten`, `bake`, `bake_stack`) com o histórico através de blocos `with doc.history.atomic(action_name):`.
+  - Operar sobre proxies reativos de contêiner (`doc.stack` ou `GroupProxy`), registrando a remoção das camadas de origem e inserção do novo nó consolidado em **1 único MacroCommand** (1 único Undo/Redo).
+  - Garantir restauração de camadas originais com propriedades, matrizes, efeitos e ordem intactas ao desfazer (`undo`).
+- [ ] **30.4. Atualização de Documentação e Remoção de Ressalvas**
+  - Remover do docstring de `Document.__init__` a ressalva experimental de que operações de `Combine` não gravam passos no histórico.
+  - Atualizar os guias técnicos `docs/history.md`, `docs/composition.md`, `docs/anicrop_guide.md` e `GEMINI.md` documentando a integração completa de Undo/Redo em fusões e manipulações de hierarquia.
+
+---
+
 ### 1. Diagnóstico e Lacunas Identificadas no Histórico
 
 Embora o motor `anicrop.history` disponha de arquitetura avançada de políticas (`NormalPolicy`, `AtomicPolicy`, `MergeContinuousPolicy`), comandos com snapshots cirúrgicos e proxies para `Layer`, `GroupLayer`, `Canvas` e `Mask`, persistem lacunas estruturais que impedem a cobertura de Undo/Redo em operações de composição e contêineres:
@@ -717,46 +736,69 @@ Embora o motor `anicrop.history` disponha de arquitetura avançada de políticas
 5. **Mutações Diretas em Filhos sem Proxy (`Effect` e `EditLayer`):**
    * Mutações em instâncias filhas pós-adição (ex: `layer.effects[0].visible = False` ou `layer.edits[0].visible = False`) não são interceptadas porque `Effect` e `EditLayer` não possuem proxies registrados no `ProxyRegistry`.
 
-### 2. Diretrizes Técnicas e Soluções Arquiteturais
+### 2. Detalhamento Técnico das Sub-Tarefas
 
-1. **Proxy do Serviço `Combine` (`ProxyCombine` ou Interceptação no `Document`):**
-   * Implementar `ProxyCombine` sob `anicrop.reactive` envolvendo `doc.combine`.
-   * Cada operação (`merge`, `flatten`, `bake`, `bake_stack`) deve executar sob `with history.atomic(name):`, de modo que os comandos de remoção dos nós antigos e inserção do novo nó consolidado sejam absorvidos em exatamente **1 único MacroCommand**, permitindo Undo e Redo de 1 único passo.
-2. **Roteamento de Remoção Hierárquica no `Document.remove`:**
-   * Em `doc.remove()`, se `layer.parent` não for `NullContainer`, obter o proxy correspondente via `registry.get_or_create(layer.parent)` antes de chamar `.remove(layer)`, garantindo que a remoção seja gravada pelo `ReparentCommand` do container pai.
-3. **Completude de Mutadores em `BaseContainerProxy`:**
-   * Adicionar `move_relative`, `move_to_front`, `move_to_back`, `clear`, `extend`, `__delitem__` e `__setitem__` no `_ACTION_ROUTER` com suporte a `ReparentCommand` e `_extract_command_value`.
-4. **Atualização de `ProxyComposer`:**
-   * Incluir `"copy_from"` no `_MUTATING_METHODS` de `ProxyComposer`.
-5. **Proxies para Entidades Filhas (`ProxyEffect` e `ProxyEditLayer`):**
-   * Criar proxies dedicados que encaminham alterações de propriedades (`visible`, `opacity`, `blend_mode`) para o `ProxyLayer` proprietário ou registram comandos próprios de micro-snapshot.
+#### 30.1. Mutadores Avançados de Contêiner e ProxyComposer
+1. **Completude do `_ACTION_ROUTER` em `BaseContainerProxy`:**
+   - **`move_relative(item, steps)`:** Converte o deslocamento relativo de índice em transição de reordenação via `ReparentCommand`.
+   - **`move_to_front(item)` / `move_to_back(item)`:** Mapeia a movimentação para o topo/base do contêiner registrando `ReparentCommand`.
+   - **`swap(a, b)`:** Registra a troca de posições entre dois nós dentro de um bloco atômico ou snapshot de reordenação.
+   - **`clear()`:** Quando executado em proxy reativo sob histórico, opera iterativamente sob `with history.atomic("clear"):` removendo filho a filho (ou via snapshot de contêiner), permitindo restaurar a árvore de filhos integralmente em 1 único Undo.
+   - **`extend(items)`:** Adiciona múltiplos filhos iterativamente sob `with history.atomic("extend"):`, registrando cada inserção em 1 único MacroCommand.
+   - **`__delitem__(index)`:** Suporte à deleção por índice mapeando o filho correspondente para `ReparentCommand`.
+2. **Atualização de `ProxyComposer`:**
+   - Adicionar `"copy_from"` ao conjunto `_MUTATING_METHODS` em `src/anicrop/reactive/fluent.py`, garantindo que cópias diretas de transformações emitam o `ComposerCommand` correspondente.
 
-### 3. Roadmap de Execução da Tarefa
+#### 30.2. Roteamento de Proxy na Remoção de Camadas Aninhadas (`Document.remove`)
+1. **Resolução de Proxy para o Pai do Nó:**
+   - Em `Document.remove(layer_or_name)`, se a camada residir na raiz (`layer in self.stack`), o proxy `self.stack` já é invocado.
+   - Se a camada residir dentro de um `GroupLayer` (`layer.parent` não for `NullContainer`):
+     - Quando `self.history_enabled=True`, obter a instância do proxy correspondente a `layer.parent` através da política de histórico (`self._policy.process_layer(layer.parent, self.history)`).
+     - Invocar `parent_proxy.remove(layer)`.
+     - Isso garante que `ReparentCommand` seja emitido pelo `GroupProxy`, tornando a remoção e o restabelecimento da camada no grupo 100% suportados por Undo/Redo.
 
-```
-[FASE 1: Mapeamento Completo de Container e Composer]
-├── Adicionar move_relative, move_to_front, move_to_back, clear, extend, __delitem__, __setitem__ em BaseContainerProxy._ACTION_ROUTER.
-├── Atualizar _extract_command_value e ReparentCommand para suportar mutações em lote e por índice.
-└── Adicionar copy_from em ProxyComposer._MUTATING_METHODS.
+#### 30.3. Reatividade e Transações Atômicas no Serviço `Combine`
+1. **Orquestração Atômica de `Combine`:**
+   - Em operações que alteram a árvore de camadas (`merge`, `flatten`, `bake`, `bake_stack`):
+     - Quando `doc.history_enabled=True`, executar a etapa de manipulação do contêiner sob `with self._doc.history.atomic(f"Combine: {op_name}"):`.
+     - Obter o contêiner alvo (`parent`) encapsulado em proxy (`self._doc.stack` se for raiz, ou `self._doc._policy.process_layer(parent, self._doc.history)` se for grupo).
+     - Invocar as remoções e inserções através do contêiner reativo.
+2. **Garantia de 1 Único Passo de Undo/Redo:**
+   - O `MacroCommand` agrupa atomicamente:
+     1. A remoção das camadas de origem `sequence` (se `remove_source=True`);
+     2. A inserção do novo nó consolidado (`GroupLayer` ou `Layer`) no índice correto (`lowest_index`).
+   - Ao executar `doc.history.undo()`, a camada consolidada é removida do contêiner e todas as camadas originais são reinseridas em suas posições e estados exatos.
+   - Ao executar `doc.history.redo()`, a fusão é reaplicada.
+3. **Casos Especialistas (`bake` e `bake_stack`):**
+   - Em `bake(group)`: substitui atomicamente o grupo por uma camada rasterizada. O Undo recria o grupo intacto com seus filhos originais.
+   - Em `bake_stack()`: limpa a pilha via `self._doc.stack.clear()` e adiciona a camada achatada via `self._doc.stack.append(flat_layer)`. O Undo restaura todas as camadas anteriores da pilha na ordem original.
 
-[FASE 2: Correção de Remoção Aninhada em Document.remove]
-└── Em Document.remove, assegurar que layer.parent seja resolvido como proxy via registry antes de invocar remove().
+#### 30.4. Atualização de Documentação e Remoção de Ressalvas
+1. **Limpeza da API Pública do Documento:**
+   - Remover o aviso experimental sobre `Combine` no docstring de `Document.__init__`.
+2. **Atualização da Documentação Técnica:**
+   - Atualizar `docs/history.md` com as garantias de atomicidade para contêineres e `Combine`.
+   - Atualizar `docs/composition.md` com exemplos práticos demonstrando `doc.combine.merge(...)` e `doc.combine.bake(...)` seguidos de `doc.history.undo()`.
+   - Atualizar `GEMINI.md` no roadmap refletindo a conclusão da consolidação do histórico.
 
-[FASE 3: Reatividade do Serviço Combine]
-├── Implementar ProxyCombine envolvendo Combine sob with history.atomic(action_name).
-├── Garantir que merge, flatten, bake e bake_stack restaurem nós removidos e retirem nó consolidado em exatamente 1 Undo.
-└── Atualizar docstring de Document.__init__ removendo o aviso de limitação em Combine.
+---
 
-[FASE 4: Proxies de Efeitos e Edições Locais (Opcional/Refinamento)]
-├── Registrar ProxyEffect e ProxyEditLayer no ProxyRegistry.
-└── Capturar alterações em .visible e parâmetros escalares.
+### 3. Matriz de Testes Planejados (TDD)
 
-[FASE 5: Suíte de Testes de Integração e Regressão (TDD)]
-├── Testes de Undo/Redo para doc.combine.merge, flatten, bake e bake_stack.
-├── Testes de Undo/Redo para doc.remove em camadas aninhadas dentro de grupos.
-├── Testes de Undo/Redo para métodos avançados de container (clear, move_to_front, etc.).
-└── Validação completa da suíte pytest e tipagem estrita no mypy.
-```
+1. **Testes de Contêiner Reativo (`tests/test_reactive_container.py`):**
+   - Validação de Undo/Redo para `move_relative`, `move_to_front`, `move_to_back`, `swap`.
+   - Validação de Undo/Redo para `clear()` com múltiplos filhos e restauração integral da lista.
+   - Validação de Undo/Redo para `extend([a, b, c])` em 1 único passo atômico.
+   - Validação de Undo/Redo para `del container[idx]`.
+2. **Testes de ProxyComposer (`tests/test_reactive_fluent.py`):**
+   - Validação de Undo/Redo para `layer.transform.copy_from(other_composer)`.
+3. **Testes de Remoção Aninhada (`tests/test_document_history.py`):**
+   - `doc.remove(nested_layer)` dentro de `GroupLayer`: Undo deve recolocar o nó exatamente dentro do grupo na posição correta.
+4. **Testes de Composição Reativa (`tests/test_combine_history.py`):**
+   - Undo/Redo de `doc.combine.merge` (1 passo restaura camadas originais e descarta grupo).
+   - Undo/Redo de `doc.combine.flatten` (1 passo restaura camadas originais e descarta camada achatada).
+   - Undo/Redo de `doc.combine.bake` (1 passo restaura `GroupLayer` e seus filhos).
+   - Undo/Redo de `doc.combine.bake_stack` (1 passo restaura toda a pilha do documento).
 
 ---
 
