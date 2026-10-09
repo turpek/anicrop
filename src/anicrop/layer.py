@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-from collections import deque
 from typing import TYPE_CHECKING, Any, Optional, overload
 
 import numpy as np
@@ -22,7 +21,7 @@ from anicrop.transform import (
     mat_global,
     mat_inverse,
 )
-from anicrop.type import Id
+from anicrop.type import Id, ListView
 
 
 class Layer(BaseLayer, AbstractLayer):
@@ -39,7 +38,7 @@ class Layer(BaseLayer, AbstractLayer):
             self.parent, LayerGeometry, region, opacity, blend_mode, name, format=format
         )
         self._id = Id()
-        self._edits: deque[EditLayer] = deque()
+        self._edits: list[EditLayer] = []
         self._opacity_mask: Optional[np.ndarray] = None
         self._parent_inverse = np.identity(3, dtype=np.float32)
         self._old_matrix = np.zeros((3, 3))
@@ -195,9 +194,9 @@ class Layer(BaseLayer, AbstractLayer):
         self.control.set_y(value)
 
     @property
-    def edits(self) -> tuple[EditLayer, ...]:
+    def edits(self) -> ListView[EditLayer]:
         """Coleção de edições e patches locais da camada."""
-        return tuple(self._edits)
+        return ListView(self._edits)
 
     def add_edit(
         self,

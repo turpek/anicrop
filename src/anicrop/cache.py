@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import dis
-from collections import deque
 from typing import TYPE_CHECKING, Any, Callable, Sequence
 from weakref import WeakKeyDictionary
 
@@ -99,6 +98,7 @@ class LayerFrameState:
 
     def __init__(self) -> None:
         self.matrix: np.ndarray | None = None
+        self.matrix_2x2_bytes: bytes | None = None
         self.effects: list[Effect] = []
         self.baked_warp: Image | None = None
         self.baked_effects: Image | None = None
@@ -109,7 +109,7 @@ class LayerFrameState:
         self.effects_visibility: tuple[bool, ...] = ()
         self.baked_effects_snapshot: tuple[tuple[Any, ...], ...] = ()
 
-        self.saved_edits: deque[EditLayer] | None = None
+        self.saved_edits: list[EditLayer] | None = None
         self.saved_effects: list[Effect] | None = None
 
 
@@ -278,11 +278,10 @@ class LayerCacheScope:
         layer.background = wrap_background(status, layer.background)  # type: ignore[method-assign]
 
         # 1. Distorção da matriz (rotação e escala 2x2): se mudou, o warp é inválido
+        curr_2x2_bytes = layer.matrix[:2, :2].tobytes()
         matrix_changed = (
-            status.matrix is None
-            or not np.allclose(
-                layer.matrix[:2, :2], status.matrix[:2, :2], atol=1e-5
-            )
+            status.matrix_2x2_bytes is None
+            or curr_2x2_bytes != status.matrix_2x2_bytes
         )
 
         # 2. Verificar integridade dos edits que compõem o baked_warp
@@ -353,10 +352,9 @@ class LayerCacheScope:
         status.saved_edits = layer._edits
         if status.baked_warp is None:
             status.baked_edits_snapshot = tuple(snapshot_edit(e) for e in layer._edits)
-            layer._edits = layer._edits.__class__(layer._edits)
+            layer._edits = list(layer._edits)
         else:
-            unbaked = list(layer._edits)[len(status.baked_edits_snapshot):]
-            layer._edits = layer._edits.__class__(unbaked)
+            layer._edits = list(layer._edits)[len(status.baked_edits_snapshot):]
 
         # 6. Preparar os efeitos
         if status.baked_effects is not None:
@@ -408,6 +406,7 @@ class LayerCacheScope:
         layer.__dict__.pop("background", None)
 
         status.matrix = layer.matrix.copy()
+        status.matrix_2x2_bytes = layer.matrix[:2, :2].tobytes()
         status.effects.clear()
 
 
@@ -460,11 +459,9 @@ class LayerCache(AbstractLayerCache):
         if layer not in self._states:
             return True
         status = self._states[layer]
-        if status.baked_warp is None or status.matrix is None:
+        if status.baked_warp is None or status.matrix_2x2_bytes is None:
             return True
-        return not np.allclose(
-            layer.matrix[:2, :2], status.matrix[:2, :2], atol=1e-5
-        )
+        return layer.matrix[:2, :2].tobytes() != status.matrix_2x2_bytes
 
     def set_baked(
         self,
@@ -479,8 +476,9 @@ class LayerCache(AbstractLayerCache):
         status.baked_warp = image
         status.baked_effects = None
         status.matrix = layer.matrix.copy() if matrix is None else matrix.copy()
+        status.matrix_2x2_bytes = status.matrix[:2, :2].tobytes()
         status.effects.clear()
-        status.baked_edits_snapshot = tuple(snapshot_edit(e) for e in layer.edits)
+        status.baked_edits_snapshot = tuple(snapshot_edit(e) for e in layer._edits)
         status.baked_effects_count = 0
         status.effects_visibility = ()
         status.baked_effects_snapshot = ()
