@@ -760,20 +760,24 @@ Embora o motor `anicrop.history` disponha de arquitetura avançada de políticas
 
 ---
 
-## ⏳ 31. Modificar a Referência das Camadas no Cache para Referência Fraca (`weakref` em `LayerCache._states`)
+## ✅ 31. Modificar a Referência das Camadas no Cache para Referência Fraca (`weakref` em `LayerCache._states`) (Concluído)
 
 ### 1. Diagnóstico e Motivação
-Atualmente, a classe `LayerCache` mantém o dicionário `self._states: dict[Layer, LayerFrameState] = {}`. Como as chaves são referências fortes (*strong references*) para as instâncias de `Layer`:
-* Se uma camada for removida da cena (`doc.remove`, `container.remove`, `Combine.flatten`, `Combine.bake`), ela continuará retida em memória enquanto o `LayerCache` existir.
-* Pior ainda: o `LayerFrameState` retido segura instâncias pesadas de imagem em `status.baked_warp` e `status.baked_effects`, gerando vazamento crônico de memória RAM e de buffers mapeados em disco (`MMapBuffer`).
+Atualmente, a classe `LayerCache` mantinha o dicionário `self._states: dict[Layer, LayerFrameState] = {}`. Como as chaves eram referências fortes (*strong references*) para as instâncias de `Layer`:
+* Se uma camada fosse removida da cena (`doc.remove`, `container.remove`, `Combine.flatten`, `Combine.bake`), ela continuaria retida em memória enquanto o `LayerCache` existisse.
+* Pior ainda: o `LayerFrameState` retido segurava instâncias pesadas de imagem em `status.baked_warp` e `status.baked_effects`, gerando vazamento crônico de memória RAM e de buffers mapeados em disco (`MMapBuffer`).
 
 ### 2. Diretrizes Técnicas e Solução Arquitetural
 1. **Adoção de `weakref.WeakKeyDictionary`:**
-   * Substituir o dicionário padrão `dict[Layer, LayerFrameState]` por `weakref.WeakKeyDictionary[Layer, LayerFrameState]`.
-   * Quando uma camada for descartada pelo Garbage Collector (ou removida de todos os contêineres e variáveis do usuário), sua entrada no `_states` e seus buffers pré-assados (`baked_warp`, `baked_effects`) serão expurgados automaticamente sem necessidade de `cache.unregister` manual.
-2. **Métodos de Consulta e Limpeza Segura:**
-   * Ajustar `register`, `unregister`, `get_state` e `is_dirty` para operar sobre `WeakKeyDictionary`.
-   * Assegurar que camadas mantidas em coleções temporárias de renderização não tenham seu ciclo de vida prolongado indevidamente pelo cache.
+   * Substituição do dicionário padrão `dict[Layer, LayerFrameState]` por `weakref.WeakKeyDictionary[Layer, LayerFrameState]`.
+   * Quando uma camada é descartada pelo Garbage Collector (ou removida de todos os contêineres e variáveis do usuário), sua entrada no `_states` e seus buffers pré-assados (`baked_warp`, `baked_effects`) são expurgados automaticamente sem necessidade de `cache.unregister` manual.
+2. **Eliminação de Ciclos de Referência Forte em Métodos Monkey-Patched:**
+   * Removidos todos os atributos `orig_*` (`orig_add_edit`, `orig_add_effect`, `orig_bind_effect`, `orig_background`) de `LayerFrameState` que criavam referências cíclicas fortes para `Layer` através de *bound methods*.
+   * Restauração limpa de métodos na camada delegada diretamente ao dicionário da instância (`layer.__dict__.pop(...)`), permitindo que a hierarquia de classes retome o despacho original sem retenção de memória.
+
+### 3. Conclusão e Resolução
+* Implementado com sucesso em `src/anicrop/cache.py` no commit `1ab3ab5`.
+* Suíte completa com 1.303 testes aprovada sem regressões, incluindo teste dedicado de coleta automática (`test_layer_cache_clears_discarded_layers_via_weakref`).
 
 ---
 
