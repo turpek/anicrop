@@ -7,13 +7,15 @@ import numpy as np
 from anicrop.cache import (
     LayerCache,
     LayerFrameState,
+    get_tracked_attrs,
+    snapshot_effect,
     wrap_add_edit,
     wrap_add_effect,
     wrap_background,
 )
 from anicrop.canvas import Canvas
 from anicrop.container import GroupLayer
-from anicrop.effect import DynamicEffect, Effect
+from anicrop.effect import BoundEffect, DynamicEffect, Effect
 from anicrop.enums import ImageFormat
 from anicrop.filter import BlurFilter
 from anicrop.image import Image
@@ -443,3 +445,144 @@ def test_layer_cache_render_patch_preserves_full_baked_warp():
     assert patch_result is not None
     assert patch_result.size == (30, 30)
     assert status.baked_warp is original_warp
+
+
+class CustomPrivateEffect(Effect):
+    def __init__(self, radius: float = 3.0, name: str = "CustomPrivate") -> None:
+        super().__init__(name=name)
+        self._radius = radius
+        self._algo = "fast"
+        self.public_val = 42
+
+    def get_padding(self) -> tuple[int, int, int, int]:
+        return (0, 0, 0, 0)
+
+    def merge(self, other: Effect, matrix: np.ndarray) -> Effect | None:
+        return None
+
+    def _helper_method(self) -> None:
+        pass
+
+    def apply(self, image: Image, matrix: np.ndarray) -> Image:
+        self._helper_method()
+        _ = self._radius + self.public_val
+        _ = self._algo
+        return image
+
+
+def test_get_tracked_attrs_on_blur_filter():
+    """Valida se get_tracked_attrs extrai os atributos corretos de self no apply do BlurFilter."""
+    attrs = get_tracked_attrs(BlurFilter)
+    assert attrs == (
+        "affect_alpha",
+        "angle",
+        "mode",
+        "radius_x",
+        "radius_y",
+        "strength",
+        "visible",
+    )
+
+
+def test_get_tracked_attrs_on_bound_effect():
+    """Valida se get_tracked_attrs extrai os atributos do BoundEffect incluindo effect e matrix."""
+    attrs = get_tracked_attrs(BoundEffect)
+    assert attrs == ("effect", "mask", "matrix", "visible")
+
+
+def test_get_tracked_attrs_on_custom_effect_preserves_private_and_ignores_callables():
+    """Valida se get_tracked_attrs mantem atributos privados com prefixo _ e ignora metodos callables."""
+    attrs = get_tracked_attrs(CustomPrivateEffect)
+    assert attrs == ("_algo", "_radius", "public_val", "visible")
+
+
+def test_snapshot_effect_converts_numpy_array_to_bytes():
+    """Valida se snapshot_effect serializa matrizes numpy para bytes para comparacao rapida."""
+    mat = np.eye(3, dtype=np.float32)
+    blur = BlurFilter(5.0)
+    bound = BoundEffect(blur, mat)
+    snapshot = snapshot_effect(bound)
+    assert mat.tobytes() in snapshot
+
+
+def test_layer_cache_invalidates_baked_effects_when_filter_parameter_mutated():
+    """Valida se alteracao direta em parametro de BlurFilter invalida baked_effects no proximo frame."""
+    layer = Layer(make_img(40, 40))
+    blur = BlurFilter(5.0)
+    layer.add_effect(blur)
+    cache = LayerCache()
+    cache.register(layer)
+    renderer = CanvasRender()
+    canvas = Canvas(layer.global_region)
+
+    renderer.render_scene([layer], canvas, cache=cache)
+    status = cache.get_state(layer)
+    assert status is not None
+    assert status.baked_effects is not None
+    first_baked = status.baked_effects
+
+    blur.radius_x = 12.0
+    renderer.render_scene([layer], canvas, cache=cache)
+    assert status.baked_effects is not first_baked
+
+
+def test_layer_cache_invalidates_baked_effects_when_bound_effect_inner_effect_mutated():
+    """Valida se mutacao no efeito interno de um BoundEffect invalida baked_effects no cache."""
+    layer = Layer(make_img(40, 40))
+    blur = BlurFilter(5.0)
+    layer.bind_effect(blur)
+    cache = LayerCache()
+    cache.register(layer)
+    renderer = CanvasRender()
+    canvas = Canvas(layer.global_region)
+
+    renderer.render_scene([layer], canvas, cache=cache)
+    status = cache.get_state(layer)
+    assert status is not None
+    assert status.baked_effects is not None
+    first_baked = status.baked_effects
+
+    blur.radius_x = 15.0
+    renderer.render_scene([layer], canvas, cache=cache)
+    assert status.baked_effects is not first_baked
+
+
+def test_layer_cache_invalidates_baked_effects_when_custom_effect_private_attr_mutated():
+    """Valida se mutacao em atributo privado de efeito customizado invalida baked_effects no cache."""
+    layer = Layer(make_img(40, 40))
+    eff = CustomPrivateEffect(radius=2.0)
+    layer.add_effect(eff)
+    cache = LayerCache()
+    cache.register(layer)
+    renderer = CanvasRender()
+    canvas = Canvas(layer.global_region)
+
+    renderer.render_scene([layer], canvas, cache=cache)
+    status = cache.get_state(layer)
+    assert status is not None
+    assert status.baked_effects is not None
+    first_baked = status.baked_effects
+
+    eff._radius = 9.0
+    renderer.render_scene([layer], canvas, cache=cache)
+    assert status.baked_effects is not first_baked
+
+
+def test_layer_cache_preserves_baked_effects_when_no_parameters_mutated():
+    """Valida se baked_effects e preservado intacto entre frames quando nenhum parametro e alterado."""
+    layer = Layer(make_img(40, 40))
+    blur = BlurFilter(5.0)
+    layer.add_effect(blur)
+    cache = LayerCache()
+    cache.register(layer)
+    renderer = CanvasRender()
+    canvas = Canvas(layer.global_region)
+
+    renderer.render_scene([layer], canvas, cache=cache)
+    status = cache.get_state(layer)
+    assert status is not None
+    assert status.baked_effects is not None
+    first_baked = status.baked_effects
+
+    renderer.render_scene([layer], canvas, cache=cache)
+    assert status.baked_effects is first_baked
