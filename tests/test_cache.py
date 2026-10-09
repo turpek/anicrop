@@ -9,15 +9,15 @@ from anicrop.cache import (
     LayerCache,
     LayerFrameState,
     get_tracked_attrs,
+    snapshot_edit,
     snapshot_effect,
-    wrap_add_edit,
     wrap_add_effect,
     wrap_background,
 )
 from anicrop.canvas import Canvas
 from anicrop.container import GroupLayer
 from anicrop.effect import BoundEffect, DynamicEffect, Effect
-from anicrop.enums import ImageFormat
+from anicrop.enums import BlendMode, ImageFormat
 from anicrop.filter import BlurFilter
 from anicrop.image import Image
 from anicrop.layer import Layer
@@ -36,18 +36,13 @@ def make_img(
     return Image(img_data, fmt)
 
 
-def test_wrap_add_edit_registra_edit_no_status():
-    """Valida se wrap_add_edit chama a funcao original e adiciona o retorno na lista edits do status."""
-    status = LayerFrameState()
-    mock_edit = MagicMock()
-    mock_orig = MagicMock(return_value=mock_edit)
+def test_snapshot_edit_extrai_primitivos_do_edit():
+    """Valida se snapshot_edit extrai id, visibilidade e modo de mesclagem do edit."""
+    layer = Layer(make_img(10, 10))
+    edit = layer.edits[0]
+    snap = snapshot_edit(edit)
 
-    wrapped = wrap_add_edit(status, mock_orig)
-    result = wrapped("arg1", key="val")
-
-    assert result is mock_edit
-    mock_orig.assert_called_once_with("arg1", key="val")
-    assert status.edits == [mock_edit]
+    assert snap == (id(edit), True, edit.blend_mode)
 
 
 def test_wrap_add_effect_registra_efeito_no_status():
@@ -97,13 +92,11 @@ def test_wrap_background_delega_para_original_quando_sem_bake():
 def test_layer_cache_register_and_unregister():
     """Valida se register decora os metodos da camada e unregister restaura as referencias originais."""
     layer = Layer(make_img(30, 30))
-    orig_add_edit = layer.add_edit
     orig_add_effect = layer.add_effect
     orig_bg = layer.background
     cache = LayerCache()
 
     cache.register(layer)
-    assert layer.add_edit != orig_add_edit
     assert layer.add_effect != orig_add_effect
     assert layer.background == orig_bg
 
@@ -113,7 +106,6 @@ def test_layer_cache_register_and_unregister():
     assert layer.background == orig_bg
 
     cache.unregister(layer)
-    assert layer.add_edit == orig_add_edit
     assert layer.add_effect == orig_add_effect
     assert layer.background == orig_bg
     assert cache.get_state(layer) is None
@@ -193,15 +185,13 @@ def test_layer_cache_scope_swaps_and_restores_deltas():
     patch_img = make_img(20, 20, (0, 0, 255, 255))
     layer.add_edit(patch_img, Region.from_size(20, 20))
     assert len(layer.edits) == 2
-    assert len(status.edits) == 1
 
     # 3. Durante o contexto with cache([layer]), a camada deve enxergar apenas o delta
     with cache([layer]):
         assert len(layer.edits) == 1
 
-    # 4. Apos o contexto, a camada restaura a visao total de edits e limpa deltas
+    # 4. Apos o contexto, a camada restaura a visao total de edits
     assert len(layer.edits) == 2
-    assert len(status.edits) == 0
 
 
 def test_layer_cache_render_incremental_matches_clean_render():
@@ -603,3 +593,87 @@ def test_layer_cache_clears_discarded_layers_via_weakref():
     gc.collect()
 
     assert len(cache._states) == 0
+
+
+def test_layer_cache_invalidates_baked_warp_when_edit_blend_mode_changes():
+    """Valida se alteracao no blend_mode de um edit pre-assado invalida o baked_warp."""
+    layer = Layer(make_img(40, 40))
+    cache = LayerCache()
+    cache.register(layer)
+
+    renderer = CanvasRender()
+    canvas = Canvas(layer.global_region)
+
+    renderer.render_scene([layer], canvas, cache=cache)
+    status = cache.get_state(layer)
+    assert status is not None
+    assert status.baked_warp is not None
+
+    orig_warp = status.baked_warp
+    layer.edits[0].blend_mode = BlendMode.MULTIPLY
+    renderer.render_scene([layer], canvas, cache=cache)
+    assert status.baked_warp is not orig_warp
+
+
+def test_layer_cache_invalidates_baked_warp_when_edits_count_decreases():
+    """Valida se reducao na quantidade de edits assados invalida o baked_warp."""
+    layer = Layer(make_img(40, 40))
+    patch = make_img(10, 10)
+    layer.add_edit(patch, Region.from_size(10, 10))
+    cache = LayerCache()
+    cache.register(layer)
+
+    renderer = CanvasRender()
+    canvas = Canvas(layer.global_region)
+
+    renderer.render_scene([layer], canvas, cache=cache)
+    status = cache.get_state(layer)
+    assert status is not None
+    assert status.baked_warp is not None
+
+    orig_warp = status.baked_warp
+    layer._edits.pop()
+    renderer.render_scene([layer], canvas, cache=cache)
+    assert status.baked_warp is not orig_warp
+
+
+def test_layer_cache_preserves_incremental_edits_across_multiple_frames():
+    """Valida se edits incrementais continuam sendo renderizados corretamente ao longo de multiplos frames."""
+    layer = Layer(make_img(40, 40, (10, 10, 10, 255)))
+    cache = LayerCache()
+    cache.register(layer)
+
+    renderer = CanvasRender()
+    canvas = Canvas(layer.global_region)
+
+    renderer.render_scene([layer], canvas, cache=cache)
+
+    patch = make_img(15, 15, (200, 50, 50, 255))
+    layer.add_edit(patch, Region.from_size(15, 15))
+
+    frame2 = renderer.render_scene([layer], canvas, cache=cache)
+    frame3 = renderer.render_scene([layer], canvas, cache=cache)
+
+    assert np.array_equal(frame2[...], frame3[...])
+    assert frame3[5, 5, 0] == 200
+
+
+def test_layer_cache_invalidates_baked_warp_when_edit_instance_replaced():
+    """Valida se substituicao da instancia de um edit assado invalida o baked_warp."""
+    layer = Layer(make_img(40, 40))
+    cache = LayerCache()
+    cache.register(layer)
+
+    renderer = CanvasRender()
+    canvas = Canvas(layer.global_region)
+
+    renderer.render_scene([layer], canvas, cache=cache)
+    status = cache.get_state(layer)
+    assert status is not None
+    assert status.baked_warp is not None
+
+    orig_warp = status.baked_warp
+    replacement_layer = Layer(make_img(40, 40))
+    layer._edits[0] = replacement_layer.edits[0]
+    renderer.render_scene([layer], canvas, cache=cache)
+    assert status.baked_warp is not orig_warp

@@ -89,37 +89,28 @@ def _is_dynamic_effect(effect: Effect) -> bool:
     return isinstance(_unwrap_effect(effect), DynamicEffect)
 
 
+def snapshot_edit(edit: EditLayer) -> tuple[int, bool, Any]:
+    """Retorna tupla com (id, visible, blend_mode) do edit para monitoramento no cache."""
+    return (id(edit), edit.visible, edit.blend_mode)
+
+
 class LayerFrameState:
     """Estado e metadados de cache de uma camada registrada."""
 
     def __init__(self) -> None:
         self.matrix: np.ndarray | None = None
-        self.edits: list[EditLayer] = []
         self.effects: list[Effect] = []
         self.baked_warp: Image | None = None
         self.baked_effects: Image | None = None
         self.background_calls: int = 0
 
-        self.baked_edits_count: int = 0
-        self.edits_visibility: tuple[bool, ...] = ()
+        self.baked_edits_snapshot: tuple[tuple[int, bool, Any], ...] = ()
         self.baked_effects_count: int = 0
         self.effects_visibility: tuple[bool, ...] = ()
         self.baked_effects_snapshot: tuple[tuple[Any, ...], ...] = ()
 
         self.saved_edits: deque[EditLayer] | None = None
         self.saved_effects: list[Effect] | None = None
-
-
-def wrap_add_edit(
-    status: LayerFrameState, original_func: Callable[..., Any]
-) -> Callable[..., Any]:
-    """Empacota add_edit para registrar novos edits na lista de deltas do cache."""
-    def wrapper(*args: Any, **kwargs: Any) -> Any:
-        edit = original_func(*args, **kwargs)
-        status.edits.append(edit)
-        return edit
-
-    return wrapper
 
 
 def wrap_add_effect(
@@ -294,17 +285,22 @@ class LayerCacheScope:
             )
         )
 
-        # 2. Verificar visibilidade dos edits que compõem o baked_warp
-        edits_vis_changed = False
+        # 2. Verificar integridade dos edits que compõem o baked_warp
+        edits_changed = False
         if status.baked_warp is not None:
-            if len(layer.edits) < status.baked_edits_count:
-                edits_vis_changed = True
+            if len(layer._edits) < len(status.baked_edits_snapshot):
+                edits_changed = True
             else:
-                current_base_vis = tuple(
-                    layer.edits[i].visible for i in range(status.baked_edits_count)
-                )
-                if current_base_vis != status.edits_visibility:
-                    edits_vis_changed = True
+                for (saved_id, saved_vis, saved_blend), current in zip(
+                    status.baked_edits_snapshot, layer._edits
+                ):
+                    if (
+                        id(current) != saved_id
+                        or current.visible != saved_vis
+                        or current.blend_mode != saved_blend
+                    ):
+                        edits_changed = True
+                        break
 
         # 3. Particionar efeitos entre estáticos e dinâmicos e verificar snapshot
         status.saved_effects = layer._effects
@@ -335,15 +331,19 @@ class LayerCacheScope:
                 effects_changed = True
 
         # 4. Invalidação de bakes
-        if matrix_changed or edits_vis_changed:
+        has_new_edits = (
+            status.baked_warp is not None
+            and len(layer._edits) > len(status.baked_edits_snapshot)
+        )
+
+        if matrix_changed or edits_changed:
             status.baked_warp = None
             status.baked_effects = None
-            status.baked_edits_count = 0
-            status.edits_visibility = ()
+            status.baked_edits_snapshot = ()
             status.baked_effects_count = 0
             status.effects_visibility = ()
             status.baked_effects_snapshot = ()
-        elif effects_changed or status.edits or status.effects:
+        elif effects_changed or has_new_edits or status.effects:
             status.baked_effects = None
             status.baked_effects_count = 0
             status.effects_visibility = ()
@@ -352,11 +352,11 @@ class LayerCacheScope:
         # 5. Preparar os edits
         status.saved_edits = layer._edits
         if status.baked_warp is None:
-            layer._edits = deque(layer._edits)
-            status.baked_edits_count = len(layer.edits)
-            status.edits_visibility = tuple(e.visible for e in layer.edits)
+            status.baked_edits_snapshot = tuple(snapshot_edit(e) for e in layer._edits)
+            layer._edits = layer._edits.__class__(layer._edits)
         else:
-            layer._edits = deque(status.edits)
+            unbaked = list(layer._edits)[len(status.baked_edits_snapshot):]
+            layer._edits = layer._edits.__class__(unbaked)
 
         # 6. Preparar os efeitos
         if status.baked_effects is not None:
@@ -408,7 +408,6 @@ class LayerCacheScope:
         layer.__dict__.pop("background", None)
 
         status.matrix = layer.matrix.copy()
-        status.edits.clear()
         status.effects.clear()
 
 
@@ -434,7 +433,6 @@ class LayerCache(AbstractLayerCache):
             return
 
         status = LayerFrameState()
-        layer.add_edit = wrap_add_edit(status, layer.add_edit)  # type: ignore[method-assign]
         layer.add_effect = wrap_add_effect(status, layer.add_effect)  # type: ignore[method-assign]
         layer.bind_effect = wrap_bind_effect(status, layer.bind_effect)  # type: ignore[method-assign]
         self._states[layer] = status
@@ -481,10 +479,8 @@ class LayerCache(AbstractLayerCache):
         status.baked_warp = image
         status.baked_effects = None
         status.matrix = layer.matrix.copy() if matrix is None else matrix.copy()
-        status.edits.clear()
         status.effects.clear()
-        status.baked_edits_count = len(layer.edits)
-        status.edits_visibility = tuple(e.visible for e in layer.edits)
+        status.baked_edits_snapshot = tuple(snapshot_edit(e) for e in layer.edits)
         status.baked_effects_count = 0
         status.effects_visibility = ()
         status.baked_effects_snapshot = ()
