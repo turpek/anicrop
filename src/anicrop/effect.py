@@ -114,7 +114,7 @@ class BoundEffect(Effect):
 MaskedEffect = BoundEffect
 
 
-class EffectStack:
+class EffectStack(ABC):
     """Contêiner especializado para o pipeline sequencial de efeitos de pós-processamento."""
 
     def __init__(self, effects: Sequence[Effect] | None = None) -> None:

@@ -31,10 +31,6 @@ class ProxyLayer(BaseHistoryProxy[Layer]):
         "set_mask": BaseLayerCommand,
         "remove_mask": BaseLayerCommand,
         "clear_mask": BaseLayerCommand,
-        "add_effect": BaseLayerCommand,
-        "bind_effect": BaseLayerCommand,
-        "remove_effect": BaseLayerCommand,
-        "clear_effects": BaseLayerCommand,
         "add_edit": LayerImageCommand,
         "opacity_mask": LayerImageCommand,
     }

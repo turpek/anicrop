@@ -3,12 +3,14 @@ from __future__ import annotations
 from anicrop.canvas import Canvas
 from anicrop.composition import Combine
 from anicrop.container import BaseLayer, Container, GroupLayer, LayerStack
+from anicrop.effect import Effect, EffectStack
 from anicrop.interfaces.canvas import AbstractCanvas
 from anicrop.layer import Layer
 from anicrop.mask import Mask
 from anicrop.reactive.base import BaseHistoryProxy
 from anicrop.reactive.canvas import ProxyCanvas
 from anicrop.reactive.container import BaseContainerProxy, LayerStackProxy
+from anicrop.reactive.effect import ProxyEffect, ProxyEffectStack
 from anicrop.reactive.fluent import BaseFluentProxy, ProxyComposer
 from anicrop.reactive.layer import GroupProxy, ProxyLayer
 from anicrop.reactive.mask import ProxyMask
@@ -40,6 +42,8 @@ ProxyRegistry.register(BaseLayer, ProxyLayer)
 ProxyRegistry.register(Mask, ProxyMask)
 ProxyRegistry.register(Container, BaseContainerProxy)
 ProxyRegistry.register(Combine, CombineProxy)
+ProxyRegistry.register(EffectStack, ProxyEffectStack)
+ProxyRegistry.register(Effect, ProxyEffect)
 
 # Registro ABC virtual para suporte a isinstance(proxy, DomainType)
 AbstractCanvas.register(ProxyCanvas)
@@ -52,6 +56,8 @@ BaseLayer.register(ProxyLayer)
 Layer.register(ProxyLayer)
 Mask.register(ProxyMask)
 Composer.register(ProxyComposer)
+EffectStack.register(ProxyEffectStack)
+Effect.register(ProxyEffect)
 
 __all__ = [
     "BaseContainerProxy",
@@ -67,6 +73,8 @@ __all__ = [
     "LayerStackProxy",
     "ProxyCanvas",
     "ProxyComposer",
+    "ProxyEffect",
+    "ProxyEffectStack",
     "ProxyLayer",
     "ProxyMask",
     "ProxyRegistry",

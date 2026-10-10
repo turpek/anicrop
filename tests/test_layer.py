@@ -332,6 +332,7 @@ def test_layer_snapshot_completeness(image):
         "_reference",
         "_content",
         "_layout",
+        "_effects",
     }
 
     base_snapshot = BaseLayerSnapshot(layer)
