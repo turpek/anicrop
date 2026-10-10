@@ -183,3 +183,38 @@ camada_assada = doc.combine.bake("Personagem")
 # Achata a pilha inteira do documento:
 camada_final = doc.combine.bake_stack(name="CenaCompleta")
 ```
+
+---
+
+### 5.1. Suporte Nativo a Histórico e Undo/Redo Atômico
+
+Quando o `Document` é instanciado com `history=True`, todas as operações do serviço `doc.combine` (`merge`, `flatten`, `bake`, `bake_stack`) são transparentemente interceptadas por `CombineProxy(StrategyProxy)`. A manipulação de contêineres e substituição de nós ocorrem sob `with history.atomic(action_name):`, garantindo:
+- **1 Único Passo de Undo/Redo**: Toda a operação (remoção de fontes e inserção do novo nó) é revertida ou refeita em um único passo atômico.
+- **Restauração Completa**: As camadas originais têm sua ordem na pilha, matrizes afins, máscaras e efeitos perfeitamente restaurados ao desfazer (`undo`).
+
+```python
+doc = Document("Projeto", 800, 600, history=True)
+doc.add(fundo)
+doc.add(personagem)
+doc.add(sombra)
+
+# Merge em GroupLayer:
+grupo = doc.combine.merge("sombra", name="PersonagemComSombra", count=1)
+assert len(doc.stack) == 2
+
+# Desfaz o merge:
+doc.history.undo()
+assert len(doc.stack) == 3
+
+# Refaz o merge:
+doc.history.redo()
+assert len(doc.stack) == 2
+
+# Assa o grupo em camada única:
+flat = doc.combine.bake("PersonagemComSombra")
+assert len(doc.stack) == 2
+
+# Desfaz o bake: o grupo é restaurado com todos os seus filhos intactos
+doc.history.undo()
+assert doc.find("PersonagemComSombra") is not None
+```

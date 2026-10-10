@@ -35,11 +35,10 @@
 - **Cache Incremental & DynamicEffect (`LayerCache`):** Reutilização afim de buffers pré-assados (`baked_warp`) em translações puras ($O(1)$), particionamento de efeitos estáticos vs dinâmicos (`DynamicEffect`) e isolamento contextual seguro por `effective_region` em patches.
 - **Backend Híbrido de Imagem & LOD:** Chaveamento transparente de dados de imagem (`Image`) entre `numpy.ndarray` (memória) e `MMapBuffer` (`np.memmap` no disco) para imagens gigantes ($\ge 8192\text{px}$), com pirâmide de nível de detalhe (*Level of Detail* - LOD) em `EditLayer`.
 - **I/O Modular de Alta Performance (`anicrop.io`):** Decodificação C/SIMD com subamostragem direta (*shrink-on-load*) via `PyvipsBackend` e fallback modular via `OpenCVBackend`.
-- **Fachada & Histórico Reativo:** Classe Facade `Document` oferecendo políticas reativas com histórico (`GlobalHistory` via `ProxyLayer` e `GroupProxy`) ou modo direto de alta performance (`DirectDocumentPolicy`).
+- **Fachada & Histórico Reativo:** Classe Facade `Document` oferecendo políticas reativas com histórico (`GlobalHistory` via proxies reativos: `ProxyLayer`, `GroupProxy`, `BaseContainerProxy`, `CombineProxy`, `ProxyMask`, `ProxyComposer`) e suporte a Undo/Redo atômico em todas as operações de contêiner e composição (`doc.combine`), ou modo direto de alta performance (`DirectDocumentPolicy`).
 - **Motor de Renderização:** Renderização por patch (`ViewportRender` para previews interativos e `CanvasRender` para exportações finais em alta resolução) e visualizador OpenCV (`Viewer`).
 
 ### Escopo Futuro (Roadmap):
-- **Consolidação Abrangente de Histórico (Tarefa 30):** Suporte nativo a Undo/Redo atômico para operações do motor `Combine` (`merge`, `flatten`, `bake`), operações em contêineres filhos (`GroupLayer.remove`, `insert`, `clear`), deleções de nós complexos com preservação do grafo de referências e proxies aninhados.
 - **Tiled Warping & Renderização por Mosaico (Tarefas 4, 6, 10):** Renderização de transformações afins fragmentadas em tiles/blocos para telas ou exportações ultra-gigantes com pegada de memória fixa e estrita.
 - **Multi-Band Blending (Tarefa 25):** Fusão piramidal multi-frequência (Laplacian/Gaussian pyramid) para stitching contínuo sem costuras perceptíveis de transição ou iluminação.
 - **Borda Dinâmica e Contornos em Camadas (Tarefa 27):** Geração algorítmica de bordas internas/externas com chanfro, raio e antialiasing em tempo de renderização.
@@ -214,9 +213,15 @@ Para detalhes de métodos, tipos de retorno e exemplos de uso de cada classe, co
   - **LOD com Injeção de Dependência:** O método `get_lod(level, threshold_pixels=...)` recebe o limiar injetado por `Image`, prevenindo dependências circulares entre `buffer.py` e `config.py`.
 
 - **Fachada `Document` e Tipagem Estrita:**
-  - **Parâmetro Semântico `history: bool = False`:** Configura `DirectDocumentPolicy` (padrão de alta performance) vs `ReactiveDocumentPolicy` (experimental).
+  - **Parâmetro Semântico `history: bool = False`:** Configura `DirectDocumentPolicy` (padrão de alta performance) vs `ReactiveDocumentPolicy` (histórico reativo completo via proxies).
   - **Tipagem Pura de Domínio:** Referências diretas a `LayerStack`, `BaseLayer`, `Layer`, `GroupLayer` e remoção limpa via protocolo de contêineres e `NullContainer`. Sobrecargas `@overload` em `Document.__getitem__` para inferência precisa.
   - **Qualidade de Código:** 100% de conformidade estrita no `mypy` (0 erros com `--check-untyped-defs`) e suíte completa passando no `pytest`.
+
+- **Consolidação Abrangente do Sistema de Histórico (Tarefa 30):**
+  - **Reatividade e Transações Atômicas em `doc.combine`:** O serviço `Combine` é roteado via `CombineProxy(StrategyProxy)` governado por `DocumentPolicy.process_combine`. Operações de composição (`merge`, `flatten`, `bake`, `bake_stack`) agrupam remoções de fontes e inserção do novo nó consolidado em **1 único MacroCommand**, garantindo 1 passo de Undo/Redo enquanto o domínio `composition.py` permanece 100% puro e cego ao histórico.
+  - **Mutadores de Contêiner e `_CONTEXT_ROUTER`:** Mapeamento no `_ACTION_ROUTER` de `BaseContainerProxy` (`move_relative`, `move_to_front`, `move_to_back`, `swap`, `reverse`, `__delitem__`), e `_CONTEXT_ROUTER = {"clear": "atomic"}` em `BaseHistoryProxy` permitindo esvaziamento e restauração atômica de contêineres sem duplicação de métodos concretos.
+  - **Roteamento de Remoções Aninhadas:** `Document.remove` valida o sentinela `_NULL_CONTAINER` e delega para `layer.parent` (que em camadas aninhadas devolve o `GroupProxy`), registrando `ReparentCommand` com integridade relacional.
+  - **Postura Afim Fluente:** `ProxyComposer._MUTATING_METHODS` estendido com `"copy_from"`.
 
 - **Arquitetura Multi-Dtype e Profundidade de Cor (`uint8`, `uint16`, `float32`):**
   - **Configuração Centralizada (`config.dtype`):** O `config.dtype` define o tipo de dado padrão da engine (padrão: `np.uint8`), aceitando `uint8`, `uint16` e `float32` com validação estrita e context manager com restauração garantida (`with config(dtype=np.uint16):`).

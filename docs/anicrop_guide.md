@@ -12,30 +12,30 @@ A classe `Document` atua como a **Fachada (Facade) principal** da biblioteca. El
 
 ### Políticas de Documento (`DocumentPolicy`)
 O `Document` opera sob duas políticas de execução:
-- **`ReactiveDocumentPolicy` (`history=True`, Padrão)**: Encapsula camadas em Proxies (`ProxyLayer`, `GroupProxy`) permitindo histórico reativo e controle de estado desfazível (`Undo`/`Redo`).
-- **`DirectDocumentPolicy` (`history=False`)**: Opera diretamente sobre os objetos de camada puros sem overhead de proxies, ideal para processamento em lote de alta performance.
+- **`ReactiveDocumentPolicy` (`history=True`)**: Encapsula camadas em Proxies (`ProxyLayer`, `GroupProxy`, `CombineProxy`) permitindo histórico reativo e controle de estado desfazível (`Undo`/`Redo`).
+- **`DirectDocumentPolicy` (`history=False`, Padrão)**: Opera diretamente sobre os objetos de camada puros sem overhead de proxies, ideal para processamento em lote de alta performance.
 
 ---
 
 ### Principais Métodos e Propriedades de `Document`
 
-#### `__init__(name: str, width: int, height: int, history: bool = True)`
+#### `__init__(name: str, width: int, height: int, history: bool = False)`
 - **Descrição**: Cria uma nova instância de documento configurando o `Canvas` com as dimensões especificadas (`width` x `height`) e inicializando a pilha de camadas (`stack`) e o histórico (`history`) de acordo com o parâmetro `history`.
 - **Parâmetros**:
   - `name` (`str`): Nome identificador do documento.
   - `width` (`int`): Largura em pixels do Canvas.
   - `height` (`int`): Altura em pixels do Canvas.
-  - `history` (`bool`): Se `True` (padrão), ativa o encapsulamento reativo via Proxies com suporte a Undo/Redo.
+  - `history` (`bool`): Se `True`, ativa o encapsulamento reativo via Proxies com suporte a Undo/Redo (padrão: `False`).
 - **Retorno**: Instância de `Document`.
 
-#### `open(path: str | Path, name: str, opacity: float = 1.0, blend_mode: BlendMode = BlendMode.NORMAL, history: bool = True, format: ImageFormat = ImageFormat.RGBA, bg_color: tuple[int, ...] | None = None, backend: AbstractImageIO | str | None = None) -> Document` *(Class Method)*
+#### `open(path: str | Path, name: str, opacity: float = 1.0, blend_mode: BlendMode = BlendMode.NORMAL, history: bool = False, format: ImageFormat = ImageFormat.RGBA, bg_color: tuple[int, ...] | None = None, backend: AbstractImageIO | str | None = None) -> Document` *(Class Method)*
 - **Descrição**: Construtor de conveniência que abre uma imagem do disco, cria o `Document` ajustado exatamente ao tamanho da imagem e a insere como primeira camada da pilha com o nome fornecido.
 - **Parâmetros**:
   - `path` (`str | Path`): Caminho do arquivo de imagem base.
   - `name` (`str`): Nome identificador obrigatório da camada/documento.
   - `opacity` (`float`): Opacidade inicial da camada (padrão 1.0).
   - `blend_mode` (`BlendMode`): Modo de mesclagem (padrão `NORMAL`).
-  - `history` (`bool`): Habilita/desabilita a política de histórico e proxies reativos.
+  - `history` (`bool`): Habilita/desabilita a política de histórico e proxies reativos (padrão: `False`).
   - `format` (`ImageFormat`): Formato de cores desejado (padrão `RGBA`).
   - `bg_color` (`tuple[int, ...] | None`): Cor de fundo do Canvas.
   - `backend` (`AbstractImageIO | str | None`): Backend de I/O específico (`"vips"`, `"opencv"` ou instância).
@@ -88,6 +88,9 @@ O `Document` implementa o protocolo completo de contêiner Python para manipula�
 
 #### `@property layout -> Layout`
 - **Descrição**: Instância do motor de Layout para aplicar operações espaciais não-destrutivas (`fit`, `align`, `resize_bounds`, `fit_content`) diretamente nas camadas do documento.
+
+#### `@property combine -> Combine`
+- **Descrição**: Instância do serviço de composição e fusão de camadas (`merge`, `flatten`, `bake`, `bake_stack`), com suporte nativo a Undo/Redo atômico quando `history=True`.
 
 #### `@property canvas -> Canvas`
 - **Descrição**: Acessa o Canvas do documento, expondo `doc.canvas.width`, `doc.canvas.height`, `doc.canvas.size` e `doc.canvas.region`.

@@ -17,7 +17,7 @@ A separação entre domínio e histórico baseia-se em princípios fundamentais:
 
 ## 2. Tipos de Proxies Existentes e Suas Características
 
-A infraestrutura do `anicrop.reactive` disponibiliza 8 tipos especializados de proxies:
+A infraestrutura do `anicrop.reactive` disponibiliza 9 tipos especializados de proxies:
 
 ```mermaid
 classDiagram
@@ -71,6 +71,13 @@ classDiagram
         +_history_context()
     }
 
+    class CombineProxy {
+        +merge()
+        +flatten()
+        +bake()
+        +bake_stack()
+    }
+
     class OwnerBoundStrategyProxy {
         +_STRATEGY_CLS: type
     }
@@ -84,6 +91,7 @@ classDiagram
     BaseHistoryProxy <|-- BaseFluentProxy
     BaseFluentProxy <|-- ProxyComposer
     BaseHistoryProxy <|-- StrategyProxy
+    StrategyProxy <|-- CombineProxy
     StrategyProxy <|-- OwnerBoundStrategyProxy
 ```
 
@@ -164,6 +172,14 @@ Proxies especialistas para estratégias de layout e conteúdo.
   - `GroupLayoutProxy` (vinculada a `GroupLayoutStrategy`)
   - `GroupContentProxy` (vinculada a `GroupContentStrategy`)
   - `CanvasLayoutProxy` (vinculada a `CanvasLayoutStrategy`)
+
+---
+
+### 2.9. `CombineProxy` (`StrategyProxy`) (`anicrop.reactive.strategy`)
+Proxy especialista para o serviço de composição e fusão de camadas `doc.combine` (`Combine`).
+- **Transações Atômicas**: Herda de `StrategyProxy` e envolve automaticamente chamadas a `merge`, `flatten`, `bake` e `bake_stack` sob `with history.atomic(action_name):`.
+- **Roteamento de Contêineres**: As remoções das camadas de origem e as inserções da nova camada consolidada ocorrem através de proxies de contêiner (`LayerStack` / `GroupProxy`), registrando todas as operações de reestruturação da árvore em um único `MacroCommand` (1 único Undo/Redo).
+- **Subgrupos Aninhados**: Suporta fusões e assamentos de nós localizados em subgrupos arbitrários na árvore hierárquica, restaurando a árvore perfeitamente ao desfazer (`undo`).
 
 ---
 

@@ -34,7 +34,7 @@ Este documento centraliza todos os objetivos arquiteturais, otimizações e o pr
 - [ ] 27. (Resolução Dinâmica de Borda por Formato) Suporte a `border_mode` e `border_value` em `warp_affine`, `warp_perspective` e `warp_patch` (`BORDER_REPLICATE` para opacos vs `BORDER_CONSTANT` para alfa).
 - [x] ~~28. Sistema de Cache de Camadas com Decorators e Renderização Incremental (`LayerCache`).~~
 - [x] ~~29. Suporte Nativo a Formatos BGR e BGRA para Pipelines de Vídeo e Visão Computacional (Zero-Copy com OpenCV / Aniseek).~~
-- [ ] 30. Consolidação e Integração Abrangente do Sistema de Histórico (Undo/Redo para Combine, Contêineres, Remoções Aninhadas e Filhos).
+- [x] ~~30. Consolidação e Integração Abrangente do Sistema de Histórico (Undo/Redo para Combine, Contêineres, Remoções Aninhadas e Filhos).~~
 - [x] ~~31. Modificar a Referência das Camadas no Cache para Referência Fraca (`weakref` em `LayerCache._states`).~~
 - [x] ~~32. Sistema de Invalidação mais Robusto para Efeitos via Inspeção de Bytecode de `apply` (`dis` no escopo exclusivo de `apply`).~~
 - [x] ~~33. Sistema de Invalidação mais Robusto para Edits Usando Somente `visible` e `blend_mode` (`snapshot_edit`).~~
@@ -689,7 +689,7 @@ A viabilidade de suportar BGR/BGRA nativamente decorre de três pilares da arqui
 
 ---
 
-## ⏳ 30. Consolidação e Integração Abrangente do Sistema de Histórico (Undo/Redo para Combine, Contêineres, Remoções Aninhadas e Filhos)
+## ✅ 30. Consolidação e Integração Abrangente do Sistema de Histórico (Undo/Redo para Combine, Contêineres, Remoções Aninhadas e Filhos) (Concluído)
 
 ### 📋 Sub-Tarefas de Execução
 
@@ -702,13 +702,14 @@ A viabilidade de suportar BGR/BGRA nativamente decorre de três pilares da arqui
   - Correção da checagem de contêiner sentinela: substituído `if not isinstance(layer.parent, NullContainer)` por `if layer.parent is not _NULL_CONTAINER`.
   - Remoção por nome (`doc.remove("nome")`) ou por proxy (`doc.remove(proxy)`) propaga naturalmente para `layer.parent` (que já é `GroupProxy`), gravando `ReparentCommand` no histórico.
   - Remoção por instância de domínio crua (`doc.remove(raw_layer)`) atua diretamente no domínio físico sem poluir o histórico com comandos inválidos.
-- [ ] **30.3. Reatividade e Transações Atômicas no Serviço `Combine`**
-  - Integrar `Combine` (`merge`, `flatten`, `bake`, `bake_stack`) com o histórico através de blocos `with doc.history.atomic(action_name):`.
-  - Operar sobre proxies reativos de contêiner (`doc.stack` ou `GroupProxy`), registrando a remoção das camadas de origem e inserção do novo nó consolidado em **1 único MacroCommand** (1 único Undo/Redo).
-  - Garantir restauração de camadas originais com propriedades, matrizes, efeitos e ordem intactas ao desfazer (`undo`).
-- [ ] **30.4. Atualização de Documentação e Remoção de Ressalvas**
-  - Remover do docstring de `Document.__init__` a ressalva experimental de que operações de `Combine` não gravam passos no histórico.
-  - Atualizar os guias técnicos `docs/history.md`, `docs/composition.md`, `docs/anicrop_guide.md` e `GEMINI.md` documentando a integração completa de Undo/Redo em fusões e manipulações de hierarquia.
+- [x] ~~**30.3. Reatividade e Transações Atômicas no Serviço `Combine`** (Concluído)~~
+  - Implementado `CombineProxy(StrategyProxy)` que intercepta transparentemente chamadas a `merge`, `flatten`, `bake` e `bake_stack` sob `with history.atomic(action_name):`.
+  - Operações de remoção e inserção na árvore de camadas ocorrem sobre os proxies reativos de contêiner, registrando todas as transformações de hierarquia em **1 único MacroCommand** (1 único Undo/Redo).
+  - Adicionado `process_combine` nas políticas `DocumentPolicy` (`ReactiveDocumentPolicy` e `DirectDocumentPolicy`) e registrado no Identity Map `ProxyRegistry`.
+  - Cobertura de 6 testes dedicados em `tests/test_reactive_combine.py` cobrindo Undo/Redo atômico de merge, flatten, bake, bake_stack, grupos aninhados e modo direto.
+- [x] ~~**30.4. Atualização de Documentação e Remoção de Ressalvas** (Concluído)~~
+  - Removida do docstring de `Document.__init__` a ressalva experimental de que operações de `Combine` não gravam passos no histórico.
+  - Atualizados os guias técnicos `docs/history.md`, `docs/composition.md`, `docs/proxy.md`, `docs/anicrop_guide.md` e `GEMINI.md` documentando a integração completa de Undo/Redo em fusões e manipulações de hierarquia.
 
 ---
 
@@ -799,11 +800,16 @@ Embora o motor `anicrop.history` disponha de arquitetura avançada de políticas
    - Validação de Undo/Redo para `layer.transform.copy_from(other_composer)`.
 3. **Testes de Remoção Aninhada (`tests/test_document_history.py`):**
    - `doc.remove(nested_layer)` dentro de `GroupLayer`: Undo deve recolocar o nó exatamente dentro do grupo na posição correta.
-4. **Testes de Composição Reativa (`tests/test_combine_history.py`):**
+4. **Testes de Composição Reativa (`tests/test_reactive_combine.py`):**
    - Undo/Redo de `doc.combine.merge` (1 passo restaura camadas originais e descarta grupo).
    - Undo/Redo de `doc.combine.flatten` (1 passo restaura camadas originais e descarta camada achatada).
-   - Undo/Redo de `doc.combine.bake` (1 passo restaura `GroupLayer` e seus filhos).
+   - Undo/Redo de `doc.combine.bake` (1 passo restaura `GroupLayer` e seus filhos intactos).
    - Undo/Redo de `doc.combine.bake_stack` (1 passo restaura toda a pilha do documento).
+   - Undo/Redo em subgrupos aninhados e chaveamento de políticas (`ReactiveDocumentPolicy` vs `DirectDocumentPolicy`).
+
+### 4. Conclusão e Resolução
+* Implementado com sucesso em `src/anicrop/reactive/strategy.py`, `src/anicrop/document.py`, `src/anicrop/reactive/__init__.py` e `src/anicrop/proxy.py`.
+* Suíte completa com 1.332 testes aprovada sem regressões, cobrindo 100% dos cenários de Undo/Redo em contêineres e serviços de composição.
 
 ---
 

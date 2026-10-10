@@ -121,7 +121,47 @@ doc.history.redo()  # Opacidade volta para 0.5
 doc.history.redo()  # Alinhamento é reaplicado
 ```
 
-### 4.2. Consulta de Estado do Histórico
+### 4.2. Operações de Composição e Fusão com Undo Atômico (`Combine`)
+
+O serviço `doc.combine` (`merge`, `flatten`, `bake`, `bake_stack`) é automaticamente interceptado pelo `CombineProxy` quando `history=True`. Todas as remoções das camadas de origem e a inserção do nó consolidado são agrupadas em um único `MacroCommand`, permitindo reverter e refazer fusões complexas com **exatamente 1 chamada de `undo()`**:
+
+```python
+# Cria documento com histórico ativado
+doc = Document("Cena", 1000, 1000, history=True)
+doc.add(layer1)
+doc.add(layer2)
+doc.add(layer3)
+
+# Mescla as 2 camadas superiores em um GroupLayer
+grupo = doc.combine.merge("Camada3", name="Personagem", count=1)
+assert len(doc.stack) == 2  # [layer1, grupo]
+
+# 1 único undo desfaz o merge e restaura as 3 camadas originais na ordem exata
+doc.history.undo()
+assert len(doc.stack) == 3  # [layer1, layer2, layer3]
+
+# 1 redo reaplica a fusão
+doc.history.redo()
+assert len(doc.stack) == 2
+
+# Assa o grupo inteiro em uma única camada rasterizada
+flat = doc.combine.bake("Personagem", name="PersonagemRaster")
+assert len(doc.stack) == 2  # [layer1, flat]
+
+# Desfaz o bake: restaura o GroupLayer com todos os seus filhos intactos
+doc.history.undo()
+assert doc.find("Personagem") is not None
+```
+
+### 4.3. Mutadores de Contêiner e Remoção Aninhada
+
+O proxy de contêiner (`BaseContainerProxy` / `GroupProxy` / `LayerStack`) intercepta operações de reordenação e mutação de filhos:
+- **Mutadores de Ordem**: `move`, `move_relative`, `move_to_front`, `move_to_back`, `swap`, `reverse`.
+- **Esvaziamento Atômico**: `container.clear()` executa sob `history.atomic("clear")`, permitindo restaurar a coleção completa em 1 único `undo()`.
+- **Deleção por Índice**: `del container[idx]` emite `ReparentCommand` de remoção.
+- **Remoção Aninhada via Documento**: `doc.remove(node_or_name)` localiza camadas em qualquer nível da hierarquia e roteia a remoção através do contêiner pai correspondente (`GroupProxy` ou `LayerStack`), registrando histórico independentemente da profundidade do aninhamento.
+
+### 4.4. Consulta de Estado do Histórico
 
 A classe `GlobalHistory` expõe métodos expressivos para consultar as pilhas:
 
@@ -141,7 +181,7 @@ if doc.history.is_active:
 total_passos = len(doc.history._undo_stack)
 ```
 
-### 4.3. Uso Avulso / Standalone de `GlobalHistory`
+### 4.5. Uso Avulso / Standalone de `GlobalHistory`
 
 Você também pode utilizar o `GlobalHistory` diretamente com contêineres e camadas avulsas sem a fachada `Document`:
 
