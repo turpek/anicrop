@@ -276,7 +276,11 @@ Para detalhes de métodos, tipos de retorno e exemplos de uso de cada classe, co
 
 - **Diagnóstico e Arquitetura de Histórico Completo (Tarefa 30):**
   - **Mapeamento de Lacunas:** Identificação das operações não interceptadas pelo histórico no motor `Combine` (`merge`, `flatten`, `bake`, `bake_stack`), mutações diretas em `GroupLayer` (`remove`, `insert`, `clear`, deleções aninhadas) e perda de proxies de filhos ao restaurar grupos.
-  - **Decisões Estruturais:** Introdução de `ProxyCombine` acoplado a `MacroCommand` atômico, comandos dedicados para `GroupProxy` (`GroupInsertCommand`, `GroupRemoveCommand`, `GroupClearCommand`), e ciclo de vida preservado para proxies reativos através do `ProxyRegistry`.
+  - **Roteamento Declarativo de Contexto (`_CONTEXT_ROUTER`):** Suporte nativo em `BaseHistoryProxy` via `build_context_wrapper` e `resolve_history_context`, permitindo que mutações compostas como `clear()` executem sob transações atômicas (`history.atomic`) sem duplicar métodos concretos de domínio no proxy nem vazar APIs de histórico para o código cliente.
+  - **Mutadores de Contêiner e Reordenação (`BaseContainerProxy`):** Suporte declarativo em `_ACTION_ROUTER` para `move_relative`, `move_to_front`, `move_to_back`, `swap`, `reverse`, `__delitem__` e `clear` via `_CONTEXT_ROUTER`, mantendo o proxy 100% puro e sem duplicação de métodos concretos.
+  - **Cópia Afim Fluente (`ProxyComposer`):** Método `copy_from` incluído no conjunto `_MUTATING_METHODS` de `ProxyComposer`, permitindo clonar ou copiar postura de transformações matriciais sob histórico.
+  - **Remoção Segura de Camadas Aninhadas (`Document.remove`):** Checagem sentinela idiomática `layer.parent is not _NULL_CONTAINER` e preservação estrita de domínio físico vs. histórico reativo.
+
 
 
 

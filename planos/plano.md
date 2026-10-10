@@ -693,10 +693,11 @@ A viabilidade de suportar BGR/BGRA nativamente decorre de três pilares da arqui
 
 ### 📋 Sub-Tarefas de Execução
 
-- [ ] **30.1. Mutadores de Contêiner e Métodos Fluentes em `BaseContainerProxy` e `ProxyComposer`**
-  - Mapear mutadores omissos no `_ACTION_ROUTER` de `BaseContainerProxy`: `move_relative`, `move_to_front`, `move_to_back`, `swap`, `clear`, `extend`, `__delitem__`.
-  - Integrar mutações em lote (`clear`, `extend`) com blocos atômicos (`history.atomic`) para granularidade cirúrgica de Undo/Redo.
-  - Incluir método mutante in-place `"copy_from"` em `ProxyComposer._MUTATING_METHODS`.
+- [x] ~~**30.1. Mutadores de Contêiner e Métodos Fluentes em `BaseContainerProxy` e `ProxyComposer`** (Concluído)~~
+  - Mapeamento declarativo de mutadores no `_ACTION_ROUTER` de `BaseContainerProxy`: `move_relative`, `move_to_front`, `move_to_back`, `swap`, `reverse`, `__delitem__`.
+  - Implementação nativa de `_CONTEXT_ROUTER` no `BaseHistoryProxy` com `build_context_wrapper`, permitindo que operações em lote como `clear()` rodem nativamente sob `history.atomic("clear")` sem duplicar métodos concretos no proxy.
+  - Inclusão do método mutante in-place `"copy_from"` em `ProxyComposer._MUTATING_METHODS`.
+  - Cobertura de 9 testes dedicados em `tests/test_reactive_container.py` validando Undo/Redo e modo direto.
 - [x] ~~**30.2. Roteamento de Proxy na Remoção de Camadas Aninhadas em `Document.remove`** (Concluído)~~
   - Correção da checagem de contêiner sentinela: substituído `if not isinstance(layer.parent, NullContainer)` por `if layer.parent is not _NULL_CONTAINER`.
   - Remoção por nome (`doc.remove("nome")`) ou por proxy (`doc.remove(proxy)`) propaga naturalmente para `layer.parent` (que já é `GroupProxy`), gravando `ReparentCommand` no histórico.

@@ -28,6 +28,7 @@ classDiagram
         +_registry: ProxyRegistry
         +_special_instances: dict
         +_ACTION_ROUTER: dict
+        +_CONTEXT_ROUTER: dict
         +_SPECIAL_WRAPPERS: dict
         +_DEFAULT_COMMAND: type
     }
@@ -42,11 +43,13 @@ classDiagram
     }
 
     class BaseContainerProxy {
-        +_ACTION_ROUTER: append, remove, pop, clear
+        +_ACTION_ROUTER: append, remove, pop, move, move_relative, move_to_front, move_to_back, swap, reverse, __delitem__
+        +_CONTEXT_ROUTER: clear -> atomic
     }
 
     class GroupProxy {
         +_SPECIAL_WRAPPERS: transform, layout, content
+        +_CONTEXT_ROUTER: clear -> atomic
     }
 
     class ProxyMask {
@@ -61,6 +64,7 @@ classDiagram
         +rotate()
         +scale()
         +translate()
+        +copy_from()
     }
 
     class StrategyProxy {
@@ -88,8 +92,9 @@ classDiagram
 ### 2.1. `BaseHistoryProxy[TargetT]` (`anicrop.reactive.base`)
 Proxy genérico e agnóstico de qualquer objeto Python.
 - **Interceptação de Atributos**:
-  - `__getattribute__`: resolve wrappers especialistas (`_SPECIAL_WRAPPERS`), constrói wrappers de métodos (`_ACTION_ROUTER`) ou envolve resultados no Identity Map (`wrap_domain_result`).
+  - `__getattribute__`: resolve wrappers especialistas (`_SPECIAL_WRAPPERS`), constrói wrappers de contexto de histórico (`_CONTEXT_ROUTER`), constrói wrappers de comandos discretos (`_ACTION_ROUTER`) ou envolve resultados no Identity Map (`wrap_domain_result`).
   - `__setattr__`: detecta propriedades com setter via `is_property_with_setter` e atributos escalares comuns via `resolve_setattr_command`, gravando automaticamente através de `_DEFAULT_COMMAND` (padrão: `AdaptiveCommand` com deltas $O(1)$).
+  - `__setitem__` e `__delitem__`: interceptação transparente de operadores de indexação (`proxy[key] = val` e `del proxy[key]`), roteados para comandos discretos sob `_ACTION_ROUTER`.
   - Propriedades somente-leitura (`is_readonly_property`, como `canvas.width` ou `layer.size`) são ignoradas pelo histórico e disparam o `AttributeError` nativo do Python diretamente no objeto alvo.
 - **Cache de Instâncias Especiais (`_special_instances`)**: Garante estabilidade de identidade para propriedades complexas (`proxy.layout is proxy.layout` e `proxy.content is proxy.content` avaliam como `True`).
 
@@ -112,7 +117,8 @@ Proxy composto que herda simultaneamente de `BaseContainerProxy` e `ProxyLayer` 
   - `"transform": ProxyComposer`
   - `"layout": GroupLayoutProxy`
   - `"content": GroupContentProxy`
-- **Manipulação Hierárquica**: Intercepta métodos de contêiner (`append`, `remove`, `pop`, `insert`, `clear`) usando `ContainerCommand` e `ContainerSnapshot`, atualizando a árvore bidirecional e `_parent_inverse`.
+- **Manipulação Hierárquica**: Intercepta métodos de contêiner (`append`, `remove`, `pop`, `insert`, `move`, `move_relative`, `move_to_front`, `move_to_back`, `swap`, `reverse`, `__delitem__`) usando `ReparentCommand` e `ContainerSnapshot`, atualizando a árvore bidirecional e `_parent_inverse`.
+- **Limpeza Atômica Nativamente Roteada**: Roteia `clear()` via `_CONTEXT_ROUTER = {"clear": "atomic"}` para esvaziar o grupo atomicamente sob um único `MacroCommand` (1 único Undo restaura todos os filhos intactos).
 - **Navegação Transparente**: A indexação (`group[0]`) e iteração (`for child in group:`) retornam instâncias de `ProxyLayer` ou `GroupProxy` automaticamente.
 
 ---
@@ -135,7 +141,8 @@ Proxy especialista para a máscara da camada (`Mask`).
 
 ### 2.6. `LayerStackProxy` e `BaseContainerProxy` (`anicrop.reactive.container`)
 Gerenciam a pilha principal de camadas (`LayerStack`) e contêineres compostos (`Container`).
-- Rastreiam mutações estruturais (`append`, `remove`, `pop`, `clear`) via `ContainerCommand`.
+- Rastreiam mutações estruturais (`append`, `remove`, `pop`, `move`, `move_relative`, `move_to_front`, `move_to_back`, `swap`, `reverse`, `__delitem__`) via `ReparentCommand`.
+- Mapeiam operações de lote (`clear`) via `_CONTEXT_ROUTER: dict[str, str] = {"clear": "atomic"}` sem duplicar métodos da classe concreta, garantindo 1 único passo de Undo/Redo para esvaziar e restaurar contêineres.
 - Asseguram que `layer.parent` seja sempre um proxy reativo do contêiner correspondente.
 
 ---
@@ -143,6 +150,7 @@ Gerenciam a pilha principal de camadas (`LayerStack`) e contêineres compostos (
 ### 2.7. `ProxyComposer` (`BaseFluentProxy`) (`anicrop.reactive.fluent`)
 Proxy fluente para composição de transformações matriciais 3x3 na propriedade `.transform`.
 - **Encadeamento Fluente**: Suporta chamadas consecutivas como `layer.transform.rotate(45).scale(2.0, 2.0).translate(10, 20)`.
+- **Mutadores Rastreados (`_MUTATING_METHODS`)**: `rotate`, `scale`, `translate`, `add_transform` e `copy_from` (cópia afim in-place de postura).
 - **Selagem Automática no Garbage Collection (`__del__`)**: Ao contrário de outros wrappers que são cacheados, instâncias de `ProxyComposer` são criadas na leitura de `.transform` e seladas automaticamente no encerramento da expressão, gerando **exatamente 1 único comando** na pilha de Undo.
 
 ---
@@ -232,6 +240,25 @@ A arquitetura de proxies expõe três pontos de extensão chave (hooks protegido
           if name == "__setitem__" and args:
               return args[0]
           return None
+  ```
+
+---
+
+### 3.4. Roteamento de Contexto Declarativo: `_CONTEXT_ROUTER: dict[str, str]`
+- **Classe de Origem**: `BaseHistoryProxy` (`anicrop.reactive.base`).
+- **Propósito**: Define declarativamente métodos que devem ser executados sob um gerenciador de contexto de histórico nativo (`atomic`, `merge`, `disabled`, `group`) sem replicar métodos concretos na subclasse nem vazar APIs de histórico para o código cliente/domínio.
+- **Tipos de Contexto Suportados**:
+  - `"atomic"`: Envolve a chamada em `with history.atomic(action_name):`, absorvendo todas as mutações e sub-comandos gerados internamente em um único `MacroCommand` (1 único Undo/Redo).
+  - `"merge"` / `"merge_continuous"`: Envolve em `with history.merge_continuous():` para mesclagem contínua.
+  - `"disabled"`: Envolve em `with history.disabled():` para operações voláteis.
+  - `"group"` / `"group_action"`: Envolve em `with history.group_action():` para ignorar comandos repetidos da mesma classe.
+- **Mecanismo de Execução (`build_context_wrapper`)**: Quando `history.is_active=True`, a função não vinculada da classe de domínio é chamada passando `proxy` como `self` sob o bloco de contexto. Operações que o método faça em `self` passam naturalmente pelo proxy, registrando comandos agregados no macro-comando.
+- **Exemplo de Uso (aplicado no `BaseContainerProxy`)**:
+  ```python
+  class BaseContainerProxy(BaseHistoryProxy[Container]):
+      _CONTEXT_ROUTER = {
+          "clear": "atomic",  # container.clear() esvazia e suporta 1 unico Undo
+      }
   ```
 
 ---
