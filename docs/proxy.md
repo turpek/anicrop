@@ -17,7 +17,7 @@ A separação entre domínio e histórico baseia-se em princípios fundamentais:
 
 ## 2. Tipos de Proxies Existentes e Suas Características
 
-A infraestrutura do `anicrop.reactive` disponibiliza 11 tipos especializados de proxies:
+A infraestrutura do `anicrop.reactive` disponibiliza 14 tipos especializados de proxies:
 
 ```mermaid
 classDiagram
@@ -56,11 +56,18 @@ classDiagram
         +__setitem__(key, value)
     }
 
-    class ProxyEffectStack {
-        +_ACTION_ROUTER: add, extend, insert, remove, pop, clear, move, swap, __delitem__
+    class ProxyNamedStack {
+        +_ACTION_ROUTER: add, append, extend, insert, remove, pop, clear, move, swap, __delitem__, __setitem__
     }
 
+    class ProxyEffectStack
+    class ProxyEditStack
+
     class ProxyEffect {
+        +_DEFAULT_COMMAND: AdaptiveCommand
+    }
+
+    class ProxyEdit {
         +_DEFAULT_COMMAND: AdaptiveCommand
     }
 
@@ -96,8 +103,11 @@ classDiagram
     BaseContainerProxy <|-- GroupProxy
     ProxyLayer <|-- GroupProxy
     BaseHistoryProxy <|-- ProxyMask
-    BaseHistoryProxy <|-- ProxyEffectStack
+    BaseHistoryProxy <|-- ProxyNamedStack
+    ProxyNamedStack <|-- ProxyEffectStack
+    ProxyNamedStack <|-- ProxyEditStack
     BaseHistoryProxy <|-- ProxyEffect
+    BaseHistoryProxy <|-- ProxyEdit
     BaseHistoryProxy <|-- BaseFluentProxy
     BaseFluentProxy <|-- ProxyComposer
     BaseHistoryProxy <|-- StrategyProxy

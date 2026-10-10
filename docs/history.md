@@ -161,28 +161,29 @@ O proxy de contêiner (`BaseContainerProxy` / `GroupProxy` / `LayerStack`) inter
 - **Deleção por Índice**: `del container[idx]` emite `ReparentCommand` de remoção.
 - **Remoção Aninhada via Documento**: `doc.remove(node_or_name)` localiza camadas em qualquer nível da hierarquia e roteia a remoção através do contêiner pai correspondente (`GroupProxy` ou `LayerStack`), registrando histórico independentemente da profundidade do aninhamento.
 
-### 4.4. Efeitos e Filtros Reativos (`EffectStackCommand` e `ProxyEffectStack`)
+### 4.4. Pilhas Nomeadas e Edições Reativas (`StackCommand`, `ProxyEffectStack` e `ProxyEditStack`)
 
-O container de efeitos (`layer.effects`) opera sob o proxy `ProxyEffectStack`:
-- **Operações de Coleção**: `add`, `remove`, `swap`, `move`, `pop`, `clear` e `__delitem__` emitem `EffectStackCommand`, restaurando atomicamente o pipeline de processamento em `undo()`.
-- **Mutações de Parâmetros**: Mutações em propriedades de efeitos (`proxy_effect.visible = False` ou `blur.radius_x = 10.0`) emitem `AdaptiveCommand` com gravação delta $O(1)$.
+Tanto os efeitos (`layer.effects`) quanto as edições locais (`layer.edits`) herdam de `NamedStack` e operam sob a mesma infraestrutura reativa unificada:
+- **Operações de Coleção**: `add`, `append`, `extend`, `remove`, `swap`, `move`, `pop`, `clear`, `__setitem__` e `__delitem__` emitem `StackCommand`, restaurando atomicamente o pipeline em `undo()`.
+- **Mutações Escalares**: Mutações em propriedades de efeitos (`proxy_effect.visible = False` ou `blur.radius_x = 10.0`) e de patches (`proxy_edit.visible = False` ou `edit.blend_mode = BlendMode.MULTIPLY`) emitem `AdaptiveCommand` com gravação delta $O(1)$.
 
 ```python
+# Efeitos Reativos
 blur = BlurFilter(radius=4.0)
 layer.effects.add(blur)
-
-# Desfaz a adicao do efeito
 doc.history.undo()
 assert len(layer.effects) == 0
 
-# Refaz a adicao
-doc.history.redo()
-assert len(layer.effects) == 1
-
-# Muta propriedade e desfaz
-layer.effects[0].radius_x = 12.0
+# Edições Reativas
+patch = EditLayer(img, region, matrix, name="Patch1")
+layer.edits.add(patch)
 doc.history.undo()
-assert layer.effects[0].radius_x == 4.0
+assert len(layer.edits) == 1
+
+# Mutações de propriedades em patches
+layer.edits[0].visible = False
+doc.history.undo()
+assert layer.edits[0].visible is True
 ```
 
 ### 4.5. Consulta de Estado do Histórico

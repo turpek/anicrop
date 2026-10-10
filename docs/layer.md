@@ -181,3 +181,18 @@ O `EditLayer` representa uma alteração pontual (patch) ou sub-camada aplicada 
 - **`region` (`Region`)**: Região local relativa ao Layer pai.
 - **`local_matrix` (`np.ndarray`)**: Matriz de transformação combinando a matriz do edit com a posição da região (`matrix @ mat_position(region)`).
 - **`get_lod(scale_factor: float) -> tuple[Image, np.ndarray]`**: Gera/retorna a pirâmide de nível de detalhe (LOD - Level of Detail) apropriada para otimizar a renderização de imagens de altíssima resolução (ex: MMap / Out-of-Core).
+
+---
+
+### 4.1. Gerenciamento de Edições via `EditStack` (`layer.edits`)
+
+A pilha `layer.edits` herda da classe base genérica `NamedStack[EditLayer]` em `anicrop.stack`:
+- **`@property edits -> EditStack`**: Retorna a coleção especializada para gerenciar os patches e sub-camadas de corte da camada.
+- **Operações Disponíveis**:
+  - `layer.edits.add(edit)`: Adiciona uma edição ao topo da pilha.
+  - `layer.edits.remove(edit)`: Remove por instância ou por nome (ex: `layer.edits.remove("Crop")`).
+  - `layer.edits.swap(a, b)`: Troca posições de dois patches por índice ou instância.
+  - `layer.edits.move(edit, new_index)`: Reordena a ordem de composição dos patches.
+  - `layer.edits.clear()` / `layer.edits.pop()`: Esvaziamento e desempilhamento.
+  - `layer.edits.close()`: Fecha e libera os buffers de imagem de todas as edições.
+- **Reatividade**: Em modo reativo (`history=True`), `layer.edits` entrega `ProxyEditStack` e cada patch entrega `ProxyEdit`, permitindo desfazer adições, remoções e mutações em propriedades como `visible` e `blend_mode` com Undo/Redo atômico.

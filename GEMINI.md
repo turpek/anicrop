@@ -167,12 +167,14 @@ Para detalhes de métodos, tipos de retorno e exemplos de uso de cada classe, co
   - **1 Máscara Única por Camada:** `BaseLayer.set_mask(...)`, `BaseLayer.remove_mask()` e `@property mask -> Mask | None`.
   - **Indexação Direta e Micro-Snapshots:** `Mask` suporta mutação atômica via slices e `Region` (`mask[key] = data`), roteadas através do `ProxyMask` para `MaskCommand` com `MaskImageSnapshot` e `MaskStateSnapshot` gerenciando Undo/Redo com pegada mínima de memória.
 
-- **Arquitetura de Efeitos e Container `EffectStack` (`Effect`, `BoundEffect`, `BlurFilter`):**
-  - **Classe Abstrata Base `Effect(ABC)`:** Interface formal com `@abstractmethod` (`get_padding`, `apply`, `merge`) e atributos concretos `visible: bool = True` e `name: str = "Effect"`.
-  - **Container Especializado `EffectStack`:** Coleção pura sem dono (`no owner`) responsável pelo pipeline de efeitos da camada. Suporta `add`, `extend`, `insert`, `remove`, `pop`, `clear`, `move`, `swap` (estrito por `Effect | int`), `index`, `get_padding` e indexação por inteiro e por nome.
-  - **Envelope `BoundEffect` e Fábrica Canônica:** Ancla o efeito puro à matriz inversa da camada via `BoundEffect.from_layer(layer, effect, mask=None, visible=True)`.
-  - **Limpeza da `BaseLayer`:** Remoção de métodos legados (`add_effect`, `bind_effect`, `remove_effect`, `clear_effects`, `get_effects_padding`), expondo canonicamente `@property effects -> EffectStack`.
-  - **Reatividade Completa (`ProxyEffectStack` e `ProxyEffect`):** No modo reativo, mutações de coleção disparam `EffectStackCommand` e mutações escalares disparam `AdaptiveCommand`, garantindo Undo/Redo atômico com pegada mínima de memória.
+- **Arquitetura de Pilhas Nomeadas, Efeitos e Edições (`NamedStack`, `EffectStack`, `EditStack`):**
+  - **Protocolo Estrutural `NamedItem(Protocol)`:** Exige tipagem estrita de `.name: str` para todos os nós de pilhas, sem reflexão ou `getattr`/`setattr`.
+  - **Abstração Genérica `NamedStack[T]`:** Classe base pura em `anicrop.stack` que implementa operações ricas de coleção ordenada com indexação por `int`, `slice` e `str` (`add`, `append`, `extend`, `insert`, `remove`, `pop`, `clear`, `move`, `swap`, `index`, `__getitem__`, `__setitem__`, `__delitem__`, `__repr__`).
+  - **Container `EffectStack`:** Herda de `NamedStack[Effect]`, especializa matching com `BoundEffect` e provê cálculo de margem agregada `get_padding()`.
+  - **Container `EditStack`:** Herda de `NamedStack[EditLayer]`, gerencia a fila sequencial de patches e provê liberação de buffers `close()`.
+  - **Envelope `BoundEffect` e Fábrica Canônica:** Ancora o efeito puro à matriz inversa da camada via `BoundEffect.from_layer(layer, effect, mask=None, visible=True)`.
+  - **Limpeza de Camadas:** `BaseLayer.effects` expõe canonicamente `EffectStack` e `Layer.edits` expõe canonicamente `EditStack`, eliminando o antigo `ListView` e centralizando operações nas pilhas.
+  - **Reatividade Completa e Simétrica (`ProxyNamedStack`, `StackCommand`):** Mutações de coleção disparam `StackCommand` (com snapshot isolado usando `clear()` e `extend()`). Mutações escalares em efeitos (`ProxyEffect`) ou patches (`ProxyEdit`) disparam `AdaptiveCommand`, garantindo Undo/Redo atômico de 1 clique.
   - **Isolamento de Buffer no Render (`has_active_post_processing`):** A função `has_active_post_processing(layer: BaseLayer) -> bool` avalia se há efeitos visíveis ou máscara visível ativa. No renderizador (`_render_single_edit`), o Fast-Path 1 isola o buffer com `edit_image.crop()` quando ativo, prevenindo que mutações in-place em efeitos ou pós-processamento corrompam permanentemente a imagem original em memória.
   - **`BlurFilter` Anisotrópico:** Implementa desfoque Gaussiano/Box com fusão matemática exata de tensores de covariância 2D ($\Sigma_{\text{total}} = \Sigma_1 + \Sigma_2$).
 
