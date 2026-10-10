@@ -4,6 +4,7 @@ import gc
 from unittest.mock import MagicMock
 
 import numpy as np
+import pytest
 
 from anicrop.cache import (
     LayerCache,
@@ -11,7 +12,6 @@ from anicrop.cache import (
     get_tracked_attrs,
     snapshot_edit,
     snapshot_effect,
-    wrap_add_effect,
     wrap_background,
 )
 from anicrop.canvas import Canvas
@@ -49,18 +49,33 @@ def test_snapshot_edit_extrai_primitivos_do_edit():
     assert snap[2] == edit.blend_mode
 
 
-def test_wrap_add_effect_registra_efeito_no_status():
-    """Valida se wrap_add_effect chama a funcao original e adiciona o retorno na lista effects do status."""
-    status = LayerFrameState()
-    mock_effect = MagicMock()
-    mock_orig = MagicMock(return_value=mock_effect)
+def test_layer_cache_scope_enter_exception_cleans_up_active_layers():
+    """Valida se uma falha durante o __enter__ aciona o cleanup de todas as camadas ja ativadas."""
+    layer1 = Layer(make_img(20, 20))
+    layer2 = Layer(make_img(20, 20))
+    cache = LayerCache()
+    cache.register(layer1)
+    cache.register(layer2)
 
-    wrapped = wrap_add_effect(status, mock_orig)
-    result = wrapped(mock_effect)
+    orig_bg1 = layer1.background
+    orig_bg2 = layer2.background
 
-    assert result is mock_effect
-    mock_orig.assert_called_once_with(mock_effect)
-    assert status.effects == [mock_effect]
+    scope = cache([layer1, layer2])
+    real_activate = scope._activate_layer
+
+    def faulty_activate(layer, status):
+        if layer is layer2:
+            raise RuntimeError("Falha simulada na ativacao")
+        real_activate(layer, status)
+
+    scope._activate_layer = faulty_activate
+
+    with pytest.raises(RuntimeError, match="Falha simulada na ativacao"):
+        with scope:
+            pass
+
+    assert layer1.background == orig_bg1
+    assert layer2.background == orig_bg2
 
 
 def test_wrap_background_retorna_baked_warp_e_incrementa_contador():
@@ -94,14 +109,13 @@ def test_wrap_background_delega_para_original_quando_sem_bake():
 
 
 def test_layer_cache_register_and_unregister():
-    """Valida se register decora os metodos da camada e unregister restaura as referencias originais."""
+    """Valida se register armazena estado no cache e unregister limpa o registro."""
     layer = Layer(make_img(30, 30))
-    orig_add_effect = layer.effects.add
     orig_bg = layer.background
     cache = LayerCache()
 
     cache.register(layer)
-    assert layer.effects.add != orig_add_effect
+    assert cache.get_state(layer) is not None
     assert layer.background == orig_bg
 
     with cache([layer]):
@@ -110,7 +124,6 @@ def test_layer_cache_register_and_unregister():
     assert layer.background == orig_bg
 
     cache.unregister(layer)
-    assert layer.effects.add == orig_add_effect
     assert layer.background == orig_bg
     assert cache.get_state(layer) is None
 
@@ -150,6 +163,12 @@ def test_layer_cache_is_dirty_states():
     assert cache.is_dirty(layer) is False
 
     layer.transform.rotate(15)
+    assert cache.is_dirty(layer) is True
+
+    cache.set_baked(layer, make_img(30, 30))
+    assert cache.is_dirty(layer) is False
+
+    layer.add_edit(make_img(10, 10), Region.from_size(10, 10))
     assert cache.is_dirty(layer) is True
 
 

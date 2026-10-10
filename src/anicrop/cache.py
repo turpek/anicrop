@@ -100,7 +100,6 @@ class LayerFrameState:
     def __init__(self) -> None:
         self.matrix: np.ndarray | None = None
         self.matrix_2x2_bytes: bytes | None = None
-        self.effects: list[Effect] = []
         self.baked_warp: Image | None = None
         self.baked_effects: Image | None = None
         self.background_calls: int = 0
@@ -112,18 +111,6 @@ class LayerFrameState:
 
         self.saved_edits: list[EditLayer] | None = None
         self.saved_effects: list[Effect] | None = None
-
-
-def wrap_add_effect(
-    status: LayerFrameState, original_func: Callable[..., Any]
-) -> Callable[..., Any]:
-    """Empacota effects.add para registrar novos efeitos na lista de deltas do cache."""
-    def wrapper(*args: Any, **kwargs: Any) -> Any:
-        effect = original_func(*args, **kwargs)
-        status.effects.append(effect)
-        return effect
-
-    return wrapper
 
 
 def wrap_background(
@@ -253,21 +240,25 @@ class LayerCacheScope:
         self._active_layers: list[Layer] = []
 
     def __enter__(self) -> LayerCacheScope:
-        layers = _collect_layers(self._container)
-        for layer in layers:
-            if layer in self._cache._states:
-                if self._effective_region is not None:
-                    if not self._effective_region.overlaps(layer.global_region):
-                        continue
-                    if (
-                        layer.global_region & self._effective_region
-                    ).size != layer.global_region.size:
-                        continue
+        try:
+            layers = _collect_layers(self._container)
+            for layer in layers:
+                if layer in self._cache._states:
+                    if self._effective_region is not None:
+                        if not self._effective_region.overlaps(layer.global_region):
+                            continue
+                        if (
+                            layer.global_region & self._effective_region
+                        ).size != layer.global_region.size:
+                            continue
 
-                status = self._cache._states[layer]
-                self._activate_layer(layer, status)
-                self._active_layers.append(layer)
-        return self
+                    status = self._cache._states[layer]
+                    self._activate_layer(layer, status)
+                    self._active_layers.append(layer)
+            return self
+        except Exception:
+            self.__exit__(None, None, None)
+            raise
 
     def _activate_layer(self, layer: Layer, status: LayerFrameState) -> None:
         status.background_calls = 0
@@ -338,7 +329,7 @@ class LayerCacheScope:
             status.baked_effects_count = 0
             status.effects_visibility = ()
             status.baked_effects_snapshot = ()
-        elif effects_changed or has_new_edits or status.effects:
+        elif effects_changed or has_new_edits:
             status.baked_effects = None
             status.baked_effects_count = 0
             status.effects_visibility = ()
@@ -403,7 +394,6 @@ class LayerCacheScope:
 
         status.matrix = layer.matrix.copy()
         status.matrix_2x2_bytes = layer.matrix[:2, :2].tobytes()
-        status.effects.clear()
         if status.baked_warp is not None:
             status.baked_edits_snapshot = tuple(snapshot_edit(e) for e in layer._edits)
 
@@ -431,7 +421,6 @@ class LayerCache(AbstractLayerCache):
             return
 
         status = LayerFrameState()
-        layer.effects.add = wrap_add_effect(status, layer.effects.add)  # type: ignore[method-assign]
         self._states[layer] = status
 
     def unregister(self, item: Layer | Container) -> None:
@@ -448,8 +437,6 @@ class LayerCache(AbstractLayerCache):
 
         layer = target
         self._states.pop(layer, None)
-        layer.__dict__.pop("add_edit", None)
-        layer.effects.__dict__.pop("add", None)
         layer.__dict__.pop("background", None)
 
     def is_dirty(self, layer: Layer) -> bool:
@@ -460,7 +447,20 @@ class LayerCache(AbstractLayerCache):
         status = self._states[target]
         if status.baked_warp is None or status.matrix_2x2_bytes is None:
             return True
-        return target.matrix[:2, :2].tobytes() != status.matrix_2x2_bytes
+        if target.matrix[:2, :2].tobytes() != status.matrix_2x2_bytes:
+            return True
+        if len(target._edits) != len(status.baked_edits_snapshot):
+            return True
+        for (saved_ref, saved_vis, saved_blend), current in zip(
+            status.baked_edits_snapshot, target._edits
+        ):
+            if (
+                saved_ref() is not current
+                or current.visible != saved_vis
+                or current.blend_mode != saved_blend
+            ):
+                return True
+        return False
 
     def set_baked(
         self,
@@ -477,7 +477,6 @@ class LayerCache(AbstractLayerCache):
         status.baked_effects = None
         status.matrix = target.matrix.copy() if matrix is None else matrix.copy()
         status.matrix_2x2_bytes = status.matrix[:2, :2].tobytes()
-        status.effects.clear()
         status.baked_edits_snapshot = tuple(snapshot_edit(e) for e in target._edits)
         status.baked_effects_count = 0
         status.effects_visibility = ()
