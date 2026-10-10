@@ -224,10 +224,11 @@ def _collect_layers(container: Sequence[BaseLayer] | Container) -> list[Layer]:
     """Coleta recursivamente todas as instâncias de Layer dentro de contêineres e grupos."""
     layers: list[Layer] = []
     for item in container:
-        if isinstance(item, Layer):
-            layers.append(item)
-        elif isinstance(item, (GroupLayer, Container)):
-            layers.extend(_collect_layers(item))
+        target = getattr(item, "_target", item)
+        if isinstance(target, Layer):
+            layers.append(target)
+        elif isinstance(target, (GroupLayer, Container)):
+            layers.extend(_collect_layers(target))
     return layers
 
 
@@ -407,16 +408,17 @@ class LayerCache(AbstractLayerCache):
 
     def register(self, item: Layer | Container) -> None:
         """Registra a camada ou contêiner (recursivo) para gerenciamento de cache."""
-        if isinstance(item, Container):
-            for child in item:
+        target = getattr(item, "_target", item)
+        if isinstance(target, Container):
+            for child in target:
                 if isinstance(child, (Layer, Container)):
                     self.register(child)
             return
 
-        if not isinstance(item, Layer):
+        if not isinstance(target, Layer):
             return
 
-        layer = item
+        layer = target
         if layer in self._states:
             return
 
@@ -426,16 +428,17 @@ class LayerCache(AbstractLayerCache):
 
     def unregister(self, item: Layer | Container) -> None:
         """Remove a camada ou contêiner do gerenciamento de cache e restaura seu estado original."""
-        if isinstance(item, Container):
-            for child in item:
+        target = getattr(item, "_target", item)
+        if isinstance(target, Container):
+            for child in target:
                 if isinstance(child, (Layer, Container)):
                     self.unregister(child)
             return
 
-        if not isinstance(item, Layer):
+        if not isinstance(target, Layer):
             return
 
-        layer = item
+        layer = target
         self._states.pop(layer, None)
         layer.__dict__.pop("add_edit", None)
         layer.effects.__dict__.pop("add", None)
@@ -443,12 +446,13 @@ class LayerCache(AbstractLayerCache):
 
     def is_dirty(self, layer: Layer) -> bool:
         """Verifica se a camada precisa ser renderizada do zero."""
-        if layer not in self._states:
+        target = getattr(layer, "_target", layer)
+        if target not in self._states:
             return True
-        status = self._states[layer]
+        status = self._states[target]
         if status.baked_warp is None or status.matrix_2x2_bytes is None:
             return True
-        return layer.matrix[:2, :2].tobytes() != status.matrix_2x2_bytes
+        return target.matrix[:2, :2].tobytes() != status.matrix_2x2_bytes
 
     def set_baked(
         self,
@@ -457,22 +461,24 @@ class LayerCache(AbstractLayerCache):
         matrix: np.ndarray | None = None,
     ) -> None:
         """Injeta externamente um buffer pré-assado na camada (ex: Anifuse 2-pass)."""
-        if layer not in self._states:
-            self.register(layer)
-        status = self._states[layer]
+        target = getattr(layer, "_target", layer)
+        if target not in self._states:
+            self.register(target)
+        status = self._states[target]
         status.baked_warp = image
         status.baked_effects = None
-        status.matrix = layer.matrix.copy() if matrix is None else matrix.copy()
+        status.matrix = target.matrix.copy() if matrix is None else matrix.copy()
         status.matrix_2x2_bytes = status.matrix[:2, :2].tobytes()
         status.effects.clear()
-        status.baked_edits_snapshot = tuple(snapshot_edit(e) for e in layer._edits)
+        status.baked_edits_snapshot = tuple(snapshot_edit(e) for e in target._edits)
         status.baked_effects_count = 0
         status.effects_visibility = ()
         status.baked_effects_snapshot = ()
 
     def get_state(self, layer: Layer) -> LayerFrameState | None:
         """Retorna o estado de cache da camada, se registrada."""
-        return self._states.get(layer)
+        target = getattr(layer, "_target", layer)
+        return self._states.get(target)
 
     def __call__(
         self,
