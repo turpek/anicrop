@@ -116,3 +116,7 @@ class CanvasLayoutProxy(OwnerBoundStrategyProxy):
     """Proxy especialista para a estratégia de layout do Canvas."""
 
     _STRATEGY_CLS = CanvasLayoutStrategy
+
+
+class CombineProxy(StrategyProxy):
+    """Proxy especialista para o serviço de composição Combine."""

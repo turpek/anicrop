@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from anicrop.canvas import Canvas
+from anicrop.composition import Combine
 from anicrop.container import BaseLayer, Container, GroupLayer, LayerStack
 from anicrop.interfaces.canvas import AbstractCanvas
 from anicrop.layer import Layer
@@ -21,6 +22,7 @@ from anicrop.reactive.registry import (
 )
 from anicrop.reactive.strategy import (
     CanvasLayoutProxy,
+    CombineProxy,
     GroupContentProxy,
     GroupLayoutProxy,
     LayerContentProxy,
@@ -37,6 +39,7 @@ ProxyRegistry.register(Layer, ProxyLayer)
 ProxyRegistry.register(BaseLayer, ProxyLayer)
 ProxyRegistry.register(Mask, ProxyMask)
 ProxyRegistry.register(Container, BaseContainerProxy)
+ProxyRegistry.register(Combine, CombineProxy)
 
 # Registro ABC virtual para suporte a isinstance(proxy, DomainType)
 AbstractCanvas.register(ProxyCanvas)
@@ -55,6 +58,7 @@ __all__ = [
     "BaseFluentProxy",
     "BaseHistoryProxy",
     "CanvasLayoutProxy",
+    "CombineProxy",
     "GroupContentProxy",
     "GroupLayoutProxy",
     "GroupProxy",

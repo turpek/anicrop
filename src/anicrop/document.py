@@ -47,6 +47,10 @@ class DocumentPolicy(ABC):
     def process_canvas(self, canvas: Canvas, history: GlobalHistory | None) -> Canvas:
         pass
 
+    @abstractmethod
+    def process_combine(self, combine: Combine, history: GlobalHistory | None) -> Combine:
+        pass
+
 
 class ReactiveDocumentPolicy(DocumentPolicy):
     """Política com Histórico e Proxies ativados."""
@@ -70,6 +74,13 @@ class ReactiveDocumentPolicy(DocumentPolicy):
         registry = get_registry_for_history(history)
         return registry.get_or_create(canvas)  # type: ignore[return-value]
 
+    def process_combine(self, combine: Combine, history: GlobalHistory | None) -> Combine:
+        if isinstance(combine, BaseHistoryProxy):
+            return combine
+        assert history is not None
+        registry = get_registry_for_history(history)
+        return registry.get_or_create(combine)  # type: ignore[return-value]
+
 
 class DirectDocumentPolicy(DocumentPolicy):
     """Política de alta performance sem Histórico e sem Proxies (modo direto)."""
@@ -82,6 +93,9 @@ class DirectDocumentPolicy(DocumentPolicy):
 
     def process_canvas(self, canvas: Canvas, history: GlobalHistory | None) -> Canvas:
         return getattr(canvas, "_target", canvas)
+
+    def process_combine(self, combine: Combine, history: GlobalHistory | None) -> Combine:
+        return getattr(combine, "_target", combine)
 
 
 class Document:
@@ -111,8 +125,7 @@ class Document:
             width: Largura do canvas em pixels.
             height: Altura do canvas em pixels.
             history: Habilita o rastreamento de histórico (Undo/Redo) via proxies reativos.
-                Nota: Funcionalidade experimental sob refatoração; operações avançadas
-                de árvore (como Combine) ainda não gravam passos no histórico. Padrão: False.
+                Padrão: False.
             bg_color: Cor de fundo opcional do canvas.
         """
         self.name = name
@@ -184,7 +197,7 @@ class Document:
     @property
     def combine(self) -> Combine:
         """Instância do serviço de combinação/fusão de camadas no documento."""
-        return self._combine
+        return self._policy.process_combine(self._combine, self.history)
 
     @property
     def canvas_render(self) -> CanvasRender:
