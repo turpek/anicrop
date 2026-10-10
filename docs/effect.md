@@ -11,7 +11,7 @@ No `anicrop`, o pós-processamento gráfico é dividido em três pilares:
 ```
                   ┌──────────────────────────────────────────────┐
                   │             BaseLayer / Layer                │
-                  │   - self.effects: list[Effect]               │
+                  │   - self.effects: EffectStack                │
                   │   - self.mask: Mask | None                   │
                   └──────────────────────┬───────────────────────┘
                                          │
@@ -20,6 +20,7 @@ No `anicrop`, o pós-processamento gráfico é dividido em três pilares:
                                          ▼
                   ┌──────────────────────────────────────────────┐
                   │          BoundEffect (Envelope)              │
+                  │   - BoundEffect.from_layer(layer, effect)    │
                   │   - self.matrix: Matriz inversa da camada    │
                   │   - self.mask: Máscara local opcional        │
                   │   - Calcula: ΔM = M_render @ M_base_inv      │
@@ -35,8 +36,8 @@ No `anicrop`, o pós-processamento gráfico é dividido em três pilares:
 ```
 
 1. **Classe Abstrata Base (`Effect`)**: Classes herdando de `Effect(ABC)`, com controle de visibilidade (`visible`), nome (`name`) e métodos abstratos para processamento de pixels.
-2. **Envelope Geométrico (`BoundEffect`)**: Ancara um `Effect` à matriz espacial da camada e gerencia visibilidade e modulação por máscara.
-3. **Gerenciamento na Camada (`BaseLayer`)**: Fila sequencial de efeitos (`layer.effects`), acessível tanto em camadas folha (`Layer`) quanto em grupos aninhados (`GroupLayer`).
+2. **Envelope Geométrico (`BoundEffect`)**: Ancara um `Effect` à matriz espacial da camada (`BoundEffect.from_layer`) e gerencia visibilidade e modulação por máscara.
+3. **Container Especializado (`EffectStack`)**: Coleção independente de efeitos (`layer.effects`), acessível tanto em camadas folha (`Layer`) quanto em grupos aninhados (`GroupLayer`), com suporte a reordenação, busca por nome e cálculo agregado de padding.
 
 ---
 
@@ -89,6 +90,11 @@ class Effect(ABC):
 
 O `BoundEffect` decora um `Effect` puro, ligando-o à geometria da camada:
 
+- **Fábrica Canônica (`BoundEffect.from_layer`)**: Calcula e ancora a matriz inversa global da camada automaticamente:
+  ```python
+  bound = BoundEffect.from_layer(layer, effect, mask=mask, visible=True)
+  layer.effects.add(bound)
+  ```
 - **Matriz de Ancoragem**: Armazena a matriz inversa da camada no momento da vinculação (`mat_inverse(mat_global(layer))`).
 - **Delta Espacial**: No método `apply`, calcula $\Delta M = M_{\text{render}} \cdot M_{\text{ancoragem}}$ e passa para o efeito interno, permitindo que efeitos direcionais (como desfoque em ângulo ou sombras) acompanhem a rotação da camada ou da câmera.
 - **Modulação por Máscara**: Se uma máscara (`Mask`) for associada, o resultado do efeito é modulado pixel a pixel via `mask.modulate_blend(image, filtered)`.
@@ -126,13 +132,14 @@ blur = BlurFilter(
 
 ---
 
-## 5. Como Gerenciar Efeitos na Camada (`BaseLayer` / `Layer` / `GroupLayer`)
+## 5. Como Gerenciar Efeitos via `EffectStack` (`layer.effects`)
 
-Todos os métodos de controle de efeitos estão presentes em `BaseLayer`:
+A propriedade `layer.effects` expõe uma instância especializada de [`EffectStack`](file:///home/gui/python/anicrop/src/anicrop/effect.py), que atua como coleção sequencial e gerenciador do pipeline:
 
 ```python
 import numpy as np
 from anicrop import Layer, Image, ImageFormat, Region
+from anicrop.effect import BoundEffect
 from anicrop.filter import BlurFilter
 from anicrop.enums import BlurMode
 
@@ -140,25 +147,40 @@ from anicrop.enums import BlurMode
 img = Image.new((400, 300), ImageFormat.RGBA, color=(255, 0, 0, 255))
 layer = Layer(img)
 
-# 2. Adiciona um efeito direto à fila:
-blur = BlurFilter(radius=8.0, mode=BlurMode.GAUSSIAN)
-layer.add_effect(blur)
+# 2. Adiciona um efeito direto ao pipeline:
+blur = BlurFilter(radius=8.0, mode=BlurMode.GAUSSIAN, name="MainBlur")
+layer.effects.add(blur)
 
-# 3. Ou vincula como BoundEffect com máscara local:
+# 3. Ou ancora como BoundEffect com máscara local:
 mask_img = Image.new((400, 300), ImageFormat.GRAY, color=128)
 mask = layer.set_mask(mask_img, Region.from_size(400, 300))
-bound_blur = layer.bind_effect(blur, mask=mask, visible=True)
+bound_blur = BoundEffect.from_layer(layer, blur, mask=mask, visible=True)
+layer.effects.add(bound_blur)
 
-# 4. Inspeciona os efeitos ativos:
-print(layer.effects)  # Retorna tupla imutável com os efeitos
+# 4. Acesso por índice e por nome:
+first_effect = layer.effects[0]
+named_effect = layer.effects["MainBlur"]
 
-# 5. Consulta o padding total somado dos efeitos:
-top, right, bottom, left = layer.get_effects_padding()
+# 5. Reordenação e movimentação:
+layer.effects.swap(0, 1)          # Troca posições por índice ou instância (sem aceitar str)
+layer.effects.move(blur, 0)       # Move o efeito para a posição desejada
 
-# 6. Remove um efeito específico ou limpa todos:
-layer.remove_effect(blur)
-layer.clear_effects()
+# 6. Consulta o padding total agregado dos efeitos visíveis:
+top, right, bottom, left = layer.effects.get_padding()
+
+# 7. Remoção e limpeza:
+layer.effects.remove(blur)        # Remove por instância ou por nome ("MainBlur")
+popped = layer.effects.pop()      # Remove e devolve o efeito do topo
+del layer.effects[0]              # Remove via delitem
+layer.effects.clear()             # Limpa todos os efeitos
 ```
+
+### Reatividade e Histórico (Undo/Redo):
+Em documentos reativos (`Document(..., history=True)`):
+* `layer.effects` entrega uma instância de `ProxyEffectStack`.
+* Acesso a itens (`layer.effects[0]`, `layer.effects["MainBlur"]`, ou iteração) entrega instâncias de `ProxyEffect`.
+* Toda operação de coleção (`add`, `remove`, `swap`, `move`, `pop`, `clear`) é capturada por `EffectStackCommand` e suporta Undo/Redo atômico.
+* Mutações diretas em propriedades de efeitos (`effect.visible = False` ou `blur.radius_x = 12.0`) são interceptadas por `AdaptiveCommand`, registrando deltas $O(1)$ reversíveis no histórico.
 
 ---
 

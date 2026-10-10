@@ -161,7 +161,31 @@ O proxy de contêiner (`BaseContainerProxy` / `GroupProxy` / `LayerStack`) inter
 - **Deleção por Índice**: `del container[idx]` emite `ReparentCommand` de remoção.
 - **Remoção Aninhada via Documento**: `doc.remove(node_or_name)` localiza camadas em qualquer nível da hierarquia e roteia a remoção através do contêiner pai correspondente (`GroupProxy` ou `LayerStack`), registrando histórico independentemente da profundidade do aninhamento.
 
-### 4.4. Consulta de Estado do Histórico
+### 4.4. Efeitos e Filtros Reativos (`EffectStackCommand` e `ProxyEffectStack`)
+
+O container de efeitos (`layer.effects`) opera sob o proxy `ProxyEffectStack`:
+- **Operações de Coleção**: `add`, `remove`, `swap`, `move`, `pop`, `clear` e `__delitem__` emitem `EffectStackCommand`, restaurando atomicamente o pipeline de processamento em `undo()`.
+- **Mutações de Parâmetros**: Mutações em propriedades de efeitos (`proxy_effect.visible = False` ou `blur.radius_x = 10.0`) emitem `AdaptiveCommand` com gravação delta $O(1)$.
+
+```python
+blur = BlurFilter(radius=4.0)
+layer.effects.add(blur)
+
+# Desfaz a adicao do efeito
+doc.history.undo()
+assert len(layer.effects) == 0
+
+# Refaz a adicao
+doc.history.redo()
+assert len(layer.effects) == 1
+
+# Muta propriedade e desfaz
+layer.effects[0].radius_x = 12.0
+doc.history.undo()
+assert layer.effects[0].radius_x == 4.0
+```
+
+### 4.5. Consulta de Estado do Histórico
 
 A classe `GlobalHistory` expõe métodos expressivos para consultar as pilhas:
 
@@ -181,7 +205,7 @@ if doc.history.is_active:
 total_passos = len(doc.history._undo_stack)
 ```
 
-### 4.5. Uso Avulso / Standalone de `GlobalHistory`
+### 4.6. Uso Avulso / Standalone de `GlobalHistory`
 
 Você também pode utilizar o `GlobalHistory` diretamente com contêineres e camadas avulsas sem a fachada `Document`:
 

@@ -140,6 +140,7 @@ class Effect(Protocol):
 ### 3.3. Envelope Geométrico: `BoundEffect` (`anicrop.effect.BoundEffect`)
 
 A classe `BoundEffect` implementa o protocolo `Effect` e atua como envelope para ancorar um efeito puro à camada:
+- **`BoundEffect.from_layer(layer, effect, mask=None, visible=True)`**: Método de fábrica canônico para criar o envelope ancorado à matriz inversa da camada.
 - **`self.matrix`**: Armazena a matriz inversa da camada na vinculação.
 - **Delta Matrix**: No método `apply`, calcula $\Delta M = M_{\text{render}} \cdot M_{\text{base\_inv}}$ e repassa para o efeito puro.
 - **Modulação por Máscara**: Se `mask` for fornecida, modula o resultado automaticamente (`mask.modulate_blend`).
@@ -156,13 +157,18 @@ O `BlurFilter` implementa desfoque Gaussiano ou Box de alta performance:
 
 ---
 
-### 3.5. Gerenciamento de Efeitos em `BaseLayer`
+### 3.5. Gerenciamento de Efeitos via `EffectStack` (`layer.effects`)
 
-- **`add_effect(effect: Effect) -> Effect`**: Adiciona um efeito livremente à fila de pós-processamento.
-- **`bind_effect(effect: Effect, mask: Mask | None = None, visible: bool = True) -> BoundEffect`**: Cria um `BoundEffect` ancorado à matriz inversa da camada e o anexa à fila.
-- **`remove_effect(effect: Effect) -> None`**: Remove o efeito da fila.
-- **`clear_effects() -> None`**: Remove todos os efeitos.
-- **`@property effects -> tuple[Effect, ...]`**: Retorna uma tupla imutável com a fila de efeitos ativos.
+- **`@property effects -> EffectStack`**: Retorna o container especializado que gerencia o pipeline sequencial de pós-processamento da camada.
+- **Operações Disponíveis**:
+  - `layer.effects.add(effect)`: Adiciona efeito ao topo da pilha.
+  - `layer.effects.add(BoundEffect.from_layer(layer, effect))`: Ancara e adiciona efeito ligado à matriz inversa da camada.
+  - `layer.effects.remove(effect)`: Remove por instância ou por nome.
+  - `layer.effects.swap(a, b)`: Troca posições de dois efeitos por índice ou instância.
+  - `layer.effects.move(effect, new_index)`: Reordena o pipeline de processamento.
+  - `layer.effects.get_padding()`: Calcula margem agregada máxima dos efeitos visíveis.
+  - `layer.effects.clear()` / `layer.effects.pop()`: Limpeza e desempilhamento.
+- **Reatividade**: Em modo reativo (`history=True`), `layer.effects` entrega `ProxyEffectStack` e seus elementos entregam `ProxyEffect`, garantindo Undo/Redo completo.
 
 ---
 

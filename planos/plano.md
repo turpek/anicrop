@@ -40,7 +40,7 @@ Este documento centraliza todos os objetivos arquiteturais, otimizações e o pr
 - [x] ~~33. Sistema de Invalidação mais Robusto para Edits Usando Somente `visible` e `blend_mode` (`snapshot_edit`).~~
 - [x] ~~34. Remoção do Método Obsoleto `offset` do `EditLayer`.~~
 - [x] ~~35. Otimizações de Baixa Latência e Zero-Alloc na Invalidação do `LayerCache` (Comparação de Matriz por Bytes e `ListView`).~~
-- [ ] 36. Container de Efeitos (`EffectStack`), Limpeza da `BaseLayer` e Reatividade Completa no Histórico (`ProxyEffectStack` e `ProxyEffect`).
+- [x] ~~36. Container de Efeitos (`EffectStack`), Limpeza da `BaseLayer` e Reatividade Completa no Histórico (`ProxyEffectStack` e `ProxyEffect`).~~
 
 ---
 
@@ -929,22 +929,22 @@ A validação de integridade do cache a cada frame é executada em loops interat
 
 ---
 
-## ⏳ 36. Container de Efeitos (`EffectStack`), Limpeza da `BaseLayer` e Reatividade Completa no Histórico (`ProxyEffectStack` e `ProxyEffect`)
+## ✅ 36. Container de Efeitos (`EffectStack`), Limpeza da `BaseLayer` e Reatividade Completa no Histórico (`ProxyEffectStack` e `ProxyEffect`) (Concluído)
 
 ### 📋 Sub-Tarefas de Execução
 
-- [ ] **36.1. Domínio Puro: Criação do `EffectStack` e Limpeza da `BaseLayer`**
+- [x] **36.1. Domínio Puro: Criação do `EffectStack` e Limpeza da `BaseLayer`**
   - Implementar a classe `EffectStack` em `src/anicrop/effect.py`, com suporte a `add`, `bind`, `remove`, `clear`, `move`, `swap`, `insert`, `pop`, `get_padding`, além de indexação por inteiro (`[0]`) e por nome (`["Blur"]`).
   - Atualizar `BaseLayer` e `AbstractBaseLayer`: remover os métodos legados `add_effect`, `bind_effect`, `remove_effect`, `clear_effects`, `get_effects_padding` e expor canonicamente `@property effects -> EffectStack`.
   - Atualizar chamadas internas em `src/anicrop/composition.py`, `src/anicrop/cache.py`, etc.
   - Atualizar suíte de testes existentes para a nova API canônica `layer.effects.add(...)`.
-- [ ] **36.2. Infraestrutura Reativa: `ProxyEffectStack`, `ProxyEffect` e `EffectStackCommand`**
+- [x] **36.2. Infraestrutura Reativa: `ProxyEffectStack`, `ProxyEffect` e `EffectStackCommand`**
   - Criar `EffectStackCommand` em `src/anicrop/command.py` para registro e restauração atômica de operações de coleção na pilha de efeitos (`add`, `bind`, `remove`, `clear`, `move`, `swap`).
   - Implementar `ProxyEffect(BaseHistoryProxy[Effect])` com `_DEFAULT_COMMAND = AdaptiveCommand` para mutação atômica de propriedades escalares (`visible`, `radius_x`, `strength`, etc.) e suporte a `merge_continuous()`.
   - Implementar `ProxyEffectStack(BaseHistoryProxy[EffectStack])` interceptando mutações de coleção e garantindo que o acesso a itens (`[0]`, `["name"]`) devolva instâncias de `ProxyEffect`.
   - Registrar tipos no `ProxyRegistry` e integrar em `ProxyLayer.effects`.
   - Criar suíte de testes dedicados `tests/test_reactive_effect.py` cobrindo Undo/Redo de adições, remoções, reordenações e mutações de parâmetros.
-- [ ] **36.3. Documentação e Finalização**
+- [x] **36.3. Documentação e Finalização**
   - Atualizar documentação técnica (`docs/effect.md`, `docs/layer.md`, `docs/proxy.md`, `docs/history.md`, `GEMINI.md`).
   - Validação completa com linters (`ruff`, `autopep8`) e suíte de testes passando 100%.
 
@@ -953,9 +953,15 @@ A validação de integridade do cache a cada frame é executada em loops interat
 * **Impossibilidade de Reordenação e Busca:** Como a ordem dos filtros afeta criticamente o resultado visual, a ausência de uma classe container impedia métodos como `move`, `swap` ou acesso por nome (`effects["Blur"]`).
 * **Brecha no Histórico:** Mutações in-place nas propriedades dos efeitos (`effect.visible = False` ou `blur.radius_x = 10.0`) não eram interceptadas porque `Effect` não possuía proxy registrado no `ProxyRegistry`.
 
-### 2. Diretrizes Técnicas
-* `EffectStack` gerencia estritamente o pipeline ordenado de efeitos de pixel pertencentes a uma camada, desacoplado da hierarquia espacial `Container`.
-* No modo reativo (`history=True`), `layer.effects` entrega `ProxyEffectStack` e cada elemento entrega `ProxyEffect`, garantindo que toda a cadeia seja reativa e auditável pelo histórico.
+### 2. Diretrizes Técnicas e Solução Implementada
+* **`EffectStack` Desacoplado:** Coleção pura e desacoplada gerenciando estritamente o pipeline ordenado de efeitos de pixel pertencentes a uma camada, com interface de lista rica (`add`, `bind`, `insert`, `remove`, `pop`, `clear`, `move`, `swap`, indexação por índice ou nome e `get_padding`).
+* **Fábrica `BoundEffect.from_layer`:** `BoundEffect` recebeu o método de fábrica de classe `BoundEffect.from_layer(layer, effect, mask=None, visible=True, name=None)`, tornando a amarração explícita e simplificando `effects.bind(effect, mask=None)`.
+* **Desacoplamento de `BaseLayerSnapshot`:** A coleção `_effects` foi removida de `BaseLayerSnapshot`, deixando o ciclo de vida e restauração do pipeline de efeitos exclusivamente sob a responsabilidade do `EffectStackCommand`.
+* **Infraestrutura Reativa Completa:**
+  - `ProxyEffectStack` intercepta mutações de coleção via `EffectStackCommand` (com snapshot isolado usando `clear()` e `extend()`).
+  - `ProxyEffect` empacota instâncias individuais de `Effect` e `BoundEffect`, roteando alterações escalares de propriedades (`visible`, `strength`, `radius_x`, etc.) para `AdaptiveCommand` com fusão contínua.
+  - Registro transparente no `ProxyRegistry` assegura reatividade completa em `doc.stack[0].effects`.
+
 
 
 

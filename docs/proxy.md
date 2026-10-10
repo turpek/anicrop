@@ -17,7 +17,7 @@ A separação entre domínio e histórico baseia-se em princípios fundamentais:
 
 ## 2. Tipos de Proxies Existentes e Suas Características
 
-A infraestrutura do `anicrop.reactive` disponibiliza 9 tipos especializados de proxies:
+A infraestrutura do `anicrop.reactive` disponibiliza 11 tipos especializados de proxies:
 
 ```mermaid
 classDiagram
@@ -56,6 +56,14 @@ classDiagram
         +__setitem__(key, value)
     }
 
+    class ProxyEffectStack {
+        +_ACTION_ROUTER: add, extend, insert, remove, pop, clear, move, swap, __delitem__
+    }
+
+    class ProxyEffect {
+        +_DEFAULT_COMMAND: AdaptiveCommand
+    }
+
     class BaseFluentProxy {
         +_owner: Any
     }
@@ -88,6 +96,8 @@ classDiagram
     BaseContainerProxy <|-- GroupProxy
     ProxyLayer <|-- GroupProxy
     BaseHistoryProxy <|-- ProxyMask
+    BaseHistoryProxy <|-- ProxyEffectStack
+    BaseHistoryProxy <|-- ProxyEffect
     BaseHistoryProxy <|-- BaseFluentProxy
     BaseFluentProxy <|-- ProxyComposer
     BaseHistoryProxy <|-- StrategyProxy
@@ -180,6 +190,20 @@ Proxy especialista para o serviço de composição e fusão de camadas `doc.comb
 - **Transações Atômicas**: Herda de `StrategyProxy` e envolve automaticamente chamadas a `merge`, `flatten`, `bake` e `bake_stack` sob `with history.atomic(action_name):`.
 - **Roteamento de Contêineres**: As remoções das camadas de origem e as inserções da nova camada consolidada ocorrem através de proxies de contêiner (`LayerStack` / `GroupProxy`), registrando todas as operações de reestruturação da árvore em um único `MacroCommand` (1 único Undo/Redo).
 - **Subgrupos Aninhados**: Suporta fusões e assamentos de nós localizados em subgrupos arbitrários na árvore hierárquica, restaurando a árvore perfeitamente ao desfazer (`undo`).
+
+---
+
+### 2.10. `ProxyEffectStack` (`anicrop.reactive.effect`)
+Proxy dedicado ao container de efeitos `layer.effects` (`EffectStack`).
+- **Operações de Coleção**: Intercepta mutações de coleção (`add`, `extend`, `insert`, `remove`, `pop`, `clear`, `move`, `swap`, `__delitem__`) através de `EffectStackCommand`.
+- **Golden Rule de Proxies**: Indexação numérica (`stack[0]`), por nome (`stack["Blur"]`) ou iteração (`for effect in stack:`) devolvem sempre instâncias de `ProxyEffect`.
+
+---
+
+### 2.11. `ProxyEffect` (`anicrop.reactive.effect`)
+Proxy dedicado a instâncias de `Effect` e `BoundEffect`.
+- **Comando Padrão**: Utiliza `AdaptiveCommand` para interceptar mutações em propriedades escalares e vetoriais (`visible`, `name`, `radius_x`, `strength`, etc.).
+- **Deltas O(1)**: Registra transições de estado sem duplicar buffers nem gerar snapshots pesados, permitindo desfazer e refazer ajustes finos de filtros interativamente.
 
 ---
 

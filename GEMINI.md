@@ -167,12 +167,14 @@ Para detalhes de métodos, tipos de retorno e exemplos de uso de cada classe, co
   - **1 Máscara Única por Camada:** `BaseLayer.set_mask(...)`, `BaseLayer.remove_mask()` e `@property mask -> Mask | None`.
   - **Indexação Direta e Micro-Snapshots:** `Mask` suporta mutação atômica via slices e `Region` (`mask[key] = data`), roteadas através do `ProxyMask` para `MaskCommand` com `MaskImageSnapshot` e `MaskStateSnapshot` gerenciando Undo/Redo com pegada mínima de memória.
 
-- **Arquitetura de Efeitos e Filtros (`Effect`, `BoundEffect`, `BlurFilter`):**
+- **Arquitetura de Efeitos e Container `EffectStack` (`Effect`, `BoundEffect`, `BlurFilter`):**
   - **Classe Abstrata Base `Effect(ABC)`:** Interface formal com `@abstractmethod` (`get_padding`, `apply`, `merge`) e atributos concretos `visible: bool = True` e `name: str = "Effect"`.
+  - **Container Especializado `EffectStack`:** Coleção pura sem dono (`no owner`) responsável pelo pipeline de efeitos da camada. Suporta `add`, `extend`, `insert`, `remove`, `pop`, `clear`, `move`, `swap` (estrito por `Effect | int`), `index`, `get_padding` e indexação por inteiro e por nome.
+  - **Envelope `BoundEffect` e Fábrica Canônica:** Ancla o efeito puro à matriz inversa da camada via `BoundEffect.from_layer(layer, effect, mask=None, visible=True)`.
+  - **Limpeza da `BaseLayer`:** Remoção de métodos legados (`add_effect`, `bind_effect`, `remove_effect`, `clear_effects`, `get_effects_padding`), expondo canonicamente `@property effects -> EffectStack`.
+  - **Reatividade Completa (`ProxyEffectStack` e `ProxyEffect`):** No modo reativo, mutações de coleção disparam `EffectStackCommand` e mutações escalares disparam `AdaptiveCommand`, garantindo Undo/Redo atômico com pegada mínima de memória.
   - **Isolamento de Buffer no Render (`has_active_post_processing`):** A função `has_active_post_processing(layer: BaseLayer) -> bool` avalia se há efeitos visíveis ou máscara visível ativa. No renderizador (`_render_single_edit`), o Fast-Path 1 isola o buffer com `edit_image.crop()` quando ativo, prevenindo que mutações in-place em efeitos ou pós-processamento corrompam permanentemente a imagem original em memória.
-  - **Envelope `BoundEffect`:** Ancla o efeito puro à matriz inversa da camada (`matrix`), calcula a matriz delta combinada no render ($\Delta M = M_{\text{render}} \cdot M_{\text{base\_inv}}$), modula por máscara opcional (`mask`) e herda visibilidade (`visible`).
   - **`BlurFilter` Anisotrópico:** Implementa desfoque Gaussiano/Box com fusão matemática exata de tensores de covariância 2D ($\Sigma_{\text{total}} = \Sigma_1 + \Sigma_2$).
-  - **API em `BaseLayer`:** `add_effect` (livre), `bind_effect` (ancorado com matriz inversa), `remove_effect` e `@property effects -> tuple[Effect, ...]`.
 
 - **Arquitetura de Manipulação de Conteúdo (`Content`, `ProxyContent`, `BlendMode.CLIP`):**
   - **Módulo Puro `Content`:** Fornece operações de corte e transformação de pixels/conteúdo (`crop`, `resize`, `fit`). `crop` atua via `LayerLayoutStrategy.fit` + máscara `EditLayer` com `BlendMode.CLIP` (preservando o formato original e cor branca sólida/transparente). `resize` e `fit` operam diretamente sobre matrizes afins (`target.transform`).
