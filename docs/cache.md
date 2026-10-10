@@ -268,3 +268,12 @@ assert cache.is_dirty(layer)  # Bytes divergentes: novo warp afim disparado
 
 renderer.render_scene([layer], canvas, cache=cache)
 ```
+
+---
+
+## 8. Compatibilidade com Proxies e Sistema de Histórico
+
+Quando a cena é orquestrada através do `Document(history=True)` ou instâncias de proxies reativos (`ProxyLayer`, `LayerStackProxy`):
+- O `LayerCache` desempacota automaticamente as camadas e contêineres recebidos via `getattr(item, "_target", item)`.
+- As injeções efêmeras de desempenho (como o monkey-patch de `layer.background` no `LayerCacheScope`) operam estritamente sobre as instâncias de domínio puras, sem acionar interceptores de `__setattr__`.
+- Isso previne a injeção de comandos fantasmas no `GlobalHistory` e assegura que chamadas de `undo()` e `redo()` preservem exatidão de pixels e velocidade máxima sob cache.

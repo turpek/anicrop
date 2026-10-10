@@ -221,11 +221,12 @@ Para detalhes de métodos, tipos de retorno e exemplos de uso de cada classe, co
   - **Tipagem Pura de Domínio:** Referências diretas a `LayerStack`, `BaseLayer`, `Layer`, `GroupLayer` e remoção limpa via protocolo de contêineres e `NullContainer`. Sobrecargas `@overload` em `Document.__getitem__` para inferência precisa.
   - **Qualidade de Código:** 100% de conformidade estrita no `mypy` (0 erros com `--check-untyped-defs`) e suíte completa passando no `pytest`.
 
-- **Consolidação Abrangente do Sistema de Histórico (Tarefa 30):**
+- **Consolidação Abrangente do Sistema de Histórico (Tarefas 30 e 37):**
   - **Reatividade e Transações Atômicas em `doc.combine`:** O serviço `Combine` é roteado via `CombineProxy(StrategyProxy)` governado por `DocumentPolicy.process_combine`. Operações de composição (`merge`, `flatten`, `bake`, `bake_stack`) agrupam remoções de fontes e inserção do novo nó consolidado em **1 único MacroCommand**, garantindo 1 passo de Undo/Redo enquanto o domínio `composition.py` permanece 100% puro e cego ao histórico.
   - **Mutadores de Contêiner e `_CONTEXT_ROUTER`:** Mapeamento no `_ACTION_ROUTER` de `BaseContainerProxy` (`move_relative`, `move_to_front`, `move_to_back`, `swap`, `reverse`, `__delitem__`), e `_CONTEXT_ROUTER = {"clear": "atomic"}` em `BaseHistoryProxy` permitindo esvaziamento e restauração atômica de contêineres sem duplicação de métodos concretos.
   - **Roteamento de Remoções Aninhadas:** `Document.remove` valida o sentinela `_NULL_CONTAINER` e delega para `layer.parent` (que em camadas aninhadas devolve o `GroupProxy`), registrando `ReparentCommand` com integridade relacional.
   - **Postura Afim Fluente:** `ProxyComposer._MUTATING_METHODS` estendido com `"copy_from"`.
+  - **Blindagem e Isolamento com o Cache de Renderização (`LayerCache`):** `BaseHistoryProxy.__setattr__` ignora automaticamente qualquer atributo privado iniciado por `_` (como `_opacity_mask` e `_render_flags`), atribuindo diretamente ao target sem criar comandos de histórico. O `LayerCache` desempacota proxies reativos via `getattr(item, "_target", item)` durante registro e coleta de camadas, garantindo que o monkey-patching efêmero de `layer.background` atue apenas sobre instâncias de domínio puras, eliminando comandos fantasmas na pilha de Undo.
 
 - **Arquitetura Multi-Dtype e Profundidade de Cor (`uint8`, `uint16`, `float32`):**
   - **Configuração Centralizada (`config.dtype`):** O `config.dtype` define o tipo de dado padrão da engine (padrão: `np.uint8`), aceitando `uint8`, `uint16` e `float32` com validação estrita e context manager com restauração garantida (`with config(dtype=np.uint16):`).

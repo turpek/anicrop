@@ -234,6 +234,12 @@ history.undo()
 assert raw_layer.opacity == 1.0
 ```
 
+### 4.7. Integração e Isolamento com o Cache de Renderização (`LayerCache`)
+
+Durante a renderização, o motor realiza mutações técnicas internas (como o cálculo de `layer._opacity_mask` para oclusão e o empacotamento temporário de `layer.background` no `LayerCache`). Para garantir determinismo e impedir comandos fantasmas na pilha de histórico:
+- **Blindagem de Atributos Privados:** O `BaseHistoryProxy.__setattr__` ignora automaticamente qualquer atributo privado iniciado por `_` (ex: `_opacity_mask`, `_render_flags`), atribuindo-o diretamente ao target sem criar entradas na pilha de histórico.
+- **Desempacotamento de Proxies:** O `LayerCache` desempacota proxies reativos via `getattr(item, "_target", item)` durante a coleta, registro e consulta de estado (`_collect_layers`, `register`, `is_dirty`, etc.), operando exclusivamente sobre as entidades puras de domínio e garantindo que o ciclo de Undo/Redo permaneça 100% fiel às intenções do usuário.
+
 ---
 
 ## 5. Resumo das Boas Práticas
