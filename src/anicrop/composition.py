@@ -73,9 +73,9 @@ def clone_layer(layer: Layer) -> Layer:
                 mask=cloned_mask,  # type: ignore[arg-type]
                 visible=effect.visible,
             )
-            cloned.add_effect(bound)
+            cloned.effects.add(bound)
         else:
-            cloned.add_effect(effect)
+            cloned.effects.add(effect)
 
     # 4. Preserve active Layout frame if fitted
     if layer.control.frame.region != layer.base.region:
@@ -124,9 +124,9 @@ def clone_group(group: GroupLayer) -> GroupLayer:
                 mask=cloned_mask,  # type: ignore[arg-type]
                 visible=effect.visible,
             )
-            cloned.add_effect(bound)
+            cloned.effects.add(bound)
         else:
-            cloned.add_effect(effect)
+            cloned.effects.add(effect)
 
     if group.control.frame.region != group.base.region:
         cloned.layout.fit(group.control.frame.region)

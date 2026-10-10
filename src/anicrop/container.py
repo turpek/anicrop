@@ -5,7 +5,7 @@ from typing import TYPE_CHECKING, Any, Callable, Optional, Protocol, runtime_che
 import numpy as np
 
 from anicrop.content import GroupContentStrategy
-from anicrop.effect import BoundEffect, Effect
+from anicrop.effect import EffectStack
 from anicrop.enums import BlendMode, ImageFormat
 from anicrop.geometry import GeometryController, GeometryStrategy, GroupGeometry
 from anicrop.interfaces.container import AbstractContainer, AbstractGroupLayer
@@ -216,7 +216,7 @@ class BaseLayer(AbstractBaseLayer):
         self.blend_mode = blend_mode
         self.name = name
         self._format = format
-        self._effects: list[Effect] = []
+        self._effects: EffectStack = EffectStack()
         self._mask: Mask | None = None
 
         base = geometry_cls(self, region)
@@ -235,9 +235,9 @@ class BaseLayer(AbstractBaseLayer):
         self._format = value
 
     @property
-    def effects(self) -> tuple[Effect, ...]:
-        """Fila de efeitos de pós-processamento aplicados sobre a camada."""
-        return tuple(self._effects)
+    def effects(self) -> EffectStack:
+        """Pilha de efeitos de pós-processamento aplicados sobre a camada."""
+        return self._effects
 
     @property
     def mask(self) -> Mask | None:
@@ -266,46 +266,6 @@ class BaseLayer(AbstractBaseLayer):
     def clear_mask(self) -> None:
         """Alias para remove_mask."""
         self.remove_mask()
-
-    def add_effect(self, effect: Effect) -> Effect:
-        """Adiciona um efeito diretamente à fila de pós-processamento da camada."""
-        self._effects.append(effect)
-        return effect
-
-    def bind_effect(
-        self,
-        effect: Effect,
-        mask: Mask | None = None,
-        visible: bool = True,
-    ) -> BoundEffect:
-        """Cria e adiciona um BoundEffect ancorado à matriz inversa da camada."""
-        inv_matrix = mat_inverse(mat_global(self))
-        bound = BoundEffect(effect, matrix=inv_matrix, mask=mask, visible=visible)
-        self._effects.append(bound)
-        return bound
-
-    def remove_effect(self, effect: Effect) -> None:
-        """Remove um efeito da camada."""
-        self._effects = [
-            e
-            for e in self._effects
-            if e is not effect and getattr(e, "effect", None) is not effect
-        ]
-
-    def clear_effects(self) -> None:
-        """Remove todos os efeitos de pós-processamento da camada."""
-        self._effects.clear()
-
-    def get_effects_padding(self) -> tuple[int, int, int, int]:
-        """Calcula o padding total somado/máximo de todos os efeitos ativos e visíveis."""
-        top, right, bottom, left = 0, 0, 0, 0
-        for effect in self._effects:
-            pt, pr, pb, pl = effect.get_padding()
-            top = max(top, pt)
-            right = max(right, pr)
-            bottom = max(bottom, pb)
-            left = max(left, pl)
-        return top, right, bottom, left
 
     @property
     def is_renderable(self) -> bool:

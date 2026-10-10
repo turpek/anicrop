@@ -4,7 +4,7 @@ import numpy as np
 import pytest
 
 from anicrop.canvas import Canvas
-from anicrop.effect import Effect
+from anicrop.effect import BoundEffect, Effect
 from anicrop.enums import BlurMode, ImageFormat
 from anicrop.filter import BlurFilter
 from anicrop.image import Image
@@ -279,7 +279,7 @@ def test_render_layer_with_blur_filter_in_pipeline():
     layer.transform.translate(30, 30)
 
     blur = BlurFilter(radius=4.0, affect_alpha=True)
-    layer.add_effect(blur)
+    layer.effects.add(blur)
 
     renderer = CanvasRender()
     result = renderer.render_scene([layer], canvas)
@@ -305,7 +305,7 @@ def test_render_layer_with_masked_blur_filter():
     )
 
     blur = BlurFilter(radius=6.0)
-    layer.bind_effect(blur, mask=mask)
+    layer.effects.add(BoundEffect.from_layer(layer, blur, mask=mask))
 
     renderer = CanvasRender()
     result = renderer.render_scene([layer], canvas)

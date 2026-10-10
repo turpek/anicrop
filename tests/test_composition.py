@@ -105,7 +105,7 @@ def test_clone_layer_effects_preservation():
     """Valida que BoundEffect e filtros sao clonados com novas matrizes e mascaras."""
     layer = make_layer((200, 100, 50, 255), (80, 80), name="EffectLayer")
     flt = BlurFilter(5.0)
-    layer.bind_effect(flt)
+    layer.effects.add(BoundEffect.from_layer(layer, flt))
 
     cloned = clone_layer(layer)
 
@@ -251,7 +251,7 @@ def test_flatten_layers_renders_single_rasterized_layer():
 def test_flatten_with_filters_and_masks_bakes_effects():
     """Valida que flatten processa e incorpora filtros e mascaras diretamente no buffer do Layer final."""
     l1 = make_layer((200, 50, 50, 255), (50, 50), name="Blurred")
-    l1.bind_effect(BlurFilter(2.0))
+    l1.effects.add(BoundEffect.from_layer(l1, BlurFilter(2.0)))
 
     l2 = make_layer((0, 0, 255, 255), (50, 50), name="Masked")
     mask_data = np.full((50, 50), 128, dtype=np.uint8)

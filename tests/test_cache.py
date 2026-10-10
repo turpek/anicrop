@@ -92,12 +92,12 @@ def test_wrap_background_delega_para_original_quando_sem_bake():
 def test_layer_cache_register_and_unregister():
     """Valida se register decora os metodos da camada e unregister restaura as referencias originais."""
     layer = Layer(make_img(30, 30))
-    orig_add_effect = layer.add_effect
+    orig_add_effect = layer.effects.add
     orig_bg = layer.background
     cache = LayerCache()
 
     cache.register(layer)
-    assert layer.add_effect != orig_add_effect
+    assert layer.effects.add != orig_add_effect
     assert layer.background == orig_bg
 
     with cache([layer]):
@@ -106,7 +106,7 @@ def test_layer_cache_register_and_unregister():
     assert layer.background == orig_bg
 
     cache.unregister(layer)
-    assert layer.add_effect == orig_add_effect
+    assert layer.effects.add == orig_add_effect
     assert layer.background == orig_bg
     assert cache.get_state(layer) is None
 
@@ -227,7 +227,7 @@ def test_layer_cache_with_effects_and_mask_preserves_baked_warp():
     """Valida se o baked_warp permanece intacto quando ha efeitos e modulacao por mascara."""
     layer = Layer(make_img(40, 40, (255, 255, 255, 255)))
     blur = BlurFilter(radius=2.0)
-    layer.add_effect(blur)
+    layer.effects.add(blur)
 
     mask_img = make_img(40, 40, (128, 128, 128, 255))
     layer.set_mask(mask_img, Region.from_size(40, 40))
@@ -282,7 +282,7 @@ def test_layer_cache_runs_dynamic_effect_every_frame():
     """Valida se DynamicEffect eh reexecutado a cada frame enquanto baked_warp permanece em cache."""
     layer = Layer(make_img(40, 40))
     dyn_effect = CountingDynamicEffect()
-    layer.add_effect(dyn_effect)
+    layer.effects.add(dyn_effect)
 
     cache = LayerCache()
     cache.register(layer)
@@ -308,8 +308,8 @@ def test_layer_cache_bakes_static_effects_and_executes_dynamic_effects_increment
     layer = Layer(make_img(40, 40))
     static_effect = CountingStaticEffect()
     dyn_effect = CountingDynamicEffect()
-    layer.add_effect(static_effect)
-    layer.add_effect(dyn_effect)
+    layer.effects.add(static_effect)
+    layer.effects.add(dyn_effect)
 
     cache = LayerCache()
     cache.register(layer)
@@ -333,7 +333,7 @@ def test_layer_cache_recognizes_bound_dynamic_effect():
     """Valida se DynamicEffect envelopado por BoundEffect eh reconhecido como dinamico."""
     layer = Layer(make_img(40, 40))
     dyn_effect = CountingDynamicEffect()
-    layer.bind_effect(dyn_effect)
+    layer.effects.add(BoundEffect.from_layer(layer, dyn_effect))
 
     cache = LayerCache()
     cache.register(layer)
@@ -352,7 +352,7 @@ def test_layer_cache_invalidates_baked_effects_when_static_effect_visibility_cha
     """Valida se alteracao na visibilidade de um efeito estatico invalida o baked_effects."""
     layer = Layer(make_img(40, 40))
     static_effect = CountingStaticEffect()
-    layer.add_effect(static_effect)
+    layer.effects.add(static_effect)
 
     cache = LayerCache()
     cache.register(layer)
@@ -497,7 +497,7 @@ def test_layer_cache_invalidates_baked_effects_when_filter_parameter_mutated():
     """Valida se alteracao direta em parametro de BlurFilter invalida baked_effects no proximo frame."""
     layer = Layer(make_img(40, 40))
     blur = BlurFilter(5.0)
-    layer.add_effect(blur)
+    layer.effects.add(blur)
     cache = LayerCache()
     cache.register(layer)
     renderer = CanvasRender()
@@ -518,7 +518,7 @@ def test_layer_cache_invalidates_baked_effects_when_bound_effect_inner_effect_mu
     """Valida se mutacao no efeito interno de um BoundEffect invalida baked_effects no cache."""
     layer = Layer(make_img(40, 40))
     blur = BlurFilter(5.0)
-    layer.bind_effect(blur)
+    layer.effects.add(BoundEffect.from_layer(layer, blur))
     cache = LayerCache()
     cache.register(layer)
     renderer = CanvasRender()
@@ -539,7 +539,7 @@ def test_layer_cache_invalidates_baked_effects_when_custom_effect_private_attr_m
     """Valida se mutacao em atributo privado de efeito customizado invalida baked_effects no cache."""
     layer = Layer(make_img(40, 40))
     eff = CustomPrivateEffect(radius=2.0)
-    layer.add_effect(eff)
+    layer.effects.add(eff)
     cache = LayerCache()
     cache.register(layer)
     renderer = CanvasRender()
@@ -560,7 +560,7 @@ def test_layer_cache_preserves_baked_effects_when_no_parameters_mutated():
     """Valida se baked_effects e preservado intacto entre frames quando nenhum parametro e alterado."""
     layer = Layer(make_img(40, 40))
     blur = BlurFilter(5.0)
-    layer.add_effect(blur)
+    layer.effects.add(blur)
     cache = LayerCache()
     cache.register(layer)
     renderer = CanvasRender()

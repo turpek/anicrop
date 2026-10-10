@@ -124,7 +124,7 @@ class BaseFrame(ABC):
         """Expande os limites geométricos da camada de acordo com o padding dos efeitos ativos."""
         if not base.effects:
             return bounds
-        pad_t, pad_r, pad_b, pad_l = base.get_effects_padding()
+        pad_t, pad_r, pad_b, pad_l = base.effects.get_padding()
         if (pad_t | pad_r | pad_b | pad_l) == 0:
             return bounds
         return bounds.expand(

@@ -71,13 +71,14 @@ def test_bound_effect_decorates_effect_and_modulates():
     assert result[5, 8, 0] == 255
 
 
-def test_base_layer_bind_effect_attaches_inverse_matrix():
-    """Valida se BaseLayer.bind_effect cria BoundEffect associado à matriz inversa sem alterar o original."""
+def test_bound_effect_from_layer_attaches_inverse_matrix():
+    """Valida se BoundEffect.from_layer cria BoundEffect associado a matriz inversa da camada."""
     layer = Layer(Image(np.zeros((20, 20, 4), dtype=np.uint8), ImageFormat.RGBA))
     layer.transform.rotate(45)
 
     original_effect = DummyEffect()
-    bound_effect = layer.bind_effect(original_effect)
+    bound_effect = BoundEffect.from_layer(layer, original_effect)
+    layer.effects.add(bound_effect)
 
     assert bound_effect.effect is original_effect
     assert len(layer.effects) == 1
@@ -85,36 +86,36 @@ def test_base_layer_bind_effect_attaches_inverse_matrix():
     np.testing.assert_array_almost_equal(bound_effect.matrix, expected_inv)
 
 
-def test_base_layer_add_and_remove_effect():
-    """Valida adição direta e remoção de efeitos na fila da camada."""
+def test_layer_effects_add_and_remove():
+    """Valida adicao direta e remocao de efeitos na pilha de efeitos da camada."""
     layer = Layer(Image(np.zeros((20, 20, 4), dtype=np.uint8), ImageFormat.RGBA))
     e1 = DummyEffect()
     e2 = DummyEffect()
 
-    layer.add_effect(e1)
-    layer.add_effect(e2)
+    layer.effects.add(e1)
+    layer.effects.add(e2)
     assert len(layer.effects) == 2
 
-    layer.remove_effect(e1)
+    layer.effects.remove(e1)
     assert len(layer.effects) == 1
     assert layer.effects[0] is e2
 
-    layer.clear_effects()
+    layer.effects.clear()
     assert len(layer.effects) == 0
 
 
 def test_has_active_post_processing_detection():
-    """Valida o cálculo de has_active_post_processing considerando visibilidade de efeitos."""
+    """Valida o calculo de has_active_post_processing considerando visibilidade de efeitos."""
     layer = Layer(Image(np.zeros((20, 20, 4), dtype=np.uint8), ImageFormat.RGBA))
     assert has_active_post_processing(layer) is False
 
     effect_hidden = DummyEffect(visible=False)
-    layer.add_effect(effect_hidden)
+    layer.effects.add(effect_hidden)
     assert has_active_post_processing(layer) is False
 
-    layer.clear_effects()
+    layer.effects.clear()
     effect_visible = DummyEffect(visible=True)
-    layer.add_effect(effect_visible)
+    layer.effects.add(effect_visible)
     assert has_active_post_processing(layer) is True
 
 
@@ -145,7 +146,7 @@ def test_render_layer_isolates_buffer_against_in_place_effect_mutation():
     arr = np.full((30, 30, 4), 255, dtype=np.uint8)
     img = Image(arr, ImageFormat.RGBA)
     layer = Layer(img)
-    layer.add_effect(MutatingCutEffect())
+    layer.effects.add(MutatingCutEffect())
 
     canvas = Canvas.from_size(30, 30)
     renderer = CanvasRender()

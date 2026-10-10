@@ -514,7 +514,7 @@ def test_canvas_frame_expand_bounds_with_effects_padding():
 
     canvas = Canvas.from_size(1000, 1000)
     layer = make_layer(w=100, h=100, x=200, y=200)
-    layer.add_effect(DummyPaddingEffect())
+    layer.effects.add(DummyPaddingEffect())
 
     frame = CanvasFrame(layer, canvas)
 
