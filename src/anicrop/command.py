@@ -13,6 +13,7 @@ from anicrop.container import (
     NodeContainerProtocol,
     NullContainer,
 )
+from anicrop.effect import EffectStack
 from anicrop.geometry import GeometryController
 from anicrop.layer import Layer
 from anicrop.mask import Mask
@@ -131,7 +132,6 @@ class BaseLayerSnapshot(StateSnapshot):
         self._transform = item._transform.copy()
         self._control = GeometryControllerSnapshot(item.control)
         self._mask = copy.copy(item._mask) if item._mask is not None else None
-        self._effects = list(item._effects)
         self._item = item
 
     def restore(self) -> None:
@@ -143,7 +143,6 @@ class BaseLayerSnapshot(StateSnapshot):
         self._item._transform = self._transform.copy()
         self._control.restore()
         self._item._mask = copy.copy(self._mask) if self._mask is not None else None
-        self._item._effects = list(self._effects)
 
     def has_change(self, other: BaseLayerSnapshot) -> bool:
         return (
@@ -155,8 +154,20 @@ class BaseLayerSnapshot(StateSnapshot):
             or self._transform != other._transform
             or self._control.has_change(other._control)
             or self._mask != other._mask
-            or self._effects != other._effects
         )
+
+
+class EffectStackSnapshot(StateSnapshot):
+    def __init__(self, item: EffectStack):
+        self._effects = list(item)
+        self._item = item
+
+    def restore(self) -> None:
+        self._item.clear()
+        self._item.extend(self._effects)
+
+    def has_change(self, other: EffectStackSnapshot) -> bool:
+        return self._effects != other._effects
 
 
 class Command(ABC):
@@ -468,6 +479,36 @@ class MaskCommand(Command):
     def seal(self) -> None:
         if not self._sealed:
             self._new_item = self._snapshot_cls(self.item, self.value)
+            self._sealed = True
+
+    def execute(self) -> None:
+        if not self._sealed:
+            return
+        self._new_item.restore()
+
+    def undo(self) -> None:
+        if not self._sealed:
+            self.seal()
+        self._old_item.restore()
+
+    def has_changes(self) -> bool:
+        if not self._sealed:
+            return True
+        return self._old_item.has_change(self._new_item)
+
+
+class EffectStackCommand(Command):
+    """Comando de histórico para mutações de coleção no EffectStack."""
+
+    SNAPSHOT_REGISTRY = ((EffectStack, EffectStackSnapshot),)
+
+    def __init__(self, name: str, item: EffectStack, value: Any = None):
+        super().__init__(name, item, value)
+        self._old_item = _create_snapshot(item, self.SNAPSHOT_REGISTRY)
+
+    def seal(self) -> None:
+        if not self._sealed:
+            self._new_item = _create_snapshot(self.item, self.SNAPSHOT_REGISTRY)
             self._sealed = True
 
     def execute(self) -> None:
