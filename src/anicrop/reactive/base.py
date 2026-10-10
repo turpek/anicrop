@@ -27,6 +27,7 @@ _INTERNAL_PROXY_ATTRS = frozenset({
     "_IGNORED_ATTRIBUTES",
     "_SPECIAL_WRAPPERS",
     "_ACTION_ROUTER",
+    "_CONTEXT_ROUTER",
     "_DEFAULT_COMMAND",
     "_resolve_command",
     "_extract_command_value",
@@ -109,6 +110,63 @@ def build_action_wrapper(
     return method_wrapper
 
 
+def resolve_history_context(
+    history: GlobalHistory, context_type: str, action_name: str
+) -> Any:
+    """Resolve o context manager de histórico correspondente ao tipo declarado no _CONTEXT_ROUTER."""
+    if context_type == "atomic":
+        return history.atomic(action_name)
+    elif context_type in ("merge", "merge_continuous"):
+        return history.merge_continuous()
+    elif context_type == "disabled":
+        return history.disabled()
+    elif context_type in ("group", "group_action"):
+        return history.group_action()
+    raise ValueError(f"Unknown history context type: {context_type}")
+
+
+def build_context_wrapper(
+    proxy: Any,
+    target: Any,
+    history: GlobalHistory,
+    registry: ProxyRegistry,
+    name: str,
+    context_type: str,
+) -> Callable:
+    """Constrói o wrapper para métodos que alteram contexto de histórico via _CONTEXT_ROUTER."""
+
+    def context_method_wrapper(*args: Any, **kwargs: Any) -> Any:
+        clean_args, clean_kwargs = unwrap_call_args(args, kwargs)
+
+        if not history.is_active:
+            raw_func = getattr(target, name)
+            res = raw_func(*clean_args, **clean_kwargs)
+            return (
+                proxy
+                if res is target
+                else wrap_domain_result(res, history, registry)
+            )
+
+        ctx = resolve_history_context(history, context_type, name)
+        target_cls = type(target)
+        unbound_func = getattr(target_cls, name, None)
+
+        with ctx:
+            if unbound_func is not None and callable(unbound_func):
+                res = unbound_func(proxy, *clean_args, **clean_kwargs)
+            else:
+                bound_func = getattr(target, name)
+                res = bound_func(*clean_args, **clean_kwargs)
+
+        return (
+            proxy
+            if res is target
+            else wrap_domain_result(res, history, registry)
+        )
+
+    return context_method_wrapper
+
+
 def resolve_special_wrapper(
     wrapper_cls: Any,
     name: str,
@@ -130,6 +188,7 @@ class BaseHistoryProxy(Generic[TargetT]):
     _IGNORED_ATTRIBUTES: frozenset[str] = frozenset()
     _SPECIAL_WRAPPERS: dict[str, type] = {}
     _ACTION_ROUTER: dict[str, type[Command]] = {}
+    _CONTEXT_ROUTER: dict[str, str] = {}
     _DEFAULT_COMMAND: type[Command] = AdaptiveCommand
 
     def __new__(
@@ -209,6 +268,12 @@ class BaseHistoryProxy(Generic[TargetT]):
                 special_instances[name] = wrapper
             return wrapper
 
+        context_router = object.__getattribute__(self, "_CONTEXT_ROUTER")
+        if name in context_router:
+            return build_context_wrapper(
+                self, target, history, registry, name, context_router[name]
+            )
+
         attr = getattr(target, name)
         action_router = object.__getattribute__(self, "_ACTION_ROUTER")
 
@@ -282,3 +347,27 @@ class BaseHistoryProxy(Generic[TargetT]):
             history.commit()
         else:
             target[item] = clean_val
+
+    def __delitem__(self, item: Any) -> None:
+        target = object.__getattribute__(self, "_target")
+        history = object.__getattribute__(self, "_history")
+        ignored = object.__getattribute__(self, "_IGNORED_ATTRIBUTES")
+
+        if "__delitem__" in ignored or not history.is_active:
+            del target[item]
+            return
+
+        action_router = object.__getattribute__(self, "_ACTION_ROUTER")
+
+        if "__delitem__" in action_router:
+            cmd_cls = self._resolve_command("__delitem__")
+            val_arg = self._extract_command_value(
+                "__delitem__", cmd_cls, target, (item,)
+            )
+            history.start_action(cmd_cls, "__delitem__", self, val_arg)
+
+            with history.disabled():
+                del target[item]
+            history.commit()
+        else:
+            del target[item]

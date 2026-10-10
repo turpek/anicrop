@@ -64,6 +64,9 @@ class GroupProxy(BaseContainerProxy, ProxyLayer):
         **BaseContainerProxy._ACTION_ROUTER,
         **ProxyLayer._ACTION_ROUTER,
     }
+    _CONTEXT_ROUTER: dict[str, str] = {
+        **BaseContainerProxy._CONTEXT_ROUTER,
+    }
     _SPECIAL_WRAPPERS: dict[str, type] = {
         "transform": ProxyComposer,
         "layout": GroupLayoutProxy,
