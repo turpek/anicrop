@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import dis
 from typing import TYPE_CHECKING, Any, Callable, Sequence
-from weakref import WeakKeyDictionary
+from weakref import WeakKeyDictionary, ref
 
 import numpy as np
 
@@ -55,11 +55,11 @@ def get_tracked_attrs(cls: type) -> tuple[str, ...]:
 
 
 def snapshot_effect(effect: Effect) -> tuple[Any, ...]:
-    """Gera uma tupla imutavel com id e valores atuais dos atributos monitorados do efeito."""
+    """Gera uma tupla imutavel com ref e valores atuais dos atributos monitorados do efeito."""
     if isinstance(effect, BoundEffect):
-        mask_val = (id(effect.mask), effect.mask.visible) if effect.mask is not None else None
+        mask_val = (ref(effect.mask), effect.mask.visible) if effect.mask is not None else None
         return (
-            id(effect),
+            ref(effect),
             effect.visible,
             effect.matrix.tobytes(),
             mask_val,
@@ -67,7 +67,7 @@ def snapshot_effect(effect: Effect) -> tuple[Any, ...]:
         )
 
     attrs = get_tracked_attrs(type(effect))
-    values: list[Any] = [id(effect)]
+    values: list[Any] = [ref(effect)]
 
     for name in attrs:
         val = getattr(effect, name, None)
@@ -89,9 +89,9 @@ def _is_dynamic_effect(effect: Effect) -> bool:
     return isinstance(_unwrap_effect(effect), DynamicEffect)
 
 
-def snapshot_edit(edit: EditLayer) -> tuple[int, bool, Any]:
-    """Retorna tupla com (id, visible, blend_mode) do edit para monitoramento no cache."""
-    return (id(edit), edit.visible, edit.blend_mode)
+def snapshot_edit(edit: EditLayer) -> tuple[ref[EditLayer], bool, Any]:
+    """Retorna tupla com (ref, visible, blend_mode) do edit para monitoramento no cache."""
+    return (ref(edit), edit.visible, edit.blend_mode)
 
 
 class LayerFrameState:
@@ -105,7 +105,7 @@ class LayerFrameState:
         self.baked_effects: Image | None = None
         self.background_calls: int = 0
 
-        self.baked_edits_snapshot: tuple[tuple[int, bool, Any], ...] = ()
+        self.baked_edits_snapshot: tuple[tuple[ref[EditLayer], bool, Any], ...] = ()
         self.baked_effects_count: int = 0
         self.effects_visibility: tuple[bool, ...] = ()
         self.baked_effects_snapshot: tuple[tuple[Any, ...], ...] = ()
@@ -286,11 +286,11 @@ class LayerCacheScope:
             if len(layer._edits) < len(status.baked_edits_snapshot):
                 edits_changed = True
             else:
-                for (saved_id, saved_vis, saved_blend), current in zip(
+                for (saved_ref, saved_vis, saved_blend), current in zip(
                     status.baked_edits_snapshot, layer._edits
                 ):
                     if (
-                        id(current) != saved_id
+                        saved_ref() is not current
                         or current.visible != saved_vis
                         or current.blend_mode != saved_blend
                     ):
