@@ -41,6 +41,7 @@ Este documento centraliza todos os objetivos arquiteturais, otimizações e o pr
 - [x] ~~34. Remoção do Método Obsoleto `offset` do `EditLayer`.~~
 - [x] ~~35. Otimizações de Baixa Latência e Zero-Alloc na Invalidação do `LayerCache` (Comparação de Matriz por Bytes e `ListView`).~~
 - [x] ~~36. Container de Efeitos (`EffectStack`), Limpeza da `BaseLayer` e Reatividade Completa no Histórico (`ProxyEffectStack` e `ProxyEffect`).~~
+- [ ] 37. Abstração Genérica de Pilhas Nomeadas (`NamedStack[T]`), Implementação do `EditStack`, Limpeza de `Layer` e Reatividade Completa no Histórico (`ProxyEditStack` e `ProxyEdit`).
 
 ---
 
@@ -961,6 +962,41 @@ A validação de integridade do cache a cada frame é executada em loops interat
   - `ProxyEffectStack` intercepta mutações de coleção via `EffectStackCommand` (com snapshot isolado usando `clear()` e `extend()`).
   - `ProxyEffect` empacota instâncias individuais de `Effect` e `BoundEffect`, roteando alterações escalares de propriedades (`visible`, `strength`, `radius_x`, etc.) para `AdaptiveCommand` com fusão contínua.
   - Registro transparente no `ProxyRegistry` assegura reatividade completa em `doc.stack[0].effects`.
+
+---
+
+## ⏳ 37. Abstração Genérica de Pilhas Nomeadas (`NamedStack[T]`), Implementação do `EditStack`, Limpeza de `Layer` e Reatividade Completa no Histórico (`ProxyEditStack` e `ProxyEdit`)
+
+### 📋 Sub-Tarefas de Execução
+
+- [ ] **37.1. Abstração Pura: `NamedStack[T]`, Refatoração de `EffectStack` e Implementação de `EditStack`**
+  - Implementar a classe base genérica `NamedStack[T]` em `src/anicrop/stack.py` com suporte completo a indexação por `int`, `slice` e `str`, mutações de coleção (`add`, `append`, `extend`, `insert`, `remove`, `pop`, `clear`, `move`, `swap`, `__setitem__`, `__delitem__`) e `__repr__` legível.
+  - Implementar `__repr__` informativo para `Effect`, `BoundEffect`, `EditLayer`, `CropEditLayer`, `EffectStack` e `EditStack`.
+  - Refatorar `EffectStack` em `src/anicrop/effect.py` para herdar de `NamedStack[Effect]`.
+  - Implementar `EditStack` em `src/anicrop/edit_layer.py` herdando de `NamedStack[EditLayer]`, com método de ciclo de vida `close()`.
+  - Atualizar `Layer` em `src/anicrop/layer.py` para utilizar `self._edits: EditStack` e expor canonicamente `@property edits -> EditStack`.
+  - Criar testes unitários em `tests/test_edit_stack.py`.
+- [ ] **37.2. Infraestrutura Reativa: `ProxyNamedStack`, `ProxyEditStack`, `ProxyEdit` e `StackCommand`**
+  - Implementar `StackSnapshot` e `StackCommand` em `src/anicrop/command.py` como comando genérico para mutações de coleção em `NamedStack`.
+  - Implementar `ProxyNamedStack` em `src/anicrop/reactive/stack.py` e refatorar `ProxyEffectStack`.
+  - Implementar `ProxyEdit` e `ProxyEditStack` em `src/anicrop/reactive/edit.py`.
+  - Registrar tipos no `ProxyRegistry` e subclasses virtuais ABC em `src/anicrop/reactive/__init__.py`.
+  - Atualizar `LayerImageSnapshot.restore()` para preservar a instância de `EditStack`.
+  - Criar suíte de testes dedicados em `tests/test_reactive_edit.py`.
+- [ ] **37.3. Documentação, Linters e Finalização**
+  - Atualizar documentação técnica (`docs/layer.md`, `docs/proxy.md`, `docs/history.md`, `GEMINI.md`).
+  - Executar formatação (`ruff`, `autopep8`) e validar que 100% dos testes passam.
+
+### 1. Diagnóstico e Problema Arquitetural
+* **Duplicação Potencial de Lógica de Pilha:** Tanto efeitos quanto edições formam pipelines ordenados identificáveis por nome, com operações idênticas de inserção, deleção, reordenação (`move`, `swap`) e ciclo de vida.
+* **Coleção Legada em `Layer`:** `Layer._edits` permanecia como uma lista crua exposta via `ListView`, forçando a criação via `Layer.add_edit` acoplado na camada e impedindo mutações de coleção (`remove`, `swap`, `move`, `clear`).
+* **Ausência de Reatividade em Edits:** `EditLayer` não possuía proxy no `ProxyRegistry`, deixando de capturar mutações em propriedades como `visible` e `blend_mode` no histórico.
+
+### 2. Diretrizes Técnicas
+* `NamedStack[T]` é a abstração genérica pura e desacoplada em `src/anicrop/stack.py`.
+* `EffectStack` e `EditStack` herdam de `NamedStack`, adicionando apenas seus comportamentos de domínio específicos.
+* O sistema reativo utiliza `StackCommand` e `ProxyNamedStack` unificados, eliminando duplicação de código no histórico.
+
 
 
 
