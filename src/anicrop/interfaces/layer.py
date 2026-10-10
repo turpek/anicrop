@@ -11,6 +11,7 @@ from anicrop.spatial import Point, Region
 if TYPE_CHECKING:
     from anicrop.container import NullContainer
     from anicrop.edit_layer import EditLayer
+    from anicrop.effect import EffectStack
     from anicrop.interfaces.container import AbstractContainer
     from anicrop.interfaces.content import ContentStrategy
 
@@ -87,23 +88,8 @@ class AbstractBaseLayer(ABC):
 
     @property
     @abstractmethod
-    def effects(self) -> tuple[Any, ...]:
+    def effects(self) -> EffectStack:
         """Fila de efeitos de pós-processamento da camada."""
-        pass
-
-    @abstractmethod
-    def add_effect(self, effect: Any) -> Any:
-        """Adiciona um efeito à camada."""
-        pass
-
-    @abstractmethod
-    def remove_effect(self, effect: Any) -> None:
-        """Remove um efeito da camada."""
-        pass
-
-    @abstractmethod
-    def clear_effects(self) -> None:
-        """Remove todos os efeitos da camada."""
         pass
 
     @abstractmethod

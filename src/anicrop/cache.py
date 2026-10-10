@@ -7,7 +7,7 @@ from weakref import WeakKeyDictionary
 import numpy as np
 
 from anicrop.container import BaseLayer, Container, GroupLayer
-from anicrop.effect import BoundEffect, DynamicEffect, Effect
+from anicrop.effect import BoundEffect, DynamicEffect, Effect, EffectStack
 from anicrop.interfaces.cache import AbstractLayerCache
 from anicrop.layer import Layer
 
@@ -116,23 +116,11 @@ class LayerFrameState:
 def wrap_add_effect(
     status: LayerFrameState, original_func: Callable[..., Any]
 ) -> Callable[..., Any]:
-    """Empacota add_effect para registrar novos efeitos na lista de deltas do cache."""
+    """Empacota effects.add para registrar novos efeitos na lista de deltas do cache."""
     def wrapper(*args: Any, **kwargs: Any) -> Any:
         effect = original_func(*args, **kwargs)
         status.effects.append(effect)
         return effect
-
-    return wrapper
-
-
-def wrap_bind_effect(
-    status: LayerFrameState, original_func: Callable[..., Any]
-) -> Callable[..., Any]:
-    """Empacota bind_effect para registrar novos efeitos na lista de deltas do cache."""
-    def wrapper(*args: Any, **kwargs: Any) -> Any:
-        bound = original_func(*args, **kwargs)
-        status.effects.append(bound)
-        return bound
 
     return wrapper
 
@@ -358,15 +346,15 @@ class LayerCacheScope:
 
         # 6. Preparar os efeitos
         if status.baked_effects is not None:
-            layer._effects = [
+            layer._effects = EffectStack([
                 CacheEffect(status, layer, has_dynamic_following=has_dynamic),
                 *dynamic_effects,
-            ]
+            ])
         else:
             if static_effects:
                 status.baked_effects_count = len(static_effects)
                 status.effects_visibility = tuple(e.visible for e in static_effects)
-                layer._effects = [
+                layer._effects = EffectStack([
                     CacheEffect(status, layer, has_dynamic_following=True),
                     *static_effects,
                     CaptureBakedEffectsEffect(
@@ -376,14 +364,14 @@ class LayerCacheScope:
                         has_dynamic_following=has_dynamic,
                     ),
                     *dynamic_effects,
-                ]
+                ])
             elif dynamic_effects:
-                layer._effects = [
+                layer._effects = EffectStack([
                     CacheEffect(status, layer, has_dynamic_following=True),
                     *dynamic_effects,
-                ]
+                ])
             else:
-                layer._effects = [CacheEffect(status, layer)]
+                layer._effects = EffectStack([CacheEffect(status, layer)])
 
     def __exit__(
         self,
@@ -432,8 +420,7 @@ class LayerCache(AbstractLayerCache):
             return
 
         status = LayerFrameState()
-        layer.add_effect = wrap_add_effect(status, layer.add_effect)  # type: ignore[method-assign]
-        layer.bind_effect = wrap_bind_effect(status, layer.bind_effect)  # type: ignore[method-assign]
+        layer.effects.add = wrap_add_effect(status, layer.effects.add)  # type: ignore[method-assign]
         self._states[layer] = status
 
     def unregister(self, item: Layer | Container) -> None:
@@ -450,8 +437,7 @@ class LayerCache(AbstractLayerCache):
         layer = item
         self._states.pop(layer, None)
         layer.__dict__.pop("add_edit", None)
-        layer.__dict__.pop("add_effect", None)
-        layer.__dict__.pop("bind_effect", None)
+        layer.effects.__dict__.pop("add", None)
         layer.__dict__.pop("background", None)
 
     def is_dirty(self, layer: Layer) -> bool:

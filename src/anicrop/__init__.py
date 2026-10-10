@@ -4,7 +4,7 @@ from .cache import LayerCache
 from .config import config
 from .container import GroupLayer
 from .document import Document
-from .effect import DynamicEffect, Effect
+from .effect import BoundEffect, DynamicEffect, Effect, EffectStack
 from .enums import BlendMode, ImageFormat
 from .frame import BaseFrame, CanvasFrame, ViewportFrame
 from .image import Image, get_memory_threshold, set_memory_threshold
@@ -34,6 +34,8 @@ __all__ = [
     "LayerCache",
     "Effect",
     "DynamicEffect",
+    "BoundEffect",
+    "EffectStack",
     "GroupLayer",
     "ScratchBuffer",
     "Image",
