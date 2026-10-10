@@ -697,9 +697,10 @@ A viabilidade de suportar BGR/BGRA nativamente decorre de três pilares da arqui
   - Mapear mutadores omissos no `_ACTION_ROUTER` de `BaseContainerProxy`: `move_relative`, `move_to_front`, `move_to_back`, `swap`, `clear`, `extend`, `__delitem__`.
   - Integrar mutações em lote (`clear`, `extend`) com blocos atômicos (`history.atomic`) para granularidade cirúrgica de Undo/Redo.
   - Incluir método mutante in-place `"copy_from"` em `ProxyComposer._MUTATING_METHODS`.
-- [ ] **30.2. Roteamento de Proxy na Remoção de Camadas Aninhadas em `Document.remove`**
-  - Interceptar remoção de camadas filhas de `GroupLayer`: quando `doc.history_enabled=True`, resolver `layer.parent` como `GroupProxy` via `self._policy.process_layer` antes de invocar `.remove(layer)`.
-  - Garantir que `ReparentCommand` seja registrado na árvore aninhada, assegurando restauração correta no Undo.
+- [x] ~~**30.2. Roteamento de Proxy na Remoção de Camadas Aninhadas em `Document.remove`** (Concluído)~~
+  - Correção da checagem de contêiner sentinela: substituído `if not isinstance(layer.parent, NullContainer)` por `if layer.parent is not _NULL_CONTAINER`.
+  - Remoção por nome (`doc.remove("nome")`) ou por proxy (`doc.remove(proxy)`) propaga naturalmente para `layer.parent` (que já é `GroupProxy`), gravando `ReparentCommand` no histórico.
+  - Remoção por instância de domínio crua (`doc.remove(raw_layer)`) atua diretamente no domínio físico sem poluir o histórico com comandos inválidos.
 - [ ] **30.3. Reatividade e Transações Atômicas no Serviço `Combine`**
   - Integrar `Combine` (`merge`, `flatten`, `bake`, `bake_stack`) com o histórico através de blocos `with doc.history.atomic(action_name):`.
   - Operar sobre proxies reativos de contêiner (`doc.stack` ou `GroupProxy`), registrando a remoção das camadas de origem e inserção do novo nó consolidado em **1 único MacroCommand** (1 único Undo/Redo).
@@ -749,13 +750,16 @@ Embora o motor `anicrop.history` disponha de arquitetura avançada de políticas
 2. **Atualização de `ProxyComposer`:**
    - Adicionar `"copy_from"` ao conjunto `_MUTATING_METHODS` em `src/anicrop/reactive/fluent.py`, garantindo que cópias diretas de transformações emitam o `ComposerCommand` correspondente.
 
-#### 30.2. Roteamento de Proxy na Remoção de Camadas Aninhadas (`Document.remove`)
-1. **Resolução de Proxy para o Pai do Nó:**
-   - Em `Document.remove(layer_or_name)`, se a camada residir na raiz (`layer in self.stack`), o proxy `self.stack` já é invocado.
-   - Se a camada residir dentro de um `GroupLayer` (`layer.parent` não for `NullContainer`):
-     - Quando `self.history_enabled=True`, obter a instância do proxy correspondente a `layer.parent` através da política de histórico (`self._policy.process_layer(layer.parent, self.history)`).
-     - Invocar `parent_proxy.remove(layer)`.
-     - Isso garante que `ReparentCommand` seja emitido pelo `GroupProxy`, tornando a remoção e o restabelecimento da camada no grupo 100% suportados por Undo/Redo.
+#### 30.2. Roteamento de Proxy na Remoção de Camadas Aninhadas (`Document.remove`) (Concluído)
+1. **Correção de Checagem Sentinela de Contêiner:**
+   - Em `Document.remove(layer_or_name)`, a checagem anterior `if not isinstance(layer.parent, NullContainer)` falhava para qualquer nó real de domínio porque `Container` herda de `NullContainer`.
+   - Substituído pelo padrão idiomático do motor: `if layer.parent is not _NULL_CONTAINER:`.
+2. **Separação Limpa de Domínio vs. Reatividade:**
+   - Remoção por nome (`doc.remove("nome")`): `doc.find()` obtém o `ProxyLayer`, cujo `layer.parent` já devolve o `GroupProxy`, disparando o `ReparentCommand` e permitindo Undo/Redo cirúrgico.
+   - Remoção por proxy (`doc.remove(proxy)`): `proxy.parent` já devolve o `GroupProxy`, registrando histórico legitimamente.
+   - Remoção por instância crua (`doc.remove(raw_layer)`): atua estritamente no contêiner físico sem criar comandos fantasmas nem forçar proxies retroativos no histórico.
+3. **Conclusão e Testes:**
+   - Implementado com sucesso em `src/anicrop/document.py` e validado por 6 novos testes em `tests/test_document.py` no commit `ddc80c1`.
 
 #### 30.3. Reatividade e Transações Atômicas no Serviço `Combine`
 1. **Orquestração Atômica de `Combine`:**
