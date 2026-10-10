@@ -305,7 +305,7 @@ class BaseHistoryProxy(Generic[TargetT]):
         ignored = object.__getattribute__(self, "_IGNORED_ATTRIBUTES")
         clean_val = unwrap_target(value)
 
-        if name in ignored or not history.is_active:
+        if name in ignored or not history.is_active or name.startswith("_"):
             setattr(target, name, clean_val)
             return
 
