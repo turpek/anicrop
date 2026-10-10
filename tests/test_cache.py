@@ -39,12 +39,14 @@ def make_img(
 
 
 def test_snapshot_edit_extrai_primitivos_do_edit():
-    """Valida se snapshot_edit extrai id, visibilidade e modo de mesclagem do edit."""
+    """Valida se snapshot_edit extrai weakref, visibilidade e modo de mesclagem do edit."""
     layer = Layer(make_img(10, 10))
     edit = layer.edits[0]
     snap = snapshot_edit(edit)
 
-    assert snap == (id(edit), True, edit.blend_mode)
+    assert snap[0]() is edit
+    assert snap[1] is True
+    assert snap[2] == edit.blend_mode
 
 
 def test_wrap_add_effect_registra_efeito_no_status():
@@ -744,3 +746,26 @@ def test_layer_cache_incremental_edit_fast_path_2_com_distorcao():
     out_cached_f3 = renderer.render_scene([layer_cached], canvas_cached, cache=cache)
     out_clean_f3 = renderer.render_scene([layer_clean], canvas_clean)
     assert np.array_equal(out_cached_f3[...], out_clean_f3[...])
+
+
+def test_layer_cache_invalidates_when_edit_replaced_with_same_metadata():
+    """Valida se substituicao de edit por outro novo com mesmos metadados invalida o baked_warp via weakref."""
+    layer = Layer(make_img(40, 40, (10, 10, 10, 255)))
+    cache = LayerCache()
+    cache.register(layer)
+
+    renderer = CanvasRender()
+    canvas = Canvas(layer.global_region)
+
+    renderer.render_scene([layer], canvas, cache=cache)
+    status = cache.get_state(layer)
+    assert status is not None
+    orig_warp = status.baked_warp
+    assert orig_warp is not None
+
+    novo_edit = EditLayer(make_img(40, 40, (50, 50, 50, 255)), Region.from_size(40, 40), np.eye(3))
+    layer._edits[0] = novo_edit
+
+    out = renderer.render_scene([layer], canvas, cache=cache)
+    assert status.baked_warp is not orig_warp
+    assert np.all(out[...] == [50, 50, 50, 255])
