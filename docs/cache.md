@@ -75,8 +75,20 @@ def is_dirty(self, layer: Layer) -> bool:
     status = self._states[layer]
     if status.baked_warp is None or status.matrix_2x2_bytes is None:
         return True
-    curr_2x2_bytes = layer.matrix[:2, :2].tobytes()
-    return curr_2x2_bytes != status.matrix_2x2_bytes
+    if layer.matrix[:2, :2].tobytes() != status.matrix_2x2_bytes:
+        return True
+    if len(layer._edits) != len(status.baked_edits_snapshot):
+        return True
+    for (saved_ref, saved_vis, saved_blend), current in zip(
+        status.baked_edits_snapshot, layer._edits
+    ):
+        if (
+            saved_ref() is not current
+            or current.visible != saved_vis
+            or current.blend_mode != saved_blend
+        ):
+            return True
+    return False
 ```
 
 ### Resultados de Desempenho:
@@ -133,16 +145,20 @@ Em versões anteriores, o cache acumulava instâncias de `EditLayer` em listas p
 A arquitetura atual utiliza `snapshot_edit`:
 
 ```python
-def snapshot_edit(edit: EditLayer) -> tuple[int, bool, BlendMode]:
-    return (id(edit), edit.visible, edit.blend_mode)
+def snapshot_edit(edit: EditLayer) -> tuple[ref[EditLayer], bool, BlendMode]:
+    return (ref(edit), edit.visible, edit.blend_mode)
 ```
 
 ### Mecânica de Operação:
-1. **Zero Retenção de Imagens:** O snapshot armazena apenas uma tupla de três primitivos `(id, visible, blend_mode)`. Se a camada de edição for descartada, sua memória RAM ou `MMapBuffer` é liberada imediatamente pelo GC.
-2. **Renderização Incremental de Edits:**
-   Quando `baked_warp` está assado com $N$ edits, os edits excedentes ($M > N$) são expostos como fatia limpa (`layer._edits[N:]`) durante o frame do cache e compostos sobre o `baked_warp`.
-3. **Detecção Instantânea de Undo/Redo:**
-   Se a contagem de edits diminuir (`len(layer._edits) < N`), ou se qualquer um dos edits pré-assados tiver seu modo de mesclagem ou visibilidade alterados, o cache detecta a divergência via `zip(status.baked_edits_snapshot, layer._edits)`, invalida o `baked_warp` e recompõe a base do zero.
+1. **Zero Retenção de Imagens & Imunidade a Colisão:** O snapshot armazena apenas uma tupla com referência fraca e dois primitivos `(ref(edit), visible, blend_mode)`. A referência fraca garante que o descarte de um edit e alocação de outro no mesmo endereço de memória CPython (`id()`) nunca gere falsos positivos. Se a camada for descartada, buffers são liberados imediatamente pelo GC.
+2. **Renderização Incremental de Edits & Fast-Path:**
+   Quando `baked_warp` está assado com $N$ edits, os edits excedentes ($M > N$) são expostos como fatia limpa (`layer._edits[N:]`) durante o frame do cache e compostos sobre o `baked_warp`. Em casos de Fast-Path (onde o renderizador não chama `background`), o `CacheEffect` invoca `layer.background(...)` para mesclar o edit transformado sobre a base pré-assada.
+3. **Sincronização Canônica no Ciclo de Vida (`__exit__`):**
+   Ao final do frame, o método `_deactivate_layer` sincroniza `status.baked_edits_snapshot`, impedindo mesclagens repetidas em frames subsequentes.
+4. **Detecção Instantânea de Undo/Redo:**
+   Se a contagem de edits diminuir (`len(layer._edits) < N`), ou se qualquer um dos edits pré-assados tiver sua instância, modo de mesclagem ou visibilidade alterados (`saved_ref() is not current`), o cache detecta a divergência via `zip(status.baked_edits_snapshot, layer._edits)`, invalida o `baked_warp` e recompõe a base do zero.
+5. **Falha Segura no Escopo (`Fail-Safe`):**
+   O `LayerCacheScope.__enter__` é protegido por bloco `try/except`, garantindo que qualquer exceção durante a ativação restaure imediatamente todas as camadas previamente ativadas.
 
 ---
 
