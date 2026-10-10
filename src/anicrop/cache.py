@@ -11,12 +11,12 @@ from anicrop.edit_layer import EditStack
 from anicrop.effect import BoundEffect, DynamicEffect, Effect, EffectStack
 from anicrop.interfaces.cache import AbstractLayerCache
 from anicrop.layer import Layer
+from anicrop.spatial import Region
 
 if TYPE_CHECKING:
     from anicrop.edit_layer import EditLayer
     from anicrop.enums import ImageFormat
     from anicrop.image import Image
-    from anicrop.spatial import Region
 
 _TRACKED_ATTRS_CACHE: WeakKeyDictionary[type, tuple[str, ...]] = WeakKeyDictionary()
 
@@ -162,8 +162,14 @@ class CacheEffect(Effect):
     def apply(self, image: Image, matrix: np.ndarray) -> Image:
         has_mask = self.layer.mask is not None and self.layer.mask.visible
 
-        # 1. Se o status.baked_warp ainda for None (ex: executou via Fast-Path 1/2 sem chamar background):
-        if self.status.baked_warp is None:
+        # 1. Se já temos baked_warp e o renderizador usou Fast-Path (background_calls == 0):
+        if self.status.baked_warp is not None and self.status.background_calls == 0:
+            bg = self.layer.background(image.size, self.layer.format, dtype=image.dtype)
+            self.layer.edits[0].blend_into(
+                bg, image, Region.from_size(*image.size)
+            )
+            image = bg
+        elif self.status.baked_warp is None:
             self.status.baked_warp = image.crop()
             image = self.status.baked_warp
 
@@ -398,6 +404,8 @@ class LayerCacheScope:
         status.matrix = layer.matrix.copy()
         status.matrix_2x2_bytes = layer.matrix[:2, :2].tobytes()
         status.effects.clear()
+        if status.baked_warp is not None:
+            status.baked_edits_snapshot = tuple(snapshot_edit(e) for e in layer._edits)
 
 
 class LayerCache(AbstractLayerCache):

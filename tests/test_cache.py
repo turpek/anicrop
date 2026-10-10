@@ -16,6 +16,7 @@ from anicrop.cache import (
 )
 from anicrop.canvas import Canvas
 from anicrop.container import GroupLayer
+from anicrop.edit_layer import EditLayer
 from anicrop.effect import BoundEffect, DynamicEffect, Effect
 from anicrop.enums import BlendMode, ImageFormat
 from anicrop.filter import BlurFilter
@@ -23,6 +24,7 @@ from anicrop.image import Image
 from anicrop.layer import Layer
 from anicrop.render import CanvasRender
 from anicrop.spatial import Region
+from anicrop.transform import create_pivot_transform_rel, mat_rotation
 
 
 def make_img(
@@ -677,3 +679,68 @@ def test_layer_cache_invalidates_baked_warp_when_edit_instance_replaced():
     layer._edits[0] = replacement_layer.edits[0]
     renderer.render_scene([layer], canvas, cache=cache)
     assert status.baked_warp is not orig_warp
+
+
+def test_layer_cache_incremental_edit_fast_path_1_sem_buffer():
+    """Valida renderizacao incremental de edit que cobre 100% da area sem buffer via fast-path 1."""
+    layer_cached = Layer(make_img(40, 40, (10, 10, 10, 255)))
+    layer_clean = Layer(make_img(40, 40, (10, 10, 10, 255)))
+    cache = LayerCache()
+    cache.register(layer_cached)
+
+    renderer = CanvasRender()
+    canvas_cached = Canvas(layer_cached.global_region)
+    canvas_clean = Canvas(layer_clean.global_region)
+
+    renderer.render_scene([layer_cached], canvas_cached, cache=cache)
+    renderer.render_scene([layer_clean], canvas_clean)
+
+    patch = make_img(40, 40, (200, 50, 50, 128))
+    layer_cached.add_edit(patch, Region.from_size(40, 40), blend_mode=BlendMode.NORMAL)
+    layer_clean.add_edit(patch, Region.from_size(40, 40), blend_mode=BlendMode.NORMAL)
+
+    out_cached_f2 = renderer.render_scene([layer_cached], canvas_cached, cache=cache)
+    out_clean_f2 = renderer.render_scene([layer_clean], canvas_clean)
+
+    status = cache.get_state(layer_cached)
+    assert status is not None
+    assert status.background_calls == 1
+    assert np.array_equal(out_cached_f2[...], out_clean_f2[...])
+
+    out_cached_f3 = renderer.render_scene([layer_cached], canvas_cached, cache=cache)
+    out_clean_f3 = renderer.render_scene([layer_clean], canvas_clean)
+    assert np.array_equal(out_cached_f3[...], out_clean_f3[...])
+
+
+def test_layer_cache_incremental_edit_fast_path_2_com_distorcao():
+    """Valida renderizacao incremental de edit cobrindo 100% da area com distorcao via fast-path 2."""
+    layer_cached = Layer(make_img(40, 40, (10, 10, 10, 255)))
+    layer_clean = Layer(make_img(40, 40, (10, 10, 10, 255)))
+    cache = LayerCache()
+    cache.register(layer_cached)
+
+    renderer = CanvasRender()
+    canvas_cached = Canvas(layer_cached.global_region)
+    canvas_clean = Canvas(layer_clean.global_region)
+
+    renderer.render_scene([layer_cached], canvas_cached, cache=cache)
+    renderer.render_scene([layer_clean], canvas_clean)
+
+    m_rot = create_pivot_transform_rel(mat_rotation(180), 40, 40, 0.5, 0.5)
+    patch = make_img(40, 40, (200, 50, 50, 128))
+    edit_cached = EditLayer(patch, Region.from_size(40, 40), m_rot, blend_mode=BlendMode.NORMAL)
+    edit_clean = EditLayer(patch, Region.from_size(40, 40), m_rot, blend_mode=BlendMode.NORMAL)
+    layer_cached.edits.append(edit_cached)
+    layer_clean.edits.append(edit_clean)
+
+    out_cached_f2 = renderer.render_scene([layer_cached], canvas_cached, cache=cache)
+    out_clean_f2 = renderer.render_scene([layer_clean], canvas_clean)
+
+    status = cache.get_state(layer_cached)
+    assert status is not None
+    assert status.background_calls == 1
+    assert np.array_equal(out_cached_f2[...], out_clean_f2[...])
+
+    out_cached_f3 = renderer.render_scene([layer_cached], canvas_cached, cache=cache)
+    out_clean_f3 = renderer.render_scene([layer_clean], canvas_clean)
+    assert np.array_equal(out_cached_f3[...], out_clean_f3[...])
