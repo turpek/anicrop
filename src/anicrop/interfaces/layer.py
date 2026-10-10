@@ -10,7 +10,7 @@ from anicrop.spatial import Point, Region
 
 if TYPE_CHECKING:
     from anicrop.container import NullContainer
-    from anicrop.edit_layer import EditLayer
+    from anicrop.edit_layer import EditStack
     from anicrop.effect import EffectStack
     from anicrop.interfaces.container import AbstractContainer
     from anicrop.interfaces.content import ContentStrategy
@@ -108,7 +108,7 @@ class AbstractLayer(AbstractBaseLayer):
 
     @property
     @abstractmethod
-    def edits(self) -> tuple[EditLayer, ...]:
+    def edits(self) -> EditStack:
         """Coleção de edições e patches locais da camada."""
         pass
 

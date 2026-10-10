@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import math
+from abc import ABC
 
 import numpy as np
 
@@ -8,13 +9,14 @@ from anicrop.blend import BLEND_MODE, blend_clip
 from anicrop.enums import BlendMode
 from anicrop.image import Image
 from anicrop.spatial import Region
+from anicrop.stack import NamedStack
 from anicrop.transform import (
     mat_position,
     mat_scale,
 )
 
 
-class EditLayer:
+class EditLayer(ABC):
     """Represents a destructive edit applied to a base layer.
 
     Attributes:
@@ -87,6 +89,9 @@ class EditLayer:
         blend = BLEND_MODE[self.blend_mode]
         blend(layer_image.view(dst_region), edit_image)
 
+    def __repr__(self) -> str:
+        return f"{self.__class__.__name__}(name={self.name!r}, visible={self.visible}, blend_mode={self.blend_mode})"
+
     def close(self) -> None:
         """Fecha e libera os recursos do buffer de imagem associado a este EditLayer."""
         self._image.close()
@@ -116,6 +121,9 @@ class CropEditLayer(EditLayer):
             visible=visible,
         )
 
+    def __repr__(self) -> str:
+        return f"CropEditLayer(name={self.name!r}, visible={self.visible})"
+
     def blend_into(
         self, layer_image: Image, edit_image: Image, dst_region: Region
     ) -> None:
@@ -127,3 +135,18 @@ class CropEditLayer(EditLayer):
 EDIT_LAYER_MAP: dict[BlendMode, type[EditLayer]] = {
     BlendMode.CLIP: CropEditLayer,
 }
+
+
+class EditStack(NamedStack[EditLayer]):
+    """Contêiner especializado para a fila sequencial de edições e patches de uma camada."""
+
+    _item_type_name: str = "Edit"
+
+    def _validate_item(self, item: EditLayer) -> None:
+        if not isinstance(item, EditLayer):
+            raise TypeError(f"Expected EditLayer, got {type(item).__name__}")
+
+    def close(self) -> None:
+        """Fecha e libera os buffers de imagem de todas as edições desta pilha."""
+        for edit in self._items:
+            edit.close()
