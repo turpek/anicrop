@@ -13,10 +13,10 @@ from anicrop.container import (
     NodeContainerProtocol,
     NullContainer,
 )
-from anicrop.effect import EffectStack
 from anicrop.geometry import GeometryController
 from anicrop.layer import Layer
 from anicrop.mask import Mask
+from anicrop.stack import NamedStack
 
 
 def _create_snapshot(
@@ -157,17 +157,23 @@ class BaseLayerSnapshot(StateSnapshot):
         )
 
 
-class EffectStackSnapshot(StateSnapshot):
-    def __init__(self, item: EffectStack):
-        self._effects = list(item)
+class StackSnapshot(StateSnapshot):
+    """Snapshot genérico para instâncias de NamedStack (EffectStack, EditStack)."""
+
+    def __init__(self, item: NamedStack):
+        self._items = list(item)
         self._item = item
 
     def restore(self) -> None:
         self._item.clear()
-        self._item.extend(self._effects)
+        self._item.extend(self._items)
 
-    def has_change(self, other: EffectStackSnapshot) -> bool:
-        return self._effects != other._effects
+    def has_change(self, other: StackSnapshot) -> bool:
+        return self._items != other._items
+
+
+EffectStackSnapshot = StackSnapshot
+EditStackSnapshot = StackSnapshot
 
 
 class Command(ABC):
@@ -368,7 +374,8 @@ class LayerImageSnapshot(StateSnapshot):
         self._item = item
 
     def restore(self) -> None:
-        self._item._edits = list(self._edits)
+        self._item._edits.clear()
+        self._item._edits.extend(self._edits)
         self._item._opacity_mask = (
             np.copy(self._opacity_mask) if self._opacity_mask is not None else None
         )
@@ -497,12 +504,12 @@ class MaskCommand(Command):
         return self._old_item.has_change(self._new_item)
 
 
-class EffectStackCommand(Command):
-    """Comando de histórico para mutações de coleção no EffectStack."""
+class StackCommand(Command):
+    """Comando de histórico genérico para mutações de coleção em NamedStack (EffectStack, EditStack)."""
 
-    SNAPSHOT_REGISTRY = ((EffectStack, EffectStackSnapshot),)
+    SNAPSHOT_REGISTRY = ((NamedStack, StackSnapshot),)
 
-    def __init__(self, name: str, item: EffectStack, value: Any = None):
+    def __init__(self, name: str, item: NamedStack, value: Any = None):
         super().__init__(name, item, value)
         self._old_item = _create_snapshot(item, self.SNAPSHOT_REGISTRY)
 
@@ -525,6 +532,10 @@ class EffectStackCommand(Command):
         if not self._sealed:
             return True
         return self._old_item.has_change(self._new_item)
+
+
+EffectStackCommand = StackCommand
+EditStackCommand = StackCommand
 
 
 class MacroCommand(Command):

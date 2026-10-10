@@ -7,6 +7,7 @@ from weakref import WeakKeyDictionary
 import numpy as np
 
 from anicrop.container import BaseLayer, Container, GroupLayer
+from anicrop.edit_layer import EditStack
 from anicrop.effect import BoundEffect, DynamicEffect, Effect, EffectStack
 from anicrop.interfaces.cache import AbstractLayerCache
 from anicrop.layer import Layer
@@ -340,9 +341,9 @@ class LayerCacheScope:
         status.saved_edits = layer._edits
         if status.baked_warp is None:
             status.baked_edits_snapshot = tuple(snapshot_edit(e) for e in layer._edits)
-            layer._edits = list(layer._edits)
+            layer._edits = EditStack(layer._edits)
         else:
-            layer._edits = list(layer._edits)[len(status.baked_edits_snapshot):]
+            layer._edits = EditStack(layer._edits[len(status.baked_edits_snapshot):])
 
         # 6. Preparar os efeitos
         if status.baked_effects is not None:

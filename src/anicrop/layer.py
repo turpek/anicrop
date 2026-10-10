@@ -10,7 +10,7 @@ from anicrop.container import (
     BaseLayer,
 )
 from anicrop.content import LayerContentStrategy
-from anicrop.edit_layer import EDIT_LAYER_MAP, EditLayer
+from anicrop.edit_layer import EDIT_LAYER_MAP, EditLayer, EditStack
 from anicrop.enums import BlendMode, ImageFormat, RenderFlags, WarpMode
 from anicrop.geometry import LayerGeometry
 from anicrop.image import Image
@@ -21,7 +21,7 @@ from anicrop.transform import (
     mat_global,
     mat_inverse,
 )
-from anicrop.type import Id, ListView
+from anicrop.type import Id
 
 
 class Layer(BaseLayer, AbstractLayer):
@@ -38,7 +38,7 @@ class Layer(BaseLayer, AbstractLayer):
             self.parent, LayerGeometry, region, opacity, blend_mode, name, format=format
         )
         self._id = Id()
-        self._edits: list[EditLayer] = []
+        self._edits: EditStack = EditStack()
         self._opacity_mask: Optional[np.ndarray] = None
         self._parent_inverse = np.identity(3, dtype=np.float32)
         self._old_matrix = np.zeros((3, 3))
@@ -194,9 +194,9 @@ class Layer(BaseLayer, AbstractLayer):
         self.control.set_y(value)
 
     @property
-    def edits(self) -> ListView[EditLayer]:
+    def edits(self) -> EditStack:
         """Coleção de edições e patches locais da camada."""
-        return ListView(self._edits)
+        return self._edits
 
     def add_edit(
         self,
@@ -213,13 +213,12 @@ class Layer(BaseLayer, AbstractLayer):
         edit_cls = EDIT_LAYER_MAP.get(blend_mode, EditLayer)
         edit_name = name or blend_mode.default_name
         edit = edit_cls(image, region, matrix, blend_mode, edit_name, visible)
-        self._edits.append(edit)
+        self._edits.add(edit)
         return edit
 
     def close(self) -> None:
         """Fecha e libera os buffers de imagem de todas as edições e máscara desta camada."""
-        for edit in self._edits:
-            edit.close()
+        self._edits.close()
         if self._mask is not None:
             self._mask.image.close()
 

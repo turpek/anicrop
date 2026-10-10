@@ -1,10 +1,11 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from typing import TYPE_CHECKING, Any, Iterator, Sequence
+from typing import TYPE_CHECKING, Any
 
 import numpy as np
 
+from anicrop.stack import NamedStack
 from anicrop.transform import mat_global, mat_inverse
 
 if TYPE_CHECKING:
@@ -19,6 +20,9 @@ class Effect(ABC):
     def __init__(self, visible: bool = True, name: str = "Effect"):
         self.visible = visible
         self.name = name
+
+    def __repr__(self) -> str:
+        return f"{self.__class__.__name__}(name={self.name!r}, visible={self.visible})"
 
     @abstractmethod
     def get_padding(self) -> tuple[int, int, int, int]:
@@ -62,6 +66,9 @@ class BoundEffect(Effect):
         self.effect = effect
         self.matrix = matrix
         self.mask = mask
+
+    def __repr__(self) -> str:
+        return f"BoundEffect({self.effect!r}, visible={self.visible})"
 
     @classmethod
     def from_layer(
@@ -114,138 +121,29 @@ class BoundEffect(Effect):
 MaskedEffect = BoundEffect
 
 
-class EffectStack(ABC):
+class EffectStack(NamedStack[Effect]):
     """Contêiner especializado para o pipeline sequencial de efeitos de pós-processamento."""
 
-    def __init__(self, effects: Sequence[Effect] | None = None) -> None:
-        self._effects: list[Effect] = []
-        if effects is not None:
-            self.extend(effects)
+    _item_type_name: str = "Effect"
 
-    def __len__(self) -> int:
-        return len(self._effects)
+    def _validate_item(self, item: Effect) -> None:
+        if not isinstance(item, Effect):
+            raise TypeError(f"Expected Effect, got {type(item).__name__}")
 
-    def __iter__(self) -> Iterator[Effect]:
-        return iter(self._effects)
-
-    def __reversed__(self) -> Iterator[Effect]:
-        return reversed(self._effects)
-
-    def __contains__(self, item: Any) -> bool:
-        if isinstance(item, str):
-            return any(e.name == item for e in self._effects)
-        return item in self._effects or any(
-            isinstance(e, BoundEffect) and e.effect is item for e in self._effects
+    def _contains_item(self, item: Any) -> bool:
+        return item in self._items or any(
+            isinstance(e, BoundEffect) and e.effect is item for e in self._items
         )
 
-    def __getitem__(self, key: int | slice | str) -> Any:
-        if isinstance(key, (int, slice)):
-            return self._effects[key]
-        if isinstance(key, str):
-            for e in self._effects:
-                if e.name == key:
-                    return e
-            raise KeyError(f"Effect '{key}' not found in EffectStack")
-        raise TypeError(
-            f"EffectStack indices must be integers, slices or strings, not {type(key).__name__}"
+    def _matches_item(self, candidate: Effect, target: Any) -> bool:
+        return candidate is target or (
+            isinstance(candidate, BoundEffect) and candidate.effect is target
         )
-
-    def __delitem__(self, key: int | str) -> None:
-        if isinstance(key, int):
-            del self._effects[key]
-        elif isinstance(key, str):
-            target = self[key]
-            self._effects.remove(target)
-        else:
-            raise TypeError(
-                f"EffectStack indices must be integers or strings, not {type(key).__name__}"
-            )
-
-    def __eq__(self, other: Any) -> bool:
-        if isinstance(other, EffectStack):
-            return self._effects == other._effects
-        if isinstance(other, (list, tuple)):
-            return self._effects == list(other)
-        return False
-
-    def __repr__(self) -> str:
-        return f"EffectStack({self._effects!r})"
-
-    def add(self, effect: Effect) -> Effect:
-        """Adiciona um efeito ao topo do pipeline de pós-processamento."""
-        if not isinstance(effect, Effect):
-            raise TypeError(f"Expected Effect, got {type(effect).__name__}")
-        self._effects.append(effect)
-        return effect
-
-    def extend(self, effects: Sequence[Effect] | EffectStack) -> None:
-        """Adiciona múltiplos efeitos à pilha."""
-        for e in effects:
-            self.add(e)
-
-    def remove(self, effect: Effect | str) -> None:
-        """Remove um efeito da pilha por instância ou por nome."""
-        if isinstance(effect, str):
-            try:
-                target = self[effect]
-            except KeyError as err:
-                raise ValueError(f"Effect '{effect}' not found in EffectStack") from err
-            self._effects.remove(target)
-            return
-
-        for e in self._effects:
-            if e is effect or (isinstance(e, BoundEffect) and e.effect is effect):
-                self._effects.remove(e)
-                return
-        raise ValueError(f"Effect {effect} not found in EffectStack")
-
-    def pop(self, index: int = -1) -> Effect:
-        """Remove e retorna o efeito no índice especificado (padrão: topo)."""
-        return self._effects.pop(index)
-
-    def clear(self) -> None:
-        """Remove todos os efeitos da pilha."""
-        self._effects.clear()
-
-    def insert(self, index: int, effect: Effect) -> Effect:
-        """Insere um efeito em uma posição específica do pipeline."""
-        if not isinstance(effect, Effect):
-            raise TypeError(f"Expected Effect, got {type(effect).__name__}")
-        self._effects.insert(index, effect)
-        return effect
-
-    def move(self, effect: Effect | str, new_index: int) -> None:
-        """Move um efeito para uma nova posição na ordem de execução."""
-        idx = self.index(effect)
-        item = self._effects.pop(idx)
-        self._effects.insert(new_index, item)
-
-    def swap(self, a: Effect | int, b: Effect | int) -> None:
-        """Troca a posição de dois efeitos no pipeline."""
-        idx_a = a if isinstance(a, int) else self.index(a)
-        idx_b = b if isinstance(b, int) else self.index(b)
-        self._effects[idx_a], self._effects[idx_b] = (
-            self._effects[idx_b],
-            self._effects[idx_a],
-        )
-
-    def index(self, effect: Effect | str) -> int:
-        """Retorna o índice de um efeito por instância ou nome."""
-        if isinstance(effect, str):
-            for i, e in enumerate(self._effects):
-                if e.name == effect:
-                    return i
-            raise ValueError(f"Effect '{effect}' not found in EffectStack")
-
-        for i, e in enumerate(self._effects):
-            if e is effect or (isinstance(e, BoundEffect) and e.effect is effect):
-                return i
-        raise ValueError(f"Effect {effect} not found in EffectStack")
 
     def get_padding(self) -> tuple[int, int, int, int]:
         """Calcula a margem agregada máxima (top, right, bottom, left) dos efeitos visíveis."""
         top, right, bottom, left = 0, 0, 0, 0
-        for effect in self._effects:
+        for effect in self._items:
             pt, pr, pb, pl = effect.get_padding()
             top = max(top, pt)
             right = max(right, pr)
