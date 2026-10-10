@@ -466,3 +466,91 @@ def test_document_context_manager():
         assert file_path.exists()
 
     assert not file_path.exists()
+
+
+def test_document_remove_nested_layer_direct_mode():
+    """Valida remoção de camada dentro de grupo no modo direto (history=False) por nome e instância."""
+    doc = Document("TestDoc", 100, 100, history=False)
+    group = doc.add_group("group")
+    l1 = Layer(make_img(), name="l1")
+    l2 = Layer(make_img(), name="l2")
+    group.append(l1)
+    group.append(l2)
+
+    doc.remove("l1")
+    assert len(group) == 1
+    assert l1 not in group
+    assert doc.find("l1") is None
+
+    doc.remove(l2)
+    assert len(group) == 0
+    assert l2 not in group
+    assert doc.find("l2") is None
+
+
+def test_document_remove_nested_layer_by_name_with_history():
+    """Valida remoção de camada aninhada por nome com histórico e restauração cirúrgica via Undo."""
+    doc = Document("TestDoc", 100, 100, history=True)
+    group = doc.add_group("group")
+    group.append(Layer(make_img(), name="child"))
+
+    doc.remove("child")
+    assert len(group) == 0
+    assert doc.find("child") is None
+
+    doc.history.undo()
+    assert len(group) == 1
+    assert group[0].name == "child"
+    assert doc.find("child") is not None
+
+    doc.history.redo()
+    assert len(group) == 0
+    assert doc.find("child") is None
+
+
+def test_document_remove_nested_layer_by_proxy_with_history():
+    """Valida remoção de camada aninhada passando o proxy da camada com histórico e Undo/Redo."""
+    doc = Document("TestDoc", 100, 100, history=True)
+    group = doc.add_group("group")
+    group.append(Layer(make_img(), name="child"))
+    proxy_child = group[0]
+
+    doc.remove(proxy_child)
+    assert len(group) == 0
+    assert doc.find("child") is None
+
+    doc.history.undo()
+    assert len(group) == 1
+    assert group[0].name == "child"
+    assert doc.find("child") is not None
+
+
+def test_document_remove_nested_layer_raw_instance_does_not_pollute_history():
+    """Valida que remover camada aninhada por instância crua não polui o histórico com comandos."""
+    doc = Document("TestDoc", 100, 100, history=True)
+    group = doc.add_group("group")
+    raw_child = Layer(make_img(), name="raw_child")
+    group.append(raw_child)
+    initial_undo_steps = len(doc.history._undo_stack)
+
+    doc.remove(raw_child)
+    assert len(group) == 0
+    assert raw_child not in group
+    assert len(doc.history._undo_stack) == initial_undo_steps
+
+
+def test_document_remove_unattached_layer_raises_value_error():
+    """Valida que remover camada que não pertence a nenhum container levanta ValueError."""
+    doc = Document("TestDoc", 100, 100)
+    unattached = Layer(make_img(), name="floating")
+
+    with pytest.raises(ValueError, match="not found in document hierarchy"):
+        doc.remove(unattached)
+
+
+def test_document_remove_nonexistent_name_raises_key_error():
+    """Valida que remover camada por nome inexistente levanta KeyError."""
+    doc = Document("TestDoc", 100, 100)
+
+    with pytest.raises(KeyError, match="Layer named 'unknown' not found"):
+        doc.remove("unknown")

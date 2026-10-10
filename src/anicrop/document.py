@@ -6,7 +6,13 @@ from typing import TYPE_CHECKING, Any, Iterator, TypeVar, overload
 
 from anicrop.canvas import Canvas
 from anicrop.composition import Combine
-from anicrop.container import BaseLayer, Container, GroupLayer, LayerStack, NullContainer
+from anicrop.container import (
+    _NULL_CONTAINER,
+    BaseLayer,
+    Container,
+    GroupLayer,
+    LayerStack,
+)
 from anicrop.content import Content
 from anicrop.enums import BlendMode, ImageFormat, InterpMode
 from anicrop.history import GlobalHistory
@@ -318,7 +324,7 @@ class Document:
             self.stack.remove(layer)
             return
 
-        if not isinstance(layer.parent, NullContainer):
+        if layer.parent is not _NULL_CONTAINER:
             layer.parent.remove(layer)
         else:
             raise ValueError(f"Layer {layer} not found in document hierarchy.")
