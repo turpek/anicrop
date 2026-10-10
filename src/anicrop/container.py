@@ -88,6 +88,9 @@ class Container(NullContainer, AbstractContainer):
     def __getitem__(self, index: int) -> BaseLayer:
         return self._children[index]
 
+    def __delitem__(self, index: int) -> None:
+        self.pop(index)
+
     def clear(self) -> None:
         while self._children:
             self.remove(self._children[-1])

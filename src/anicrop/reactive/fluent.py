@@ -69,6 +69,8 @@ class BaseFluentProxy:
 class ProxyComposer(BaseFluentProxy):
     """Proxy especialista para transformações afins fluentes (ComposerRel)."""
 
-    _MUTATING_METHODS = frozenset({"rotate", "scale", "translate", "add_transform"})
+    _MUTATING_METHODS = frozenset(
+        {"rotate", "scale", "translate", "add_transform", "copy_from"}
+    )
     _COMMAND_CLASS = BaseLayerCommand
     _COMMAND_NAME = "transform"

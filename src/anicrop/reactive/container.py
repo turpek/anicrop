@@ -20,6 +20,16 @@ class BaseContainerProxy(BaseHistoryProxy[Container]):
         "remove": ReparentCommand,
         "move": ReparentCommand,
         "pop": ReparentCommand,
+        "move_relative": ReparentCommand,
+        "move_to_front": ReparentCommand,
+        "move_to_back": ReparentCommand,
+        "swap": ReparentCommand,
+        "reverse": ReparentCommand,
+        "__delitem__": ReparentCommand,
+    }
+
+    _CONTEXT_ROUTER: dict[str, str] = {
+        "clear": "atomic",
     }
 
     def _extract_command_value(
@@ -27,13 +37,23 @@ class BaseContainerProxy(BaseHistoryProxy[Container]):
     ) -> Any:
         registry = object.__getattribute__(self, "_registry")
         if cmd_cls is ReparentCommand:
-            if name in ("append", "remove", "move"):
+            if name in (
+                "append",
+                "remove",
+                "move",
+                "move_relative",
+                "move_to_front",
+                "move_to_back",
+                "swap",
+            ):
                 return registry.get_or_create(args[0])
             elif name == "insert":
                 return registry.get_or_create(args[1])
-            elif name == "pop":
+            elif name in ("pop", "__delitem__"):
                 idx = args[0] if args else -1
                 return registry.get_or_create(target[idx])
+            elif name == "reverse":
+                return registry.get_or_create(target[0]) if len(target) > 0 else None
         return None
 
     def __iter__(self) -> Iterator[Any]:
