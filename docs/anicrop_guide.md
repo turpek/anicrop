@@ -19,13 +19,14 @@ O `Document` opera sob duas políticas de execução:
 
 ### Principais Métodos e Propriedades de `Document`
 
-#### `__init__(name: str, width: int, height: int, history: bool = False)`
+#### `__init__(name: str, width: int, height: int, history: bool = False, bg_color: tuple[int, ...] | None = None)`
 - **Descrição**: Cria uma nova instância de documento configurando o `Canvas` com as dimensões especificadas (`width` x `height`) e inicializando a pilha de camadas (`stack`) e o histórico (`history`) de acordo com o parâmetro `history`.
 - **Parâmetros**:
   - `name` (`str`): Nome identificador do documento.
   - `width` (`int`): Largura em pixels do Canvas.
   - `height` (`int`): Altura em pixels do Canvas.
   - `history` (`bool`): Se `True`, ativa o encapsulamento reativo via Proxies com suporte a Undo/Redo (padrão: `False`).
+  - `bg_color` (`tuple[int, ...] | None`): Cor de fundo opcional do Canvas (padrão: transparente `(0, 0, 0, 0)`).
 - **Retorno**: Instância de `Document`.
 
 #### `open(path: str | Path, name: str, opacity: float = 1.0, blend_mode: BlendMode = BlendMode.NORMAL, history: bool = False, format: ImageFormat = ImageFormat.RGBA, bg_color: tuple[int, ...] | None = None, backend: AbstractImageIO | str | None = None) -> Document` *(Class Method)*

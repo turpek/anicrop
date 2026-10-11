@@ -90,8 +90,9 @@ A classe `Viewport` representa o retângulo da janela de exibição (ex: um pain
 ```python
 from anicrop import Document, Viewport
 
-# 1. Carrega o documento
+# 1. Carrega o documento e as camadas
 doc = Document.open("cena.png", name="Cena")
+doc.load_layer("personagem.png", name="personagem")
 
 # 2. Inicializa a Viewport vinculada ao Canvas do Documento
 viewport = Viewport(size=(800, 600), canvas=doc.canvas)
