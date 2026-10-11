@@ -1,0 +1,6 @@
+include src/anicrop/native/*.pyx
+include src/anicrop/native/*.c
+include src/anicrop/py.typed
+include README.md
+include LICENSE
+include pyproject.toml

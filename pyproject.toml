@@ -61,11 +61,15 @@ in_place = true
 recursive = true
 
 [tool.cibuildwheel]
-test-command = "python -c \"import anicrop; assert anicrop.native_available, 'Extensoes nativas nao encontradas!'; print('anicrop instalado com sucesso e nativo ativo!')\""
+test-command = "python -c \"from anicrop.native.blend import blend_multiply; from anicrop.native.color import rgba_to_prgba; print('Extensoes C carregadas com sucesso!')\""
 environment = { ANICROP_REQUIRE_NATIVE = "1" }
 build = "cp312-* cp313-*"
 skip = "*musllinux*"
 
+[tool.cibuildwheel.linux]
+before-all = "yum install -y mesa-libGL || apt-get update && apt-get install -y libgl1 || true"
+
 [tool.cibuildwheel.macos]
 environment = { ANICROP_REQUIRE_NATIVE = "1" }
+
 
