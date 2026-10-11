@@ -20,6 +20,7 @@ Implementação do modo de mesclagem W3C Porter-Duff Multiply acelerado com para
 * **Aritmética Inteira de Ponto Fixo Q8 (Zero `float` / Zero `roundf`):** Eliminação de mais de 6 milhões de conversões de ponto flutuante por frame Full HD. Divisões por 255 com arredondamento exato via `div255_round` compiladas pelo GCC em constantes mágicas recíprocas (`imulq` + `shrq`) de 1 ciclo.
 * **Tabela Estática Recíproca Q48 (`RCP_DENOM_Q48`):** Eliminação de 100% das instruções de divisão inteira (`idiv`) por canal de cor através de uma tabela de 2 KB residente na Cache L1 da CPU.
 * **Atalho para Fundo Opaco ($\alpha_{\text{base}} = 255$):** Simplificação algébrica direta para duas multiplicações inteiras sem divisão.
+* **Proteção contra Overflow em Alfas Baixos:** Inclusão de `clamp_u8` nas rotas com alfa duplo e na rota geral, garantindo que aproximações em denominadores pequenos com cores claras nunca estourem para zero (branco preservado).
 
 ### Métricas Oficiais de Benchmark:
 | Cenário | anicrop (NumPy) | anicrop (v0.8.0 C) | Baseline Pillow | Baseline OpenCV | Speedup |
@@ -32,7 +33,17 @@ Implementação do modo de mesclagem W3C Porter-Duff Multiply acelerado com para
 
 ---
 
-## 2. Pilhas Canônicas de Camadas (`NamedStack`, `EffectStack`, `EditStack`)
+## 2. Compilação Portátil, Distribuição e CI
+
+* **Build Portátil & Seguro:** A compilação padrão utiliza `-O3 -fopenmp` genérico, eliminando flags que geravam instruções específicas de hardware (`-march=native`) ou relaxamento aritmético (`-ffast-math`). Builds locais podem ativar otimização extrema via `ANICROP_NATIVE=1`.
+* **Fail-Fast de Extensões Nativas:** Suporte à variável `ANICROP_REQUIRE_NATIVE=1` para falhar imediatamente a compilação no CI ou na geração de pacotes caso o compilador/Cython não estejam presentes.
+* **Inspeção de Runtime:** Exposição do atributo público `anicrop.native_available` para verificar programmaticamente se os módulos C estão em execução ou em fallback puro NumPy.
+* **GitHub Actions & cibuildwheel:** Novo workflow de CI em `.github/workflows/ci.yml` cobrindo matriz de versões (Python 3.12 e 3.13) e modos (Nativo C vs Puro NumPy), além de preparação para publicação de wheels binários via `cibuildwheel`.
+* **Licenciamento Oficial:** Inclusão formal da licença **MIT** no repositório e conformidade de metadados no `pyproject.toml`.
+
+---
+
+## 3. Pilhas Canônicas de Camadas (`NamedStack`, `EffectStack`, `EditStack`)
 
 * **Coleção Abstrata `NamedStack[T]`:** Container ordenado e fortemente tipado que suporta acesso por índice numérico, fatiamento (`slice`) e busca por nome da camada/efeito (`stack["Nome"]`).
 * **`EffectStack`:** Substitui coleções avulsas de efeitos em `BaseLayer.effects`, oferecendo cálculo agregado de margem para filtros (`get_padding()`).
@@ -42,7 +53,7 @@ Implementação do modo de mesclagem W3C Porter-Duff Multiply acelerado com para
 
 ---
 
-## 3. Sistema de Cache Incremental & Protocolo `Cacheable`
+## 4. Sistema de Cache Incremental & Protocolo `Cacheable`
 
 * **Protocolo Declarativo `Cacheable`:** Eliminação definitiva de inspeção de bytecode Python (`dis`) e descontinuação da classe `DynamicEffect`. Efeitos agora declaram estaticamente se são cacheados através do protocolo.
 * **Isolamento de Snapshots com `weakref.ref`:** Prevenção de colisões de `id()` e retenção de memória em snapshots incrementais de histórico e cache.
@@ -50,13 +61,15 @@ Implementação do modo de mesclagem W3C Porter-Duff Multiply acelerado com para
 
 ---
 
-## 4. Blindagem do Sistema Reativo e Exportações Públicas
+## 5. Blindagem do Sistema Reativo e Geometria
 
 * **Proteção de Atributos Privados:** O proxy reativo de domínio agora ignora interceptação em atributos internos (`_parent`, `_cache`, `_parent_inverse`), prevenindo criação espúria de comandos no histórico.
 * **Novas Exportações Públicas em `anicrop`:**
   - `Canvas` e `CanvasRender`
   - `ViewportRender`
-  - `Point` com suporte a hashing (`Point.__hash__`) para uso seguro em dicionários e conjuntos.
+  - `native_available`
+* **Contrato de Geometria e `Point`:**
+  - `Point` adota igualdade aproximada via `math.isclose` e é explicitamente não-hashável (`__hash__ = None`) em conformidade com o modelo de dados do Python para relações de equivalência não-transitivas.
 * **I/O e Máscaras:**
   - Implementação de `Mask.__eq__` para comparação semântica.
   - Repasse correto de parâmetros `shrink` e `roi` em chamadas `read_large` de backends de imagem.
@@ -65,5 +78,6 @@ Implementação do modo de mesclagem W3C Porter-Duff Multiply acelerado com para
 
 ## Verificação e Qualidade
 
-* **Suíte de Testes:** 1.404 testes passando (`100% verde`).
+* **Suíte de Testes:** 1.407 testes passando (`100% verde`).
 * **Formatadores / Linter:** 100% de conformidade com `ruff check` e `autopep8`.
+
