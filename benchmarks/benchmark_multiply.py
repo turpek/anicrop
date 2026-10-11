@@ -156,7 +156,7 @@ def run_scenario(
         mean_cy, min_cy, max_cy = measure_kernel(run_cy, warmup=warmup, iterations=iterations)
         fps_cy = 1000.0 / mean_cy if mean_cy > 0 else 0.0
         th_cy = (total_pixels / 1_000_000.0) / (mean_cy / 1000.0) if mean_cy > 0 else 0.0
-        speedup_cy = f"{mean_np / mean_cy:.1f}x mais rápido"
+        speedup_cy = f"{mean_np / mean_cy:.1f}x (C)"
 
         # Validação numérica de integridade
         res_np = run_numpy()
