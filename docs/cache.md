@@ -40,7 +40,7 @@ O sistema atinge até **$10.5\times$ de aceleração** (elevando taxas de ~12 FP
                   │   - baked_warp: Image | None (warp afim 2x2)           │
                   │   - baked_effects: Image | None (filtros estáticos)    │
                   │   - matrix_2x2_bytes: bytes | None (memcmp O(1))       │
-                  │   - baked_effects_snapshot: tuple (bytecode apply)     │
+                  │   - baked_effects_snapshot: tuple (Cacheable snapshot) │
                   │   - baked_edits_snapshot: tuple[tuple[int, bool, BM]]  │
                   └────────────────────────────────────────────────────────┘
 ```
@@ -181,13 +181,13 @@ Para garantir que o motor possa ser utilizado em processos de longa duração se
 
 ---
 
-## 6. Acesso de Baixa Latência com `ListView[T]`
+## 6. Acesso Seguro e Reativo com Pilhas Especializadas (`NamedStack[T]`)
 
-Para eliminar a alocação contínua de tuplas descartáveis a cada frame (`return tuple(self._edits)`):
+Para garantir gerenciamento atômico e rastreabilidade total de modificações:
 
-- A coleção interna de edições (`Layer._edits`) foi migrada para `list` pura em Python, otimizando fatiamentos rápidos e indexação direta.
-- A propriedade pública `layer.edits` retorna uma instância de `ListView[T]` (`anicrop.type.ListView`).
-- Trata-se de uma view imutável baseada em `__slots__ = ("_data",)` que implementa `Sequence[T]` (suportando `len()`, iteração, indexação por inteiro e por slice) com tempo de criação de **~30 ns** e **zero cópia de memória**.
+- As coleções internas de edições (`Layer._edits`) e de efeitos (`BaseLayer._effects`) são encapsuladas respectivamente por `EditStack` e `EffectStack` (subclasses de `NamedStack[T]`).
+- A propriedade pública `layer.edits` expõe canonicamente `EditStack`, e `layer.effects` expõe canonicamente `EffectStack`.
+- O contêiner provê acesso de alta performance sem alocações supérfluas a cada frame, com suporte nativo a indexação por índice (`int`), nome (`str`) e fatiamento (`slice`), além de integração total com o sistema de proxies reativos (`ProxyNamedStack`).
 
 ---
 
@@ -261,7 +261,7 @@ from anicrop.filter import BlurFilter
 # 1. Cria a camada e o cache
 layer = Layer(Image.open("personagem.png"))
 blur = BlurFilter(radius=3.0)
-layer.add_effect(blur)
+layer.effects.add(blur)
 
 cache = LayerCache()
 cache.register(layer)
@@ -280,7 +280,7 @@ assert not cache.is_dirty(layer)  # Submatriz 2x2 idêntica (memcmp O(1))
 # Frame 2 renderiza instantaneamente reutilizando baked_warp sem reamostragem
 renderer.render_scene([layer], canvas, cache=cache)
 
-# Frame 3: Mutação de parâmetro de efeito (detectada via bytecode de apply)
+# Frame 3: Mutação de parâmetro de efeito (detectada via protocolo Cacheable)
 blur.radius = 8.0
 # baked_warp é preservado; apenas baked_effects é re-assado no render
 renderer.render_scene([layer], canvas, cache=cache)
@@ -294,7 +294,7 @@ renderer.render_scene([layer], canvas, cache=cache)
 
 ---
 
-## 8. Compatibilidade com Proxies e Sistema de Histórico
+## 11. Compatibilidade com Proxies e Sistema de Histórico
 
 Quando a cena é orquestrada através do `Document(history=True)` ou instâncias de proxies reativos (`ProxyLayer`, `LayerStackProxy`):
 - O `LayerCache` desempacota automaticamente as camadas e contêineres recebidos via `getattr(item, "_target", item)`.

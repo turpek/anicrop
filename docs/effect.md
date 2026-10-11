@@ -236,7 +236,7 @@ class BrightnessContrastEffect(Effect):
 
 # Uso na camada:
 effect = BrightnessContrastEffect(brightness=20.0, contrast=1.2)
-layer.add_effect(effect)
+layer.effects.add(effect)
 ```
 
 ---
