@@ -66,10 +66,5 @@ environment = { ANICROP_REQUIRE_NATIVE = "1" }
 build = "cp312-* cp313-*"
 skip = "*musllinux*"
 
-[tool.cibuildwheel.linux]
-before-all = "yum install -y mesa-libGL || apt-get update && apt-get install -y libgl1 || true"
-
-[tool.cibuildwheel.macos]
-environment = { ANICROP_REQUIRE_NATIVE = "1" }
 
 
