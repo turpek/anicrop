@@ -30,6 +30,12 @@ class Mask(EditLayer, Effect):
         )
         self.invert = invert
 
+    def cache_state(self) -> dict[str, Any]:
+        """Retorna estado observável para cache incremental."""
+        state = super().cache_state()
+        state["invert"] = self.invert
+        return state
+
     def __getitem__(self, item: Any) -> np.ndarray:
         """Acesso direto à fatia do buffer de imagem da máscara."""
         return self._image[item]

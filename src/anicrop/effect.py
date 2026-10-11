@@ -2,9 +2,11 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 from typing import TYPE_CHECKING, Any
+from weakref import ref
 
 import numpy as np
 
+from anicrop.interfaces.cache import Cacheable
 from anicrop.stack import NamedStack
 from anicrop.transform import mat_global, mat_inverse
 
@@ -40,17 +42,6 @@ class Effect(ABC):
         pass
 
 
-class DynamicEffect(Effect):
-    """Classe base abstrata para efeitos dinâmicos/relacionais cujo resultado não deve ser cacheado."""
-
-    def __init__(self, visible: bool = True, name: str = "DynamicEffect"):
-        super().__init__(visible=visible, name=name)
-
-    def merge(self, other: Effect, matrix: np.ndarray) -> Effect | None:
-        """Efeitos dinâmicos por padrão não são combinados estaticamente."""
-        return None
-
-
 class BoundEffect(Effect):
     """Envelope explícito que ancora um Effect à geometria da camada e opcionalmente modula por máscara."""
 
@@ -82,6 +73,27 @@ class BoundEffect(Effect):
         """Cria e ancora um BoundEffect à matriz inversa global da camada."""
         inv_matrix = mat_inverse(mat_global(layer))
         return cls(effect, matrix=inv_matrix, mask=mask, visible=visible, name=name)
+
+    def cache_state(self) -> dict[str, Any]:
+        """Retorna estado observável para cache incremental."""
+        effect_state = (
+            self.effect.cache_state()
+            if isinstance(self.effect, Cacheable)
+            else None
+        )
+        mask_state = (
+            self.mask.cache_state()
+            if (self.mask is not None and isinstance(self.mask, Cacheable))
+            else None
+        )
+        return {
+            "visible": self.visible,
+            "matrix": self.matrix.tobytes(),
+            "effect_ref": ref(self.effect),
+            "effect": effect_state,
+            "mask_ref": ref(self.mask) if self.mask is not None else None,
+            "mask": mask_state,
+        }
 
     def get_padding(self) -> tuple[int, int, int, int]:
         """Retorna o padding do efeito interno se visível."""

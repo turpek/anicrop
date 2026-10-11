@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import math
+from typing import Any
 
 import cv2
 import numpy as np
@@ -35,6 +36,18 @@ class BlurFilter(Effect):
         self.mode = mode
         self.affect_alpha = affect_alpha
         self.strength = float(np.clip(strength, 0.0, 1.0))
+
+    def cache_state(self) -> dict[str, Any]:
+        """Retorna estado observável para cache incremental."""
+        return {
+            "visible": self.visible,
+            "radius_x": self.radius_x,
+            "radius_y": self.radius_y,
+            "angle": self.angle,
+            "mode": self.mode,
+            "affect_alpha": self.affect_alpha,
+            "strength": self.strength,
+        }
 
     def get_padding(self) -> tuple[int, int, int, int]:
         """Calcula a margem de expansão (top, right, bottom, left) necessária para o desfoque."""

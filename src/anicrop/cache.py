@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import dis
 from typing import TYPE_CHECKING, Any, Callable, Sequence
 from weakref import WeakKeyDictionary, ref
 
@@ -8,8 +7,8 @@ import numpy as np
 
 from anicrop.container import BaseLayer, Container, GroupLayer
 from anicrop.edit_layer import EditStack
-from anicrop.effect import BoundEffect, DynamicEffect, Effect, EffectStack
-from anicrop.interfaces.cache import AbstractLayerCache
+from anicrop.effect import BoundEffect, Effect, EffectStack
+from anicrop.interfaces.cache import AbstractLayerCache, Cacheable
 from anicrop.layer import Layer
 from anicrop.spatial import Region
 
@@ -18,80 +17,29 @@ if TYPE_CHECKING:
     from anicrop.enums import ImageFormat
     from anicrop.image import Image
 
-_TRACKED_ATTRS_CACHE: WeakKeyDictionary[type, tuple[str, ...]] = WeakKeyDictionary()
+
+def is_cacheable_effect(effect: Effect) -> bool:
+    """Verifica se o efeito é estático e elegível para cache."""
+    target = effect
+    while isinstance(target, BoundEffect):
+        target = target.effect
+    return isinstance(target, Cacheable)
 
 
-def get_tracked_attrs(cls: type) -> tuple[str, ...]:
-    """Retorna a tupla ordenada de atributos de self acessados diretamente em cls.apply."""
-    if cls in _TRACKED_ATTRS_CACHE:
-        return _TRACKED_ATTRS_CACHE[cls]
-
-    attrs: set[str] = set()
-    apply_fn = getattr(cls, "apply", None)
-
-    if apply_fn is not None:
-        while hasattr(apply_fn, "__wrapped__"):
-            apply_fn = apply_fn.__wrapped__
-        try:
-            instructions = list(dis.get_instructions(apply_fn))
-        except (TypeError, ValueError):
-            instructions = []
-
-        for i, inst in enumerate(instructions):
-            if inst.opname == "LOAD_FAST" and inst.argval == "self":
-                j = i + 1
-                while j < len(instructions) and instructions[j].opname == "CACHE":
-                    j += 1
-                if j < len(instructions) and instructions[j].opname.startswith("LOAD_ATTR"):
-                    name = str(instructions[j].argval)
-                    if not (name.startswith("__") and name.endswith("__")):
-                        if not callable(getattr(cls, name, None)):
-                            attrs.add(name)
-
-    attrs.add("visible")
-    result = tuple(sorted(attrs))
-    _TRACKED_ATTRS_CACHE[cls] = result
-    return result
+def snapshot_effect(effect: Effect) -> tuple[ref[Effect], dict[str, Any]]:
+    """Gera uma tupla imutável com weakref e dicionário de estado observável do efeito."""
+    state = effect.cache_state() if isinstance(effect, Cacheable) else {}
+    return (ref(effect), state)
 
 
-def snapshot_effect(effect: Effect) -> tuple[Any, ...]:
-    """Gera uma tupla imutavel com ref e valores atuais dos atributos monitorados do efeito."""
-    if isinstance(effect, BoundEffect):
-        mask_val = (ref(effect.mask), effect.mask.visible) if effect.mask is not None else None
-        return (
-            ref(effect),
-            effect.visible,
-            effect.matrix.tobytes(),
-            mask_val,
-            snapshot_effect(effect.effect),
-        )
-
-    attrs = get_tracked_attrs(type(effect))
-    values: list[Any] = [ref(effect)]
-
-    for name in attrs:
-        val = getattr(effect, name, None)
-        if isinstance(val, np.ndarray):
-            values.append(val.tobytes())
-        else:
-            values.append(val)
-
-    return tuple(values)
-
-
-def _unwrap_effect(effect: Effect) -> Effect:
-    """Desembrulha o efeito se ele estiver encapsulado por um BoundEffect."""
-    return effect.effect if isinstance(effect, BoundEffect) else effect
-
-
-def _is_dynamic_effect(effect: Effect) -> bool:
-    """Verifica se o efeito é uma instância de DynamicEffect."""
-    return isinstance(_unwrap_effect(effect), DynamicEffect)
-
-
-def snapshot_edit(edit: EditLayer) -> tuple[ref[EditLayer], bool, Any]:
-    """Retorna tupla com (ref, visible, blend_mode) do edit para monitoramento no cache."""
-    return (ref(edit), edit.visible, edit.blend_mode)
+def snapshot_edit(edit: EditLayer) -> tuple[ref[EditLayer], dict[str, Any]]:
+    """Retorna tupla com weakref e dicionário de estado observável da edição."""
+    state = (
+        edit.cache_state()
+        if isinstance(edit, Cacheable)
+        else {"visible": edit.visible, "blend_mode": edit.blend_mode}
+    )
+    return (ref(edit), state)
 
 
 class LayerFrameState:
@@ -104,10 +52,10 @@ class LayerFrameState:
         self.baked_effects: Image | None = None
         self.background_calls: int = 0
 
-        self.baked_edits_snapshot: tuple[tuple[ref[EditLayer], bool, Any], ...] = ()
+        self.baked_edits_snapshot: tuple[tuple[ref[EditLayer], dict[str, Any]], ...] = ()
         self.baked_effects_count: int = 0
         self.effects_visibility: tuple[bool, ...] = ()
-        self.baked_effects_snapshot: tuple[tuple[Any, ...], ...] = ()
+        self.baked_effects_snapshot: tuple[tuple[ref[Effect], dict[str, Any]], ...] = ()
 
         self.saved_edits: list[EditLayer] | None = None
         self.saved_effects: list[Effect] | None = None
@@ -277,14 +225,15 @@ class LayerCacheScope:
             if len(layer._edits) < len(status.baked_edits_snapshot):
                 edits_changed = True
             else:
-                for (saved_ref, saved_vis, saved_blend), current in zip(
+                for (saved_ref, saved_state), current in zip(
                     status.baked_edits_snapshot, layer._edits
                 ):
-                    if (
-                        saved_ref() is not current
-                        or current.visible != saved_vis
-                        or current.blend_mode != saved_blend
-                    ):
+                    curr_state = (
+                        current.cache_state()
+                        if isinstance(current, Cacheable)
+                        else {"visible": current.visible, "blend_mode": current.blend_mode}
+                    )
+                    if saved_ref() is not current or saved_state != curr_state:
                         edits_changed = True
                         break
 
@@ -294,7 +243,7 @@ class LayerCacheScope:
 
         first_dynamic_idx = -1
         for i, eff in enumerate(visible_user_effects):
-            if _is_dynamic_effect(eff):
+            if not is_cacheable_effect(eff):
                 first_dynamic_idx = i
                 break
 
@@ -451,14 +400,25 @@ class LayerCache(AbstractLayerCache):
             return True
         if len(target._edits) != len(status.baked_edits_snapshot):
             return True
-        for (saved_ref, saved_vis, saved_blend), current in zip(
+        for (saved_ref, saved_state), current in zip(
             status.baked_edits_snapshot, target._edits
         ):
-            if (
-                saved_ref() is not current
-                or current.visible != saved_vis
-                or current.blend_mode != saved_blend
-            ):
+            curr_state = (
+                current.cache_state()
+                if isinstance(current, Cacheable)
+                else {"visible": current.visible, "blend_mode": current.blend_mode}
+            )
+            if saved_ref() is not current or saved_state != curr_state:
+                return True
+        if status.baked_effects is not None:
+            visible_user_effects = [e for e in target._effects if e.visible]
+            static_effects = []
+            for eff in visible_user_effects:
+                if not is_cacheable_effect(eff):
+                    break
+                static_effects.append(eff)
+            current_static_snapshot = tuple(snapshot_effect(e) for e in static_effects)
+            if current_static_snapshot != status.baked_effects_snapshot:
                 return True
         return False
 

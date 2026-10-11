@@ -17,7 +17,7 @@ Projetado com rigor matemático e precisão geométrica, o motor utiliza uma ár
 - ⚡ **I/O Modular:** Decodificação e subamostragem direta (*shrink-on-load*) nativa em C/SIMD via `PyvipsBackend` com fallback transparente para `OpenCVBackend`.
 - 💾 **Backend Híbrido & LOD:** Chaveamento transparente de buffers para memória virtual em disco (`np.memmap` / `MMapBuffer`) em imagens de altíssima resolução com pirâmide de nível de detalhe (*Level of Detail*).
 - 🎭 **Máscaras e Filtros Anisotrópicos:** Efeitos ancorados à matriz da camada (`BoundEffect`), filtros Gaussianos com fusão de tensores de covariância 2D (`BlurFilter`) e máscaras atômicas.
-- ⚡ **Cache Incremental & DynamicEffect:** Otimização para renderização contínua e interativa via `LayerCache`. Reutilização afim de buffers pré-assados (`baked_warp`) em translações puras, particionamento de efeitos estáticos vs dinâmicos (`DynamicEffect`) e ativação contextual segura por `effective_region` em patches.
+- ⚡ **Cache Incremental & Protocolo Cacheable:** Otimização para renderização contínua e interativa via `LayerCache`. Reutilização afim de buffers pré-assados (`baked_warp`) em translações puras, particionamento declarativo via protocolo `Cacheable` (com execução incremental de efeitos dinâmicos a cada frame) e ativação contextual segura por `effective_region` em patches.
 - 🔄 **Organização Fluida da Pilha:** Métodos declarativos no contêiner (`move_relative`, `move_to_front`, `move_to_back`, `swap`, `reverse`).
 - 👁️ **Pipeline de Renderização & Visualizador:** `CanvasRender` para exportações em alta resolução, `ViewportRender` para previews interativos e visualizador OpenCV `Viewer`.
 
@@ -142,7 +142,7 @@ Orquestra a fusão, agrupamento e rasterização na árvore de camadas:
 Otimiza renderizações sequenciais contínuas (ex: animações, streaming ou nós reativos do Anifuse):
 - **Registro Não-Invasivo:** `cache = LayerCache(); cache.register(layer)` conecta a camada ao sistema reativo de deltas.
 - **Invalidação $2\times2$ Inteligente:** Modificações de rotação, escala e cisalhamento na submatriz linear afim (`matrix[:2, :2]`) invalidam o warp; translações puras (`matrix[:2, 2]`) preservam o `baked_warp` intacto e reutilizam o buffer diretamente ($O(1)$).
-- **Particionamento de Efeitos Dinâmicos (`DynamicEffect`):** Filtros estáticos são pré-assados em `baked_effects`; efeitos derivados de `DynamicEffect` continuam sendo computados a cada frame sobre o buffer em cache.
+- **Particionamento Declarativo (`Cacheable`):** Efeitos que implementam o protocolo `Cacheable` (`cache_state()`) têm seus parâmetros monitorados e são pré-assados em `baked_effects`; efeitos dinâmicos sem o protocolo continuam sendo computados a cada frame sobre o buffer em cache.
 - **Isolamento em `render_patch`:** Camadas cujo enquadramento é parcialmente cortado pela `effective_region` têm a ativação de cache ignorada e renderizam sob demanda, impedindo contaminação ou descarte do cache global.
 
 ---

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import math
 from abc import ABC
+from typing import Any
 
 import numpy as np
 
@@ -91,6 +92,13 @@ class EditLayer(ABC):
 
     def __repr__(self) -> str:
         return f"{self.__class__.__name__}(name={self.name!r}, visible={self.visible}, blend_mode={self.blend_mode})"
+
+    def cache_state(self) -> dict[str, Any]:
+        """Retorna estado observável para cache incremental."""
+        return {
+            "visible": self.visible,
+            "blend_mode": self.blend_mode,
+        }
 
     def close(self) -> None:
         """Fecha e libera os recursos do buffer de imagem associado a este EditLayer."""
