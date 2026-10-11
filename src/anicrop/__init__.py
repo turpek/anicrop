@@ -1,6 +1,7 @@
 from importlib.metadata import PackageNotFoundError, version
 
 from .cache import LayerCache
+from .canvas import Canvas
 from .config import config
 from .container import GroupLayer
 from .document import Document
@@ -11,9 +12,9 @@ from .frame import BaseFrame, CanvasFrame, ViewportFrame
 from .image import Image, get_memory_threshold, set_memory_threshold
 from .interfaces.cache import Cacheable
 from .layer import Layer
-from .render import transform_image
+from .render import CanvasRender, ViewportRender, transform_image
 from .scratch import ScratchBuffer
-from .spatial import Region, Span
+from .spatial import Point, Region, Span
 from .stack import NamedStack
 from .viewer import Viewer
 from .viewport import Viewport
@@ -29,8 +30,12 @@ __all__ = [
     "config",
     "Document",
     "Viewport",
+    "ViewportRender",
+    "Canvas",
+    "CanvasRender",
     "BlendMode",
     "ImageFormat",
+    "Point",
     "Region",
     "Span",
     "Layer",

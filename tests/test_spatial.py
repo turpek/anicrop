@@ -4,7 +4,7 @@ import numpy as np
 import pytest
 from pytest import raises
 
-from anicrop.spatial import Region, Span, SpanError
+from anicrop.spatial import Point, Region, Span, SpanError
 
 
 def test_Span_com_start_padrao():
@@ -654,3 +654,44 @@ def test_region_to_int_method():
     region = Region(Span(10.4, 20.7), Span(30.2, 40.9))
     int_region = region.to_int()
     assert int_region == Region(Span(10, 21), Span(30, 41))
+
+
+@pytest.mark.parametrize(
+    ("p1", "p2", "expected"),
+    [
+        (Point(10.0, 20.0), Point(10.0, 20.0), True),
+        (Point(10.0, 20.0), (10.0, 20.0), True),
+        (Point(10.0, 20.0), [10.0, 20.0], True),
+        (Point(10.0, 20.0), Point(10.00005, 20.00005), True),
+        (Point(10.0, 20.0), Point(10.001, 20.0), False),
+        (Point(10.0, 20.0), "invalid", False),
+    ],
+    ids=["exact_point", "tuple", "list", "within_epsilon", "beyond_epsilon", "non_point"],
+)
+def test_point_equality(p1, p2, expected):
+    """Valida comparacoes de igualdade da classe Point respeitando tolerancia analitica."""
+    assert (p1 == p2) is expected
+
+
+def test_point_hash_consistency():
+    """Valida consistencia de hash de Point para armazenamento em conjuntos e dicionarios."""
+    p1 = Point(10.00001, 20.00001)
+    p2 = Point(10.00004, 20.00004)
+    point_set = {p1}
+    assert hash(p1) == hash(p2)
+    assert p2 in point_set
+
+
+@pytest.mark.parametrize(
+    ("mode", "expected"),
+    [
+        ("round", (10, 21)),
+        ("floor", (10, 20)),
+        ("ceil", (11, 21)),
+    ],
+    ids=["round", "floor", "ceil"],
+)
+def test_point_to_int_modes(mode, expected):
+    """Valida conversao discreta do Point para inteiros sob diferentes modos de arredondamento."""
+    p = Point(10.4, 20.7)
+    assert p.to_int(mode=mode) == expected
