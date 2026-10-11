@@ -35,6 +35,9 @@ def blend_rendered_images(
 
 
 try:
+    from anicrop.native.blend import (
+        blend_multiply as _cy_blend_multiply,
+    )
     from anicrop.native.blend import (  # type: ignore[import-not-found,import-untyped]
         blend_normal as _cy_blend_normal,
     )
@@ -60,6 +63,7 @@ except ImportError:
     _cy_blend_normal_linear = None
     _cy_blend_normal_prgba = None
     _cy_blend_prgba_over_opaque = None
+    _cy_blend_multiply = None
     _cy_hard_masking = None
     _cy_solid_fill = None
     _HAS_CY_BLEND = False
@@ -676,6 +680,13 @@ def blend_multiply(base: Image, overlay: Image, opacity: float = 1.0) -> Image:
     )
     b_view = base_arr[:h, :w]
     o_view = overlay_arr[:h, :w]
+
+    if _HAS_CY_BLEND and _cy_blend_multiply is not None:
+        try:
+            _cy_blend_multiply(b_view, o_view, opacity)
+            return base
+        except Exception:
+            pass
 
     _blend_multiply_numpy(b_view, o_view, opacity)
     return base
