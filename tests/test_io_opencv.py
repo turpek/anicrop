@@ -222,3 +222,18 @@ def test_opencv_read_float_conversion_alpha():
     assert converted.shape == (20, 20, 4)
     assert np.all(converted[:, :, 3] == 1.0)
     assert np.all(converted[:, :, :3] == 0.75)
+
+
+def test_opencv_windows_helper_raises_oserror_on_read_failure(
+    temp_dir: Path, monkeypatch: pytest.MonkeyPatch
+):
+    """Valida se _cv2_imread_windows levanta OSError em caso de falha de leitura no Windows."""
+    img_path = temp_dir / "arquivo_corrompido_teste_ç.png"
+    img_path.write_bytes(b"dados invalidos")
+
+    def mock_fromfile(*args, **kwargs):
+        raise PermissionError("Acesso negado simulado")
+
+    monkeypatch.setattr(np, "fromfile", mock_fromfile)
+    with pytest.raises(OSError, match="Falha ao ler dados da imagem no Windows"):
+        _cv2_imread_windows(img_path)

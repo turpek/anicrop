@@ -238,3 +238,22 @@ def test_vips_convert_to_requested_format_float32():
     assert arr.shape == (10, 10, 4)
     assert np.all(arr[:, :, 3] == 1.0)
     assert np.all(arr[:, :, :3] == 0.75)
+
+
+def test_vips_streaming_buffer_16bit_slicing(temp_dir: Path):
+    """Valida fatiamento e ellipsis em VipsStreamingBuffer com imagem de 16 bits."""
+    img_path = temp_dir / "test_stream_16bit_slice.png"
+    data = np.full((30, 40, 4), 60000, dtype=np.uint16)
+    backend = PyvipsBackend()
+    backend.write(img_path, data, format=ImageFormat.RGBA)
+
+    stream = VipsStreamingBuffer(img_path, target_format=ImageFormat.RGBA)
+    all_data = stream[...]
+    assert all_data.dtype == np.uint16
+    assert all_data.shape == (30, 40, 4)
+    assert np.all(all_data == 60000)
+
+    sliced = stream[10:20, 15:25]
+    assert sliced.dtype == np.uint16
+    assert sliced.shape == (10, 10, 4)
+    assert np.all(sliced == 60000)
