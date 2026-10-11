@@ -610,9 +610,81 @@ def blend_clip(base: Image, overlay: Image, opacity: float = 1.0) -> Image:
     return _blend_clip_numpy(base, overlay, opacity)
 
 
+def _blend_multiply_numpy(
+    b_view: np.ndarray, e_view: np.ndarray, opacity: float
+) -> None:
+    b_has_alpha = b_view.shape[-1] in (2, 4)
+    e_has_alpha = e_view.shape[-1] in (2, 4)
+
+    b_channels = 1 if b_view.shape[-1] in (1, 2) else 3
+    e_channels = 1 if e_view.shape[-1] in (1, 2) else 3
+
+    if e_has_alpha:
+        mask = e_view[..., -1] > 0
+    else:
+        h, w = b_view.shape[:2]
+        mask = np.ones((h, w), dtype=bool)
+
+    if not np.any(mask):
+        return
+
+    rgb_e = e_view[mask, :e_channels].astype(np.float32) / 255.0
+    if b_channels == 3 and e_channels == 1:
+        rgb_e = np.repeat(rgb_e, 3, axis=-1)
+    elif b_channels == 1 and e_channels == 3:
+        rgb_e = (
+            0.299 * rgb_e[..., 0:1] + 0.587 * rgb_e[..., 1:2] + 0.114 * rgb_e[..., 2:3]
+        )
+
+    if e_has_alpha:
+        alpha_e = (e_view[mask, -1:].astype(np.float32) / 255.0) * opacity
+    else:
+        alpha_e = np.full((np.count_nonzero(mask), 1), opacity, dtype=np.float32)
+
+    rgb_b = b_view[mask, :b_channels].astype(np.float32) / 255.0
+    rgb_mult = rgb_b * rgb_e
+
+    if b_has_alpha:
+        alpha_b = b_view[mask, -1:].astype(np.float32) / 255.0
+        out_a = alpha_e + alpha_b * (1.0 - alpha_e)
+        out_a_safe = np.where(out_a == 0, 1.0, out_a)
+
+        out_rgb = (
+            (1.0 - alpha_e) * alpha_b * rgb_b
+            + (1.0 - alpha_b) * alpha_e * rgb_e
+            + alpha_e * alpha_b * rgb_mult
+        ) / out_a_safe
+
+        b_view[mask, :b_channels] = np.clip(np.round(out_rgb * 255.0), 0, 255).astype(np.uint8)
+        b_view[mask, -1:] = np.clip(np.round(out_a * 255.0), 0, 255).astype(np.uint8)
+    else:
+        out_rgb = (1.0 - alpha_e) * rgb_b + alpha_e * rgb_mult
+        b_view[mask, :b_channels] = np.clip(np.round(out_rgb * 255.0), 0, 255).astype(np.uint8)
+
+
+def blend_multiply(base: Image, overlay: Image, opacity: float = 1.0) -> Image:
+    """Aplica o modo de mesclagem Multiply (multiplicação de cores com canal alfa)."""
+    if opacity <= 0.0:
+        return base
+
+    base_arr = base[...]
+    overlay_arr = overlay[...]
+
+    h, w = (
+        min(base_arr.shape[0], overlay_arr.shape[0]),
+        min(base_arr.shape[1], overlay_arr.shape[1]),
+    )
+    b_view = base_arr[:h, :w]
+    o_view = overlay_arr[:h, :w]
+
+    _blend_multiply_numpy(b_view, o_view, opacity)
+    return base
+
+
 BLEND_MODE = {
     BlendMode.NORMAL: blend_normal,
     BlendMode.NORMAL_LINEAR: blend_normal_linear,
+    BlendMode.MULTIPLY: blend_multiply,
     BlendMode.HARD_MASKING: hard_masking,
     BlendMode.SOLID_FILL: solid_fill,
     BlendMode.CLIP: blend_clip,

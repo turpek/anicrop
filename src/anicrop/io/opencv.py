@@ -286,11 +286,15 @@ class OpenCVBackend(AbstractImageIO):
         self,
         file_path: str | Path,
         format: ImageFormat | None = None,
+        shrink: int = 1,
+        roi: Region | None = None,
     ) -> tuple[MMapBuffer, ImageFormat]:
         """Abre imagens de altíssima resolução (>=8192px) convertendo para MMapBuffer em disco."""
         image_format = format or ImageFormat.RGBA
 
         raw_data, native_channels = _decode_raw(file_path)
+        orig_size = (raw_data.shape[1], raw_data.shape[0])
         data = _convert_to_requested_format(raw_data, native_channels, image_format)
+        data = _apply_shrink_and_roi(data, orig_size, shrink, roi)
         mmap_buffer = MMapBuffer.from_array(data)
         return mmap_buffer, image_format

@@ -1,10 +1,13 @@
+import copy
+
 import numpy as np
 import pytest
 
+from anicrop.command import BaseLayerSnapshot
 from anicrop.effect import Effect
 from anicrop.enums import ImageFormat
 from anicrop.image import Image
-from anicrop.layer import EditLayer
+from anicrop.layer import EditLayer, Layer
 from anicrop.mask import Mask
 from anicrop.spatial import Region
 
@@ -166,3 +169,36 @@ def test_mask_apply_when_invisible_returns_original_image():
 
     assert result is target
     np.testing.assert_array_equal(result[..., -1], 255)
+
+
+def test_mask_copy_and_equality():
+    """Valida se copy.copy em Mask preserva igualdade estrutural com desacoplamento de matriz."""
+    mask_img = make_mask_image(10, 10, value=255)
+    m1 = Mask(mask_img, Region.from_size(10, 10), np.identity(3))
+    m2 = copy.copy(m1)
+
+    assert m1 == m2
+    assert m1 is not m2
+    assert m1.local_matrix is not m2.local_matrix
+    np.testing.assert_array_equal(m1.local_matrix, m2.local_matrix)
+
+
+def test_mask_inequality_on_attributes():
+    """Valida se mutações de atributos em Mask quebram a igualdade de snapshot."""
+    mask_img = make_mask_image(10, 10, value=255)
+    m1 = Mask(mask_img, Region.from_size(10, 10), np.identity(3))
+    m2 = copy.copy(m1)
+    m2.invert = True
+
+    assert m1 != m2
+
+
+def test_base_layer_snapshot_no_false_positive_with_mask():
+    """Valida se BaseLayerSnapshot não acusa falsa alteração em camadas com máscara."""
+    layer = Layer(make_target_image())
+    layer.set_mask(make_mask_image(), Region.from_size(20, 20))
+
+    snap1 = BaseLayerSnapshot(layer)
+    snap2 = BaseLayerSnapshot(layer)
+
+    assert not snap1.has_change(snap2)
