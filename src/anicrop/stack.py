@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from abc import ABC
-from typing import Any, Generic, Iterator, Protocol, Sequence, TypeVar
+from typing import Any, Generic, Iterator, Protocol, Sequence, TypeVar, overload
 
 
 class NamedItem(Protocol):
@@ -41,7 +41,19 @@ class NamedStack(Generic[T], ABC):
             return any(x.name == item for x in self._items)
         return self._contains_item(item)
 
-    def __getitem__(self, key: int | slice | str) -> Any:
+    @overload
+    def __getitem__(self, key: int) -> T:
+        pass
+
+    @overload
+    def __getitem__(self, key: str) -> T:
+        pass
+
+    @overload
+    def __getitem__(self, key: slice) -> list[T]:
+        pass
+
+    def __getitem__(self, key: int | slice | str) -> T | list[T]:
         if isinstance(key, (int, slice)):
             return self._items[key]
         if isinstance(key, str):
