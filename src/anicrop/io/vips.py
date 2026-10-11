@@ -1,10 +1,21 @@
 from __future__ import annotations
 
+import logging
 import os
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 import numpy as np
+
+from anicrop.color import convert_image_format
+from anicrop.enums import ImageFormat
+from anicrop.interfaces.buffer import AbstractImageBuffer
+from anicrop.interfaces.io import AbstractImageIO, SaveOptions
+
+if TYPE_CHECKING:
+    from anicrop.spatial import Region
+
+logger = logging.getLogger(__name__)
 
 os.environ.setdefault("VIPS_WARNING", "0")
 
@@ -20,18 +31,42 @@ try:
 except Exception:
     pyvips = None
 
-from anicrop.color import convert_image_format
-from anicrop.enums import ImageFormat
-from anicrop.interfaces.buffer import AbstractImageBuffer
-from anicrop.interfaces.io import AbstractImageIO, SaveOptions
-
-if TYPE_CHECKING:
-    from anicrop.spatial import Region
-
 
 def is_vips_available() -> bool:
     """Retorna True se pyvips estiver instalado e pronto para uso."""
     return pyvips is not None
+
+
+_VIPS_FORMAT_TO_DTYPE: dict[str, np.dtype] = {
+    "uchar": np.dtype(np.uint8),
+    "char": np.dtype(np.int8),
+    "ushort": np.dtype(np.uint16),
+    "short": np.dtype(np.int16),
+    "uint": np.dtype(np.uint32),
+    "int": np.dtype(np.int32),
+    "float": np.dtype(np.float32),
+    "double": np.dtype(np.float64),
+}
+
+_DTYPE_TO_VIPS_FORMAT: dict[np.dtype, str] = {
+    np.dtype(np.uint8): "uchar",
+    np.dtype(np.int8): "char",
+    np.dtype(np.uint16): "ushort",
+    np.dtype(np.int16): "short",
+    np.dtype(np.uint32): "uint",
+    np.dtype(np.int32): "int",
+    np.dtype(np.float32): "float",
+    np.dtype(np.float64): "double",
+}
+
+
+def _vips_opaque_alpha(vips_img: pyvips.Image) -> float | int:
+    """Retorna o valor alfa opaco compatível com a profundidade de bits da imagem."""
+    if vips_img.format == "ushort":
+        return 65535
+    elif vips_img.format in ("float", "double"):
+        return 1.0
+    return 255
 
 
 def _vips_decode(file_path: str | Path, shrink: int) -> pyvips.Image:
@@ -40,7 +75,10 @@ def _vips_decode(file_path: str | Path, shrink: int) -> pyvips.Image:
     if shrink > 1:
         try:
             return pyvips.Image.new_from_file(path_str, shrink=shrink)
-        except Exception:
+        except Exception as exc:
+            logger.debug(
+                f"Shrink nativo no Pyvips falhou para {file_path}, usando fallback: {exc}"
+            )
             img = pyvips.Image.new_from_file(path_str, access="sequential")
             return img.shrink(shrink, shrink)
     return pyvips.Image.new_from_file(path_str, access="sequential")
@@ -49,20 +87,21 @@ def _vips_decode(file_path: str | Path, shrink: int) -> pyvips.Image:
 def _vips_auto_detect_format(vips_img: pyvips.Image) -> tuple[pyvips.Image, ImageFormat]:
     """Detecta o formato nativo e ajusta o espaço de cor para sRGB se necessário."""
     bands = vips_img.bands
+    target_cs = "rgb16" if vips_img.format == "ushort" else "srgb"
 
     if bands == 1:
         return vips_img, ImageFormat.GRAY
     elif bands == 2:
         return vips_img, ImageFormat.GRAY_ALPHA
     elif bands == 3:
-        if vips_img.interpretation != "srgb":
-            vips_img = vips_img.colourspace("srgb")
+        if vips_img.interpretation not in ("srgb", "rgb16"):
+            vips_img = vips_img.colourspace(target_cs)
         return vips_img, ImageFormat.RGB
     elif bands == 4:
         return vips_img, ImageFormat.RGBA
     else:
         # Imagens multiespectrais/CMYK
-        vips_img = vips_img.colourspace("srgb")
+        vips_img = vips_img.colourspace(target_cs)
         return vips_img, ImageFormat.RGB
 
 
@@ -72,22 +111,24 @@ def _vips_convert_to_requested_format(
 ) -> pyvips.Image:
     """Converte o pipeline da libvips para o formato explicitamente solicitado."""
     bands = vips_img.bands
+    opaque_val = _vips_opaque_alpha(vips_img)
+    target_cs = "rgb16" if vips_img.format == "ushort" else "srgb"
 
     if target_format == ImageFormat.RGBA:
         if bands == 1:
-            return vips_img.colourspace("srgb").bandjoin(255)
+            return vips_img.colourspace(target_cs).bandjoin(opaque_val)
         elif bands == 2:
-            gray = vips_img[0].colourspace("srgb")
+            gray = vips_img[0].colourspace(target_cs)
             return gray.bandjoin(vips_img[1])
         elif bands == 3:
-            return vips_img.bandjoin(255)
+            return vips_img.bandjoin(opaque_val)
         return vips_img
 
     elif target_format == ImageFormat.RGB:
         if bands == 1:
-            return vips_img.colourspace("srgb")
+            return vips_img.colourspace(target_cs)
         elif bands == 2:
-            return vips_img[0].colourspace("srgb")
+            return vips_img[0].colourspace(target_cs)
         elif bands == 3:
             return vips_img
         return vips_img.extract_band(0, n=3)
@@ -101,14 +142,16 @@ def _vips_convert_to_requested_format(
 
     elif target_format == ImageFormat.GRAY_ALPHA:
         if bands == 1:
-            return vips_img.bandjoin(255)
+            return vips_img.bandjoin(opaque_val)
         elif bands == 2:
             return vips_img
         gray = vips_img.colourspace("b-w").extract_band(0)
         alpha = (
             vips_img[3]
             if bands == 4
-            else (pyvips.Image.black(vips_img.width, vips_img.height) + 255)
+            else (pyvips.Image.black(vips_img.width, vips_img.height) + opaque_val).cast(
+                vips_img.format
+            )
         )
         return gray.bandjoin(alpha)
 
@@ -118,7 +161,8 @@ def _vips_convert_to_requested_format(
 def _vips_to_numpy(vips_img: pyvips.Image) -> np.ndarray:
     """Converte a imagem libvips para ndarray NumPy sem cópias redundantes."""
     mem = vips_img.write_to_memory()
-    arr = np.frombuffer(mem, dtype=np.uint8).reshape(
+    target_dtype = _VIPS_FORMAT_TO_DTYPE.get(vips_img.format, np.dtype(np.uint8))
+    arr = np.frombuffer(mem, dtype=target_dtype).reshape(
         (vips_img.height, vips_img.width, vips_img.bands)
     )
     if arr.ndim == 2:
@@ -130,8 +174,9 @@ def _numpy_to_vips(data: np.ndarray, format: ImageFormat) -> pyvips.Image:
     """Cria uma imagem libvips a partir de uma matriz NumPy em memória."""
     h, w = data.shape[:2]
     bands = format.channels
+    vips_format = _DTYPE_TO_VIPS_FORMAT.get(np.dtype(data.dtype), "uchar")
     contiguous = np.ascontiguousarray(data)
-    return pyvips.Image.new_from_memory(contiguous.data, w, h, bands, "uchar")
+    return pyvips.Image.new_from_memory(contiguous.data, w, h, bands, vips_format)
 
 
 def _vips_save_file(
@@ -149,9 +194,13 @@ def _vips_save_file(
             vips_img = vips_img.flatten(background=list(options.bg_color[:3]))
         vips_img.jpegsave(path_str, Q=options.quality, strip=options.strip_metadata)
     elif ext == ".png":
-        vips_img.pngsave(
-            path_str, compression=options.compression_level, strip=options.strip_metadata
-        )
+        png_kwargs: dict[str, Any] = {
+            "compression": options.compression_level,
+            "strip": options.strip_metadata,
+        }
+        if vips_img.format == "ushort":
+            png_kwargs["bitdepth"] = 16
+        vips_img.pngsave(path_str, **png_kwargs)
     elif ext == ".webp":
         vips_img.webpsave(
             path_str,
@@ -216,7 +265,9 @@ class PyvipsBackend(AbstractImageIO):
             resolved_format = format
 
         if roi is not None:
-            vips_img = vips_img.crop(roi.x.start, roi.y.start, roi.width, roi.height)
+            x, y = roi.top_left.to_int()
+            w, h = roi.size.to_int()
+            vips_img = vips_img.crop(x, y, w, h)
 
         data = _vips_to_numpy(vips_img)
 
@@ -307,13 +358,15 @@ class VipsStreamingBuffer(AbstractImageBuffer):
             self._vimg = pyvips.Image.new_from_file(self._path, access="random")
 
         # Converte para sRGB se necessário
-        if self._vimg.bands >= 3 and self._vimg.interpretation != "srgb":
-            self._vimg = self._vimg.colourspace("srgb")
+        target_cs = "rgb16" if self._vimg.format == "ushort" else "srgb"
+        if self._vimg.bands >= 3 and self._vimg.interpretation not in ("srgb", "rgb16"):
+            self._vimg = self._vimg.colourspace(target_cs)
 
         # Se o formato alvo pedir RGBA e a imagem tiver 3 bandas, adiciona canal alfa
         if target_format == ImageFormat.RGBA and self._vimg.bands == 3:
-            alpha = (pyvips.Image.black(self._vimg.width, self._vimg.height) + 255).cast(
-                "uchar"
+            opaque_val = _vips_opaque_alpha(self._vimg)
+            alpha = (pyvips.Image.black(self._vimg.width, self._vimg.height) + opaque_val).cast(
+                self._vimg.format
             )
             self._vimg = self._vimg.bandjoin(alpha)
         elif target_format == ImageFormat.RGB and self._vimg.bands == 4:
@@ -330,7 +383,7 @@ class VipsStreamingBuffer(AbstractImageBuffer):
 
     @property
     def dtype(self) -> np.dtype:
-        return np.dtype(np.uint8)
+        return _VIPS_FORMAT_TO_DTYPE.get(self._vimg.format, np.dtype(np.uint8))
 
     @property
     def ndim(self) -> int:
@@ -338,7 +391,7 @@ class VipsStreamingBuffer(AbstractImageBuffer):
 
     def __array__(self, dtype: Any = None) -> np.ndarray:
         mem = self._vimg.write_to_memory()
-        arr = np.frombuffer(mem, dtype=np.uint8).reshape(self.shape)
+        arr = np.frombuffer(mem, dtype=self.dtype).reshape(self.shape)
         return np.asarray(arr, dtype=dtype)
 
     @classmethod

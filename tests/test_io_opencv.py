@@ -12,6 +12,11 @@ from anicrop.io import (
     OpenCVBackend,
     get_backend,
 )
+from anicrop.io.opencv import (
+    _convert_to_requested_format,
+    _cv2_imread_windows,
+    _cv2_imwrite_windows,
+)
 from anicrop.spatial import Region
 
 
@@ -160,3 +165,60 @@ def test_opencv_write_and_read_bgra(temp_dir: Path):
     assert fmt == ImageFormat.BGRA
     assert loaded.shape == (30, 40, 4)
     assert np.all(loaded[0, 0] == (200, 100, 50, 180))
+
+
+def test_opencv_write_and_read_unicode_path(temp_dir: Path):
+    """Valida gravação e leitura de imagens com caracteres especiais e acentos no caminho."""
+    img_path = temp_dir / "álbum_férias_teste_📸.png"
+    data = np.zeros((30, 40, 3), dtype=np.uint8)
+    data[:, :] = (120, 150, 180)
+
+    backend = OpenCVBackend()
+    backend.write(img_path, data, format=ImageFormat.RGB)
+
+    loaded, fmt, size = backend.read(img_path, format=ImageFormat.RGB)
+    assert fmt == ImageFormat.RGB
+    assert size == (40, 30)
+    assert np.all(loaded[0, 0] == (120, 150, 180))
+
+
+def test_opencv_windows_unicode_helpers(temp_dir: Path):
+    """Valida as funções especialistas do Windows para leitura e gravação com caminhos Unicode."""
+    img_path = temp_dir / "imagem_caminho_acentuado_ç_ã.png"
+    data = np.full((20, 20, 3), 210, dtype=np.uint8)
+
+    success = _cv2_imwrite_windows(img_path, data)
+    assert success is True
+
+    loaded = _cv2_imread_windows(img_path)
+    assert loaded is not None
+    assert loaded.shape == (20, 20, 3)
+    assert np.all(loaded == 210)
+
+
+def test_opencv_write_and_read_16bit_png(temp_dir: Path):
+    """Valida gravação e leitura de imagens uint16 garantindo canal alfa opaco em 65535."""
+    img_path = temp_dir / "test_16bit.png"
+    data = np.full((30, 40, 3), 50000, dtype=np.uint16)
+
+    backend = OpenCVBackend()
+    backend.write(img_path, data, format=ImageFormat.RGB)
+
+    loaded, fmt, size = backend.read(img_path, format=ImageFormat.RGBA)
+    assert fmt == ImageFormat.RGBA
+    assert size == (40, 30)
+    assert loaded.dtype == np.uint16
+    assert loaded.shape == (30, 40, 4)
+    assert np.all(loaded[:, :, 3] == 65535)
+    assert np.all(loaded[:, :, :3] == 50000)
+
+
+def test_opencv_read_float_conversion_alpha():
+    """Valida conversão de imagem float32 para RGBA garantindo canal alfa opaco em 1.0."""
+    raw_bgr = np.full((20, 20, 3), 0.75, dtype=np.float32)
+
+    converted = _convert_to_requested_format(raw_bgr, 3, ImageFormat.RGBA)
+    assert converted.dtype == np.float32
+    assert converted.shape == (20, 20, 4)
+    assert np.all(converted[:, :, 3] == 1.0)
+    assert np.all(converted[:, :, :3] == 0.75)

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import sys
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -17,9 +18,72 @@ if TYPE_CHECKING:
     from anicrop.spatial import Region
 
 
+def _cv2_imread_windows(
+    file_path: str | Path,
+    flags: int = cv2.IMREAD_UNCHANGED,
+) -> np.ndarray | None:
+    """Lê imagens no Windows tratando caminhos com caracteres especiais via np.fromfile."""
+    path_str = str(file_path)
+    if not path_str.isascii():
+        try:
+            buf = np.fromfile(path_str, dtype=np.uint8)
+            if buf.size == 0:
+                return None
+            return cv2.imdecode(buf, flags)
+        except Exception:
+            return None
+    return cv2.imread(path_str, flags)
+
+
+def _cv2_imwrite_windows(
+    file_path: str | Path,
+    img: np.ndarray,
+    params: list[int] | None = None,
+) -> bool:
+    """Grava imagens no Windows tratando caminhos com caracteres especiais via cv2.imencode."""
+    path = Path(file_path)
+    path_str = str(path)
+    if not path_str.isascii():
+        try:
+            ext = path.suffix.lower()
+            success, buf = cv2.imencode(ext, img, params or [])
+            if not success:
+                return False
+            buf.tofile(path_str)
+            return True
+        except Exception:
+            return False
+    return bool(cv2.imwrite(path_str, img, params or []))
+
+
+def _cv2_imread_posix(
+    file_path: str | Path,
+    flags: int = cv2.IMREAD_UNCHANGED,
+) -> np.ndarray | None:
+    """Lê imagens em sistemas POSIX com chamada direta ao OpenCV C runtime."""
+    return cv2.imread(str(file_path), flags)
+
+
+def _cv2_imwrite_posix(
+    file_path: str | Path,
+    img: np.ndarray,
+    params: list[int] | None = None,
+) -> bool:
+    """Grava imagens em sistemas POSIX com chamada direta ao OpenCV C runtime."""
+    return bool(cv2.imwrite(str(file_path), img, params or []))
+
+
+if sys.platform == "win32":
+    _cv2_imread = _cv2_imread_windows
+    _cv2_imwrite = _cv2_imwrite_windows
+else:
+    _cv2_imread = _cv2_imread_posix
+    _cv2_imwrite = _cv2_imwrite_posix
+
+
 def _decode_raw(file_path: str | Path) -> tuple[np.ndarray, int]:
     """Decodifica o array cru do arquivo e identifica o número de canais nativos."""
-    raw_data = cv2.imread(str(file_path), cv2.IMREAD_UNCHANGED)
+    raw_data = _cv2_imread(file_path, cv2.IMREAD_UNCHANGED)
     if raw_data is None:
         raise FileNotFoundError(f"Não foi possível carregar a imagem em: {file_path}")
 
@@ -205,7 +269,7 @@ class OpenCVBackend(AbstractImageIO):
         bgr_data = _prepare_bgr_for_export(img_arr, format, ext, options)
         params = _build_opencv_params(ext, options)
 
-        success = cv2.imwrite(str(path), bgr_data, params)
+        success = _cv2_imwrite(path, bgr_data, params)
         if not success:
             raise IOError(f"Falha ao salvar imagem em: {file_path}")
 

@@ -9,7 +9,12 @@ from anicrop.enums import ImageFormat
 from anicrop.image import Image
 from anicrop.interfaces.io import SaveOptions
 from anicrop.io import PyvipsBackend, get_backend, is_vips_available
-from anicrop.io.vips import VipsStreamingBuffer
+from anicrop.io.vips import (
+    VipsStreamingBuffer,
+    _numpy_to_vips,
+    _vips_convert_to_requested_format,
+    _vips_to_numpy,
+)
 from anicrop.spatial import Region
 
 pytestmark = pytest.mark.skipif(not is_vips_available(), reason="pyvips não instalado")
@@ -188,3 +193,48 @@ def test_vips_write_and_read_bgra(temp_dir: Path):
     assert fmt == ImageFormat.BGRA
     assert loaded.shape == (30, 40, 4)
     assert np.all(loaded[0, 0] == (200, 100, 50, 180))
+
+
+def test_vips_write_and_read_16bit_png(temp_dir: Path):
+    """Valida gravação e leitura de imagens uint16 garantindo canal alfa opaco em 65535."""
+    img_path = temp_dir / "test_16bit_vips.png"
+    data = np.full((30, 40, 3), 50000, dtype=np.uint16)
+
+    backend = PyvipsBackend()
+    backend.write(img_path, data, format=ImageFormat.RGB)
+
+    loaded, fmt, size = backend.read(img_path, format=ImageFormat.RGBA)
+    assert fmt == ImageFormat.RGBA
+    assert size == (40, 30)
+    assert loaded.dtype == np.uint16
+    assert loaded.shape == (30, 40, 4)
+    assert np.all(loaded[:, :, 3] == 65535)
+    assert np.all(loaded[:, :, :3] == 50000)
+
+
+def test_vips_streaming_buffer_16bit(temp_dir: Path):
+    """Valida VipsStreamingBuffer lendo imagem de 16 bits com dtype preservado."""
+    img_path = temp_dir / "test_stream_16bit.png"
+    data = np.full((30, 40, 4), 60000, dtype=np.uint16)
+    backend = PyvipsBackend()
+    backend.write(img_path, data, format=ImageFormat.RGBA)
+
+    stream = VipsStreamingBuffer(img_path, target_format=ImageFormat.RGBA)
+    assert stream.dtype == np.dtype(np.uint16)
+
+    arr = np.asarray(stream)
+    assert arr.dtype == np.uint16
+    assert np.all(arr == 60000)
+
+
+def test_vips_convert_to_requested_format_float32():
+    """Valida conversão de imagem float32 para RGBA garantindo canal alfa opaco em 1.0."""
+    raw_float = np.full((10, 10, 3), 0.75, dtype=np.float32)
+    vimg = _numpy_to_vips(raw_float, ImageFormat.RGB)
+    vimg_rgba = _vips_convert_to_requested_format(vimg, ImageFormat.RGBA)
+    arr = _vips_to_numpy(vimg_rgba)
+
+    assert arr.dtype == np.float32
+    assert arr.shape == (10, 10, 4)
+    assert np.all(arr[:, :, 3] == 1.0)
+    assert np.all(arr[:, :, :3] == 0.75)
