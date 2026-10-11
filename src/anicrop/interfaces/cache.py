@@ -2,12 +2,25 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 from contextlib import AbstractContextManager
-from typing import TYPE_CHECKING, Any, Sequence
+from typing import TYPE_CHECKING, Any, Protocol, Sequence, runtime_checkable
 
 if TYPE_CHECKING:
     from anicrop.container import BaseLayer, Container
     from anicrop.layer import Layer
     from anicrop.spatial import Region
+
+
+@runtime_checkable
+class Cacheable(Protocol):
+    """Protocolo estrutural para elementos ou efeitos que expõem estado observável para cache."""
+
+    def cache_state(self) -> dict[str, Any]:
+        """Retorna um dicionário contendo os atributos que afetam o resultado visual.
+
+        Valores compostos como matrizes devem ser convertidos para bytes ou tuplas
+        para suportar comparação direta por igualdade.
+        """
+        ...
 
 
 class AbstractLayerCache(ABC):

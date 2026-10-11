@@ -5,10 +5,11 @@ from .config import config
 from .container import GroupLayer
 from .document import Document
 from .edit_layer import CropEditLayer, EditLayer, EditStack
-from .effect import BoundEffect, DynamicEffect, Effect, EffectStack
+from .effect import BoundEffect, Effect, EffectStack
 from .enums import BlendMode, ImageFormat
 from .frame import BaseFrame, CanvasFrame, ViewportFrame
 from .image import Image, get_memory_threshold, set_memory_threshold
+from .interfaces.cache import Cacheable
 from .layer import Layer
 from .render import transform_image
 from .scratch import ScratchBuffer
@@ -34,8 +35,8 @@ __all__ = [
     "Span",
     "Layer",
     "LayerCache",
+    "Cacheable",
     "Effect",
-    "DynamicEffect",
     "BoundEffect",
     "EffectStack",
     "EditLayer",

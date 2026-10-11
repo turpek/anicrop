@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import gc
+from typing import Any
 from unittest.mock import MagicMock
 
 import numpy as np
@@ -9,7 +10,7 @@ import pytest
 from anicrop.cache import (
     LayerCache,
     LayerFrameState,
-    get_tracked_attrs,
+    is_cacheable_effect,
     snapshot_edit,
     snapshot_effect,
     wrap_background,
@@ -17,7 +18,7 @@ from anicrop.cache import (
 from anicrop.canvas import Canvas
 from anicrop.container import GroupLayer
 from anicrop.edit_layer import EditLayer
-from anicrop.effect import BoundEffect, DynamicEffect, Effect
+from anicrop.effect import BoundEffect, Effect
 from anicrop.enums import BlendMode, ImageFormat
 from anicrop.filter import BlurFilter
 from anicrop.image import Image
@@ -39,14 +40,14 @@ def make_img(
 
 
 def test_snapshot_edit_extrai_primitivos_do_edit():
-    """Valida se snapshot_edit extrai weakref, visibilidade e modo de mesclagem do edit."""
+    """Valida se snapshot_edit extrai weakref e dicionario com visibilidade e modo de mesclagem do edit."""
     layer = Layer(make_img(10, 10))
     edit = layer.edits[0]
     snap = snapshot_edit(edit)
 
     assert snap[0]() is edit
-    assert snap[1] is True
-    assert snap[2] == edit.blend_mode
+    assert snap[1]["visible"] is True
+    assert snap[1]["blend_mode"] == edit.blend_mode
 
 
 def test_layer_cache_scope_enter_exception_cleans_up_active_layers():
@@ -272,22 +273,9 @@ def test_layer_cache_with_effects_and_mask_preserves_baked_warp():
     assert np.all(status.baked_effects[..., 3] == 255)
 
 
-class CountingDynamicEffect(DynamicEffect):
+class CountingDynamicEffect(Effect):
     def __init__(self) -> None:
         super().__init__(name="CountingDynamicEffect")
-        self.apply_count = 0
-
-    def get_padding(self) -> tuple[int, int, int, int]:
-        return (0, 0, 0, 0)
-
-    def apply(self, image: Image, matrix: np.ndarray) -> Image:
-        self.apply_count += 1
-        return image
-
-
-class CountingStaticEffect(Effect):
-    def __init__(self) -> None:
-        super().__init__(name="CountingStaticEffect")
         self.apply_count = 0
 
     def get_padding(self) -> tuple[int, int, int, int]:
@@ -301,8 +289,27 @@ class CountingStaticEffect(Effect):
         return image
 
 
+class CountingStaticEffect(Effect):
+    def __init__(self) -> None:
+        super().__init__(name="CountingStaticEffect")
+        self.apply_count = 0
+
+    def cache_state(self) -> dict[str, Any]:
+        return {"visible": self.visible}
+
+    def get_padding(self) -> tuple[int, int, int, int]:
+        return (0, 0, 0, 0)
+
+    def merge(self, other: Effect, matrix: np.ndarray) -> Effect | None:
+        return None
+
+    def apply(self, image: Image, matrix: np.ndarray) -> Image:
+        self.apply_count += 1
+        return image
+
+
 def test_layer_cache_runs_dynamic_effect_every_frame():
-    """Valida se DynamicEffect eh reexecutado a cada frame enquanto baked_warp permanece em cache."""
+    """Valida se efeito dinamico nao-cacheavel eh reexecutado a cada frame enquanto baked_warp permanece em cache."""
     layer = Layer(make_img(40, 40))
     dyn_effect = CountingDynamicEffect()
     layer.effects.add(dyn_effect)
@@ -353,7 +360,7 @@ def test_layer_cache_bakes_static_effects_and_executes_dynamic_effects_increment
 
 
 def test_layer_cache_recognizes_bound_dynamic_effect():
-    """Valida se DynamicEffect envelopado por BoundEffect eh reconhecido como dinamico."""
+    """Valida se efeito dinamico sem Cacheable envelopado por BoundEffect eh reconhecido como dinamico."""
     layer = Layer(make_img(40, 40))
     dyn_effect = CountingDynamicEffect()
     layer.effects.add(BoundEffect.from_layer(layer, dyn_effect))
@@ -465,6 +472,14 @@ class CustomPrivateEffect(Effect):
         self._algo = "fast"
         self.public_val = 42
 
+    def cache_state(self) -> dict[str, Any]:
+        return {
+            "visible": self.visible,
+            "_radius": self._radius,
+            "_algo": self._algo,
+            "public_val": self.public_val,
+        }
+
     def get_padding(self) -> tuple[int, int, int, int]:
         return (0, 0, 0, 0)
 
@@ -481,30 +496,34 @@ class CustomPrivateEffect(Effect):
         return image
 
 
-def test_get_tracked_attrs_on_blur_filter():
-    """Valida se get_tracked_attrs extrai os atributos corretos de self no apply do BlurFilter."""
-    attrs = get_tracked_attrs(BlurFilter)
-    assert attrs == (
-        "affect_alpha",
-        "angle",
-        "mode",
-        "radius_x",
-        "radius_y",
-        "strength",
-        "visible",
-    )
+def test_is_cacheable_effect_identifies_cacheable_and_dynamic():
+    """Valida se is_cacheable_effect reconhece corretamente classes Cacheable e efeitos dinamicos."""
+    assert is_cacheable_effect(BlurFilter(5.0)) is True
+    assert is_cacheable_effect(CountingStaticEffect()) is True
+    assert is_cacheable_effect(CountingDynamicEffect()) is False
+    assert is_cacheable_effect(BoundEffect.from_layer(Layer(make_img(10, 10)), BlurFilter(5.0))) is True
+    assert is_cacheable_effect(BoundEffect.from_layer(Layer(make_img(10, 10)), CountingDynamicEffect())) is False
 
 
-def test_get_tracked_attrs_on_bound_effect():
-    """Valida se get_tracked_attrs extrai os atributos do BoundEffect incluindo effect e matrix."""
-    attrs = get_tracked_attrs(BoundEffect)
-    assert attrs == ("effect", "mask", "matrix", "visible")
+def test_cache_state_on_blur_filter():
+    """Valida se cache_state retorna os atributos observaveis corretos do BlurFilter."""
+    blur = BlurFilter(radius=(3.0, 4.0), angle=45.0, strength=0.8)
+    state = blur.cache_state()
+    assert state["visible"] is True
+    assert state["radius_x"] == 3.0
+    assert state["radius_y"] == 4.0
+    assert state["angle"] == 45.0
+    assert state["strength"] == 0.8
 
 
-def test_get_tracked_attrs_on_custom_effect_preserves_private_and_ignores_callables():
-    """Valida se get_tracked_attrs mantem atributos privados com prefixo _ e ignora metodos callables."""
-    attrs = get_tracked_attrs(CustomPrivateEffect)
-    assert attrs == ("_algo", "_radius", "public_val", "visible")
+def test_cache_state_on_bound_effect_includes_inner_effect_and_matrix():
+    """Valida se cache_state do BoundEffect extrai matrix como bytes e estado do efeito interno."""
+    mat = np.eye(3, dtype=np.float32)
+    blur = BlurFilter(5.0)
+    bound = BoundEffect(blur, mat)
+    state = bound.cache_state()
+    assert state["matrix"] == mat.tobytes()
+    assert state["effect"]["radius_x"] == 5.0
 
 
 def test_snapshot_effect_converts_numpy_array_to_bytes():
@@ -513,7 +532,7 @@ def test_snapshot_effect_converts_numpy_array_to_bytes():
     blur = BlurFilter(5.0)
     bound = BoundEffect(blur, mat)
     snapshot = snapshot_effect(bound)
-    assert mat.tobytes() in snapshot
+    assert snapshot[1]["matrix"] == mat.tobytes()
 
 
 def test_layer_cache_invalidates_baked_effects_when_filter_parameter_mutated():
