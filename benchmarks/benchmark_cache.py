@@ -9,7 +9,7 @@ import numpy as np
 
 from anicrop import Document, ImageFormat, LayerCache
 from anicrop.content import FitContext
-from anicrop.effect import Effect
+from anicrop.effect import BoundEffect, Effect
 from anicrop.filter import BlurFilter
 from anicrop.image import Image
 from anicrop.spatial import Region
@@ -39,7 +39,7 @@ def create_base_scene(history: bool = False) -> Document:
 
     # Desfoque de profundidade de campo no fundo
     fundo = doc["Fundo"]
-    fundo.bind_effect(BlurFilter(radius=3.0))
+    fundo.effects.add(BoundEffect.from_layer(fundo, BlurFilter(radius=3.0)))
 
     return doc
 
@@ -246,9 +246,9 @@ def benchmark_dynamic_effect(iterations: int = 15) -> tuple[dict[str, Any], dict
     # 1. Sem Cache: recalcula Blur 8.0 pesado + corte a cada frame
     doc_nc = create_base_scene()
     fundo_nc = doc_nc["Fundo"]
-    fundo_nc.clear_effects()
-    fundo_nc.bind_effect(BlurFilter(radius=8.0))
-    fundo_nc.add_effect(AnifuseSeamCutEffect())
+    fundo_nc.effects.clear()
+    fundo_nc.effects.add(BoundEffect.from_layer(fundo_nc, BlurFilter(radius=8.0)))
+    fundo_nc.effects.add(AnifuseSeamCutEffect())
 
     times_nc = []
     doc_nc.render(format=ImageFormat.RGBA)
@@ -262,9 +262,9 @@ def benchmark_dynamic_effect(iterations: int = 15) -> tuple[dict[str, Any], dict
     # 2. Com Cache: Blur 8.0 pesado é assado em baked_effects; apenas o DynamicEffect roda a cada frame
     doc_c = create_base_scene()
     fundo_c = doc_c["Fundo"]
-    fundo_c.clear_effects()
-    fundo_c.bind_effect(BlurFilter(radius=8.0))
-    fundo_c.add_effect(AnifuseSeamCutEffect())
+    fundo_c.effects.clear()
+    fundo_c.effects.add(BoundEffect.from_layer(fundo_c, BlurFilter(radius=8.0)))
+    fundo_c.effects.add(AnifuseSeamCutEffect())
 
     cache = LayerCache()
     for layer in doc_c.stack:
