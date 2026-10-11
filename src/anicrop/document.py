@@ -63,21 +63,18 @@ class ReactiveDocumentPolicy(DocumentPolicy):
     def process_layer(self, layer: LayerT, history: GlobalHistory | None) -> LayerT:
         if isinstance(layer, BaseHistoryProxy):
             return layer
-        assert history is not None
         registry = get_registry_for_history(history)
         return registry.get_or_create(layer)  # type: ignore[return-value]
 
     def process_canvas(self, canvas: Canvas, history: GlobalHistory | None) -> Canvas:
         if isinstance(canvas, BaseHistoryProxy):
             return canvas
-        assert history is not None
         registry = get_registry_for_history(history)
         return registry.get_or_create(canvas)  # type: ignore[return-value]
 
     def process_combine(self, combine: Combine, history: GlobalHistory | None) -> Combine:
         if isinstance(combine, BaseHistoryProxy):
             return combine
-        assert history is not None
         registry = get_registry_for_history(history)
         return registry.get_or_create(combine)  # type: ignore[return-value]
 

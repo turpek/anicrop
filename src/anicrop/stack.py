@@ -1,7 +1,15 @@
 from __future__ import annotations
 
 from abc import ABC
-from typing import Any, Generic, Iterator, Protocol, Sequence, TypeVar, overload
+from typing import (
+    Any,
+    Generic,
+    Iterable,
+    Iterator,
+    Protocol,
+    TypeVar,
+    overload,
+)
 
 
 class NamedItem(Protocol):
@@ -18,7 +26,7 @@ class NamedStack(Generic[T], ABC):
 
     _item_type_name: str = "Item"
 
-    def __init__(self, items: Sequence[T] | None = None) -> None:
+    def __init__(self, items: Iterable[T] | None = None) -> None:
         self._items: list[T] = []
         if items is not None:
             self.extend(items)
@@ -114,7 +122,7 @@ class NamedStack(Generic[T], ABC):
         """Alias para add()."""
         return self.add(item)
 
-    def extend(self, items: Sequence[T] | NamedStack[T]) -> None:
+    def extend(self, items: Iterable[T]) -> None:
         """Adiciona múltiplos itens à pilha."""
         for x in items:
             self.add(x)

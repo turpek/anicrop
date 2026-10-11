@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import logging
+import os
 from typing import TYPE_CHECKING, Iterable
 
 import numpy as np
@@ -11,6 +13,8 @@ from anicrop.spatial import Region
 
 if TYPE_CHECKING:
     from anicrop.container import BaseLayer
+
+logger = logging.getLogger(__name__)
 
 
 def harmonize_rendered_image(image: Image, target: Image) -> Image:
@@ -35,10 +39,10 @@ def blend_rendered_images(
 
 
 try:
-    from anicrop.native.blend import (
+    from anicrop.native.blend import (  # type: ignore[import-not-found,import-untyped]
         blend_multiply as _cy_blend_multiply,
     )
-    from anicrop.native.blend import (  # type: ignore[import-not-found,import-untyped]
+    from anicrop.native.blend import (
         blend_normal as _cy_blend_normal,
     )
     from anicrop.native.blend import (
@@ -342,8 +346,10 @@ def blend_normal(base: Image, edit: Image, opacity: float = 1.0) -> None:
         try:
             _cy_blend_normal(base_arr, edit_arr, opacity)
             return
-        except Exception:
-            pass
+        except (TypeError, ValueError) as e:
+            if os.environ.get("ANICROP_REQUIRE_NATIVE") == "1":
+                raise
+            logger.debug("Fallback para NumPy em blend_normal: %s", e)
 
     _blend_normal_numpy(b_view, e_view, opacity)
 
@@ -675,8 +681,10 @@ def blend_multiply(base: Image, overlay: Image, opacity: float = 1.0) -> Image:
         try:
             _cy_blend_multiply(b_view, o_view, opacity)
             return base
-        except Exception:
-            pass
+        except (TypeError, ValueError) as e:
+            if os.environ.get("ANICROP_REQUIRE_NATIVE") == "1":
+                raise
+            logger.debug("Fallback para NumPy em blend_multiply: %s", e)
 
     _blend_multiply_numpy(b_view, o_view, opacity)
     return base

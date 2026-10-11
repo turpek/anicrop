@@ -692,3 +692,19 @@ def test_blend_multiply_white_low_alpha_stress_parity():
 
     max_diff = np.max(np.abs(base_np.astype(np.int16) - base_cy.astype(np.int16)))
     assert max_diff <= 6
+
+
+def test_blend_fallback_raises_when_require_native_enabled(monkeypatch):
+    """Valida que falhas no kernel levantam excecao quando ANICROP_REQUIRE_NATIVE esta ativo."""
+    monkeypatch.setenv("ANICROP_REQUIRE_NATIVE", "1")
+    monkeypatch.setattr("anicrop.blend._HAS_CY_BLEND", True)
+    monkeypatch.setattr(
+        "anicrop.blend._cy_blend_normal",
+        lambda *args: (_ for _ in ()).throw(ValueError("kernel error")),
+    )
+
+    base = Image(np.zeros((4, 4, 4), dtype=np.uint8), ImageFormat.RGBA)
+    overlay = Image(np.zeros((4, 4, 4), dtype=np.uint8), ImageFormat.RGBA)
+
+    with pytest.raises(ValueError, match="kernel error"):
+        blend_normal(base, overlay)

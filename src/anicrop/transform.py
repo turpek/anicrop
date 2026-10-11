@@ -3,7 +3,7 @@ from __future__ import annotations
 import math
 from abc import ABC, abstractmethod
 from collections.abc import Callable, Sequence
-from typing import TYPE_CHECKING, Self
+from typing import TYPE_CHECKING, Any, Self
 
 import numpy as np
 
@@ -482,17 +482,23 @@ class Transform(ABC):
         return self.COMPOSER_CLS(size)
 
     def __init__(
-        self, intentions: list[TRotate | TScale] = [], translate: list[TTranslate] = []
+        self,
+        intentions: Sequence[TRotate | TScale] | None = None,
+        translate: Sequence[TTranslate] | None = None,
     ):
-        if self._validate_list(intentions, TTranslate):
+        intentions_seq = tuple(intentions) if intentions is not None else ()
+        translate_seq = tuple(translate) if translate is not None else ()
+        if self._validate_list(intentions_seq, TTranslate):
             raise TypeError("intentions list can only contain TRotate or TScale")
-        elif self._validate_list(translate, (TRotate, TScale)):
+        elif self._validate_list(translate_seq, (TRotate, TScale)):
             raise TypeError("translate list can only contain TTranslate")
 
-        self._intentions = intentions
-        self._translate = translate
+        self._intentions = intentions_seq
+        self._translate = translate_seq
 
-    def _validate_list(self, transf: list, cls_types: type | tuple[type, ...]) -> bool:
+    def _validate_list(
+        self, transf: Sequence[Any], cls_types: type | tuple[type, ...]
+    ) -> bool:
         for op in transf:
             if isinstance(op, cls_types):
                 return True
@@ -502,7 +508,7 @@ class Transform(ABC):
         return len(transf) == 0 or len(transf) == 1
 
     def translate(self, x: float = 0.0, y: float = 0.0) -> Self:
-        new_translate = self._translate + [TTranslate(x, y)]
+        new_translate = self._translate + (TTranslate(x, y),)
         return self.__class__(self._intentions, new_translate)
 
     @property
@@ -555,8 +561,8 @@ class TransformRel(Transform):
 
     def __init__(
         self,
-        intentions: list[TRotate | TScale] = [],
-        translate: list[TTranslate] = [],
+        intentions: Sequence[TRotate | TScale] | None = None,
+        translate: Sequence[TTranslate] | None = None,
     ):
         super().__init__(intentions, translate)
 
@@ -585,14 +591,14 @@ class TransformRel(Transform):
         pivot_y: float = 0.5,
     ) -> TransformRel:
 
-        new_intentions = self._intentions + [TRotate(angle, pivot_x, pivot_y)]
+        new_intentions = self._intentions + (TRotate(angle, pivot_x, pivot_y),)
         return TransformRel(new_intentions, self._translate)
 
     def scale(
         self, sx: float = 1, sy: float = 1, pivot_x: float = 0.5, pivot_y: float = 0.5
     ) -> TransformRel:
 
-        new_intentions = self._intentions + [TScale(sx, sy, pivot_x, pivot_y)]
+        new_intentions = self._intentions + (TScale(sx, sy, pivot_x, pivot_y),)
         return TransformRel(new_intentions, self._translate)
 
 
@@ -600,7 +606,9 @@ class TransformAbs(Transform):
     COMPOSER_CLS = ComposerAbs
 
     def __init__(
-        self, intentions: list[TRotate | TScale] = [], translate: list[TTranslate] = []
+        self,
+        intentions: Sequence[TRotate | TScale] | None = None,
+        translate: Sequence[TTranslate] | None = None,
     ):
         super().__init__(intentions, translate)
 
@@ -621,9 +629,9 @@ class TransformAbs(Transform):
         py: float = 0.0,
     ) -> TransformAbs:
 
-        new_intentions = self._intentions + [
-            TRotate(angle, px, py, pivot_fn=create_pivot_transform_abs)
-        ]
+        new_intentions = self._intentions + (
+            TRotate(angle, px, py, pivot_fn=create_pivot_transform_abs),
+        )
         return TransformAbs(new_intentions, self._translate)
 
     def scale(
@@ -634,7 +642,7 @@ class TransformAbs(Transform):
         py: float = 0.0,
     ) -> TransformAbs:
 
-        new_intentions = self._intentions + [
-            TScale(sx, sy, px, py, pivot_fn=create_pivot_transform_abs)
-        ]
+        new_intentions = self._intentions + (
+            TScale(sx, sy, px, py, pivot_fn=create_pivot_transform_abs),
+        )
         return TransformAbs(new_intentions, self._translate)
