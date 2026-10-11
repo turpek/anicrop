@@ -1,4 +1,5 @@
 import ctypes
+import logging
 import os
 import shutil
 import tempfile
@@ -6,6 +7,8 @@ import uuid
 from pathlib import Path
 
 import numpy as np
+
+logger = logging.getLogger(__name__)
 
 DEFAULT_MIN_DISK_HEADROOM: int = 128 * 1024 * 1024  # 128 MB
 
@@ -18,8 +21,8 @@ def _resolve_optimal_temp_dir() -> str | None:
             usage = shutil.disk_usage(shm_path)
             if usage.free >= 512 * 1024 * 1024:
                 return str(shm_path)
-        except OSError:
-            pass
+        except OSError as exc:
+            logger.debug("Falha ao checar uso de disco em %s: %s", shm_path, exc)
     return None
 
 
@@ -80,8 +83,8 @@ def _cleanup_stale_workspaces(base_dir: str | Path | None) -> None:
                 owner_pid = int(parts[3])
                 if not _is_pid_alive(owner_pid):
                     shutil.rmtree(item, ignore_errors=True)
-    except Exception:
-        pass
+    except Exception as exc:
+        logger.debug("Falha ao limpar workspaces órfãos em %s: %s", base_path, exc)
 
 
 class ScratchDiskManager:
