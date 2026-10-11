@@ -649,7 +649,11 @@ class BaseRenderer[FrameT: BaseFrame](ABC):
                 interp,
             )
             if image is None:
-                image = Image.new(dst_region.size, layer.format)
+                image = layer.background(
+                    dst_region.size,
+                    layer.format,
+                    dtype=visible_edits[0].image.dtype,
+                )
         else:
             image = self._flatten_edits(visible_edits, layer, frame, interp)
 
