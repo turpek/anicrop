@@ -28,6 +28,9 @@ jobs:
       - name: Lint check (Ruff)
         run: uv run ruff check .
 
+      - name: Type check (Mypy)
+        run: uv run mypy src
+
   test:
     runs-on: ubuntu-latest
     needs: lint
@@ -66,6 +69,10 @@ jobs:
         if: matrix.build-mode == 'pure'
         run: |
           rm -f src/anicrop/native/*.so src/anicrop/native/*.pyd
+
+      - name: Verify build mode (Native vs Pure)
+        run: |
+          uv run python -c "import anicrop; expected = ('${{ matrix.build-mode }}' == 'native'); assert anicrop.native_available == expected, f'Modo inesperado: native_available={anicrop.native_available}, esperado={expected}'"
 
       - name: Run test suite (pytest)
         run: uv run pytest
