@@ -17,3 +17,8 @@ def test_version_semver_format():
     pattern = r"^\d+\.\d+\.\d+(?:[a-zA-Z0-9\.\-]+)?$"
 
     assert re.match(pattern, version) is not None
+
+
+def test_native_available_attribute():
+    """Valida que anicrop expoe native_available como booleano."""
+    assert isinstance(anicrop.native_available, bool)
