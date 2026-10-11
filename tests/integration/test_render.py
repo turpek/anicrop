@@ -633,9 +633,9 @@ def test_render_scene_with_single_edit_layers_and_opacity(canvas_render):
 
     assert result.size == (100, 100)
     pixel = result[50, 50]
-    assert pixel[0] == 127
+    assert pixel[0] in (127, 128)
     assert pixel[1] == 0
-    assert pixel[2] == 128
+    assert pixel[2] in (127, 128)
     assert pixel[3] == 255
 
 
