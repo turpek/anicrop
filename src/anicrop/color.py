@@ -553,3 +553,124 @@ def convert_image_format(
     raise ValueError(
         f"Conversão de formato não suportada de '{src_fmt}' para '{dst_fmt}'."
     )
+
+
+# =========================================================================
+# Conversão Declarativa a partir do padrão OpenCV (BGR / Escala de Cinza)
+# =========================================================================
+
+_CV2_BGR_CONVERSIONS: dict[tuple[int, ImageFormat], int] = {
+    (1, ImageFormat.BGR): cv2.COLOR_GRAY2BGR,
+    (1, ImageFormat.BGRA): cv2.COLOR_GRAY2BGRA,
+    (1, ImageFormat.RGB): cv2.COLOR_GRAY2RGB,
+    (1, ImageFormat.RGBA): cv2.COLOR_GRAY2RGBA,
+    (3, ImageFormat.RGB): cv2.COLOR_BGR2RGB,
+    (3, ImageFormat.RGBA): cv2.COLOR_BGR2RGBA,
+    (3, ImageFormat.BGRA): cv2.COLOR_BGR2BGRA,
+    (3, ImageFormat.GRAY): cv2.COLOR_BGR2GRAY,
+    (4, ImageFormat.BGR): cv2.COLOR_BGRA2BGR,
+    (4, ImageFormat.RGB): cv2.COLOR_BGRA2RGB,
+    (4, ImageFormat.RGBA): cv2.COLOR_BGRA2RGBA,
+    (4, ImageFormat.GRAY): cv2.COLOR_BGRA2GRAY,
+}
+
+_PASSTHROUGH_BGR_FORMATS: dict[int, ImageFormat] = {
+    1: ImageFormat.GRAY,
+    2: ImageFormat.GRAY_ALPHA,
+    3: ImageFormat.BGR,
+    4: ImageFormat.BGRA,
+}
+
+
+def _opaque_alpha_for_dtype(dtype: np.dtype) -> int | float:
+    """Retorna o valor de alfa totalmente opaco compatível com o dtype."""
+    if np.issubdtype(dtype, np.floating):
+        return 1.0
+    elif dtype == np.uint16:
+        return 65535
+    return 255
+
+
+def _convert_2ch_bgr(data: np.ndarray, target_format: ImageFormat) -> np.ndarray:
+    """Converte array de 2 canais (Gray, Alpha) para o formato desejado."""
+    if target_format == ImageFormat.GRAY:
+        return data[..., 0:1]
+    if target_format == ImageFormat.GRAY_ALPHA:
+        return data
+    gray = data[..., 0]
+    alpha = data[..., 1]
+    if target_format in (ImageFormat.BGR, ImageFormat.BGRA):
+        bgr = cv2.cvtColor(gray, cv2.COLOR_GRAY2BGR)
+        return np.dstack([bgr, alpha]) if target_format == ImageFormat.BGRA else bgr
+    if target_format in (ImageFormat.RGB, ImageFormat.RGBA):
+        rgb = cv2.cvtColor(gray, cv2.COLOR_GRAY2RGB)
+        return np.dstack([rgb, alpha]) if target_format == ImageFormat.RGBA else rgb
+    raise ValueError(
+        f"Conversão de formato não suportada de 2 canais para '{target_format}'."
+    )
+
+
+def _convert_bgr_to_gray_alpha(data: np.ndarray, channels: int) -> np.ndarray:
+    """Converte array BGR/Gray com qualquer número de canais para GRAY_ALPHA."""
+    if channels == 2:
+        return data
+    if channels == 4:
+        gray = cv2.cvtColor(data, cv2.COLOR_BGRA2GRAY)
+        return np.dstack([gray, data[..., 3]])
+
+    if channels == 1:
+        gray = data if data.ndim == 2 else data[..., 0]
+    else:
+        gray = cv2.cvtColor(data, cv2.COLOR_BGR2GRAY)
+
+    alpha_val = _opaque_alpha_for_dtype(data.dtype)
+    alpha = np.full(gray.shape, alpha_val, dtype=data.dtype)
+    return np.dstack([gray, alpha])
+
+
+def convert_bgr_to_format(
+    data: np.ndarray,
+    target_format: ImageFormat,
+) -> np.ndarray:
+    """Converte uma matriz OpenCV (BGR, BGRA ou cinza) para o formato alvo do anicrop."""
+    if target_format == ImageFormat.PRGBA:
+        rgba = convert_bgr_to_format(data, ImageFormat.RGBA)
+        return convert_image_format(rgba, ImageFormat.RGBA, ImageFormat.PRGBA)
+
+    if target_format == ImageFormat.RGBX:
+        rgb = convert_bgr_to_format(data, ImageFormat.RGB)
+        return convert_image_format(rgb, ImageFormat.RGB, ImageFormat.RGBX)
+
+    channels = 1 if data.ndim == 2 else data.shape[2]
+    if channels > 4:
+        if target_format in (ImageFormat.BGRA, ImageFormat.RGBA):
+            data = data[..., :4]
+            channels = 4
+        else:
+            data = data[..., :3]
+            channels = 3
+
+    if target_format == ImageFormat.GRAY:
+        if channels == 1:
+            return data if data.ndim == 3 else data[..., np.newaxis]
+        elif channels == 2:
+            return data[..., 0:1]
+
+    if _PASSTHROUGH_BGR_FORMATS.get(channels) == target_format:
+        return data
+
+    if channels == 2:
+        return _convert_2ch_bgr(data, target_format)
+
+    if target_format == ImageFormat.GRAY_ALPHA:
+        return _convert_bgr_to_gray_alpha(data, channels)
+
+    cv2_code = _CV2_BGR_CONVERSIONS.get((channels, target_format))
+    if cv2_code is not None:
+        converted = cv2.cvtColor(data, cv2_code)
+        if target_format == ImageFormat.GRAY and converted.ndim == 2:
+            return converted[..., np.newaxis]
+        return converted
+
+    auto_fmt = _PASSTHROUGH_BGR_FORMATS.get(channels, ImageFormat.BGR)
+    return convert_image_format(data, auto_fmt, target_format)

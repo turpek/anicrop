@@ -8,7 +8,7 @@ import imagesize  # type: ignore[import-untyped]
 import numpy as np
 
 from anicrop.buffer import MMapBuffer
-from anicrop.color import convert_image_format
+from anicrop.color import convert_bgr_to_format, convert_image_format
 from anicrop.enums import ImageFormat
 from anicrop.interfaces.io import AbstractImageIO, SaveOptions
 
@@ -27,20 +27,20 @@ def _decode_raw(file_path: str | Path) -> tuple[np.ndarray, int]:
     return raw_data, native_channels
 
 
+_NATIVE_AUTO_FORMATS: dict[int, ImageFormat] = {
+    1: ImageFormat.GRAY,
+    2: ImageFormat.GRAY_ALPHA,
+    3: ImageFormat.RGB,
+    4: ImageFormat.RGBA,
+}
+
+
 def _auto_detect_format(
     data: np.ndarray, channels: int
 ) -> tuple[np.ndarray, ImageFormat]:
     """Detecta o formato nativo da imagem crua e converte BGR para o padrão RGB do anicrop."""
-    if channels == 1:
-        return data[..., np.newaxis], ImageFormat.GRAY
-    elif channels == 2:
-        return data, ImageFormat.GRAY_ALPHA
-    elif channels == 3:
-        return cv2.cvtColor(data, cv2.COLOR_BGR2RGB), ImageFormat.RGB
-    elif channels == 4:
-        return cv2.cvtColor(data, cv2.COLOR_BGRA2RGBA), ImageFormat.RGBA
-    else:
-        return cv2.cvtColor(data[:, :, :3], cv2.COLOR_BGR2RGB), ImageFormat.RGB
+    target_format = _NATIVE_AUTO_FORMATS.get(channels, ImageFormat.RGB)
+    return convert_bgr_to_format(data, target_format), target_format
 
 
 def _convert_to_requested_format(
@@ -49,80 +49,7 @@ def _convert_to_requested_format(
     target_format: ImageFormat,
 ) -> np.ndarray:
     """Converte os dados lidos do OpenCV para o formato explicitamente solicitado."""
-    h, w = data.shape[:2]
-
-    if target_format == ImageFormat.RGBA:
-        if channels == 1:
-            rgb = cv2.cvtColor(data, cv2.COLOR_GRAY2RGB)
-            alpha = np.full((h, w, 1), 255, dtype=np.uint8)
-            return np.dstack([rgb, alpha])
-        elif channels == 2:
-            gray, alpha = data[:, :, 0], data[:, :, 1]
-            rgb = cv2.cvtColor(gray, cv2.COLOR_GRAY2RGB)
-            return np.dstack([rgb, alpha])
-        elif channels == 3:
-            return cv2.cvtColor(data, cv2.COLOR_BGR2RGBA)
-        return cv2.cvtColor(data, cv2.COLOR_BGRA2RGBA)
-
-    elif target_format == ImageFormat.RGB:
-        if channels == 1:
-            return cv2.cvtColor(data, cv2.COLOR_GRAY2RGB)
-        elif channels == 2:
-            return cv2.cvtColor(data[:, :, 0], cv2.COLOR_GRAY2RGB)
-        elif channels == 3:
-            return cv2.cvtColor(data, cv2.COLOR_BGR2RGB)
-        return cv2.cvtColor(data, cv2.COLOR_BGRA2RGB)
-
-    elif target_format == ImageFormat.GRAY:
-        if channels == 1:
-            return data if data.ndim == 3 else data[..., np.newaxis]
-        elif channels == 2:
-            return data[:, :, 0:1]
-        gray = cv2.cvtColor(data[:, :, :3], cv2.COLOR_BGR2GRAY)
-        return gray[..., np.newaxis]
-
-    elif target_format == ImageFormat.GRAY_ALPHA:
-        if channels == 1:
-            gray = data if data.ndim == 2 else data[:, :, 0]
-            alpha = np.full(gray.shape, 255, dtype=np.uint8)
-            return np.dstack([gray, alpha])
-        elif channels == 2:
-            return data
-        elif channels == 3:
-            gray = cv2.cvtColor(data, cv2.COLOR_BGR2GRAY)
-            alpha = np.full(gray.shape, 255, dtype=np.uint8)
-            return np.dstack([gray, alpha])
-        gray = cv2.cvtColor(data[:, :, :3], cv2.COLOR_BGR2GRAY)
-        return np.dstack([gray, data[:, :, 3]])
-
-    elif target_format == ImageFormat.BGR:
-        if channels == 1:
-            return cv2.cvtColor(data, cv2.COLOR_GRAY2BGR)
-        elif channels == 2:
-            return cv2.cvtColor(data[:, :, 0], cv2.COLOR_GRAY2BGR)
-        elif channels == 3:
-            return data
-        return cv2.cvtColor(data, cv2.COLOR_BGRA2BGR)
-
-    elif target_format == ImageFormat.BGRA:
-        if channels == 1:
-            return cv2.cvtColor(data, cv2.COLOR_GRAY2BGRA)
-        elif channels == 2:
-            bgr = cv2.cvtColor(data[:, :, 0], cv2.COLOR_GRAY2BGR)
-            return np.dstack([bgr, data[:, :, 1]])
-        elif channels == 3:
-            return cv2.cvtColor(data, cv2.COLOR_BGR2BGRA)
-        return data
-
-    elif target_format == ImageFormat.PRGBA:
-        rgba = _convert_to_requested_format(data, channels, ImageFormat.RGBA)
-        return convert_image_format(rgba, ImageFormat.RGBA, ImageFormat.PRGBA)
-
-    elif target_format == ImageFormat.RGBX:
-        rgb = _convert_to_requested_format(data, channels, ImageFormat.RGB)
-        return convert_image_format(rgb, ImageFormat.RGB, ImageFormat.RGBX)
-
-    return data
+    return convert_bgr_to_format(data, target_format)
 
 
 def _apply_shrink_and_roi(
