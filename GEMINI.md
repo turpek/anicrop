@@ -8,7 +8,7 @@
 
 - **Descrição curta:** Biblioteca/engine em Python para composição não-destrutiva de imagens 2D baseada em camadas (`Layer`, `GroupLayer`), suporte a transformações espaciais (matrizes homogêneas 3x3), mesclagem (*blend modes*), backend híbrido de memória (NumPy / `np.memmap` para imagens gigantes) e renderização por patch.
 - **Motivação:** Fornecer um *backend* de edição gráfica robusto, matematicamente preciso e de alta performance que possa alimentar scripts de automação complexos ou servir de motor gráfico para interfaces de usuário (GUIs).
-- **Status Atual:** Desenvolvimento ativo (v0.7.0). Estrutura de transformações afins homogêneas, contêineres compostos (`LayerStack`, `GroupLayer`), motor espacial `Layout` baseado em `GeometryStrategy`, manipulação de pixels com `Content`, orquestrador de composição `Combine`, proxies reativos para histórico (Undo/Redo), sistema de aceleração por cache incremental (`LayerCache`), backend híbrido de memória (`MMapBuffer`/LOD) e renderização por patch via `CanvasRender` e `ViewportRender` estabelecidos.
+- **Status Atual:** Desenvolvimento ativo (v0.8.0). Estrutura de transformações afins homogêneas, contêineres compostos (`LayerStack`, `GroupLayer`), pilhas canônicas (`NamedStack`, `EffectStack`, `EditStack`), motor espacial `Layout` baseado em `GeometryStrategy`, manipulação de pixels com `Content`, orquestrador de composição `Combine`, proxies reativos para histórico (Undo/Redo), sistema de aceleração por cache incremental (`LayerCache`, protocolo `Cacheable`), backend híbrido de memória (`MMapBuffer`/LOD), mesclagem nativa acelerada (`BlendMode` incluindo `MULTIPLY` com aritmética inteira de ponto fixo Q48) e renderização por patch via `CanvasRender` e `ViewportRender` estabelecidos.
 
 ---
 
