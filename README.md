@@ -173,3 +173,40 @@ Otimiza renderizações sequenciais contínuas (ex: animações, streaming ou n�
    │  (Folha)  │                   │(Composto) │
    └───────────┘                   └───────────┘
 ```
+
+
+---
+
+## ⚙️ Compilação Nativa & Flags de Build
+
+O `anicrop` inclui kernels de alta performance em Cython/C com paralelismo OpenMP para acelerar rotas de mesclagem (`BlendMode.MULTIPLY`, `NORMAL`, etc.) e conversões de cores:
+
+* **Build Padrão (Portátil & Seguro):**
+  ```bash
+  uv run python setup.py build_ext --inplace
+  # ou via Makefile:
+  make build
+  ```
+  Compila com `-O3 -fopenmp`, gerando binários seguros e portáteis para qualquer CPU de 64 bits.
+
+* **Build Local com Otimização Máxima da CPU (`ANICROP_NATIVE=1`):**
+  ```bash
+  ANICROP_NATIVE=1 uv run python setup.py build_ext --inplace
+  ```
+  Adiciona `-march=native`, ativando instruções vetoriais específicas da sua CPU (AVX2, FMA, etc.) para benchmarks ou uso local.
+
+* **Modo Estrito / Fail-Fast (`ANICROP_REQUIRE_NATIVE=1`):**
+  ```bash
+  ANICROP_REQUIRE_NATIVE=1 uv run python setup.py build_ext --inplace
+  ```
+  Falha o build imediatamente se as extensões C não puderem ser compiladas (utilizado no CI e em releases para evitar geração de pacotes em fallback silencioso).
+
+* **Checagem em Tempo de Execução:**
+  ```python
+  import anicrop
+
+  if anicrop.native_available:
+      print("🚀 Kernels em Cython/C acelerados estão ativos!")
+  else:
+      print("⚠️ Executando no fallback em NumPy puro.")
+  ```
