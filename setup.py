@@ -10,10 +10,15 @@ try:
 except ImportError:
     USE_CYTHON = False
 
+has_c_sources = (
+    os.path.exists("src/anicrop/native/blend.c")
+    and os.path.exists("src/anicrop/native/color.c")
+)
+
 require_native = os.environ.get("ANICROP_REQUIRE_NATIVE", "0") == "1"
-if require_native and not USE_CYTHON:
+if require_native and not USE_CYTHON and not has_c_sources:
     raise RuntimeError(
-        "ANICROP_REQUIRE_NATIVE=1 foi definido, mas Cython não está disponível para compilar extensões nativas."
+        "ANICROP_REQUIRE_NATIVE=1 foi definido, mas Cython não está disponível e os arquivos .c não foram encontrados."
     )
 
 
@@ -61,6 +66,23 @@ if USE_CYTHON:
         extensions,
         compiler_directives={"language_level": "3"},
     )
+elif has_c_sources:
+    ext_modules = [
+        Extension(
+            "anicrop.native.blend",
+            sources=["src/anicrop/native/blend.c"],
+            extra_compile_args=extra_compile_args,
+            extra_link_args=extra_link_args,
+            optional=not require_native,
+        ),
+        Extension(
+            "anicrop.native.color",
+            sources=["src/anicrop/native/color.c"],
+            extra_compile_args=extra_compile_args,
+            extra_link_args=extra_link_args,
+            optional=not require_native,
+        ),
+    ]
 
 setup(
     ext_modules=ext_modules,
