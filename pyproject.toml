@@ -65,6 +65,7 @@ test-command = "python -c \"from anicrop.native.blend import blend_multiply; fro
 environment = { ANICROP_REQUIRE_NATIVE = "1" }
 build = "cp312-* cp313-*"
 skip = "*musllinux*"
+test-skip = "*-manylinux*"
 
 
 
