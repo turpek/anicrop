@@ -1,56 +1,12 @@
 from __future__ import annotations
 
-from collections.abc import Callable, Iterator, Sequence
+from collections.abc import Callable, Iterator
 from dataclasses import dataclass
 from itertools import count
 from operator import add, mul, sub, truediv
-from typing import Any, Protocol, TypeVar, overload
+from typing import Any, Protocol
 
 import numpy as np
-
-T = TypeVar("T")
-
-
-class ListView(Sequence[T]):
-    """Visão somente leitura de alta performance sobre uma sequência subjacente."""
-
-    __slots__ = ("_data",)
-
-    def __init__(self, data: Sequence[T]) -> None:
-        self._data: Sequence[T] = data
-
-    def __len__(self) -> int:
-        return len(self._data)
-
-    def __iter__(self) -> Iterator[T]:
-        return iter(self._data)
-
-    @overload
-    def __getitem__(self, index: int) -> T:
-        pass
-
-    @overload
-    def __getitem__(self, index: slice) -> ListView[T]:
-        pass
-
-    def __getitem__(self, index: int | slice) -> T | ListView[T]:
-        if isinstance(index, slice):
-            return ListView(self._data[index])
-        return self._data[index]
-
-    def __contains__(self, item: object) -> bool:
-        return item in self._data
-
-    def __repr__(self) -> str:
-        return f"ListView({list(self._data)!r})"
-
-    def __eq__(self, other: object) -> bool:
-        if isinstance(other, ListView):
-            return self._data == other._data
-        if isinstance(other, Sequence):
-            return list(self._data) == list(other)
-        return False
-
 
 RotationInput = float | tuple[float, float, float]
 ScaleInput = float | tuple[float, float] | tuple[float, float, float, float]
