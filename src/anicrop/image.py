@@ -12,7 +12,11 @@ import numpy as np
 from numpy import ndarray
 
 from anicrop.buffer import ArrayBuffer, MMapBuffer
-from anicrop.color import convert_image_format
+from anicrop.color import (
+    _PASSTHROUGH_BGR_FORMATS,
+    convert_bgr_to_format,
+    convert_image_format,
+)
 from anicrop.config import config
 from anicrop.enums import ImageFormat
 from anicrop.interfaces.buffer import AbstractImageBuffer
@@ -495,118 +499,12 @@ class Image:
         channels = 1 if data.ndim == 2 else data.shape[2]
 
         if target_format is None:
-            if channels == 1:
-                return cls(data, ImageFormat.GRAY, threshold_pixels=threshold_pixels)
-            elif channels == 2:
-                return cls(data, ImageFormat.GRAY_ALPHA, threshold_pixels=threshold_pixels)
-            elif channels == 3:
-                return cls(data, ImageFormat.BGR, threshold_pixels=threshold_pixels)
-            elif channels == 4:
-                return cls(data, ImageFormat.BGRA, threshold_pixels=threshold_pixels)
-            else:
-                return cls(data[..., :3], ImageFormat.BGR, threshold_pixels=threshold_pixels)
+            resolved_format = _PASSTHROUGH_BGR_FORMATS.get(channels, ImageFormat.BGR)
+            src_data = data[..., :3] if channels > 4 else data
+            return cls(src_data, resolved_format, threshold_pixels=threshold_pixels)
 
-        if target_format == ImageFormat.BGR:
-            if channels == 1:
-                converted = cv2.cvtColor(data, cv2.COLOR_GRAY2BGR)
-            elif channels == 2:
-                converted = cv2.cvtColor(data[..., 0], cv2.COLOR_GRAY2BGR)
-            elif channels == 3:
-                converted = data
-            elif channels == 4:
-                converted = cv2.cvtColor(data, cv2.COLOR_BGRA2BGR)
-            else:
-                converted = data[..., :3]
-            return cls(converted, ImageFormat.BGR, threshold_pixels=threshold_pixels)
-
-        elif target_format == ImageFormat.BGRA:
-            if channels == 1:
-                converted = cv2.cvtColor(data, cv2.COLOR_GRAY2BGRA)
-            elif channels == 2:
-                bgr = cv2.cvtColor(data[..., 0], cv2.COLOR_GRAY2BGR)
-                converted = np.dstack([bgr, data[..., 1]])
-            elif channels == 3:
-                converted = cv2.cvtColor(data, cv2.COLOR_BGR2BGRA)
-            elif channels == 4:
-                converted = data
-            else:
-                converted = data[..., :4]
-            return cls(converted, ImageFormat.BGRA, threshold_pixels=threshold_pixels)
-
-        elif target_format == ImageFormat.RGB:
-            if channels == 1:
-                converted = cv2.cvtColor(data, cv2.COLOR_GRAY2RGB)
-            elif channels == 2:
-                converted = cv2.cvtColor(data[..., 0], cv2.COLOR_GRAY2RGB)
-            elif channels == 3:
-                converted = cv2.cvtColor(data, cv2.COLOR_BGR2RGB)
-            elif channels == 4:
-                converted = cv2.cvtColor(data, cv2.COLOR_BGRA2RGB)
-            else:
-                converted = cv2.cvtColor(data[..., :3], cv2.COLOR_BGR2RGB)
-            return cls(converted, ImageFormat.RGB, threshold_pixels=threshold_pixels)
-
-        elif target_format == ImageFormat.RGBA:
-            if channels == 1:
-                converted = cv2.cvtColor(data, cv2.COLOR_GRAY2RGBA)
-            elif channels == 2:
-                rgb = cv2.cvtColor(data[..., 0], cv2.COLOR_GRAY2RGB)
-                converted = np.dstack([rgb, data[..., 1]])
-            elif channels == 3:
-                converted = cv2.cvtColor(data, cv2.COLOR_BGR2RGBA)
-            elif channels == 4:
-                converted = cv2.cvtColor(data, cv2.COLOR_BGRA2RGBA)
-            else:
-                converted = cv2.cvtColor(data[..., :4], cv2.COLOR_BGRA2RGBA)
-            return cls(converted, ImageFormat.RGBA, threshold_pixels=threshold_pixels)
-
-        elif target_format == ImageFormat.GRAY:
-            if channels == 1:
-                converted = data
-            elif channels == 2:
-                converted = data[..., 0]
-            elif channels == 3:
-                converted = cv2.cvtColor(data, cv2.COLOR_BGR2GRAY)
-            elif channels == 4:
-                converted = cv2.cvtColor(data, cv2.COLOR_BGRA2GRAY)
-            else:
-                converted = cv2.cvtColor(data[..., :3], cv2.COLOR_BGR2GRAY)
-            return cls(converted, ImageFormat.GRAY, threshold_pixels=threshold_pixels)
-
-        elif target_format == ImageFormat.GRAY_ALPHA:
-            if channels == 1:
-                alpha_val = 65535 if data.dtype == np.uint16 else (1.0 if data.dtype in (np.float32, np.float64) else 255)
-                gray = data if data.ndim == 2 else data[..., 0]
-                alpha = np.full(gray.shape, alpha_val, dtype=data.dtype)
-                converted = np.dstack([gray, alpha])
-            elif channels == 2:
-                converted = data
-            elif channels == 3:
-                alpha_val = 65535 if data.dtype == np.uint16 else (1.0 if data.dtype in (np.float32, np.float64) else 255)
-                gray = cv2.cvtColor(data, cv2.COLOR_BGR2GRAY)
-                alpha = np.full(gray.shape, alpha_val, dtype=data.dtype)
-                converted = np.dstack([gray, alpha])
-            elif channels == 4:
-                gray = cv2.cvtColor(data, cv2.COLOR_BGRA2GRAY)
-                converted = np.dstack([gray, data[..., 3]])
-            else:
-                gray = cv2.cvtColor(data[..., :3], cv2.COLOR_BGR2GRAY)
-                alpha_val = 65535 if data.dtype == np.uint16 else (1.0 if data.dtype in (np.float32, np.float64) else 255)
-                alpha = np.full(gray.shape, alpha_val, dtype=data.dtype)
-                converted = np.dstack([gray, alpha])
-            return cls(converted, ImageFormat.GRAY_ALPHA, threshold_pixels=threshold_pixels)
-
-        elif target_format == ImageFormat.PRGBA:
-            rgba_img = cls.from_bgr(data, target_format=ImageFormat.RGBA, threshold_pixels=threshold_pixels)
-            return rgba_img.to_format(ImageFormat.PRGBA)
-
-        elif target_format == ImageFormat.RGBX:
-            rgb_img = cls.from_bgr(data, target_format=ImageFormat.RGB, threshold_pixels=threshold_pixels)
-            return rgb_img.to_format(ImageFormat.RGBX)
-
-        else:
-            base_img = cls.from_bgr(data, target_format=None, threshold_pixels=threshold_pixels)
-            return base_img.to_format(target_format)
+        converted = convert_bgr_to_format(data, target_format)
+        return cls(converted, target_format, threshold_pixels=threshold_pixels)
 
 
 def calculate_content_rect(image: Image) -> Region:

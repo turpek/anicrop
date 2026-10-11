@@ -3,7 +3,7 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
-from anicrop.color import convert_image_format
+from anicrop.color import convert_bgr_to_format, convert_image_format
 from anicrop.enums import ImageFormat
 from anicrop.image import Image
 
@@ -209,3 +209,91 @@ def test_image_to_format_method() -> None:
     img_bgra = img_bgr.to_format(ImageFormat.BGRA)
     assert img_bgra.format == ImageFormat.BGRA
     assert img_bgra.shape == (20, 20, 4)
+
+
+@pytest.mark.parametrize(
+    "in_shape,target_format,expected_shape",
+    [
+        pytest.param((10, 10), ImageFormat.GRAY, (10, 10, 1), id="2d_gray_to_gray"),
+        pytest.param((10, 10), ImageFormat.GRAY_ALPHA, (10, 10, 2), id="2d_gray_to_gray_alpha"),
+        pytest.param((10, 10), ImageFormat.BGR, (10, 10, 3), id="2d_gray_to_bgr"),
+        pytest.param((10, 10), ImageFormat.BGRA, (10, 10, 4), id="2d_gray_to_bgra"),
+        pytest.param((10, 10), ImageFormat.RGB, (10, 10, 3), id="2d_gray_to_rgb"),
+        pytest.param((10, 10), ImageFormat.RGBA, (10, 10, 4), id="2d_gray_to_rgba"),
+        pytest.param((10, 10, 1), ImageFormat.GRAY, (10, 10, 1), id="3d_gray_to_gray"),
+        pytest.param((10, 10, 1), ImageFormat.GRAY_ALPHA, (10, 10, 2), id="3d_gray_to_gray_alpha"),
+        pytest.param((10, 10, 2), ImageFormat.GRAY, (10, 10, 1), id="2ch_to_gray"),
+        pytest.param((10, 10, 2), ImageFormat.GRAY_ALPHA, (10, 10, 2), id="2ch_to_gray_alpha"),
+        pytest.param((10, 10, 2), ImageFormat.BGR, (10, 10, 3), id="2ch_to_bgr"),
+        pytest.param((10, 10, 2), ImageFormat.BGRA, (10, 10, 4), id="2ch_to_bgra"),
+        pytest.param((10, 10, 2), ImageFormat.RGB, (10, 10, 3), id="2ch_to_rgb"),
+        pytest.param((10, 10, 2), ImageFormat.RGBA, (10, 10, 4), id="2ch_to_rgba"),
+        pytest.param((10, 10, 3), ImageFormat.BGR, (10, 10, 3), id="bgr_to_bgr"),
+        pytest.param((10, 10, 3), ImageFormat.BGRA, (10, 10, 4), id="bgr_to_bgra"),
+        pytest.param((10, 10, 3), ImageFormat.RGB, (10, 10, 3), id="bgr_to_rgb"),
+        pytest.param((10, 10, 3), ImageFormat.RGBA, (10, 10, 4), id="bgr_to_rgba"),
+        pytest.param((10, 10, 3), ImageFormat.GRAY, (10, 10, 1), id="bgr_to_gray"),
+        pytest.param((10, 10, 3), ImageFormat.GRAY_ALPHA, (10, 10, 2), id="bgr_to_gray_alpha"),
+        pytest.param((10, 10, 3), ImageFormat.PRGBA, (10, 10, 4), id="bgr_to_prgba"),
+        pytest.param((10, 10, 3), ImageFormat.RGBX, (10, 10, 4), id="bgr_to_rgbx"),
+        pytest.param((10, 10, 4), ImageFormat.BGR, (10, 10, 3), id="bgra_to_bgr"),
+        pytest.param((10, 10, 4), ImageFormat.BGRA, (10, 10, 4), id="bgra_to_bgra"),
+        pytest.param((10, 10, 4), ImageFormat.RGB, (10, 10, 3), id="bgra_to_rgb"),
+        pytest.param((10, 10, 4), ImageFormat.RGBA, (10, 10, 4), id="bgra_to_rgba"),
+        pytest.param((10, 10, 4), ImageFormat.GRAY, (10, 10, 1), id="bgra_to_gray"),
+        pytest.param((10, 10, 4), ImageFormat.GRAY_ALPHA, (10, 10, 2), id="bgra_to_gray_alpha"),
+        pytest.param((10, 10, 4), ImageFormat.PRGBA, (10, 10, 4), id="bgra_to_prgba"),
+        pytest.param((10, 10, 4), ImageFormat.RGBX, (10, 10, 4), id="bgra_to_rgbx"),
+        pytest.param((10, 10, 5), ImageFormat.BGR, (10, 10, 3), id="5ch_to_bgr"),
+        pytest.param((10, 10, 5), ImageFormat.BGRA, (10, 10, 4), id="5ch_to_bgra"),
+        pytest.param((10, 10, 5), ImageFormat.RGB, (10, 10, 3), id="5ch_to_rgb"),
+        pytest.param((10, 10, 5), ImageFormat.RGBA, (10, 10, 4), id="5ch_to_rgba"),
+    ],
+)
+def test_convert_bgr_to_format_shapes(
+    in_shape: tuple[int, ...],
+    target_format: ImageFormat,
+    expected_shape: tuple[int, ...],
+) -> None:
+    """Valida formato de saída e número de canais para todas as combinações de convert_bgr_to_format."""
+    data = np.full(in_shape, 128, dtype=np.uint8)
+    converted = convert_bgr_to_format(data, target_format)
+    assert converted.shape == expected_shape
+
+
+@pytest.mark.parametrize(
+    "in_shape,target_format",
+    [
+        pytest.param((10, 10, 3), ImageFormat.BGR, id="bgr_passthrough"),
+        pytest.param((10, 10, 4), ImageFormat.BGRA, id="bgra_passthrough"),
+        pytest.param((10, 10, 2), ImageFormat.GRAY_ALPHA, id="gray_alpha_passthrough"),
+        pytest.param((10, 10, 1), ImageFormat.GRAY, id="gray_3d_passthrough"),
+    ],
+)
+def test_convert_bgr_to_format_zero_copy(
+    in_shape: tuple[int, ...],
+    target_format: ImageFormat,
+) -> None:
+    """Valida compartilhamento de memória (zero-copy) nos formatos coincidentes de entrada e saída."""
+    data = np.full(in_shape, 128, dtype=np.uint8)
+    converted = convert_bgr_to_format(data, target_format)
+    assert np.shares_memory(converted, data)
+
+
+@pytest.mark.parametrize(
+    "dtype,expected_alpha",
+    [
+        pytest.param(np.uint8, 255, id="uint8"),
+        pytest.param(np.uint16, 65535, id="uint16"),
+        pytest.param(np.float32, 1.0, id="float32"),
+    ],
+)
+def test_convert_bgr_to_format_gray_alpha_scaling(
+    dtype: type,
+    expected_alpha: int | float,
+) -> None:
+    """Valida preenchimento de alfa opaco com escala exata do dtype ao converter para GRAY_ALPHA."""
+    bgr = np.zeros((4, 4, 3), dtype=dtype)
+    converted = convert_bgr_to_format(bgr, ImageFormat.GRAY_ALPHA)
+    assert converted.dtype == dtype
+    assert converted[0, 0, 1] == expected_alpha
