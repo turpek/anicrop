@@ -10,15 +10,18 @@ try:
 except ImportError:
     USE_CYTHON = False
 
-has_c_sources = (
-    os.path.exists("src/anicrop/native/blend.c")
-    and os.path.exists("src/anicrop/native/color.c")
-)
+pyx_blend = "src/anicrop/native/blend.pyx"
+pyx_color = "src/anicrop/native/color.pyx"
+c_blend = "src/anicrop/native/blend.c"
+c_color = "src/anicrop/native/color.c"
+
+has_pyx = os.path.exists(pyx_blend) and os.path.exists(pyx_color)
+has_c = os.path.exists(c_blend) and os.path.exists(c_color)
 
 require_native = os.environ.get("ANICROP_REQUIRE_NATIVE", "0") == "1"
-if require_native and not USE_CYTHON and not has_c_sources:
+if require_native and not (USE_CYTHON and has_pyx) and not has_c:
     raise RuntimeError(
-        "ANICROP_REQUIRE_NATIVE=1 foi definido, mas Cython não está disponível e os arquivos .c não foram encontrados."
+        "ANICROP_REQUIRE_NATIVE=1 foi definido, mas nem Cython com .pyx nem arquivos .c foram encontrados."
     )
 
 
@@ -45,18 +48,18 @@ def get_compile_and_link_args() -> tuple[list[str], list[str]]:
 extra_compile_args, extra_link_args = get_compile_and_link_args()
 ext_modules = []
 
-if USE_CYTHON:
+if USE_CYTHON and has_pyx:
     extensions = [
         Extension(
             "anicrop.native.blend",
-            sources=["src/anicrop/native/blend.pyx"],
+            sources=[pyx_blend],
             extra_compile_args=extra_compile_args,
             extra_link_args=extra_link_args,
             optional=not require_native,
         ),
         Extension(
             "anicrop.native.color",
-            sources=["src/anicrop/native/color.pyx"],
+            sources=[pyx_color],
             extra_compile_args=extra_compile_args,
             extra_link_args=extra_link_args,
             optional=not require_native,
@@ -66,18 +69,18 @@ if USE_CYTHON:
         extensions,
         compiler_directives={"language_level": "3"},
     )
-elif has_c_sources:
+elif has_c:
     ext_modules = [
         Extension(
             "anicrop.native.blend",
-            sources=["src/anicrop/native/blend.c"],
+            sources=[c_blend],
             extra_compile_args=extra_compile_args,
             extra_link_args=extra_link_args,
             optional=not require_native,
         ),
         Extension(
             "anicrop.native.color",
-            sources=["src/anicrop/native/color.c"],
+            sources=[c_color],
             extra_compile_args=extra_compile_args,
             extra_link_args=extra_link_args,
             optional=not require_native,

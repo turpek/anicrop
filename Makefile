@@ -71,17 +71,17 @@ sync-main:
 	else \
 		RANGE="main..dev"; \
 	fi; \
-	COMMITS=$$(git log $$RANGE --oneline --reverse -- src/ tests/ README.md pyproject.toml setup.py Makefile uv.lock .gitignore .python-version assets/ LICENSE .github/ | cut -d' ' -f1); \
+	COMMITS=$$(git log $$RANGE --oneline --reverse -- src/ tests/ README.md pyproject.toml setup.py Makefile uv.lock .gitignore .python-version assets/ LICENSE .github/ MANIFEST.in | cut -d' ' -f1); \
 	if [ -z "$$COMMITS" ]; then \
 		echo "Nenhuma alteração de produção para sincronizar."; \
 	else \
 		echo "Commits de produção a sincronizar:"; \
-		git log $$RANGE --oneline --reverse -- src/ tests/ README.md pyproject.toml setup.py Makefile uv.lock .gitignore .python-version assets/ LICENSE .github/; \
+		git log $$RANGE --oneline --reverse -- src/ tests/ README.md pyproject.toml setup.py Makefile uv.lock .gitignore .python-version assets/ LICENSE .github/ MANIFEST.in; \
 		git checkout main || exit 1; \
 		SUCCESS=1; \
 		for C in $$COMMITS; do \
 			echo "--> Aplicando $$C na main..."; \
-			NON_PROD=$$(git diff-tree --no-commit-id --name-only -r $$C | grep -vE '^(src/|tests/|README\.md|pyproject\.toml|setup\.py|Makefile|uv\.lock|\.gitignore|\.python-version|assets/|LICENSE|\.github/)' || true); \
+			NON_PROD=$$(git diff-tree --no-commit-id --name-only -r $$C | grep -vE '^(src/|tests/|README\.md|pyproject\.toml|setup\.py|Makefile|uv\.lock|\.gitignore|\.python-version|assets/|LICENSE|\.github/|MANIFEST\.in)' || true); \
 			if [ -z "$$NON_PROD" ]; then \
 				git cherry-pick -x $$C || { echo "Falha ao aplicar $$C"; git cherry-pick --abort; SUCCESS=0; break; }; \
 			else \
