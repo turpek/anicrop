@@ -9,7 +9,7 @@ import numpy as np
 
 from anicrop import Document, ImageFormat, LayerCache
 from anicrop.content import FitContext
-from anicrop.effect import DynamicEffect
+from anicrop.effect import Effect
 from anicrop.filter import BlurFilter
 from anicrop.image import Image
 from anicrop.spatial import Region
@@ -223,7 +223,7 @@ def benchmark_anifuse_injection() -> tuple[dict[str, Any], dict[str, Any]]:
     )
 
 
-class AnifuseSeamCutEffect(DynamicEffect):
+class AnifuseSeamCutEffect(Effect):
     """Simula o filtro dinâmico de corte de borda do Anifuse."""
 
     def __init__(self) -> None:
@@ -231,6 +231,9 @@ class AnifuseSeamCutEffect(DynamicEffect):
 
     def get_padding(self) -> tuple[int, int, int, int]:
         return (0, 0, 0, 0)
+
+    def merge(self, other: Effect, matrix: np.ndarray) -> Effect | None:
+        return None
 
     def apply(self, image: Image, matrix: np.ndarray) -> Image:
         if image.height > 10 and image.width > 10:

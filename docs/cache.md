@@ -4,12 +4,10 @@ O módulo `anicrop.cache` implementa o motor de cache e aceleração gráfica do
 
 O sistema atinge até **$10.5\times$ de aceleração** (elevando taxas de ~12 FPS para 94 a 133 FPS) através de:
 - Reuso cirúrgico de buffers pré-assados (*baked warps*) em transformações afins;
-- Invariância em translações puras ($O(1)$) com invalidação por comparação direta de bytes (`memcmp`);
-- Particionamento de efeitos estáticos vs. dinâmicos (`DynamicEffect`);
-- Inspeção por bytecode (`dis`) do método `apply` para detecção cirúrgica de mutações em filtros;
-- Snapshots leves de primitivos em edições locais (`snapshot_edit`), imunes a vazamento de memória;
+- Particionamento declarativo de efeitos estáticos vs. dinâmicos via protocolo `Cacheable`;
+- Detecção de mutações através do método estrutural `cache_state()` com rastreamento por referências fracas (`weakref`);
+- Snapshots leves de edições locais (`snapshot_edit`), imunes a vazamento de memória e colisões de `id()`;
 - Gerenciamento fraco de ciclo de vida (`weakref.WeakKeyDictionary`), liberando buffers automaticamente no Garbage Collector;
-- Acesso de zero-alocação a coleções com a view somente-leitura `ListView`.
 
 ---
 
@@ -98,37 +96,46 @@ def is_dirty(self, layer: Layer) -> bool:
 
 ---
 
-## 3. Particionamento de Efeitos e Inspeção por Bytecode (`DynamicEffect` & `dis`)
+## 3. Protocolo Estrutural `Cacheable` e Particionamento de Efeitos
 
-O motor particiona efeitos entre componentes estáticos (que podem ser pré-assados) e componentes dinâmicos a cada frame através da classe abstrata `DynamicEffect`:
+O motor particiona efeitos entre componentes estáticos (que podem ser pré-assados em `baked_effects`) e componentes dinâmicos a cada frame através do protocolo estrutural `Cacheable`:
 
 ```python
-from anicrop.effect import DynamicEffect, Effect
+from typing import Any, Protocol, runtime_checkable
 
-class CorteDeCostura(DynamicEffect):
-    def apply(self, image: Image, matrix: np.ndarray) -> Image:
-        # Executado a cada frame sobre o buffer em cache
-        return processar_pixels_dinamicos(image)
+@runtime_checkable
+class Cacheable(Protocol):
+    """Protocolo estrutural para elementos ou efeitos que expõem estado observável para cache."""
+
+    def cache_state(self) -> dict[str, Any]:
+        """Retorna um dicionário contendo os atributos que afetam o resultado visual."""
+        ...
 ```
 
-### Invalidação Cirúrgica via Inspeção de Bytecode de `cls.apply`:
+### Regras de Elegibilidade e Particionamento:
+1. **Efeitos Estáticos (`isinstance(effect, Cacheable)`):**
+   Classes como `BlurFilter` e `BoundEffect` implementam `cache_state()`, retornando seus atributos visuais puros (`radius_x`, `angle`, `mode`, etc.). Eles são pré-assados uma única vez em `status.baked_effects`.
+2. **Efeitos Dinâmicos (Sem `Cacheable`):**
+   Qualquer classe herdada de `Effect` que **não** implemente `cache_state()` é tratada como dinâmica por padrão. Não há necessidade de herdar de classes artificiais como `DynamicEffect`:
+   ```python
+   from anicrop.effect import Effect
 
-Filtros frequentemente possuem parâmetros mutáveis (ex: `blur.radius = 10.0` ou atributos privados `_radius`). Para detectar qualquer alteração sem exigir que os filtros sejam envolvidos por proxies pesados ou que o usuário notifique o cache manualmente:
+   class CorteDeCostura(Effect):
+       def apply(self, image: Image, matrix: np.ndarray) -> Image:
+           # Executado a cada frame sobre a cópia do buffer em cache
+           return processar_pixels_dinamicos(image)
+   ```
+3. **Cadeia Mista:** Efeitos estáticos posicionados antes do primeiro efeito dinâmico são assados em `status.baked_effects`. Do primeiro efeito dinâmico em diante, a execução ocorre dinamicamente a cada frame.
 
-1. **Inspeção Estrita do Escopo de `apply`:**
-   A função `inspect_apply_attributes(cls)` inspeciona as instruções compiladas do método `cls.apply` usando `dis.get_instructions`.
-   - Rastreia pares de opcodes `LOAD_FAST 'self'` seguidos de `LOAD_ATTR <nome>`.
-   - **Filtros rigorosos:** Ignora dunders (`__...__`) e métodos chamáveis (`callable`).
-   - **Preservação de atributos privados:** Atributos como `_radius` são monitorados, assegurando que métodos modificadores internos sejam capturados.
-   - Inclui explicitamente o atributo `"visible"`.
-2. **Cache de Metadados por Tipo (`WeakKeyDictionary`):**
-   Os atributos relevantes são compilados exatamente 1 vez por classe de efeito e reutilizados em todas as instâncias daquele tipo.
-3. **Snapshot de Estado (`snapshot_effect`):**
-   A cada ativação, extrai os valores dos atributos monitorados em uma tupla imutável. Para arrays NumPy, converte para `.tobytes()`. Para instâncias de `BoundEffect`, inspeciona recursivamente o efeito encapsulado.
-
-Se qualquer parâmetro de filtro variar ou se sua visibilidade mudar:
-* O `baked_warp` afim **permanece intacto** (evitando novo warp pesado de geometria).
-* Apenas o `baked_effects` é recalculado e reaplicado sobre o warp já em memória.
+### Snapshot Seguro e Imunidade a Colisões de Memória:
+O `LayerCache` associa internamente uma referência fraca da instância ao snapshot de estado:
+```python
+snapshot = (weakref.ref(effect), effect.cache_state())
+```
+Isso garante simultaneamente:
+- **Identidade física:** `saved_ref() is current` garante que a troca de instâncias com mesmos atributos invalida o cache, sem risco de reutilização de endereço de memória do CPython (`id()`).
+- **Detecção de mutação:** Comparação direta de dicionários `saved_state != effect.cache_state()` detecta qualquer ajuste fino de parâmetros (ex: `blur.radius_x = 10.0`) em nanosegundos.
+- **Zero bytecode / `dis`:** Elimina qualquer dependência frágil de opcodes do compilador Python (`LOAD_FAST`, `LOAD_FAST_LOAD_FAST`, etc.).
 
 ---
 
