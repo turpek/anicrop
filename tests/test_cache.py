@@ -807,3 +807,85 @@ def test_layer_cache_invalidates_when_edit_replaced_with_same_metadata():
     out = renderer.render_scene([layer], canvas, cache=cache)
     assert status.baked_warp is not orig_warp
     assert np.all(out[...] == [50, 50, 50, 255])
+
+
+def test_layer_cache_fast_path_blends_with_first_visible_edit_in_tail():
+    """Valida se Fast-Path mescla com o primeiro edit visivel da cauda quando precedido por edit oculto."""
+    layer_cached = Layer(make_img(40, 40, (200, 200, 200, 255)))
+    layer_clean = Layer(make_img(40, 40, (200, 200, 200, 255)))
+
+    cache = LayerCache()
+    cache.register(layer_cached)
+
+    renderer = CanvasRender()
+    canvas_cached = Canvas(layer_cached.global_region)
+    canvas_clean = Canvas(layer_clean.global_region)
+
+    renderer.render_scene([layer_cached], canvas_cached, cache=cache)
+    renderer.render_scene([layer_clean], canvas_clean)
+
+    hidden_edit_c = EditLayer(
+        make_img(40, 40, (10, 10, 10, 255)),
+        Region.from_size(40, 40),
+        np.eye(3),
+        blend_mode=BlendMode.SOLID_FILL,
+        visible=False,
+    )
+    visible_edit_c = EditLayer(
+        make_img(40, 40, (100, 100, 100, 255)),
+        Region.from_size(40, 40),
+        np.eye(3),
+        blend_mode=BlendMode.NORMAL,
+        visible=True,
+    )
+    layer_cached.edits.add(hidden_edit_c)
+    layer_cached.edits.add(visible_edit_c)
+
+    hidden_edit_cl = EditLayer(
+        make_img(40, 40, (10, 10, 10, 255)),
+        Region.from_size(40, 40),
+        np.eye(3),
+        blend_mode=BlendMode.SOLID_FILL,
+        visible=False,
+    )
+    visible_edit_cl = EditLayer(
+        make_img(40, 40, (100, 100, 100, 255)),
+        Region.from_size(40, 40),
+        np.eye(3),
+        blend_mode=BlendMode.NORMAL,
+        visible=True,
+    )
+    layer_clean.edits.add(hidden_edit_cl)
+    layer_clean.edits.add(visible_edit_cl)
+
+    out_cached = renderer.render_scene([layer_cached], canvas_cached, cache=cache)
+    out_clean = renderer.render_scene([layer_clean], canvas_clean)
+
+    status = cache.get_state(layer_cached)
+    assert status is not None
+    assert status.background_calls == 1
+    assert np.array_equal(out_cached[...], out_clean[...])
+    assert np.all(out_cached[..., :3] == 100)
+
+
+def test_layer_cache_scope_cleans_up_layer_when_activate_fails_midway():
+    """Valida se falha apos wrap_background restaura layer.background na camada que falhou."""
+    layer = Layer(make_img(20, 20))
+    cache = LayerCache()
+    cache.register(layer)
+    orig_bg = layer.background
+
+    scope = cache([layer])
+    real_activate = scope._activate_layer
+
+    def faulty_activate(target, status):
+        real_activate(target, status)
+        raise RuntimeError("Falha simulada no meio de activate")
+
+    scope._activate_layer = faulty_activate
+
+    with pytest.raises(RuntimeError, match="Falha simulada no meio de activate"):
+        with scope:
+            pass
+
+    assert layer.background == orig_bg
