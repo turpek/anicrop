@@ -55,8 +55,8 @@ class LayerFrameState:
         self.baked_edits_snapshot: tuple[tuple[ref[EditLayer], dict[str, Any]], ...] = ()
         self.baked_effects_snapshot: tuple[tuple[ref[Effect], dict[str, Any]], ...] = ()
 
-        self.saved_edits: list[EditLayer] | None = None
-        self.saved_effects: list[Effect] | None = None
+        self.saved_edits: EditStack | None = None
+        self.saved_effects: EffectStack | None = None
 
 
 def wrap_background(
@@ -239,7 +239,7 @@ class LayerCacheScope:
 
         # 3. Particionar efeitos entre estáticos e dinâmicos e verificar snapshot
         status.saved_effects = layer._effects
-        visible_user_effects = [e for e in status.saved_effects if e.visible]
+        visible_user_effects = [e for e in layer._effects if e.visible]
 
         first_dynamic_idx = -1
         for i, eff in enumerate(visible_user_effects):

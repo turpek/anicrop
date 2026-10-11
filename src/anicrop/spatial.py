@@ -29,11 +29,6 @@ class Point(NamedTuple):
             ) and math.isclose(self[1], other[1], abs_tol=DEFAULT_EPSILON)
         return False
 
-    # Como __eq__ adota igualdade aproximada (math.isclose), a relação não é transitiva.
-    # Em conformidade com o modelo de dados do Python, instâncias com igualdade aproximada
-    # são declaradas não-hasháveis para prevenir inconsistências silenciosas em sets e dicts.
-    __hash__ = None  # type: ignore[assignment]
-
     def to_int(self, mode: str = "round") -> tuple[int, int]:
         """Converte as coordenadas do Point para uma tupla de inteiros discretos (x, y)."""
         if mode == "round":
@@ -46,6 +41,12 @@ class Point(NamedTuple):
 
     def __repr__(self) -> str:
         return f"({self.x}, {self.y})"
+
+
+# Como __eq__ adota igualdade aproximada (math.isclose), a relação não é transitiva.
+# Em conformidade com o modelo de dados do Python, instâncias com igualdade aproximada
+# são declaradas não-hasháveis para prevenir inconsistências silenciosas em sets e dicts.
+Point.__hash__ = None  # type: ignore[assignment]
 
 
 class Span:

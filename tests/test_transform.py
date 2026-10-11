@@ -376,3 +376,18 @@ def test_mat_inverse_perspectiva_fallback():
     inv = mat_inverse(M)
 
     np.testing.assert_allclose(M @ inv, np.eye(3), atol=1e-4)
+
+
+def test_transform_immutable_tuple_contract():
+    """Valida que intencoes e translacoes sao congeladas como tuplas imutaveis sem aliasing."""
+    external_intentions = [TRotate(45, 0.5, 0.5)]
+    external_translate = [TTranslate(10, 20)]
+
+    t = TransformRel(external_intentions, external_translate)
+    external_intentions.append(TRotate(90, 0.5, 0.5))
+    external_translate.append(TTranslate(30, 40))
+
+    assert isinstance(t._intentions, tuple)
+    assert isinstance(t._translate, tuple)
+    assert len(t._intentions) == 1
+    assert len(t._translate) == 1
