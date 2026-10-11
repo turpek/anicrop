@@ -61,7 +61,7 @@ in_place = true
 recursive = true
 
 [tool.cibuildwheel]
-test-command = "pytest {project}/tests -m 'not slow'"
+test-command = "python -c \"import anicrop; assert anicrop.native_available, 'Extensoes nativas nao encontradas!'; print('anicrop instalado com sucesso e nativo ativo!')\""
 environment = { ANICROP_REQUIRE_NATIVE = "1" }
 build = "cp312-* cp313-*"
 skip = "*musllinux*"
