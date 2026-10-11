@@ -422,7 +422,7 @@ class VipsStreamingBuffer(AbstractImageBuffer):
     def __getitem__(self, key: Any) -> np.ndarray:
         if key is Ellipsis:
             mem = self._vimg.write_to_memory()
-            return np.frombuffer(mem, dtype=np.uint8).reshape(self.shape)
+            return np.frombuffer(mem, dtype=self.dtype).reshape(self.shape)
 
         if isinstance(key, tuple) and len(key) >= 2:
             slice_y, slice_x = key[0], key[1]
@@ -451,11 +451,11 @@ class VipsStreamingBuffer(AbstractImageBuffer):
                     c_start = 0 if c_slice.start is None else c_slice.start
                     c_stop = out_channels if c_slice.stop is None else c_slice.stop
                     out_channels = max(0, c_stop - c_start)
-                return np.zeros((0, 0, out_channels), dtype=np.uint8)
+                return np.zeros((0, 0, out_channels), dtype=self.dtype)
 
             cropped = self._vimg.crop(valid_x0, valid_y0, w, h)
             mem = cropped.write_to_memory()
-            arr = np.frombuffer(mem, dtype=np.uint8).reshape((h, w, self._vimg.bands))
+            arr = np.frombuffer(mem, dtype=self.dtype).reshape((h, w, self._vimg.bands))
 
             if len(key) >= 3:
                 return arr[:, :, key[2]]

@@ -23,15 +23,18 @@ def _cv2_imread_windows(
     flags: int = cv2.IMREAD_UNCHANGED,
 ) -> np.ndarray | None:
     """Lê imagens no Windows tratando caminhos com caracteres especiais via np.fromfile."""
-    path_str = str(file_path)
+    path = Path(file_path)
+    path_str = str(path)
     if not path_str.isascii():
+        if not path.exists():
+            return None
         try:
             buf = np.fromfile(path_str, dtype=np.uint8)
             if buf.size == 0:
                 return None
             return cv2.imdecode(buf, flags)
-        except Exception:
-            return None
+        except Exception as exc:
+            raise OSError(f"Falha ao ler dados da imagem no Windows em: {file_path}") from exc
     return cv2.imread(path_str, flags)
 
 
@@ -51,8 +54,8 @@ def _cv2_imwrite_windows(
                 return False
             buf.tofile(path_str)
             return True
-        except Exception:
-            return False
+        except Exception as exc:
+            raise OSError(f"Falha ao gravar arquivo de imagem no Windows em: {file_path}") from exc
     return bool(cv2.imwrite(path_str, img, params or []))
 
 
@@ -83,9 +86,13 @@ else:
 
 def _decode_raw(file_path: str | Path) -> tuple[np.ndarray, int]:
     """Decodifica o array cru do arquivo e identifica o número de canais nativos."""
-    raw_data = _cv2_imread(file_path, cv2.IMREAD_UNCHANGED)
-    if raw_data is None:
+    path = Path(file_path)
+    if not path.exists():
         raise FileNotFoundError(f"Não foi possível carregar a imagem em: {file_path}")
+
+    raw_data = _cv2_imread(path, cv2.IMREAD_UNCHANGED)
+    if raw_data is None:
+        raise OSError(f"Falha ao decodificar a imagem em: {file_path}")
 
     native_channels = 1 if raw_data.ndim == 2 else raw_data.shape[2]
     return raw_data, native_channels
