@@ -889,3 +889,25 @@ def test_layer_cache_scope_cleans_up_layer_when_activate_fails_midway():
             pass
 
     assert layer.background == orig_bg
+
+
+def test_cache_with_new_edit_outside_canvas_preserves_previous_render():
+    """Valida se adicionar um novo edit fora da visibilidade do canvas preserva o render cacheado."""
+    canvas = Canvas.from_size(50, 50)
+    layer = Layer((100, 100))
+
+    img1 = make_img(50, 50, color=(255, 0, 0, 255))
+    layer.add_edit(img1, Region.from_rect(0, 0, 50, 50))
+
+    cache = LayerCache()
+    cache.register(layer)
+    renderer = CanvasRender()
+
+    res1 = renderer.render_scene([layer], canvas, cache=cache)
+
+    img2 = make_img(50, 50, color=(0, 255, 0, 255))
+    layer.add_edit(img2, Region.from_rect(50, 50, 50, 50))
+
+    res2 = renderer.render_scene([layer], canvas, cache=cache)
+
+    assert np.array_equal(res2[...], res1[...])
