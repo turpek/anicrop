@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 import weakref
 from pathlib import Path
 from typing import Any, Literal
@@ -10,6 +11,8 @@ import numpy as np
 from anicrop.interfaces.buffer import AbstractImageBuffer
 from anicrop.persistence.manager import manager_global
 
+logger = logging.getLogger(__name__)
+
 MMapMode = Literal["readonly", "r", "copyonwrite", "c", "readwrite", "r+", "write", "w+"]
 
 
@@ -18,8 +21,10 @@ def _cleanup_mmap_file(file_path: Path | None, auto_remove: bool) -> None:
     if auto_remove and file_path is not None:
         try:
             file_path.unlink(missing_ok=True)
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.debug(
+                "Falha ao remover arquivo de memória mapeada %s: %s", file_path, exc
+            )
 
 
 class ArrayBuffer(AbstractImageBuffer):
@@ -125,8 +130,12 @@ class MMapBuffer(AbstractImageBuffer):
             if resolved_auto_remove and file_path.exists():
                 try:
                     file_path.unlink(missing_ok=True)
-                except Exception:
-                    pass
+                except Exception as exc:
+                    logger.debug(
+                        "Falha na limpeza de arquivo temporário %s após erro: %s",
+                        file_path,
+                        exc,
+                    )
             raise
 
     @classmethod
@@ -161,8 +170,12 @@ class MMapBuffer(AbstractImageBuffer):
             if resolved_auto_remove and file_path.exists():
                 try:
                     file_path.unlink(missing_ok=True)
-                except Exception:
-                    pass
+                except Exception as exc:
+                    logger.debug(
+                        "Falha na limpeza de arquivo temporário %s após erro: %s",
+                        file_path,
+                        exc,
+                    )
             raise
 
     @classmethod
@@ -224,8 +237,12 @@ class MMapBuffer(AbstractImageBuffer):
         elif self._auto_remove and self._file_path is not None:
             try:
                 self._file_path.unlink(missing_ok=True)
-            except Exception:
-                pass
+            except Exception as exc:
+                logger.debug(
+                    "Falha ao remover arquivo de memória mapeada %s no close: %s",
+                    self._file_path,
+                    exc,
+                )
 
         if (
             hasattr(self, "_mmap")
@@ -234,8 +251,10 @@ class MMapBuffer(AbstractImageBuffer):
         ):
             try:
                 self._mmap._mmap.close()
-            except Exception:
-                pass
+            except Exception as exc:
+                logger.debug(
+                    "Falha ao fechar buffer de memória mapeada subjacente: %s", exc
+                )
 
     def get_lod(
         self, level: int, threshold_pixels: int | None = None

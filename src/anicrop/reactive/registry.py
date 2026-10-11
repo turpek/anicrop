@@ -1,11 +1,14 @@
 from __future__ import annotations
 
+import logging
 import weakref
 from typing import Any
 
 import numpy as np
 
 from anicrop.container import _NULL_CONTAINER
+
+logger = logging.getLogger(__name__)
 
 
 def unwrap_target(obj: Any) -> Any:
@@ -95,6 +98,8 @@ def get_registry_for_history(history: Any) -> ProxyRegistry:
     reg = ProxyRegistry(history)
     try:
         history._proxy_registry = reg
-    except Exception:
-        pass
+    except Exception as exc:
+        logger.debug(
+            "Falha ao registrar _proxy_registry no history %s: %s", history, exc
+        )
     return reg
