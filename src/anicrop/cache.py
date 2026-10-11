@@ -100,9 +100,11 @@ class CacheEffect(Effect):
         # 1. Se já temos baked_warp e o renderizador usou Fast-Path (background_calls == 0):
         if self.status.baked_warp is not None and self.status.background_calls == 0:
             bg = self.layer.background(image.size, self.layer.format, dtype=image.dtype)
-            self.layer.edits[0].blend_into(
-                bg, image, Region.from_size(*image.size)
-            )
+            active_edit = next((e for e in self.layer.edits if e.visible), None)
+            if active_edit is not None:
+                active_edit.blend_into(
+                    bg, image, Region.from_size(*image.size)
+                )
             image = bg
         elif self.status.baked_warp is None:
             self.status.baked_warp = image.crop()
@@ -201,8 +203,8 @@ class LayerCacheScope:
                             continue
 
                     status = self._cache._states[layer]
-                    self._activate_layer(layer, status)
                     self._active_layers.append(layer)
+                    self._activate_layer(layer, status)
             return self
         except Exception:
             self.__exit__(None, None, None)
