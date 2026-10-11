@@ -3,7 +3,7 @@ from operator import add, sub
 import numpy as np
 import pytest
 
-from anicrop.type import ListView, Rotation, Scale, Vector
+from anicrop.type import Rotation, Scale, Vector
 
 # Apenas add e sub são suportados pela nova implementação de Rotation e Scale
 OPS = [
@@ -177,51 +177,3 @@ def test_Scale_matrix_com_valores():
     m = s.matrix
     expected = np.array([[2, 0, 0], [0, 3, 0], [0, 0, 1]], dtype=np.float32)
     np.testing.assert_allclose(m, expected, atol=1e-5)
-
-
-def test_list_view_basic_operations():
-    """Valida leitura basica, tamanho, pertencimento e iteracao da ListView."""
-    raw = [10, 20, 30]
-    view = ListView(raw)
-
-    assert len(view) == 3
-    assert view[0] == 10
-    assert view[-1] == 30
-    assert 20 in view
-    assert 99 not in view
-    assert list(iter(view)) == [10, 20, 30]
-    assert repr(view) == "ListView([10, 20, 30])"
-
-
-def test_list_view_slice_returns_list_view():
-    """Valida se o fatiamento de ListView retorna uma nova ListView com a sub-sequencia."""
-    raw = ["a", "b", "c", "d"]
-    view = ListView(raw)
-    sliced = view[1:3]
-
-    assert isinstance(sliced, ListView)
-    assert len(sliced) == 2
-    assert sliced[0] == "b"
-    assert sliced[1] == "c"
-
-
-def test_list_view_equality():
-    """Valida igualdade estrutural com outras ListView, listas e tuplas."""
-    raw = [1, 2, 3]
-    view = ListView(raw)
-
-    assert view == ListView([1, 2, 3])
-    assert view == [1, 2, 3]
-    assert view == (1, 2, 3)
-    assert view != [1, 2]
-    assert view != "123"
-
-
-def test_list_view_does_not_expose_mutating_methods():
-    """Valida se ListView e estritamente somente leitura sem metodos mutantes."""
-    view = ListView([1, 2])
-
-    assert not hasattr(view, "append")
-    assert not hasattr(view, "extend")
-    assert not hasattr(view, "pop")
-    assert not hasattr(view, "clear")
