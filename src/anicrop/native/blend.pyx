@@ -63,6 +63,10 @@ cdef uint8_t LIN_TO_SRGB[4096]
 # RCP_Q16[a] = (65536 + (a >> 1)) // a para a in 1..255
 cdef uint32_t RCP_Q16[256]
 
+# Tabela estática de recíproco em ponto fixo Q48 para divisão por (out_a * 255):
+# RCP_DENOM_Q48[a] = (1 << 48) // (a * 255) para a in 1..255
+cdef uint64_t RCP_DENOM_Q48[256]
+
 cdef void _init_lut() noexcept nogil:
     cdef int i
     cdef float lin_val, inv_gamma = 1.0 / 2.2
@@ -70,8 +74,10 @@ cdef void _init_lut() noexcept nogil:
         SRGB_TO_LIN[i] = powf(<float>i / 255.0, 2.2)
         if i == 0:
             RCP_Q16[0] = 0
+            RCP_DENOM_Q48[0] = 0
         else:
             RCP_Q16[i] = (65536 + (i >> 1)) // i
+            RCP_DENOM_Q48[i] = (<uint64_t>1 << 48) // (<uint64_t>i * 255)
 
     for i in range(4096):
         lin_val = <float>i / 4095.0
@@ -478,7 +484,8 @@ cdef void _blend_multiply_u8(
     cdef int y, x, b_idx, e_idx
     cdef uint8_t* b_row
     cdef const uint8_t* e_row
-    cdef uint32_t ae_raw, ae, inv_ae, ab, inv_ab, out_a, denom, half_denom
+    cdef uint32_t ae_raw, ae, inv_ae, ab, inv_ab, out_a, half_denom
+    cdef uint64_t rcp_mult
     cdef uint32_t term_e, term_b, term_m, num, mr, mg, mb
     cdef uint32_t er, eg, eb
 
@@ -543,8 +550,8 @@ cdef void _blend_multiply_u8(
                     b_row[b_idx + 3] = 0
                     continue
 
-                denom = out_a * 255
-                half_denom = denom >> 1
+                half_denom = (out_a * 255) >> 1
+                rcp_mult = RCP_DENOM_Q48[out_a]
 
                 term_e = inv_ab * ae
                 term_b = inv_ae * ab
@@ -552,15 +559,15 @@ cdef void _blend_multiply_u8(
 
                 mr = div255_round(b_row[b_idx + 0] * e_row[e_idx + 0])
                 num = term_e * e_row[e_idx + 0] + term_b * b_row[b_idx + 0] + term_m * mr
-                b_row[b_idx + 0] = <uint8_t>((num + half_denom) // denom)
+                b_row[b_idx + 0] = <uint8_t>((<uint64_t>(num + half_denom) * rcp_mult) >> 48)
 
                 mg = div255_round(b_row[b_idx + 1] * e_row[e_idx + 1])
                 num = term_e * e_row[e_idx + 1] + term_b * b_row[b_idx + 1] + term_m * mg
-                b_row[b_idx + 1] = <uint8_t>((num + half_denom) // denom)
+                b_row[b_idx + 1] = <uint8_t>((<uint64_t>(num + half_denom) * rcp_mult) >> 48)
 
                 mb = div255_round(b_row[b_idx + 2] * e_row[e_idx + 2])
                 num = term_e * e_row[e_idx + 2] + term_b * b_row[b_idx + 2] + term_m * mb
-                b_row[b_idx + 2] = <uint8_t>((num + half_denom) // denom)
+                b_row[b_idx + 2] = <uint8_t>((<uint64_t>(num + half_denom) * rcp_mult) >> 48)
 
                 b_row[b_idx + 3] = <uint8_t>out_a
 
@@ -587,6 +594,21 @@ cdef void _blend_multiply_u8(
                     b_row[b_idx + 3] = <uint8_t>ae
                     continue
 
+                if ab == 255:
+                    if ae == 255:
+                        b_row[b_idx + 0] = <uint8_t>div255_round(b_row[b_idx + 0] * e_row[e_idx + 0])
+                        b_row[b_idx + 1] = <uint8_t>div255_round(b_row[b_idx + 1] * e_row[e_idx + 1])
+                        b_row[b_idx + 2] = <uint8_t>div255_round(b_row[b_idx + 2] * e_row[e_idx + 2])
+                        continue
+                    inv_ae = 255 - ae
+                    mr = div255_round(b_row[b_idx + 0] * e_row[e_idx + 0])
+                    b_row[b_idx + 0] = <uint8_t>div255_round(mr * ae + b_row[b_idx + 0] * inv_ae)
+                    mg = div255_round(b_row[b_idx + 1] * e_row[e_idx + 1])
+                    b_row[b_idx + 1] = <uint8_t>div255_round(mg * ae + b_row[b_idx + 1] * inv_ae)
+                    mb = div255_round(b_row[b_idx + 2] * e_row[e_idx + 2])
+                    b_row[b_idx + 2] = <uint8_t>div255_round(mb * ae + b_row[b_idx + 2] * inv_ae)
+                    continue
+
                 inv_ae = 255 - ae
                 inv_ab = 255 - ab
 
@@ -595,8 +617,8 @@ cdef void _blend_multiply_u8(
                     b_row[b_idx + 3] = 0
                     continue
 
-                denom = out_a * 255
-                half_denom = denom >> 1
+                half_denom = (out_a * 255) >> 1
+                rcp_mult = RCP_DENOM_Q48[out_a]
 
                 term_e = inv_ab * ae
                 term_b = inv_ae * ab
@@ -604,15 +626,15 @@ cdef void _blend_multiply_u8(
 
                 mr = div255_round(b_row[b_idx + 0] * e_row[e_idx + 0])
                 num = term_e * e_row[e_idx + 0] + term_b * b_row[b_idx + 0] + term_m * mr
-                b_row[b_idx + 0] = <uint8_t>((num + half_denom) // denom)
+                b_row[b_idx + 0] = <uint8_t>((<uint64_t>(num + half_denom) * rcp_mult) >> 48)
 
                 mg = div255_round(b_row[b_idx + 1] * e_row[e_idx + 1])
                 num = term_e * e_row[e_idx + 1] + term_b * b_row[b_idx + 1] + term_m * mg
-                b_row[b_idx + 1] = <uint8_t>((num + half_denom) // denom)
+                b_row[b_idx + 1] = <uint8_t>((<uint64_t>(num + half_denom) * rcp_mult) >> 48)
 
                 mb = div255_round(b_row[b_idx + 2] * e_row[e_idx + 2])
                 num = term_e * e_row[e_idx + 2] + term_b * b_row[b_idx + 2] + term_m * mb
-                b_row[b_idx + 2] = <uint8_t>((num + half_denom) // denom)
+                b_row[b_idx + 2] = <uint8_t>((<uint64_t>(num + half_denom) * rcp_mult) >> 48)
 
                 b_row[b_idx + 3] = <uint8_t>out_a
 
@@ -654,8 +676,8 @@ cdef void _blend_multiply_u8(
                         b_row[b_idx + b_ch - 1] = 0
                         continue
 
-                    denom = out_a * 255
-                    half_denom = denom >> 1
+                    half_denom = (out_a * 255) >> 1
+                    rcp_mult = RCP_DENOM_Q48[out_a]
                     term_e = inv_ab * ae
                     term_b = inv_ae * ab
                     term_m = ae * ab
@@ -663,19 +685,19 @@ cdef void _blend_multiply_u8(
                     if b_colors == 3:
                         mr = div255_round(b_row[b_idx + 0] * er)
                         num = term_e * er + term_b * b_row[b_idx + 0] + term_m * mr
-                        b_row[b_idx + 0] = <uint8_t>((num + half_denom) // denom)
+                        b_row[b_idx + 0] = <uint8_t>((<uint64_t>(num + half_denom) * rcp_mult) >> 48)
 
                         mg = div255_round(b_row[b_idx + 1] * eg)
                         num = term_e * eg + term_b * b_row[b_idx + 1] + term_m * mg
-                        b_row[b_idx + 1] = <uint8_t>((num + half_denom) // denom)
+                        b_row[b_idx + 1] = <uint8_t>((<uint64_t>(num + half_denom) * rcp_mult) >> 48)
 
                         mb = div255_round(b_row[b_idx + 2] * eb)
                         num = term_e * eb + term_b * b_row[b_idx + 2] + term_m * mb
-                        b_row[b_idx + 2] = <uint8_t>((num + half_denom) // denom)
+                        b_row[b_idx + 2] = <uint8_t>((<uint64_t>(num + half_denom) * rcp_mult) >> 48)
                     else:
                         mr = div255_round(b_row[b_idx + 0] * er)
                         num = term_e * er + term_b * b_row[b_idx + 0] + term_m * mr
-                        b_row[b_idx + 0] = <uint8_t>((num + half_denom) // denom)
+                        b_row[b_idx + 0] = <uint8_t>((<uint64_t>(num + half_denom) * rcp_mult) >> 48)
 
                     b_row[b_idx + b_ch - 1] = <uint8_t>out_a
                 else:
