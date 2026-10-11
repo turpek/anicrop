@@ -3,6 +3,8 @@ import pytest
 
 from anicrop.blend import (
     BLEND_MODE,
+    _blend_multiply_numpy,
+    _cy_blend_multiply,
     _hard_masking_numpy,
     blend_clip,
     blend_multiply,
@@ -586,3 +588,68 @@ def test_blend_multiply_with_opacity():
 
     # mult = 200 * 100 / 255 = 78.43; out = 0.5 * 200 + 0.5 * 78.43 = 139.2 -> 139
     assert abs(int(base[0, 0, 0]) - 139) <= 1
+
+
+def test_blend_multiply_cython_parity_rgba():
+    """Valida paridade numerica entre implementacoes Cython e NumPy para formato RGBA."""
+    rng = np.random.default_rng(123)
+    base_raw = rng.integers(20, 240, size=(16, 16, 4), dtype=np.uint8)
+    over_raw = rng.integers(20, 240, size=(16, 16, 4), dtype=np.uint8)
+
+    base_np = base_raw.copy()
+    base_cy = base_raw.copy()
+
+    _blend_multiply_numpy(base_np, over_raw, 0.8)
+    _cy_blend_multiply(base_cy, over_raw, 0.8)
+
+    max_diff = np.max(np.abs(base_np.astype(np.int16) - base_cy.astype(np.int16)))
+    assert max_diff <= 1
+
+
+def test_blend_multiply_cython_parity_rgb():
+    """Valida paridade numerica entre implementacoes Cython e NumPy para formato RGB solido."""
+    rng = np.random.default_rng(456)
+    base_raw = rng.integers(10, 250, size=(16, 16, 3), dtype=np.uint8)
+    over_raw = rng.integers(10, 250, size=(16, 16, 3), dtype=np.uint8)
+
+    base_np = base_raw.copy()
+    base_cy = base_raw.copy()
+
+    _blend_multiply_numpy(base_np, over_raw, 1.0)
+    _cy_blend_multiply(base_cy, over_raw, 1.0)
+
+    max_diff = np.max(np.abs(base_np.astype(np.int16) - base_cy.astype(np.int16)))
+    assert max_diff <= 1
+
+
+def test_blend_multiply_uint16():
+    """Valida mesclagem multiply acelerada para profundidade de 16 bits."""
+    base_arr = np.full((4, 4, 3), 32768, dtype=np.uint16)
+    over_arr = np.full((4, 4, 3), 32768, dtype=np.uint16)
+
+    _cy_blend_multiply(base_arr, over_arr, 1.0)
+
+    # 32768 * 32768 / 65535 = 16384.25 -> ~16384
+    assert abs(int(base_arr[0, 0, 0]) - 16384) <= 1
+
+
+def test_blend_multiply_float32():
+    """Valida mesclagem multiply acelerada para profundidade de ponto flutuante float32."""
+    base_arr = np.full((4, 4, 3), 0.5, dtype=np.float32)
+    over_arr = np.full((4, 4, 3), 0.5, dtype=np.float32)
+
+    _cy_blend_multiply(base_arr, over_arr, 1.0)
+
+    # 0.5 * 0.5 = 0.25
+    assert abs(float(base_arr[0, 0, 0]) - 0.25) < 1e-5
+
+
+def test_blend_multiply_grayscale():
+    """Valida mesclagem multiply para imagens em escala de cinza."""
+    base_arr = np.full((4, 4, 1), 200, dtype=np.uint8)
+    over_arr = np.full((4, 4, 1), 100, dtype=np.uint8)
+
+    _cy_blend_multiply(base_arr, over_arr, 1.0)
+
+    # 200 * 100 / 255 = 78.43 -> 78
+    assert abs(int(base_arr[0, 0, 0]) - 78) <= 1

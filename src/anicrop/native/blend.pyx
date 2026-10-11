@@ -34,6 +34,13 @@ cdef inline uint8_t clamp_f_u8(float v) noexcept nogil:
         return 255
     return <uint8_t>roundf(v)
 
+cdef inline uint16_t clamp_f_u16(float v) noexcept nogil:
+    if v <= 0.0:
+        return 0
+    if v >= 65535.0:
+        return 65535
+    return <uint16_t>roundf(v)
+
 cdef inline uint32_t div255(uint32_t v) noexcept nogil:
     """Divisão inteira exata por 255 usando bitshift (1 ciclo de CPU)."""
     return (v + 1 + (v >> 8)) >> 8
@@ -441,6 +448,453 @@ def blend_normal(
             _blend_normal_u16(base, edit, opacity)
         elif pixel_t is float:
             _blend_normal_f32(base, edit, opacity)
+
+
+# =========================================================================
+# 1.1 BLEND MULTIPLY (Multiplicação W3C com Suporte a Alpha e Porter-Duff)
+# =========================================================================
+
+cdef void _blend_multiply_u8(
+    uint8_t[:, :, :] base,
+    uint8_t[:, :, :] edit,
+    float opacity,
+) noexcept nogil:
+    cdef int h = min(base.shape[0], edit.shape[0])
+    cdef int w = min(base.shape[1], edit.shape[1])
+    cdef int b_ch = base.shape[2]
+    cdef int e_ch = edit.shape[2]
+
+    cdef bint b_has_alpha = (b_ch == 2 or b_ch == 4)
+    cdef bint e_has_alpha = (e_ch == 2 or e_ch == 4)
+    cdef int b_colors = 1 if (b_ch == 1 or b_ch == 2) else 3
+    cdef int e_colors = 1 if (e_ch == 1 or e_ch == 2) else 3
+
+    cdef int y, x, b_idx, e_idx
+    cdef uint8_t* b_row
+    cdef const uint8_t* e_row
+    cdef float ae_raw, ae, inv_ae, ab, inv_ab, out_a, out_a_safe
+    cdef float er, eg, eb, br, bg, bb, mr, mg, mb
+
+    # Fast-Path 1: RGB -> RGB (Sem Alfa)
+    if b_ch == 3 and e_ch == 3:
+        if opacity >= 1.0:
+            for y in prange(h, schedule='static'):
+                b_row = &base[y, 0, 0]
+                e_row = &edit[y, 0, 0]
+                for x in range(w):
+                    b_idx = x * 3
+                    e_idx = x * 3
+                    br = <float>b_row[b_idx + 0]
+                    er = <float>e_row[e_idx + 0]
+                    b_row[b_idx + 0] = clamp_f_u8((br * er) / 255.0)
+
+                    bg = <float>b_row[b_idx + 1]
+                    eg = <float>e_row[e_idx + 1]
+                    b_row[b_idx + 1] = clamp_f_u8((bg * eg) / 255.0)
+
+                    bb = <float>b_row[b_idx + 2]
+                    eb = <float>e_row[e_idx + 2]
+                    b_row[b_idx + 2] = clamp_f_u8((bb * eb) / 255.0)
+        else:
+            for y in prange(h, schedule='static'):
+                b_row = &base[y, 0, 0]
+                e_row = &edit[y, 0, 0]
+                for x in range(w):
+                    b_idx = x * 3
+                    e_idx = x * 3
+                    br = <float>b_row[b_idx + 0]
+                    er = <float>e_row[e_idx + 0]
+                    mr = (br * er) / 255.0
+                    b_row[b_idx + 0] = clamp_f_u8((1.0 - opacity) * br + opacity * mr)
+
+                    bg = <float>b_row[b_idx + 1]
+                    eg = <float>e_row[e_idx + 1]
+                    mg = (bg * eg) / 255.0
+                    b_row[b_idx + 1] = clamp_f_u8((1.0 - opacity) * bg + opacity * mg)
+
+                    bb = <float>b_row[b_idx + 2]
+                    eb = <float>e_row[e_idx + 2]
+                    mb = (bb * eb) / 255.0
+                    b_row[b_idx + 2] = clamp_f_u8((1.0 - opacity) * bb + opacity * mb)
+
+    # Fast-Path 2: RGBA -> RGB (Overlay com Alfa sobre Fundo Opaco)
+    elif b_ch == 3 and e_ch == 4:
+        for y in prange(h, schedule='static'):
+            b_row = &base[y, 0, 0]
+            e_row = &edit[y, 0, 0]
+            for x in range(w):
+                e_idx = x << 2
+                ae_raw = <float>e_row[e_idx + 3]
+                if ae_raw <= 0.0:
+                    continue
+                ae = (ae_raw / 255.0) * opacity
+                if ae <= 0.0:
+                    continue
+
+                b_idx = x * 3
+                inv_ae = 1.0 - ae
+
+                br = <float>b_row[b_idx + 0]
+                er = <float>e_row[e_idx + 0]
+                mr = (br * er) / 255.0
+                b_row[b_idx + 0] = clamp_f_u8(inv_ae * br + ae * mr)
+
+                bg = <float>b_row[b_idx + 1]
+                eg = <float>e_row[e_idx + 1]
+                mg = (bg * eg) / 255.0
+                b_row[b_idx + 1] = clamp_f_u8(inv_ae * bg + ae * mg)
+
+                bb = <float>b_row[b_idx + 2]
+                eb = <float>e_row[e_idx + 2]
+                mb = (bb * eb) / 255.0
+                b_row[b_idx + 2] = clamp_f_u8(inv_ae * bb + ae * mb)
+
+    # Fast-Path 3: RGB -> RGBA (Overlay Opaco sobre Fundo com Alfa)
+    elif b_ch == 4 and e_ch == 3:
+        for y in prange(h, schedule='static'):
+            b_row = &base[y, 0, 0]
+            e_row = &edit[y, 0, 0]
+            for x in range(w):
+                b_idx = x << 2
+                e_idx = x * 3
+                ae = opacity
+                ab = <float>b_row[b_idx + 3] / 255.0
+                inv_ae = 1.0 - ae
+                inv_ab = 1.0 - ab
+
+                out_a = ae + ab * inv_ae
+                if out_a <= 0.0:
+                    b_row[b_idx + 3] = 0
+                    continue
+                out_a_safe = out_a
+
+                br = <float>b_row[b_idx + 0]
+                er = <float>e_row[e_idx + 0]
+                mr = (br * er) / 255.0
+                b_row[b_idx + 0] = clamp_f_u8((inv_ae * ab * br + inv_ab * ae * er + ae * ab * mr) / out_a_safe)
+
+                bg = <float>b_row[b_idx + 1]
+                eg = <float>e_row[e_idx + 1]
+                mg = (bg * eg) / 255.0
+                b_row[b_idx + 1] = clamp_f_u8((inv_ae * ab * bg + inv_ab * ae * eg + ae * ab * mg) / out_a_safe)
+
+                bb = <float>b_row[b_idx + 2]
+                eb = <float>e_row[e_idx + 2]
+                mb = (bb * eb) / 255.0
+                b_row[b_idx + 2] = clamp_f_u8((inv_ae * ab * bb + inv_ab * ae * eb + ae * ab * mb) / out_a_safe)
+
+                b_row[b_idx + 3] = clamp_f_u8(out_a * 255.0)
+
+    # Fast-Path 4: RGBA -> RGBA (Ambos com canal Alfa)
+    elif b_ch == 4 and e_ch == 4:
+        for y in prange(h, schedule='static'):
+            b_row = &base[y, 0, 0]
+            e_row = &edit[y, 0, 0]
+            for x in range(w):
+                e_idx = x << 2
+                ae_raw = <float>e_row[e_idx + 3]
+                if ae_raw <= 0.0:
+                    continue
+                ae = (ae_raw / 255.0) * opacity
+                if ae <= 0.0:
+                    continue
+
+                b_idx = x << 2
+                ab = <float>b_row[b_idx + 3] / 255.0
+                inv_ae = 1.0 - ae
+                inv_ab = 1.0 - ab
+
+                out_a = ae + ab * inv_ae
+                if out_a <= 0.0:
+                    b_row[b_idx + 3] = 0
+                    continue
+                out_a_safe = out_a
+
+                br = <float>b_row[b_idx + 0]
+                er = <float>e_row[e_idx + 0]
+                mr = (br * er) / 255.0
+                b_row[b_idx + 0] = clamp_f_u8((inv_ae * ab * br + inv_ab * ae * er + ae * ab * mr) / out_a_safe)
+
+                bg = <float>b_row[b_idx + 1]
+                eg = <float>e_row[e_idx + 1]
+                mg = (bg * eg) / 255.0
+                b_row[b_idx + 1] = clamp_f_u8((inv_ae * ab * bg + inv_ab * ae * eg + ae * ab * mg) / out_a_safe)
+
+                bb = <float>b_row[b_idx + 2]
+                eb = <float>e_row[e_idx + 2]
+                mb = (bb * eb) / 255.0
+                b_row[b_idx + 2] = clamp_f_u8((inv_ae * ab * bb + inv_ab * ae * eb + ae * ab * mb) / out_a_safe)
+
+                b_row[b_idx + 3] = clamp_f_u8(out_a * 255.0)
+
+    else:
+        # Caminho geral cobrindo Grayscale / Gray-Alpha / misturas heterogêneas
+        for y in prange(h, schedule='static'):
+            b_row = &base[y, 0, 0]
+            e_row = &edit[y, 0, 0]
+            for x in range(w):
+                b_idx = x * b_ch
+                e_idx = x * e_ch
+
+                ae_raw = <float>e_row[e_idx + e_ch - 1] if e_has_alpha else 255.0
+                if ae_raw <= 0.0:
+                    continue
+                ae = (ae_raw / 255.0) * opacity
+                if ae <= 0.0:
+                    continue
+
+                if e_colors == 3:
+                    er = <float>e_row[e_idx + 0]
+                    eg = <float>e_row[e_idx + 1]
+                    eb = <float>e_row[e_idx + 2]
+                    if b_colors == 1:
+                        er = 0.299 * er + 0.587 * eg + 0.114 * eb
+                        eg = er
+                        eb = er
+                else:
+                    er = <float>e_row[e_idx + 0]
+                    eg = er
+                    eb = er
+
+                inv_ae = 1.0 - ae
+                if b_has_alpha:
+                    ab = <float>b_row[b_idx + b_ch - 1] / 255.0
+                    inv_ab = 1.0 - ab
+                    out_a = ae + ab * inv_ae
+                    if out_a <= 0.0:
+                        b_row[b_idx + b_ch - 1] = 0
+                        continue
+                    out_a_safe = out_a
+
+                    if b_colors == 3:
+                        br = <float>b_row[b_idx + 0]
+                        bg = <float>b_row[b_idx + 1]
+                        bb = <float>b_row[b_idx + 2]
+                        mr = (br * er) / 255.0
+                        mg = (bg * eg) / 255.0
+                        mb = (bb * eb) / 255.0
+                        b_row[b_idx + 0] = clamp_f_u8((inv_ae * ab * br + inv_ab * ae * er + ae * ab * mr) / out_a_safe)
+                        b_row[b_idx + 1] = clamp_f_u8((inv_ae * ab * bg + inv_ab * ae * eg + ae * ab * mg) / out_a_safe)
+                        b_row[b_idx + 2] = clamp_f_u8((inv_ae * ab * bb + inv_ab * ae * eb + ae * ab * mb) / out_a_safe)
+                    else:
+                        br = <float>b_row[b_idx + 0]
+                        mr = (br * er) / 255.0
+                        b_row[b_idx + 0] = clamp_f_u8((inv_ae * ab * br + inv_ab * ae * er + ae * ab * mr) / out_a_safe)
+
+                    b_row[b_idx + b_ch - 1] = clamp_f_u8(out_a * 255.0)
+                else:
+                    if b_colors == 3:
+                        br = <float>b_row[b_idx + 0]
+                        bg = <float>b_row[b_idx + 1]
+                        bb = <float>b_row[b_idx + 2]
+                        mr = (br * er) / 255.0
+                        mg = (bg * eg) / 255.0
+                        mb = (bb * eb) / 255.0
+                        b_row[b_idx + 0] = clamp_f_u8(inv_ae * br + ae * mr)
+                        b_row[b_idx + 1] = clamp_f_u8(inv_ae * bg + ae * mg)
+                        b_row[b_idx + 2] = clamp_f_u8(inv_ae * bb + ae * mb)
+                    else:
+                        br = <float>b_row[b_idx + 0]
+                        mr = (br * er) / 255.0
+                        b_row[b_idx + 0] = clamp_f_u8(inv_ae * br + ae * mr)
+
+
+cdef void _blend_multiply_u16(
+    uint16_t[:, :, :] base,
+    uint16_t[:, :, :] edit,
+    float opacity,
+) noexcept nogil:
+    cdef int h = min(base.shape[0], edit.shape[0])
+    cdef int w = min(base.shape[1], edit.shape[1])
+    cdef int b_ch = base.shape[2]
+    cdef int e_ch = edit.shape[2]
+
+    cdef bint b_has_alpha = (b_ch == 2 or b_ch == 4)
+    cdef bint e_has_alpha = (e_ch == 2 or e_ch == 4)
+    cdef int b_colors = 1 if (b_ch == 1 or b_ch == 2) else 3
+    cdef int e_colors = 1 if (e_ch == 1 or e_ch == 2) else 3
+
+    cdef int y, x, b_idx, e_idx
+    cdef uint16_t* b_row
+    cdef const uint16_t* e_row
+    cdef float ae_raw, ae, inv_ae, ab, inv_ab, out_a, out_a_safe
+    cdef float er, eg, eb, br, bg, bb, mr, mg, mb
+
+    for y in prange(h, schedule='static'):
+        b_row = &base[y, 0, 0]
+        e_row = &edit[y, 0, 0]
+        for x in range(w):
+            b_idx = x * b_ch
+            e_idx = x * e_ch
+
+            ae_raw = <float>e_row[e_idx + e_ch - 1] if e_has_alpha else 65535.0
+            if ae_raw <= 0.0:
+                continue
+            ae = (ae_raw / 65535.0) * opacity
+            if ae <= 0.0:
+                continue
+
+            if e_colors == 3:
+                er = <float>e_row[e_idx + 0]
+                eg = <float>e_row[e_idx + 1]
+                eb = <float>e_row[e_idx + 2]
+                if b_colors == 1:
+                    er = 0.299 * er + 0.587 * eg + 0.114 * eb
+                    eg = er
+                    eb = er
+            else:
+                er = <float>e_row[e_idx + 0]
+                eg = er
+                eb = er
+
+            inv_ae = 1.0 - ae
+            if b_has_alpha:
+                ab = <float>b_row[b_idx + b_ch - 1] / 65535.0
+                inv_ab = 1.0 - ab
+                out_a = ae + ab * inv_ae
+                if out_a <= 0.0:
+                    b_row[b_idx + b_ch - 1] = 0
+                    continue
+                out_a_safe = out_a
+
+                if b_colors == 3:
+                    br = <float>b_row[b_idx + 0]
+                    bg = <float>b_row[b_idx + 1]
+                    bb = <float>b_row[b_idx + 2]
+                    mr = (br * er) / 65535.0
+                    mg = (bg * eg) / 65535.0
+                    mb = (bb * eb) / 65535.0
+                    b_row[b_idx + 0] = clamp_f_u16((inv_ae * ab * br + inv_ab * ae * er + ae * ab * mr) / out_a_safe)
+                    b_row[b_idx + 1] = clamp_f_u16((inv_ae * ab * bg + inv_ab * ae * eg + ae * ab * mg) / out_a_safe)
+                    b_row[b_idx + 2] = clamp_f_u16((inv_ae * ab * bb + inv_ab * ae * eb + ae * ab * mb) / out_a_safe)
+                else:
+                    br = <float>b_row[b_idx + 0]
+                    mr = (br * er) / 65535.0
+                    b_row[b_idx + 0] = clamp_f_u16((inv_ae * ab * br + inv_ab * ae * er + ae * ab * mr) / out_a_safe)
+
+                b_row[b_idx + b_ch - 1] = clamp_f_u16(out_a * 65535.0)
+            else:
+                if b_colors == 3:
+                    br = <float>b_row[b_idx + 0]
+                    bg = <float>b_row[b_idx + 1]
+                    bb = <float>b_row[b_idx + 2]
+                    mr = (br * er) / 65535.0
+                    mg = (bg * eg) / 65535.0
+                    mb = (bb * eb) / 65535.0
+                    b_row[b_idx + 0] = clamp_f_u16(inv_ae * br + ae * mr)
+                    b_row[b_idx + 1] = clamp_f_u16(inv_ae * bg + ae * mg)
+                    b_row[b_idx + 2] = clamp_f_u16(inv_ae * bb + ae * mb)
+                else:
+                    br = <float>b_row[b_idx + 0]
+                    mr = (br * er) / 65535.0
+                    b_row[b_idx + 0] = clamp_f_u16(inv_ae * br + ae * mr)
+
+
+cdef void _blend_multiply_f32(
+    float[:, :, :] base,
+    float[:, :, :] edit,
+    float opacity,
+) noexcept nogil:
+    cdef int h = min(base.shape[0], edit.shape[0])
+    cdef int w = min(base.shape[1], edit.shape[1])
+    cdef int b_ch = base.shape[2]
+    cdef int e_ch = edit.shape[2]
+
+    cdef bint b_has_alpha = (b_ch == 2 or b_ch == 4)
+    cdef bint e_has_alpha = (e_ch == 2 or e_ch == 4)
+    cdef int b_colors = 1 if (b_ch == 1 or b_ch == 2) else 3
+    cdef int e_colors = 1 if (e_ch == 1 or e_ch == 2) else 3
+
+    cdef int y, x, b_idx, e_idx
+    cdef float* b_row
+    cdef const float* e_row
+    cdef float ae_raw, ae, inv_ae, ab, inv_ab, out_a, out_a_safe
+    cdef float er, eg, eb, br, bg, bb, mr, mg, mb
+
+    for y in prange(h, schedule='static'):
+        b_row = &base[y, 0, 0]
+        e_row = &edit[y, 0, 0]
+        for x in range(w):
+            b_idx = x * b_ch
+            e_idx = x * e_ch
+
+            ae_raw = e_row[e_idx + e_ch - 1] if e_has_alpha else 1.0
+            ae = ae_raw * opacity
+            if ae <= 0.0:
+                continue
+
+            if e_colors == 3:
+                er = e_row[e_idx + 0]
+                eg = e_row[e_idx + 1]
+                eb = e_row[e_idx + 2]
+                if b_colors == 1:
+                    er = 0.299 * er + 0.587 * eg + 0.114 * eb
+                    eg = er
+                    eb = er
+            else:
+                er = e_row[e_idx + 0]
+                eg = er
+                eb = er
+
+            inv_ae = 1.0 - ae
+            if b_has_alpha:
+                ab = b_row[b_idx + b_ch - 1]
+                inv_ab = 1.0 - ab
+                out_a = ae + ab * inv_ae
+                if out_a <= 0.0:
+                    b_row[b_idx + b_ch - 1] = 0.0
+                    continue
+                out_a_safe = out_a
+
+                if b_colors == 3:
+                    br = b_row[b_idx + 0]
+                    bg = b_row[b_idx + 1]
+                    bb = b_row[b_idx + 2]
+                    mr = br * er
+                    mg = bg * eg
+                    mb = bb * eb
+                    b_row[b_idx + 0] = (inv_ae * ab * br + inv_ab * ae * er + ae * ab * mr) / out_a_safe
+                    b_row[b_idx + 1] = (inv_ae * ab * bg + inv_ab * ae * eg + ae * ab * mg) / out_a_safe
+                    b_row[b_idx + 2] = (inv_ae * ab * bb + inv_ab * ae * eb + ae * ab * mb) / out_a_safe
+                else:
+                    br = b_row[b_idx + 0]
+                    mr = br * er
+                    b_row[b_idx + 0] = (inv_ae * ab * br + inv_ab * ae * er + ae * ab * mr) / out_a_safe
+
+                b_row[b_idx + b_ch - 1] = out_a
+            else:
+                if b_colors == 3:
+                    br = b_row[b_idx + 0]
+                    bg = b_row[b_idx + 1]
+                    bb = b_row[b_idx + 2]
+                    mr = br * er
+                    mg = bg * eg
+                    mb = bb * eb
+                    b_row[b_idx + 0] = inv_ae * br + ae * mr
+                    b_row[b_idx + 1] = inv_ae * bg + ae * mg
+                    b_row[b_idx + 2] = inv_ae * bb + ae * mb
+                else:
+                    br = b_row[b_idx + 0]
+                    mr = br * er
+                    b_row[b_idx + 0] = inv_ae * br + ae * mr
+
+
+def blend_multiply(
+    pixel_t[:, :, :] base,
+    pixel_t[:, :, :] edit,
+    float opacity = 1.0,
+):
+    """Implementação unificada em Cython para BlendMode.MULTIPLY com Fused Types e OpenMP."""
+    if opacity <= 0.0:
+        return
+
+    with nogil:
+        if pixel_t is uint8_t:
+            _blend_multiply_u8(base, edit, opacity)
+        elif pixel_t is uint16_t:
+            _blend_multiply_u16(base, edit, opacity)
+        elif pixel_t is float:
+            _blend_multiply_f32(base, edit, opacity)
 
 
 cdef void _blend_normal_prgba_u8(
