@@ -45,6 +45,10 @@ cdef inline uint32_t div255(uint32_t v) noexcept nogil:
     """Divisão inteira exata por 255 usando bitshift (1 ciclo de CPU)."""
     return (v + 1 + (v >> 8)) >> 8
 
+cdef inline uint32_t div255_round(uint32_t v) noexcept nogil:
+    """Divisão inteira por 255 com arredondamento para o mais próximo."""
+    return (v + 127) / 255
+
 cdef inline uint8_t rgb_to_gray_u8(uint8_t r, uint8_t g, uint8_t b) noexcept nogil:
     # ITU-R BT.601: 0.299 * R + 0.587 * G + 0.114 * B
     return <uint8_t>((19595 * <uint32_t>r + 38470 * <uint32_t>g + 7471 * <uint32_t>b + 32768) >> 16)
@@ -469,53 +473,30 @@ cdef void _blend_multiply_u8(
     cdef int b_colors = 1 if (b_ch == 1 or b_ch == 2) else 3
     cdef int e_colors = 1 if (e_ch == 1 or e_ch == 2) else 3
 
+    cdef uint32_t op_u8 = <uint32_t>roundf(opacity * 255.0) if opacity < 1.0 else 255
+
     cdef int y, x, b_idx, e_idx
     cdef uint8_t* b_row
     cdef const uint8_t* e_row
-    cdef float ae_raw, ae, inv_ae, ab, inv_ab, out_a, out_a_safe
-    cdef float er, eg, eb, br, bg, bb, mr, mg, mb
+    cdef uint32_t ae_raw, ae, inv_ae, ab, inv_ab, out_a, denom, half_denom
+    cdef uint32_t term_e, term_b, term_m, num, mr, mg, mb
+    cdef uint32_t er, eg, eb
 
     # Fast-Path 1: RGB -> RGB (Sem Alfa)
     if b_ch == 3 and e_ch == 3:
-        if opacity >= 1.0:
+        if op_u8 >= 255:
             for y in prange(h, schedule='static'):
                 b_row = &base[y, 0, 0]
                 e_row = &edit[y, 0, 0]
-                for x in range(w):
-                    b_idx = x * 3
-                    e_idx = x * 3
-                    br = <float>b_row[b_idx + 0]
-                    er = <float>e_row[e_idx + 0]
-                    b_row[b_idx + 0] = clamp_f_u8((br * er) / 255.0)
-
-                    bg = <float>b_row[b_idx + 1]
-                    eg = <float>e_row[e_idx + 1]
-                    b_row[b_idx + 1] = clamp_f_u8((bg * eg) / 255.0)
-
-                    bb = <float>b_row[b_idx + 2]
-                    eb = <float>e_row[e_idx + 2]
-                    b_row[b_idx + 2] = clamp_f_u8((bb * eb) / 255.0)
+                for x in range(w * 3):
+                    b_row[x] = <uint8_t>div255_round(b_row[x] * e_row[x])
         else:
             for y in prange(h, schedule='static'):
                 b_row = &base[y, 0, 0]
                 e_row = &edit[y, 0, 0]
-                for x in range(w):
-                    b_idx = x * 3
-                    e_idx = x * 3
-                    br = <float>b_row[b_idx + 0]
-                    er = <float>e_row[e_idx + 0]
-                    mr = (br * er) / 255.0
-                    b_row[b_idx + 0] = clamp_f_u8((1.0 - opacity) * br + opacity * mr)
-
-                    bg = <float>b_row[b_idx + 1]
-                    eg = <float>e_row[e_idx + 1]
-                    mg = (bg * eg) / 255.0
-                    b_row[b_idx + 1] = clamp_f_u8((1.0 - opacity) * bg + opacity * mg)
-
-                    bb = <float>b_row[b_idx + 2]
-                    eb = <float>e_row[e_idx + 2]
-                    mb = (bb * eb) / 255.0
-                    b_row[b_idx + 2] = clamp_f_u8((1.0 - opacity) * bb + opacity * mb)
+                for x in range(w * 3):
+                    mr = div255_round(b_row[x] * e_row[x])
+                    b_row[x] = <uint8_t>div255_round(mr * op_u8 + b_row[x] * (255 - op_u8))
 
     # Fast-Path 2: RGBA -> RGB (Overlay com Alfa sobre Fundo Opaco)
     elif b_ch == 3 and e_ch == 4:
@@ -524,30 +505,24 @@ cdef void _blend_multiply_u8(
             e_row = &edit[y, 0, 0]
             for x in range(w):
                 e_idx = x << 2
-                ae_raw = <float>e_row[e_idx + 3]
-                if ae_raw <= 0.0:
+                ae_raw = e_row[e_idx + 3]
+                if ae_raw == 0:
                     continue
-                ae = (ae_raw / 255.0) * opacity
-                if ae <= 0.0:
+                ae = div255_round(ae_raw * op_u8) if op_u8 < 255 else ae_raw
+                if ae == 0:
                     continue
 
                 b_idx = x * 3
-                inv_ae = 1.0 - ae
+                inv_ae = 255 - ae
 
-                br = <float>b_row[b_idx + 0]
-                er = <float>e_row[e_idx + 0]
-                mr = (br * er) / 255.0
-                b_row[b_idx + 0] = clamp_f_u8(inv_ae * br + ae * mr)
+                mr = div255_round(b_row[b_idx + 0] * e_row[e_idx + 0])
+                b_row[b_idx + 0] = <uint8_t>div255_round(mr * ae + b_row[b_idx + 0] * inv_ae)
 
-                bg = <float>b_row[b_idx + 1]
-                eg = <float>e_row[e_idx + 1]
-                mg = (bg * eg) / 255.0
-                b_row[b_idx + 1] = clamp_f_u8(inv_ae * bg + ae * mg)
+                mg = div255_round(b_row[b_idx + 1] * e_row[e_idx + 1])
+                b_row[b_idx + 1] = <uint8_t>div255_round(mg * ae + b_row[b_idx + 1] * inv_ae)
 
-                bb = <float>b_row[b_idx + 2]
-                eb = <float>e_row[e_idx + 2]
-                mb = (bb * eb) / 255.0
-                b_row[b_idx + 2] = clamp_f_u8(inv_ae * bb + ae * mb)
+                mb = div255_round(b_row[b_idx + 2] * e_row[e_idx + 2])
+                b_row[b_idx + 2] = <uint8_t>div255_round(mb * ae + b_row[b_idx + 2] * inv_ae)
 
     # Fast-Path 3: RGB -> RGBA (Overlay Opaco sobre Fundo com Alfa)
     elif b_ch == 4 and e_ch == 3:
@@ -557,33 +532,37 @@ cdef void _blend_multiply_u8(
             for x in range(w):
                 b_idx = x << 2
                 e_idx = x * 3
-                ae = opacity
-                ab = <float>b_row[b_idx + 3] / 255.0
-                inv_ae = 1.0 - ae
-                inv_ab = 1.0 - ab
+                ae = op_u8 if op_u8 < 255 else 255
+                ab = b_row[b_idx + 3]
 
-                out_a = ae + ab * inv_ae
-                if out_a <= 0.0:
+                inv_ae = 255 - ae
+                inv_ab = 255 - ab
+
+                out_a = div255_round(ae * 255 + ab * inv_ae)
+                if out_a == 0:
                     b_row[b_idx + 3] = 0
                     continue
-                out_a_safe = out_a
 
-                br = <float>b_row[b_idx + 0]
-                er = <float>e_row[e_idx + 0]
-                mr = (br * er) / 255.0
-                b_row[b_idx + 0] = clamp_f_u8((inv_ae * ab * br + inv_ab * ae * er + ae * ab * mr) / out_a_safe)
+                denom = out_a * 255
+                half_denom = denom >> 1
 
-                bg = <float>b_row[b_idx + 1]
-                eg = <float>e_row[e_idx + 1]
-                mg = (bg * eg) / 255.0
-                b_row[b_idx + 1] = clamp_f_u8((inv_ae * ab * bg + inv_ab * ae * eg + ae * ab * mg) / out_a_safe)
+                term_e = inv_ab * ae
+                term_b = inv_ae * ab
+                term_m = ae * ab
 
-                bb = <float>b_row[b_idx + 2]
-                eb = <float>e_row[e_idx + 2]
-                mb = (bb * eb) / 255.0
-                b_row[b_idx + 2] = clamp_f_u8((inv_ae * ab * bb + inv_ab * ae * eb + ae * ab * mb) / out_a_safe)
+                mr = div255_round(b_row[b_idx + 0] * e_row[e_idx + 0])
+                num = term_e * e_row[e_idx + 0] + term_b * b_row[b_idx + 0] + term_m * mr
+                b_row[b_idx + 0] = <uint8_t>((num + half_denom) // denom)
 
-                b_row[b_idx + 3] = clamp_f_u8(out_a * 255.0)
+                mg = div255_round(b_row[b_idx + 1] * e_row[e_idx + 1])
+                num = term_e * e_row[e_idx + 1] + term_b * b_row[b_idx + 1] + term_m * mg
+                b_row[b_idx + 1] = <uint8_t>((num + half_denom) // denom)
+
+                mb = div255_round(b_row[b_idx + 2] * e_row[e_idx + 2])
+                num = term_e * e_row[e_idx + 2] + term_b * b_row[b_idx + 2] + term_m * mb
+                b_row[b_idx + 2] = <uint8_t>((num + half_denom) // denom)
+
+                b_row[b_idx + 3] = <uint8_t>out_a
 
     # Fast-Path 4: RGBA -> RGBA (Ambos com canal Alfa)
     elif b_ch == 4 and e_ch == 4:
@@ -592,40 +571,50 @@ cdef void _blend_multiply_u8(
             e_row = &edit[y, 0, 0]
             for x in range(w):
                 e_idx = x << 2
-                ae_raw = <float>e_row[e_idx + 3]
-                if ae_raw <= 0.0:
+                ae_raw = e_row[e_idx + 3]
+                if ae_raw == 0:
                     continue
-                ae = (ae_raw / 255.0) * opacity
-                if ae <= 0.0:
+                ae = div255_round(ae_raw * op_u8) if op_u8 < 255 else ae_raw
+                if ae == 0:
                     continue
 
                 b_idx = x << 2
-                ab = <float>b_row[b_idx + 3] / 255.0
-                inv_ae = 1.0 - ae
-                inv_ab = 1.0 - ab
+                ab = b_row[b_idx + 3]
+                if ab == 0:
+                    b_row[b_idx + 0] = e_row[e_idx + 0]
+                    b_row[b_idx + 1] = e_row[e_idx + 1]
+                    b_row[b_idx + 2] = e_row[e_idx + 2]
+                    b_row[b_idx + 3] = <uint8_t>ae
+                    continue
 
-                out_a = ae + ab * inv_ae
-                if out_a <= 0.0:
+                inv_ae = 255 - ae
+                inv_ab = 255 - ab
+
+                out_a = div255_round(ae * 255 + ab * inv_ae)
+                if out_a == 0:
                     b_row[b_idx + 3] = 0
                     continue
-                out_a_safe = out_a
 
-                br = <float>b_row[b_idx + 0]
-                er = <float>e_row[e_idx + 0]
-                mr = (br * er) / 255.0
-                b_row[b_idx + 0] = clamp_f_u8((inv_ae * ab * br + inv_ab * ae * er + ae * ab * mr) / out_a_safe)
+                denom = out_a * 255
+                half_denom = denom >> 1
 
-                bg = <float>b_row[b_idx + 1]
-                eg = <float>e_row[e_idx + 1]
-                mg = (bg * eg) / 255.0
-                b_row[b_idx + 1] = clamp_f_u8((inv_ae * ab * bg + inv_ab * ae * eg + ae * ab * mg) / out_a_safe)
+                term_e = inv_ab * ae
+                term_b = inv_ae * ab
+                term_m = ae * ab
 
-                bb = <float>b_row[b_idx + 2]
-                eb = <float>e_row[e_idx + 2]
-                mb = (bb * eb) / 255.0
-                b_row[b_idx + 2] = clamp_f_u8((inv_ae * ab * bb + inv_ab * ae * eb + ae * ab * mb) / out_a_safe)
+                mr = div255_round(b_row[b_idx + 0] * e_row[e_idx + 0])
+                num = term_e * e_row[e_idx + 0] + term_b * b_row[b_idx + 0] + term_m * mr
+                b_row[b_idx + 0] = <uint8_t>((num + half_denom) // denom)
 
-                b_row[b_idx + 3] = clamp_f_u8(out_a * 255.0)
+                mg = div255_round(b_row[b_idx + 1] * e_row[e_idx + 1])
+                num = term_e * e_row[e_idx + 1] + term_b * b_row[b_idx + 1] + term_m * mg
+                b_row[b_idx + 1] = <uint8_t>((num + half_denom) // denom)
+
+                mb = div255_round(b_row[b_idx + 2] * e_row[e_idx + 2])
+                num = term_e * e_row[e_idx + 2] + term_b * b_row[b_idx + 2] + term_m * mb
+                b_row[b_idx + 2] = <uint8_t>((num + half_denom) // denom)
+
+                b_row[b_idx + 3] = <uint8_t>out_a
 
     else:
         # Caminho geral cobrindo Grayscale / Gray-Alpha / misturas heterogêneas
@@ -636,67 +625,72 @@ cdef void _blend_multiply_u8(
                 b_idx = x * b_ch
                 e_idx = x * e_ch
 
-                ae_raw = <float>e_row[e_idx + e_ch - 1] if e_has_alpha else 255.0
-                if ae_raw <= 0.0:
+                ae_raw = e_row[e_idx + e_ch - 1] if e_has_alpha else 255
+                if ae_raw == 0:
                     continue
-                ae = (ae_raw / 255.0) * opacity
-                if ae <= 0.0:
+                ae = div255_round(ae_raw * op_u8) if op_u8 < 255 else ae_raw
+                if ae == 0:
                     continue
 
                 if e_colors == 3:
-                    er = <float>e_row[e_idx + 0]
-                    eg = <float>e_row[e_idx + 1]
-                    eb = <float>e_row[e_idx + 2]
+                    er = e_row[e_idx + 0]
+                    eg = e_row[e_idx + 1]
+                    eb = e_row[e_idx + 2]
                     if b_colors == 1:
-                        er = 0.299 * er + 0.587 * eg + 0.114 * eb
+                        er = rgb_to_gray_u8(<uint8_t>er, <uint8_t>eg, <uint8_t>eb)
                         eg = er
                         eb = er
                 else:
-                    er = <float>e_row[e_idx + 0]
+                    er = e_row[e_idx + 0]
                     eg = er
                     eb = er
 
-                inv_ae = 1.0 - ae
+                inv_ae = 255 - ae
                 if b_has_alpha:
-                    ab = <float>b_row[b_idx + b_ch - 1] / 255.0
-                    inv_ab = 1.0 - ab
-                    out_a = ae + ab * inv_ae
-                    if out_a <= 0.0:
+                    ab = b_row[b_idx + b_ch - 1]
+                    inv_ab = 255 - ab
+                    out_a = div255_round(ae * 255 + ab * inv_ae)
+                    if out_a == 0:
                         b_row[b_idx + b_ch - 1] = 0
                         continue
-                    out_a_safe = out_a
+
+                    denom = out_a * 255
+                    half_denom = denom >> 1
+                    term_e = inv_ab * ae
+                    term_b = inv_ae * ab
+                    term_m = ae * ab
 
                     if b_colors == 3:
-                        br = <float>b_row[b_idx + 0]
-                        bg = <float>b_row[b_idx + 1]
-                        bb = <float>b_row[b_idx + 2]
-                        mr = (br * er) / 255.0
-                        mg = (bg * eg) / 255.0
-                        mb = (bb * eb) / 255.0
-                        b_row[b_idx + 0] = clamp_f_u8((inv_ae * ab * br + inv_ab * ae * er + ae * ab * mr) / out_a_safe)
-                        b_row[b_idx + 1] = clamp_f_u8((inv_ae * ab * bg + inv_ab * ae * eg + ae * ab * mg) / out_a_safe)
-                        b_row[b_idx + 2] = clamp_f_u8((inv_ae * ab * bb + inv_ab * ae * eb + ae * ab * mb) / out_a_safe)
-                    else:
-                        br = <float>b_row[b_idx + 0]
-                        mr = (br * er) / 255.0
-                        b_row[b_idx + 0] = clamp_f_u8((inv_ae * ab * br + inv_ab * ae * er + ae * ab * mr) / out_a_safe)
+                        mr = div255_round(b_row[b_idx + 0] * er)
+                        num = term_e * er + term_b * b_row[b_idx + 0] + term_m * mr
+                        b_row[b_idx + 0] = <uint8_t>((num + half_denom) // denom)
 
-                    b_row[b_idx + b_ch - 1] = clamp_f_u8(out_a * 255.0)
+                        mg = div255_round(b_row[b_idx + 1] * eg)
+                        num = term_e * eg + term_b * b_row[b_idx + 1] + term_m * mg
+                        b_row[b_idx + 1] = <uint8_t>((num + half_denom) // denom)
+
+                        mb = div255_round(b_row[b_idx + 2] * eb)
+                        num = term_e * eb + term_b * b_row[b_idx + 2] + term_m * mb
+                        b_row[b_idx + 2] = <uint8_t>((num + half_denom) // denom)
+                    else:
+                        mr = div255_round(b_row[b_idx + 0] * er)
+                        num = term_e * er + term_b * b_row[b_idx + 0] + term_m * mr
+                        b_row[b_idx + 0] = <uint8_t>((num + half_denom) // denom)
+
+                    b_row[b_idx + b_ch - 1] = <uint8_t>out_a
                 else:
                     if b_colors == 3:
-                        br = <float>b_row[b_idx + 0]
-                        bg = <float>b_row[b_idx + 1]
-                        bb = <float>b_row[b_idx + 2]
-                        mr = (br * er) / 255.0
-                        mg = (bg * eg) / 255.0
-                        mb = (bb * eb) / 255.0
-                        b_row[b_idx + 0] = clamp_f_u8(inv_ae * br + ae * mr)
-                        b_row[b_idx + 1] = clamp_f_u8(inv_ae * bg + ae * mg)
-                        b_row[b_idx + 2] = clamp_f_u8(inv_ae * bb + ae * mb)
+                        mr = div255_round(b_row[b_idx + 0] * er)
+                        b_row[b_idx + 0] = <uint8_t>div255_round(mr * ae + b_row[b_idx + 0] * inv_ae)
+
+                        mg = div255_round(b_row[b_idx + 1] * eg)
+                        b_row[b_idx + 1] = <uint8_t>div255_round(mg * ae + b_row[b_idx + 1] * inv_ae)
+
+                        mb = div255_round(b_row[b_idx + 2] * eb)
+                        b_row[b_idx + 2] = <uint8_t>div255_round(mb * ae + b_row[b_idx + 2] * inv_ae)
                     else:
-                        br = <float>b_row[b_idx + 0]
-                        mr = (br * er) / 255.0
-                        b_row[b_idx + 0] = clamp_f_u8(inv_ae * br + ae * mr)
+                        mr = div255_round(b_row[b_idx + 0] * er)
+                        b_row[b_idx + 0] = <uint8_t>div255_round(mr * ae + b_row[b_idx + 0] * inv_ae)
 
 
 cdef void _blend_multiply_u16(
