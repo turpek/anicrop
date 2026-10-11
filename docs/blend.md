@@ -78,6 +78,7 @@ flowchart TD
 2. **Paralelismo Multi-Core (`OpenMP prange`):** O processamento de linhas da imagem é distribuído entre todos os núcleos da CPU.
 3. **Carga e Descarga Vetorial de 32-bit:** Em modos de substituição como `SOLID_FILL` e `HARD_MASKING`, as operações em buffers RGBA lêem e gravam palavras de 32 bits (`uint32_t`) em uma única instrução Assembly (`MOV`), habilitando auto-vetorização AVX2/SSE4 pelo compilador.
 4. **Invariância Matemática BGR/BGRA:** Em `RGBA` e `BGRA`, o canal alfa reside identicamente no índice 3 (`channel = 3`). Como as operações de cor são simétricas por canal, a mesclagem `BGRA-over-BGRA` executa o mesmo kernel ultra-otimizado com **zero conversões intermediárias**.
+5. **Aritmética Inteira de Ponto Fixo em `MULTIPLY`:** Implementa a equação W3C/Porter-Duff com números inteiros de 32 bits e arredondamento exato via `div255_round` ($out = \frac{term_e \cdot E + term_b \cdot B + term_m \cdot mr}{denom}$), alcançando até **$30.9\times$ de aceleração** sobre o NumPy (~8.6 ms em 1080p) com zero conversões para `float` e paridade numérica exata.
 
 ### 3.4. Harmonização Automática de Espaço de Cor (`harmonize_rendered_image`)
 A função [`harmonize_rendered_image`](file:///home/gui/python/anicrop/src/anicrop/blend.py) avalia se a camada ou grupo possui o mesmo espaço de cores do buffer de destino via `image.format.same_spaces(target.format)`:
