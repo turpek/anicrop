@@ -156,6 +156,8 @@ class EffectStack(NamedStack[Effect]):
         """Calcula a margem agregada máxima (top, right, bottom, left) dos efeitos visíveis."""
         top, right, bottom, left = 0, 0, 0, 0
         for effect in self._items:
+            if not effect.visible:
+                continue
             pt, pr, pb, pl = effect.get_padding()
             top = max(top, pt)
             right = max(right, pr)

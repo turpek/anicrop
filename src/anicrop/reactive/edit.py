@@ -1,14 +1,9 @@
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
-
 from anicrop.command import AdaptiveCommand, Command
 from anicrop.edit_layer import EditLayer
 from anicrop.reactive.base import BaseHistoryProxy
 from anicrop.reactive.stack import ProxyNamedStack
-
-if TYPE_CHECKING:
-    pass
 
 
 class ProxyEdit(BaseHistoryProxy[EditLayer]):

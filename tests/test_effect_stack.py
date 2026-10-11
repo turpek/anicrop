@@ -170,3 +170,35 @@ def test_effect_stack_get_padding_aggregates_max():
     stack.add(DummyEffect(pad=20, visible=False))
 
     assert stack.get_padding() == (12, 12, 12, 12)
+
+
+class RawPaddingEffect(Effect):
+    def __init__(self, pad: int = 0, visible: bool = True, name: str = "Raw"):
+        super().__init__(visible=visible, name=name)
+        self.pad = pad
+
+    def get_padding(self) -> tuple[int, int, int, int]:
+        return (self.pad, self.pad, self.pad, self.pad)
+
+    def apply(self, image: Image, matrix: np.ndarray) -> Image:
+        return image
+
+    def merge(self, other: Effect, matrix: np.ndarray) -> Effect | None:
+        return None
+
+
+def test_effect_stack_get_padding_ignores_invisible_raw_effect():
+    """Valida se EffectStack desconsidera padding de efeito quando visible e False."""
+    stack = EffectStack()
+    stack.add(RawPaddingEffect(pad=30, visible=False))
+    stack.add(RawPaddingEffect(pad=10, visible=True))
+
+    assert stack.get_padding() == (10, 10, 10, 10)
+
+
+def test_effect_stack_get_padding_all_invisible_returns_zeros():
+    """Valida se pilha com efeitos apenas invisiveis retorna padding zerado."""
+    stack = EffectStack()
+    stack.add(RawPaddingEffect(pad=50, visible=False))
+
+    assert stack.get_padding() == (0, 0, 0, 0)
