@@ -26,7 +26,7 @@ native_available: bool = _HAS_CY_BLEND and _HAS_CY_COLOR
 try:
     __version__ = version("anicrop")
 except PackageNotFoundError:
-    __version__ = "0.8.0"
+    __version__ = "0.8.1"
 
 __all__ = [
     "__version__",
