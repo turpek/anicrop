@@ -1,7 +1,9 @@
 from importlib.metadata import PackageNotFoundError, version
 
+from .blend import _HAS_CY_BLEND
 from .cache import LayerCache
 from .canvas import Canvas
+from .color import _HAS_CY_COLOR
 from .config import config
 from .container import GroupLayer
 from .document import Document
@@ -19,6 +21,8 @@ from .stack import NamedStack
 from .viewer import Viewer
 from .viewport import Viewport
 
+native_available: bool = _HAS_CY_BLEND and _HAS_CY_COLOR
+
 try:
     __version__ = version("anicrop")
 except PackageNotFoundError:
@@ -26,6 +30,7 @@ except PackageNotFoundError:
 
 __all__ = [
     "__version__",
+    "native_available",
     "transform_image",
     "config",
     "Document",
