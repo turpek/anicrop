@@ -653,3 +653,34 @@ def test_blend_multiply_grayscale():
 
     # 200 * 100 / 255 = 78.43 -> 78
     assert abs(int(base_arr[0, 0, 0]) - 78) <= 1
+
+
+def test_blend_multiply_white_low_alpha_no_overflow():
+    """Valida que pixels brancos com alfa baixo nao estouram para preto em RGBA."""
+    base = np.array([[[255, 255, 255, 128]]], dtype=np.uint8)
+    over = np.array([[[255, 255, 255, 1]]], dtype=np.uint8)
+
+    _cy_blend_multiply(base, over, 1.0)
+
+    assert tuple(base[0, 0]) == (255, 255, 255, 128)
+
+
+def test_blend_multiply_white_low_alpha_stress_parity():
+    """Valida paridade entre NumPy e Cython para cores claras com alfas parciais baixos."""
+    rng = np.random.default_rng(999)
+    base_raw = np.empty((16, 16, 4), dtype=np.uint8)
+    base_raw[..., :3] = rng.integers(250, 256, size=(16, 16, 3), dtype=np.uint8)
+    base_raw[..., 3] = rng.integers(1, 33, size=(16, 16), dtype=np.uint8)
+
+    over_raw = np.empty((16, 16, 4), dtype=np.uint8)
+    over_raw[..., :3] = rng.integers(250, 256, size=(16, 16, 3), dtype=np.uint8)
+    over_raw[..., 3] = rng.integers(1, 33, size=(16, 16), dtype=np.uint8)
+
+    base_np = base_raw.copy()
+    base_cy = base_raw.copy()
+
+    _blend_multiply_numpy(base_np, over_raw, 1.0)
+    _cy_blend_multiply(base_cy, over_raw, 1.0)
+
+    max_diff = np.max(np.abs(base_np.astype(np.int16) - base_cy.astype(np.int16)))
+    assert max_diff <= 6

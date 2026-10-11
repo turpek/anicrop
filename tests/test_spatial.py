@@ -673,13 +673,11 @@ def test_point_equality(p1, p2, expected):
     assert (p1 == p2) is expected
 
 
-def test_point_hash_consistency():
-    """Valida consistencia de hash de Point para armazenamento em conjuntos e dicionarios."""
-    p1 = Point(10.00001, 20.00001)
-    p2 = Point(10.00004, 20.00004)
-    point_set = {p1}
-    assert hash(p1) == hash(p2)
-    assert p2 in point_set
+def test_point_is_unhashable():
+    """Valida que Point é não-hashável para prevenir inconsistências com igualdade aproximada."""
+    p = Point(10.00001, 20.00001)
+    with pytest.raises(TypeError, match="unhashable"):
+        hash(p)
 
 
 @pytest.mark.parametrize(

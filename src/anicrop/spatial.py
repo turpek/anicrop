@@ -29,9 +29,10 @@ class Point(NamedTuple):
             ) and math.isclose(self[1], other[1], abs_tol=DEFAULT_EPSILON)
         return False
 
-    def __hash__(self) -> int:
-        """Calcula o hash discretizado em 4 casas decimais para compatibilidade com DEFAULT_EPSILON."""
-        return hash((round(self.x, 4), round(self.y, 4)))
+    # Como __eq__ adota igualdade aproximada (math.isclose), a relação não é transitiva.
+    # Em conformidade com o modelo de dados do Python, instâncias com igualdade aproximada
+    # são declaradas não-hasháveis para prevenir inconsistências silenciosas em sets e dicts.
+    __hash__ = None  # type: ignore[assignment]
 
     def to_int(self, mode: str = "round") -> tuple[int, int]:
         """Converte as coordenadas do Point para uma tupla de inteiros discretos (x, y)."""
