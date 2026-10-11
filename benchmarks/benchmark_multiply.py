@@ -189,7 +189,7 @@ def run_scenario(
                 max_ms=0.0,
                 fps=0.0,
                 throughput_mpps=0.0,
-                speedup="Aguardando C",
+                speedup="Pendente",
                 notes="Será ativado com blend_multiply em blend.pyx",
             )
         )
@@ -201,10 +201,12 @@ def run_scenario(
             cy_blend_normal(b, overlay_src, opacity)
             return b
 
-        mean_norm, min_norm, max_norm = measure_kernel(run_cy_normal, warmup=warmup, iterations=iterations)
+        mean_norm, min_norm, max_norm = measure_kernel(
+            run_cy_normal, warmup=warmup, iterations=iterations
+        )
         fps_norm = 1000.0 / mean_norm if mean_norm > 0 else 0.0
         th_norm = (total_pixels / 1_000_000.0) / (mean_norm / 1000.0) if mean_norm > 0 else 0.0
-        speedup_norm = f"{mean_np / mean_norm:.1f}x potencial"
+        speedup_norm = f"{mean_np / mean_norm:.1f}x pot."
 
         results.append(
             ScenarioResult(
@@ -285,35 +287,49 @@ def run_scenario(
 def print_table(results: list[ScenarioResult]) -> None:
     headers = [
         "Cenário",
-        "Resolução",
-        "Motor / Implementação",
-        "Tempo Médio",
+        "Motor / Backend",
+        "Tempo",
         "FPS",
-        "Throughput",
         "Speedup",
-        "Notas",
     ]
 
     rows = []
     current_scenario = ""
     for r in results:
         scen_col = r.scenario if r.scenario != current_scenario else ""
-        res_col = r.resolution if r.scenario != current_scenario else ""
         current_scenario = r.scenario
 
         time_str = f"{r.mean_ms:.2f} ms" if r.mean_ms > 0 else "—"
-        fps_str = f"{r.fps:.1f}" if r.fps > 0 else "—"
-        th_str = f"{r.throughput_mpps:.1f} MP/s" if r.throughput_mpps > 0 else "—"
+        if r.fps <= 0:
+            fps_str = "—"
+        elif r.fps >= 1000:
+            fps_str = f"{r.fps:.0f}"
+        else:
+            fps_str = f"{r.fps:.1f}"
+
+        # Abrevia o nome do motor para caber em terminais estreitos
+        engine = r.engine
+        if "NumPy" in engine:
+            engine_str = "anicrop (NumPy)"
+        elif "Cython/C nativo" in engine:
+            engine_str = "anicrop (Cython/C)"
+        elif "planejado" in engine.lower():
+            engine_str = "anicrop (Planejado)"
+        elif "Normal" in engine:
+            engine_str = "Ref: Normal (C)"
+        elif "Pillow" in engine:
+            engine_str = "Base: Pillow (C)"
+        elif "OpenCV" in engine:
+            engine_str = "Base: OpenCV (SIMD)"
+        else:
+            engine_str = engine[:19]
 
         rows.append([
             scen_col,
-            res_col,
-            r.engine,
+            engine_str,
             time_str,
             fps_str,
-            th_str,
             r.speedup,
-            r.notes,
         ])
 
     col_widths = [
@@ -358,11 +374,12 @@ def main() -> None:
     iterations = args.iterations or (3 if args.quick else 10)
     warmup = 1 if args.quick else 3
 
-    print("=" * 110)
+    print("=" * 78)
     print("  ANICROP — Benchmark Oficial do Modo de Mesclagem MULTIPLY")
     print("  Comparativo: NumPy (Atual) vs Cython/C (Planejado) vs Baselines Nativos")
-    print(f"  Status do Backend Cython MULTIPLY: {'DISPONÍVEL' if _HAS_CY_MULTIPLY else 'NÃO COMPILADO (Simulado via NumPy + Teto Normal C)'}")
-    print("=" * 110)
+    status_c = "DISPONÍVEL" if _HAS_CY_MULTIPLY else "NÃO COMPILADO (Simulado via NumPy + Teto Normal C)"
+    print(f"  Status do Backend Cython MULTIPLY: {status_c}")
+    print("=" * 78)
     print()
 
     all_results: list[ScenarioResult] = []
@@ -371,7 +388,7 @@ def main() -> None:
     print(">>> [1/5] Executando Cenário: 1080p Full HD (RGBA sobre RGBA)...")
     all_results.extend(
         run_scenario(
-            "1. 1080p RGBA -> RGBA",
+            "1. 1080p RGBA/RGBA",
             1080,
             1920,
             base_channels=4,
@@ -386,7 +403,7 @@ def main() -> None:
     print(">>> [2/5] Executando Cenário: 1080p Full HD (RGBA sobre RGB Sólido)...")
     all_results.extend(
         run_scenario(
-            "2. 1080p RGBA -> RGB",
+            "2. 1080p RGBA/RGB",
             1080,
             1920,
             base_channels=3,
@@ -401,7 +418,7 @@ def main() -> None:
     print(">>> [3/5] Executando Cenário: 1080p Full HD com Opacity=0.7...")
     all_results.extend(
         run_scenario(
-            "3. 1080p Opacity 0.7",
+            "3. 1080p Opac 0.7",
             1080,
             1920,
             base_channels=4,
@@ -416,7 +433,7 @@ def main() -> None:
     print(">>> [4/5] Executando Cenário: Patch Local 512x512 RGBA...")
     all_results.extend(
         run_scenario(
-            "4. Patch 512x512 RGBA",
+            "4. Patch 512x512",
             512,
             512,
             base_channels=4,
@@ -432,7 +449,7 @@ def main() -> None:
         print(">>> [5/5] Executando Cenário: 4K UHD 3840x2160 (RGBA sobre RGB)...")
         all_results.extend(
             run_scenario(
-                "5. 4K UHD RGBA -> RGB",
+                "5. 4K RGBA/RGB",
                 2160,
                 3840,
                 base_channels=3,
@@ -450,11 +467,10 @@ def main() -> None:
     print()
 
     print("Notas Técnicas:")
-    print("  • 'anicrop (NumPy atual)': Implementação pura com NumPy, cálculo Porter-Duff com máscara booleana e float32.")
-    print("  • 'anicrop (Cython/C nativo)': Quando implementado em blend.pyx, este benchmark roda e valida paridade automática.")
-    print("  • 'Referência C: Normal (Cython)': Implementação C com OpenMP de Normal Blending já presente em anicrop,")
-    print("    indicando a velocidade máxima de throughput (>200-300 MP/s) atingível na sua CPU para blend modes nativos.")
-    print("  • 'Pillow' e 'OpenCV': Multiplicações elementares de matrizes (A * B / 255), sem cálculo Porter-Duff de canal alfa.")
+    print("  • 'anicrop (NumPy)': Implementação pura com Porter-Duff e float32.")
+    print("  • 'anicrop (Cython/C)': Valida paridade numérica automática quando ativo.")
+    print("  • 'Ref: Normal (C)': Motor Cython com OpenMP (teto de performance em C).")
+    print("  • 'Pillow'/'OpenCV': Multiplicação bruta de arrays (sem Porter-Duff de alfa).")
     print()
 
 
