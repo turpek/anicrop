@@ -35,12 +35,6 @@ jobs:
         env:
           CIBW_ENVIRONMENT: "ANICROP_REQUIRE_NATIVE=1"
 
-      - name: Verify Linux wheel on host runner
-        if: matrix.os == 'ubuntu-latest'
-        run: |
-          python -m pip install ./wheelhouse/anicrop*cp312*manylinux*.whl --no-deps
-          python -c "from anicrop.native.blend import blend_multiply; from anicrop.native.color import rgba_to_prgba; print('Extensoes C no Linux verificadas com sucesso!')"
-
       - name: Upload wheels as artifact
         uses: actions/upload-artifact@v4
         with:

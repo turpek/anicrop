@@ -64,7 +64,7 @@ recursive = true
 test-command = "python -c \"from anicrop.native.blend import blend_multiply; from anicrop.native.color import rgba_to_prgba; print('Extensoes C carregadas com sucesso!')\""
 environment = { ANICROP_REQUIRE_NATIVE = "1" }
 build = "cp312-* cp313-*"
-skip = "*musllinux*"
+skip = "*musllinux* *i686* *-win32"
 test-skip = "*-manylinux*"
 
 
