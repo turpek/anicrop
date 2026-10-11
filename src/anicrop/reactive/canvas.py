@@ -1,13 +1,8 @@
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
-
 from anicrop.canvas import Canvas
 from anicrop.reactive.base import BaseHistoryProxy
 from anicrop.reactive.strategy import CanvasLayoutProxy
-
-if TYPE_CHECKING:
-    pass
 
 
 class ProxyCanvas(BaseHistoryProxy[Canvas]):

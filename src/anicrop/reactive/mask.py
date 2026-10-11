@@ -1,13 +1,10 @@
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any
+from typing import Any
 
 from anicrop.command import Command, MaskCommand
 from anicrop.mask import Mask
 from anicrop.reactive.base import BaseHistoryProxy
-
-if TYPE_CHECKING:
-    pass
 
 
 class ProxyMask(BaseHistoryProxy[Mask]):

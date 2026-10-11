@@ -1,14 +1,11 @@
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any, Iterator
+from typing import Any, Iterator
 
 from anicrop.command import Command, StackCommand
 from anicrop.reactive.base import BaseHistoryProxy
 from anicrop.reactive.registry import unwrap_target
 from anicrop.stack import NamedStack
-
-if TYPE_CHECKING:
-    pass
 
 
 class ProxyNamedStack(BaseHistoryProxy[NamedStack]):

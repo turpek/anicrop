@@ -1,14 +1,11 @@
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any, Iterator
+from typing import Any, Iterator
 
 from anicrop.command import Command, ReparentCommand
 from anicrop.container import Container
 from anicrop.reactive.base import BaseHistoryProxy
 from anicrop.reactive.registry import unwrap_target
-
-if TYPE_CHECKING:
-    pass
 
 
 class BaseContainerProxy(BaseHistoryProxy[Container]):
