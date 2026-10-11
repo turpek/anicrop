@@ -2,6 +2,7 @@ import numpy as np
 import pytest
 
 from anicrop.blend import (
+    _HAS_CY_BLEND,
     BLEND_MODE,
     _blend_multiply_numpy,
     _cy_blend_multiply,
@@ -590,6 +591,7 @@ def test_blend_multiply_with_opacity():
     assert abs(int(base[0, 0, 0]) - 139) <= 1
 
 
+@pytest.mark.skipif(not _HAS_CY_BLEND, reason="Extensão nativa Cython não compilada")
 def test_blend_multiply_cython_parity_rgba():
     """Valida paridade numerica entre implementacoes Cython e NumPy para formato RGBA."""
     rng = np.random.default_rng(123)
@@ -606,6 +608,7 @@ def test_blend_multiply_cython_parity_rgba():
     assert max_diff <= 1
 
 
+@pytest.mark.skipif(not _HAS_CY_BLEND, reason="Extensão nativa Cython não compilada")
 def test_blend_multiply_cython_parity_rgb():
     """Valida paridade numerica entre implementacoes Cython e NumPy para formato RGB solido."""
     rng = np.random.default_rng(456)
@@ -622,6 +625,7 @@ def test_blend_multiply_cython_parity_rgb():
     assert max_diff <= 1
 
 
+@pytest.mark.skipif(not _HAS_CY_BLEND, reason="Extensão nativa Cython não compilada")
 def test_blend_multiply_uint16():
     """Valida mesclagem multiply acelerada para profundidade de 16 bits."""
     base_arr = np.full((4, 4, 3), 32768, dtype=np.uint16)
@@ -633,6 +637,7 @@ def test_blend_multiply_uint16():
     assert abs(int(base_arr[0, 0, 0]) - 16384) <= 1
 
 
+@pytest.mark.skipif(not _HAS_CY_BLEND, reason="Extensão nativa Cython não compilada")
 def test_blend_multiply_float32():
     """Valida mesclagem multiply acelerada para profundidade de ponto flutuante float32."""
     base_arr = np.full((4, 4, 3), 0.5, dtype=np.float32)
@@ -644,6 +649,7 @@ def test_blend_multiply_float32():
     assert abs(float(base_arr[0, 0, 0]) - 0.25) < 1e-5
 
 
+@pytest.mark.skipif(not _HAS_CY_BLEND, reason="Extensão nativa Cython não compilada")
 def test_blend_multiply_grayscale():
     """Valida mesclagem multiply para imagens em escala de cinza."""
     base_arr = np.full((4, 4, 1), 200, dtype=np.uint8)
@@ -655,6 +661,7 @@ def test_blend_multiply_grayscale():
     assert abs(int(base_arr[0, 0, 0]) - 78) <= 1
 
 
+@pytest.mark.skipif(not _HAS_CY_BLEND, reason="Extensão nativa Cython não compilada")
 def test_blend_multiply_white_low_alpha_no_overflow():
     """Valida que pixels brancos com alfa baixo nao estouram para preto em RGBA."""
     base = np.array([[[255, 255, 255, 128]]], dtype=np.uint8)
@@ -665,6 +672,7 @@ def test_blend_multiply_white_low_alpha_no_overflow():
     assert tuple(base[0, 0]) == (255, 255, 255, 128)
 
 
+@pytest.mark.skipif(not _HAS_CY_BLEND, reason="Extensão nativa Cython não compilada")
 def test_blend_multiply_white_low_alpha_stress_parity():
     """Valida paridade entre NumPy e Cython para cores claras com alfas parciais baixos."""
     rng = np.random.default_rng(999)
