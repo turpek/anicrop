@@ -559,15 +559,15 @@ cdef void _blend_multiply_u8(
 
                 mr = div255_round(b_row[b_idx + 0] * e_row[e_idx + 0])
                 num = term_e * e_row[e_idx + 0] + term_b * b_row[b_idx + 0] + term_m * mr
-                b_row[b_idx + 0] = <uint8_t>((<uint64_t>(num + half_denom) * rcp_mult) >> 48)
+                b_row[b_idx + 0] = clamp_u8(<uint32_t>(((<uint64_t>(num + half_denom) * rcp_mult) >> 48)))
 
                 mg = div255_round(b_row[b_idx + 1] * e_row[e_idx + 1])
                 num = term_e * e_row[e_idx + 1] + term_b * b_row[b_idx + 1] + term_m * mg
-                b_row[b_idx + 1] = <uint8_t>((<uint64_t>(num + half_denom) * rcp_mult) >> 48)
+                b_row[b_idx + 1] = clamp_u8(<uint32_t>(((<uint64_t>(num + half_denom) * rcp_mult) >> 48)))
 
                 mb = div255_round(b_row[b_idx + 2] * e_row[e_idx + 2])
                 num = term_e * e_row[e_idx + 2] + term_b * b_row[b_idx + 2] + term_m * mb
-                b_row[b_idx + 2] = <uint8_t>((<uint64_t>(num + half_denom) * rcp_mult) >> 48)
+                b_row[b_idx + 2] = clamp_u8(<uint32_t>(((<uint64_t>(num + half_denom) * rcp_mult) >> 48)))
 
                 b_row[b_idx + 3] = <uint8_t>out_a
 
@@ -626,15 +626,15 @@ cdef void _blend_multiply_u8(
 
                 mr = div255_round(b_row[b_idx + 0] * e_row[e_idx + 0])
                 num = term_e * e_row[e_idx + 0] + term_b * b_row[b_idx + 0] + term_m * mr
-                b_row[b_idx + 0] = <uint8_t>((<uint64_t>(num + half_denom) * rcp_mult) >> 48)
+                b_row[b_idx + 0] = clamp_u8(<uint32_t>(((<uint64_t>(num + half_denom) * rcp_mult) >> 48)))
 
                 mg = div255_round(b_row[b_idx + 1] * e_row[e_idx + 1])
                 num = term_e * e_row[e_idx + 1] + term_b * b_row[b_idx + 1] + term_m * mg
-                b_row[b_idx + 1] = <uint8_t>((<uint64_t>(num + half_denom) * rcp_mult) >> 48)
+                b_row[b_idx + 1] = clamp_u8(<uint32_t>(((<uint64_t>(num + half_denom) * rcp_mult) >> 48)))
 
                 mb = div255_round(b_row[b_idx + 2] * e_row[e_idx + 2])
                 num = term_e * e_row[e_idx + 2] + term_b * b_row[b_idx + 2] + term_m * mb
-                b_row[b_idx + 2] = <uint8_t>((<uint64_t>(num + half_denom) * rcp_mult) >> 48)
+                b_row[b_idx + 2] = clamp_u8(<uint32_t>(((<uint64_t>(num + half_denom) * rcp_mult) >> 48)))
 
                 b_row[b_idx + 3] = <uint8_t>out_a
 
@@ -685,19 +685,19 @@ cdef void _blend_multiply_u8(
                     if b_colors == 3:
                         mr = div255_round(b_row[b_idx + 0] * er)
                         num = term_e * er + term_b * b_row[b_idx + 0] + term_m * mr
-                        b_row[b_idx + 0] = <uint8_t>((<uint64_t>(num + half_denom) * rcp_mult) >> 48)
+                        b_row[b_idx + 0] = clamp_u8(<uint32_t>(((<uint64_t>(num + half_denom) * rcp_mult) >> 48)))
 
                         mg = div255_round(b_row[b_idx + 1] * eg)
                         num = term_e * eg + term_b * b_row[b_idx + 1] + term_m * mg
-                        b_row[b_idx + 1] = <uint8_t>((<uint64_t>(num + half_denom) * rcp_mult) >> 48)
+                        b_row[b_idx + 1] = clamp_u8(<uint32_t>(((<uint64_t>(num + half_denom) * rcp_mult) >> 48)))
 
                         mb = div255_round(b_row[b_idx + 2] * eb)
                         num = term_e * eb + term_b * b_row[b_idx + 2] + term_m * mb
-                        b_row[b_idx + 2] = <uint8_t>((<uint64_t>(num + half_denom) * rcp_mult) >> 48)
+                        b_row[b_idx + 2] = clamp_u8(<uint32_t>(((<uint64_t>(num + half_denom) * rcp_mult) >> 48)))
                     else:
                         mr = div255_round(b_row[b_idx + 0] * er)
                         num = term_e * er + term_b * b_row[b_idx + 0] + term_m * mr
-                        b_row[b_idx + 0] = <uint8_t>((<uint64_t>(num + half_denom) * rcp_mult) >> 48)
+                        b_row[b_idx + 0] = clamp_u8(<uint32_t>(((<uint64_t>(num + half_denom) * rcp_mult) >> 48)))
 
                     b_row[b_idx + b_ch - 1] = <uint8_t>out_a
                 else:
