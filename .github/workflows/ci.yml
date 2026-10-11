@@ -1,0 +1,71 @@
+name: CI
+
+on:
+  push:
+    branches: [main, dev]
+  pull_request:
+    branches: [main, dev]
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          version: "latest"
+          enable-cache: true
+
+      - name: Set up Python 3.12
+        run: uv python install 3.12
+
+      - name: Install dependencies
+        run: uv sync
+
+      - name: Lint check (Ruff)
+        run: uv run ruff check .
+
+  test:
+    runs-on: ubuntu-latest
+    needs: lint
+    strategy:
+      matrix:
+        python-version: ["3.12", "3.13"]
+        build-mode: ["native", "pure"]
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install system dependencies (libvips & OpenGL)
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libvips-dev libgl1
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          version: "latest"
+          enable-cache: true
+
+      - name: Set up Python ${{ matrix.python-version }}
+        run: uv python install ${{ matrix.python-version }}
+
+      - name: Install dependencies
+        run: uv sync
+
+      - name: Build native extensions (Native mode)
+        if: matrix.build-mode == 'native'
+        run: |
+          ANICROP_REQUIRE_NATIVE=1 uv run python setup.py build_ext --inplace
+
+      - name: Clean native binaries (Pure Python mode)
+        if: matrix.build-mode == 'pure'
+        run: |
+          rm -f src/anicrop/native/*.so src/anicrop/native/*.pyd
+
+      - name: Run test suite (pytest)
+        run: uv run pytest
+

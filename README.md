@@ -92,7 +92,7 @@ heroina.layout.align(doc.canvas, anchor_x=0.85, anchor_y=1.0)
 
 # 8. Profundidade de campo: aplica desfoque suave no fundo
 fundo = doc["Fundo"]
-fundo.bind_effect(BlurFilter(radius=3.0))
+fundo.effects.add(BlurFilter(radius=3.0))
 
 # 9. Renderiza a cena e salva no disco
 resultado = doc.render(format=ImageFormat.RGBA)
