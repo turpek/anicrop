@@ -53,8 +53,6 @@ class LayerFrameState:
         self.background_calls: int = 0
 
         self.baked_edits_snapshot: tuple[tuple[ref[EditLayer], dict[str, Any]], ...] = ()
-        self.baked_effects_count: int = 0
-        self.effects_visibility: tuple[bool, ...] = ()
         self.baked_effects_snapshot: tuple[tuple[ref[Effect], dict[str, Any]], ...] = ()
 
         self.saved_edits: list[EditLayer] | None = None
@@ -277,13 +275,9 @@ class LayerCacheScope:
             status.baked_warp = None
             status.baked_effects = None
             status.baked_edits_snapshot = ()
-            status.baked_effects_count = 0
-            status.effects_visibility = ()
             status.baked_effects_snapshot = ()
         elif effects_changed or has_new_edits:
             status.baked_effects = None
-            status.baked_effects_count = 0
-            status.effects_visibility = ()
             status.baked_effects_snapshot = ()
 
         # 5. Preparar os edits
@@ -302,8 +296,6 @@ class LayerCacheScope:
             ])
         else:
             if static_effects:
-                status.baked_effects_count = len(static_effects)
-                status.effects_visibility = tuple(e.visible for e in static_effects)
                 layer._effects = EffectStack([
                     CacheEffect(status, layer, has_dynamic_following=True),
                     *static_effects,
@@ -440,8 +432,6 @@ class LayerCache(AbstractLayerCache):
         status.matrix = target.matrix.copy() if matrix is None else matrix.copy()
         status.matrix_2x2_bytes = status.matrix[:2, :2].tobytes()
         status.baked_edits_snapshot = tuple(snapshot_edit(e) for e in target._edits)
-        status.baked_effects_count = 0
-        status.effects_visibility = ()
         status.baked_effects_snapshot = ()
 
     def get_state(self, layer: Layer) -> LayerFrameState | None:

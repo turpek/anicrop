@@ -5,6 +5,8 @@ from typing import Any
 
 import numpy as np
 
+from anicrop.container import _NULL_CONTAINER
+
 
 def unwrap_target(obj: Any) -> Any:
     """Extrai o objeto real de domínio se obj for um Proxy."""
@@ -56,7 +58,7 @@ class ProxyRegistry:
             return None
 
         # Se já for um proxy ou se for NullContainer neutro
-        if hasattr(target, "_target") or type(target).__name__ == "NullContainer":
+        if hasattr(target, "_target") or target is _NULL_CONTAINER:
             return target
 
         target_id = id(target)
