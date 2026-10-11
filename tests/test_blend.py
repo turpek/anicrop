@@ -2,13 +2,16 @@ import numpy as np
 import pytest
 
 from anicrop.blend import (
+    BLEND_MODE,
     _hard_masking_numpy,
     blend_clip,
+    blend_multiply,
     blend_normal,
     hard_masking,
     solid_fill,
 )
 from anicrop.config import config
+from anicrop.enums import BlendMode
 from anicrop.image import Image, ImageFormat
 
 
@@ -543,3 +546,43 @@ def test_hard_masking_numpy_multi_dtype_parity(dtype, base_val, over_val, expect
 
     np.testing.assert_array_equal(base[0, 0], [0, base_val, 0, base_val])
     np.testing.assert_array_equal(base[0, 2], [over_val, 0, 0, expected_val])
+
+
+def test_blend_mode_contains_multiply():
+    """Valida se o modo MULTIPLY está devidamente registrado no dicionário BLEND_MODE."""
+    assert BlendMode.MULTIPLY in BLEND_MODE
+    assert BLEND_MODE[BlendMode.MULTIPLY] is blend_multiply
+
+
+def test_blend_multiply_white_and_black():
+    """Valida se multiplicação de branco por preto resulta em preto."""
+    base = Image(np.full((4, 4, 4), 255, dtype=np.uint8), ImageFormat.RGBA)
+    overlay = Image(
+        np.array([[[0, 0, 0, 255]] * 4] * 4, dtype=np.uint8), ImageFormat.RGBA
+    )
+
+    blend_multiply(base, overlay)
+
+    np.testing.assert_array_equal(base[0, 0], [0, 0, 0, 255])
+
+
+def test_blend_multiply_mid_tones():
+    """Valida multiplicação matemática de tons médios com base sólida."""
+    base = Image(np.full((2, 2, 3), 128, dtype=np.uint8), ImageFormat.RGB)
+    overlay = Image(np.full((2, 2, 3), 128, dtype=np.uint8), ImageFormat.RGB)
+
+    blend_multiply(base, overlay)
+
+    # 128 * 128 / 255 = 64.25 -> 64
+    np.testing.assert_array_equal(base[0, 0], [64, 64, 64])
+
+
+def test_blend_multiply_with_opacity():
+    """Valida mesclagem multiply ponderada pela opacidade."""
+    base = Image(np.full((2, 2, 3), 200, dtype=np.uint8), ImageFormat.RGB)
+    overlay = Image(np.full((2, 2, 3), 100, dtype=np.uint8), ImageFormat.RGB)
+
+    blend_multiply(base, overlay, opacity=0.5)
+
+    # mult = 200 * 100 / 255 = 78.43; out = 0.5 * 200 + 0.5 * 78.43 = 139.2 -> 139
+    assert abs(int(base[0, 0, 0]) - 139) <= 1

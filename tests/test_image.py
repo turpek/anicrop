@@ -266,7 +266,27 @@ def test_image_open_routes_to_read_large(mocker):
 
     Image.open("giant.png", ImageFormat.RGB, backend=mock_backend)
 
-    mock_backend.read_large.assert_called_once_with("giant.png", format=ImageFormat.RGB)
+    mock_backend.read_large.assert_called_once_with(
+        "giant.png", format=ImageFormat.RGB, shrink=1, roi=None
+    )
+    mock_backend.read.assert_not_called()
+
+
+def test_image_open_routes_to_read_large_forwards_shrink_and_roi(mocker):
+    """Valida se Image.open repassa shrink e roi corretamente para read_large em imagens grandes."""
+    mock_backend = mocker.MagicMock()
+    mock_backend.get_size.return_value = (16384, 16384)
+    mock_backend.read_large.return_value = (
+        np.zeros((4096, 4096, 4), dtype=np.uint8),
+        ImageFormat.RGBA,
+    )
+    roi = Region.from_rect(0, 0, 16384, 16384)
+
+    Image.open("giant.png", ImageFormat.RGBA, backend=mock_backend, shrink=2, roi=roi)
+
+    mock_backend.read_large.assert_called_once_with(
+        "giant.png", format=ImageFormat.RGBA, shrink=2, roi=roi
+    )
     mock_backend.read.assert_not_called()
 
 

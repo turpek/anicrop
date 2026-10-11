@@ -30,6 +30,28 @@ class Mask(EditLayer, Effect):
         )
         self.invert = invert
 
+    def __copy__(self) -> Mask:
+        return self.__class__(
+            self._image,
+            self.region,
+            self.local_matrix.copy(),
+            invert=self.invert,
+            visible=self.visible,
+            name=self.name,
+        )
+
+    def __eq__(self, other: object) -> bool:
+        if not isinstance(other, Mask):
+            return False
+        return (
+            self.visible == other.visible
+            and self.invert == other.invert
+            and self.name == other.name
+            and self.region == other.region
+            and np.array_equal(self.local_matrix, other.local_matrix)
+            and self._image is other._image
+        )
+
     def cache_state(self) -> dict[str, Any]:
         """Retorna estado observável para cache incremental."""
         state = super().cache_state()

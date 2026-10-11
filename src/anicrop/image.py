@@ -441,7 +441,10 @@ class Image:
         if threshold is not None and (effective_w * effective_h) >= threshold:
             resolved_fmt = image_format or ImageFormat.RGBA
             data, resolved_fmt = io_backend.read_large(
-                file_path_str, format=resolved_fmt
+                file_path_str,
+                format=resolved_fmt,
+                shrink=shrink,
+                roi=roi,
             )
             img = cls(data, resolved_fmt)
             if target_dtype is not None and img.dtype != target_dtype:

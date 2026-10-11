@@ -268,10 +268,14 @@ class PyvipsBackend(AbstractImageIO):
         self,
         file_path: str | Path,
         format: ImageFormat | None = None,
+        shrink: int = 1,
+        roi: Region | None = None,
     ) -> tuple[Any, ImageFormat]:
         """Abre imagens de altíssima resolução (>=8192px) via streaming sob demanda em C."""
         resolved_fmt = format or ImageFormat.RGBA
-        stream_buf = VipsStreamingBuffer(file_path, target_format=resolved_fmt)
+        stream_buf = VipsStreamingBuffer(
+            file_path, target_format=resolved_fmt, shrink=shrink, roi=roi
+        )
         return stream_buf, resolved_fmt
 
 
@@ -279,14 +283,28 @@ class VipsStreamingBuffer(AbstractImageBuffer):
     """Buffer de streaming sob demanda baseado em libvips para imagens gigantes."""
 
     def __init__(
-        self, file_path: str | Path, target_format: ImageFormat = ImageFormat.RGBA
+        self,
+        file_path: str | Path,
+        target_format: ImageFormat = ImageFormat.RGBA,
+        shrink: int = 1,
+        roi: Region | None = None,
     ) -> None:
         if pyvips is None:
             raise RuntimeError("pyvips não está disponível no sistema.")
 
         self._path: str | None = str(file_path)
         self._target_format = target_format
-        self._vimg = pyvips.Image.new_from_file(self._path, access="random")
+        if shrink > 1:
+            try:
+                self._vimg = pyvips.Image.new_from_file(
+                    self._path, access="random", shrink=shrink
+                )
+            except Exception:
+                self._vimg = pyvips.Image.new_from_file(
+                    self._path, access="random"
+                ).shrink(shrink, shrink)
+        else:
+            self._vimg = pyvips.Image.new_from_file(self._path, access="random")
 
         # Converte para sRGB se necessário
         if self._vimg.bands >= 3 and self._vimg.interpretation != "srgb":
@@ -300,6 +318,11 @@ class VipsStreamingBuffer(AbstractImageBuffer):
             self._vimg = self._vimg.bandjoin(alpha)
         elif target_format == ImageFormat.RGB and self._vimg.bands == 4:
             self._vimg = self._vimg.extract_band(0, n=3)
+
+        if roi is not None:
+            x1, y1 = roi.top_left.to_int()
+            w, h = roi.size.to_int()
+            self._vimg = self._vimg.crop(x1, y1, w, h)
 
     @property
     def shape(self) -> tuple[int, ...]:

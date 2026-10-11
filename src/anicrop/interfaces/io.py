@@ -77,12 +77,16 @@ class AbstractImageIO(ABC):
         self,
         file_path: str | Path,
         format: ImageFormat | None = None,
+        shrink: int = 1,
+        roi: Region | None = None,
     ) -> tuple[Any, ImageFormat]:
         """Abre imagens de altíssima resolução (>=8192px) utilizando a estratégia especializada do backend.
 
         Args:
             file_path: Caminho do arquivo de imagem.
             format: Formato de cor desejado ou None para auto-detecção.
+            shrink: Fator de redução direta no decoder.
+            roi: Recorte espacial opcional.
 
         Returns:
             Tupla contendo (buffer de dados ou array, formato resolvido).
