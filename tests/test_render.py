@@ -28,6 +28,11 @@ from anicrop.spatial import Region
 from anicrop.transform import TransformRel, mat_translation
 from anicrop.viewport import Viewport
 
+try:
+    from anicrop.native.blend import min_pool_alpha as _cy_min_pool_alpha  # type: ignore[import-not-found]
+except ImportError:
+    _cy_min_pool_alpha = None
+
 
 def make_img(
     w: int = 100,
@@ -169,6 +174,33 @@ def test_generate_opacity_mask_spatial_mapping():
 
     assert mask.shape == (32, 32)
     np.testing.assert_array_equal(mask, expected_mask)
+
+
+@pytest.mark.skipif(_cy_min_pool_alpha is None, reason="Cython blend não disponível")
+def test_min_pool_alpha_large_size_dynamic_allocation():
+    """Valida se min_pool_alpha aloca dinamicamente e calcula corretamente quando dst_w ou dst_h > 1024."""
+    src = np.full((1200, 1200, 4), 255, dtype=np.uint8)
+    src[500:600, 500:600, 3] = 0
+
+    dst = np.empty((1050, 1050), dtype=np.uint8)
+    _cy_min_pool_alpha(src, dst)
+
+    assert dst.shape == (1050, 1050)
+    assert np.min(dst) == 0
+    assert dst[0, 0] == 255
+
+
+@pytest.mark.skipif(_cy_min_pool_alpha is None, reason="Cython blend não disponível")
+def test_min_pool_alpha_strided_array():
+    """Valida se min_pool_alpha respeita strides não contíguos de colunas."""
+    full = np.full((100, 200, 4), 255, dtype=np.uint8)
+    full[:, :, 3] = 200
+    sliced = full[:, ::2, :]
+
+    dst = np.empty((50, 50), dtype=np.uint8)
+    _cy_min_pool_alpha(sliced, dst)
+
+    assert np.all(dst == 200)
 
 
 # ==============================================================================
