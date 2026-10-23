@@ -29,7 +29,9 @@ from anicrop.transform import TransformRel, mat_translation
 from anicrop.viewport import Viewport
 
 try:
-    from anicrop.native.blend import min_pool_alpha as _cy_min_pool_alpha  # type: ignore[import-not-found]
+    from anicrop.native.blend import (
+        min_pool_alpha as _cy_min_pool_alpha,  # type: ignore[import-not-found]
+    )
 except ImportError:
     _cy_min_pool_alpha = None
 
